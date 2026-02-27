@@ -1,0 +1,8 @@
+{
+  "name": "Alluci Sovereign Agent",
+  "description": "A multi-modal autonomous agent based on the Alluci personality profile and AAP-v2 framework, featuring real-time affective computing and deterministic polytope reasoning.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}

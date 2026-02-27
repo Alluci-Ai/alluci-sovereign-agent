@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>[ POLYTOPE ] Sovereign OS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Inter:wght@400;700;900&display=swap"
+        rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        manifold: '#FFFFFF',
+                        sovereign: '#000000',
+                        zinc: '#A1A1A1',
+                        tension: '#FF7D00',
+                        agent: '#91D65F',
+                        flux: '#995CC0'
+                    },
+                    fontFamily: {
+                        mono: ['"JetBrains Mono"', 'monospace'],
+                        sans: ['Inter', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* [ POLYTOPE ] PROTOCOL 1.0: THE LATENT SPACE */
+        body {
+            background-color: #FFFFFF;
+            /* The Gap Color */
+            color: #000000;
+            font-family: 'JetBrains Mono', monospace;
+            font-variant-ligatures: none;
+            cursor: crosshair;
+            margin: 0;
+            overflow-x: hidden;
+        }
+
+        /* [ ARCHITECTURAL-VOICE ] - Simulated Baunk */
+        .baunk-style {
+            font-family: 'Inter', sans-serif;
+            letter-spacing: 0.25em;
+            text-transform: uppercase;
+            font-weight: 900;
+        }
+
+        /* [ SIMPLICIAL-RULE ]: 2PX VERTEX GAP */
+        .simplicial-grid {
+            display: grid;
+            padding: 2px;
+            gap: 2px;
+            min-height: 100vh;
+            width: 100vw;
+            background-color: #FFFFFF;
+        }
+
+        .facet {
+            background-color: #FFFFFF;
+            border: 0.5pt solid #000000;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* [ KINETIC-MOTION ] */
+        .alce-button {
+            transition: transform 0.1s linear, background-color 0.1s linear;
+            border: 0.5pt solid #000000;
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+        }
+
+        .alce-button:hover {
+            transform: skewX(-15deg);
+            background-color: #000000;
+            color: #FFFFFF;
+        }
+
+        .input-active:focus {
+            transform: skewX(-2deg);
+            outline: none;
+        }
+
+        .ground-truth {
+            font-variant-ligatures: none;
+        }
+
+        /* Hide Scrollbars */
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+
+        .scrollbar-hide {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        @media (max-width: 768px) {
+            .baunk-style {
+                letter-spacing: 0.15em;
+            }
+        }
+
+        @keyframes loading {
+            0% {
+                transform: translateX(-100%);
+            }
+
+            100% {
+                transform: translateX(100%);
+            }
+        }
+    </style>
+    <link rel="stylesheet" href="/index.css">
+</head>
+
+<body class="bg-manifold">
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+</body>
+
+</html>
