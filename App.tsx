@@ -14,6 +14,8 @@ import {
 import { AuditEntry, PersonalityTraits, Connection, AuthType, SkillManifest, ApiManifoldKeys, AutonomyLevel, SoulPreferences, SoulHumor, SoulConciseness, SoulManifest, GraphNode, GraphEdge } from './types';
 import SoulPreferencesPanel from './SoulPreferencesPanel';
 import SkillBuilderWizard from './SkillBuilderWizard';
+import ApiWizard from './ApiWizard';
+import { QRCodeCanvas } from 'qrcode.react';
 
 // [ CONFIGURATION_NODE ]
 const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
@@ -265,13 +267,135 @@ const TaskPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 const AuthPortal: React.FC<any> = ({ connection, onComplete, onCancel }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
-  const handleAuth = () => { setIsLoading(true); setTimeout(() => { setIsLoading(false); setIsVerifying(true); setTimeout(() => { onComplete(`active_${connection.id.toLowerCase()}_session`, `https://api.dicebear.com/7.x/identicon/svg?seed=${connection.id}`); }, 1500); }, 1200); };
+  const [verusChallenge, setVerusChallenge] = useState<any>(null);
+  const [polling, setPolling] = useState(false);
+
+  const isVerus = connection.id === 'verus';
+
+  const fetchVerusChallenge = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`${DAEMON_URL}/auth/verusid/challenge`);
+      if (res.ok) {
+        setVerusChallenge(await res.json());
+        setPolling(true);
+      }
+    } catch (e) { console.error("Verus Challenge Failed", e); }
+    finally { setIsLoading(false); }
+  };
+
+  useEffect(() => {
+    if (isVerus && !verusChallenge) {
+      fetchVerusChallenge();
+    }
+  }, [isVerus]);
+
+  // Polling for VerusID Callback (In a real mobile app, the mobile app hits the callback)
+  // For simulation/dev, we can poll the daemon to see if the challenge was consumed
+  useEffect(() => {
+    if (!polling || !verusChallenge) return;
+    const interval = setInterval(async () => {
+      // Logic to check if challenge is resolved
+      // In this specific architecture, the backend issues JWT on callback.
+      // For this UI, we might wait for the user to manually 'confirm' or 
+      // have the backend signal completion via a status endpoint.
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [polling, verusChallenge]);
+
+  const handleAuth = () => {
+    if (isVerus) return; // Managed by QR flow
+    setIsLoading(true);
+    setTimeout(() => {
+      setIsLoading(false);
+      setIsVerifying(true);
+      setTimeout(() => {
+        onComplete(`active_${connection.id.toLowerCase()}_session`, `https://api.dicebear.com/7.x/identicon/svg?seed=${connection.id}`);
+      }, 1500);
+    }, 1200);
+  };
+
   return (
     <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/80 backdrop-blur-xl p-4">
       <div className="facet w-full max-w-md bg-white p-6 md:p-10 border-2 shadow-2xl animate-in zoom-in-95 duration-300">
         <div className="h-1.5 w-full flex absolute top-0 left-0"><div className="h-full bg-sovereign flex-1" /><div className="h-full bg-agent flex-1" /><div className="h-full bg-tension flex-1" /><div className="h-full bg-flux flex-1" /></div>
-        <div className="flex justify-between items-center border-b border-sovereign pb-6 mb-8 mt-2"><div className="flex flex-col"><span className="baunk-style text-[12px] md:text-[14px] tracking-[0.4em]">SECURE_HANDSHAKE</span><span className="text-[8px] font-mono opacity-40 uppercase">{connection.name} Manifold</span></div><button onClick={onCancel} className="text-zinc hover:text-black transition-colors px-2 py-1">✕</button></div>
-        <div className="flex flex-col gap-6">{!isVerifying ? (<><div className="text-center mb-4"><div className="w-16 h-16 bg-zinc/5 rounded-full flex items-center justify-center mx-auto mb-4 border border-zinc/10"><span className="text-2xl font-bold">{connection.name.slice(0, 1)}</span></div><h3 className="text-[12px] font-sans font-bold">Initiate {connection.name} Bridge</h3><p className="text-[10px] opacity-60 max-w-[280px] mx-auto mt-2 leading-relaxed">Connecting via <span className="text-agent font-bold">{connection.authType}</span> protocol. Best practices for data isolation and end-to-end encryption are enforced.</p></div><button disabled={isLoading} onClick={handleAuth} className={`w-full p-4 baunk-style text-[10px] flex items-center justify-center gap-3 transition-all ${isLoading ? 'bg-zinc text-white animate-pulse' : 'bg-sovereign text-white hover:bg-agent'}`}>{isLoading ? '[ NEGOTIATING... ]' : '[ AUTHORIZE_ONE_TOUCH ]'}</button></>) : (<div className="flex flex-col items-center gap-6 py-4"><div className="relative"><div className="w-20 h-20 rounded-full border-4 border-agent animate-ping absolute opacity-20" /><div className="w-20 h-20 rounded-full border-2 border-agent flex items-center justify-center"><svg className="w-10 h-10 text-agent animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4" /></svg></div></div><div className="text-[10px] font-mono text-center tracking-widest text-agent uppercase animate-pulse">Biometric_Verification_In_Progress</div><div className="text-[8px] opacity-40 font-mono">ENCRYPTING_SESSION_TOKEN...</div></div>)}</div>
+        <div className="flex justify-between items-center border-b border-sovereign pb-6 mb-8 mt-2">
+          <div className="flex flex-col">
+            <span className="baunk-style text-[12px] md:text-[14px] tracking-[0.4em]">{isVerus ? 'VERUSID_SOVEREIGN_LINK' : 'SECURE_HANDSHAKE'}</span>
+            <span className="text-[8px] font-mono opacity-40 uppercase">{connection.name} Manifold</span>
+          </div>
+          <button onClick={onCancel} className="text-zinc hover:text-black transition-colors px-2 py-1">✕</button>
+        </div>
+
+        <div className="flex flex-col gap-6">
+          {isVerus ? (
+            <div className="flex flex-col items-center gap-6">
+              {isLoading ? (
+                <div className="h-48 flex items-center justify-center animate-pulse text-zinc text-[10px] baunk-style">
+                  [ GENERATING_VDXF_CHALLENGE... ]
+                </div>
+              ) : verusChallenge ? (
+                <>
+                  <div className="p-4 bg-white border-4 border-black shadow-lg">
+                    <QRCodeCanvas
+                      value={JSON.stringify(verusChallenge)}
+                      size={180}
+                      level="H"
+                      includeMargin={true}
+                    />
+                  </div>
+                  <div className="text-center">
+                    <h3 className="text-[10px] font-bold baunk-style mb-2">SCAN WITH VERUS MOBILE</h3>
+                    <p className="text-[9px] opacity-60 font-mono leading-relaxed max-w-[280px]">
+                      Identity: <span className="text-black font-bold">{verusChallenge.identity_hint || "Self-Sovereign"}</span><br />
+                      Nonce: <span className="opacity-40">{verusChallenge.nonce.slice(0, 16)}...</span>
+                    </p>
+                  </div>
+                  <div className="w-full flex flex-col gap-2">
+                    <div className="h-1 w-full bg-zinc/10 overflow-hidden">
+                      <div className="h-full bg-sovereign animate-progress-fast" style={{ width: '100%' }} />
+                    </div>
+                    <span className="text-[7px] font-mono text-center animate-pulse lowercase">Waiting for blockchain-verifiable signature...</span>
+                  </div>
+                </>
+              ) : (
+                <div className="text-red-500 text-[10px] baunk-style">[ ERROR: DAEMON_UNREACHABLE ]</div>
+              )}
+            </div>
+          ) : (
+            <>
+              {!isVerifying ? (
+                <>
+                  <div className="text-center mb-4">
+                    <div className="w-16 h-16 bg-zinc/5 rounded-full flex items-center justify-center mx-auto mb-4 border border-zinc/10">
+                      <span className="text-2xl font-bold">{connection.name.slice(0, 1)}</span>
+                    </div>
+                    <h3 className="text-[12px] font-sans font-bold">Initiate {connection.name} Bridge</h3>
+                    <p className="text-[10px] opacity-60 max-w-[280px] mx-auto mt-2 leading-relaxed">
+                      Connecting via <span className="text-agent font-bold">{connection.authType}</span> protocol.
+                      Enforced isolation and end-to-end encryption.
+                    </p>
+                  </div>
+                  <button disabled={isLoading} onClick={handleAuth} className={`w-full p-4 baunk-style text-[10px] flex items-center justify-center gap-3 transition-all ${isLoading ? 'bg-zinc text-white animate-pulse' : 'bg-sovereign text-white hover:bg-agent'}`}>
+                    {isLoading ? '[ NEGOTIATING... ]' : '[ AUTHORIZE_ONE_TOUCH ]'}
+                  </button>
+                </>
+              ) : (
+                <div className="flex flex-col items-center gap-6 py-4">
+                  <div className="relative">
+                    <div className="w-20 h-20 rounded-full border-4 border-agent animate-ping absolute opacity-20" />
+                    <div className="w-20 h-20 rounded-full border-2 border-agent flex items-center justify-center">
+                      <svg className="w-10 h-10 text-agent animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4" />
+                      </svg>
+                    </div>
+                  </div>
+                  <div className="text-[10px] font-mono text-center tracking-widest text-agent uppercase animate-pulse">Verification_In_Progress</div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -426,6 +550,7 @@ const App: React.FC = () => {
   const [isApiManifoldOpen, setIsApiManifoldOpen] = useState(false);
   const [isTaskPanelOpen, setIsTaskPanelOpen] = useState(false);
   const [showSkillWizard, setShowSkillWizard] = useState(false);
+  const [isApiWizardOpen, setIsApiWizardOpen] = useState(false);
 
   const [activeAuth, setActiveAuth] = useState<Connection | null>(null);
   const [selectedSkill, setSelectedSkill] = useState<SkillManifest | null>(null);
@@ -486,7 +611,19 @@ const App: React.FC = () => {
     return defaultKeys;
   });
 
-  useEffect(() => { localStorage.setItem('alluci_api_keys', JSON.stringify(apiKeys)); }, [apiKeys]);
+  useEffect(() => {
+    if (Object.keys(apiKeys.llm).length > 0 || Object.keys(apiKeys.audio).length > 0) {
+      localStorage.setItem('alluci_api_keys', JSON.stringify(apiKeys));
+    }
+  }, [apiKeys]);
+
+  const handleSaveApiKeys = (newKeys: ApiManifoldKeys) => {
+    setApiKeys(newKeys);
+    // Explicitly update geminiService if needed
+    if (geminiServiceRef.current) {
+      // In a real implementation, we'd notify the provider router here
+    }
+  };
 
   const [connections, setConnections] = useState<Connection[]>([
     { id: 'icloud', name: 'iCloud', status: 'DISCONNECTED', type: 'WORKSPACE', authType: 'TOKEN', autonomyLevel: AutonomyLevel.RESTRICTED, isEncrypted: false },
@@ -881,29 +1018,9 @@ const App: React.FC = () => {
     }
   };
 
-  const updateApiKey = (category: keyof ApiManifoldKeys, provider: string, value: string) => {
-    setApiKeys(prev => ({
-      ...prev,
-      [category]: {
-        ...(prev[category] || {}),
-        [provider]: value
-      }
-    }));
-  };
-
-  const handleAddService = () => {
-    // Check if category and name are present. Key can be empty initially.
-    if (addingServiceCategory && newServiceName.trim()) {
-      const id = newServiceName.trim().toLowerCase().replace(/\s+/g, '_');
-      updateApiKey(addingServiceCategory, id, newServiceKey);
-      setAddingServiceCategory(null);
-      setNewServiceName("");
-      setNewServiceKey("");
-    }
-  };
-
-  const deleteCustomKey = (category: keyof ApiManifoldKeys, id: string) => {
-    setApiKeys(prev => { const catKeys = { ...prev[category] }; delete catKeys[id]; return { ...prev, [category]: catKeys }; });
+  const handleSaveApiKeysLocal = (newKeys: ApiManifoldKeys) => {
+    handleSaveApiKeys(newKeys);
+    setIsApiWizardOpen(false);
   };
 
   // Callback to sync personality/soul manifest from IdentityForge to Runtime
@@ -922,48 +1039,6 @@ const App: React.FC = () => {
     'SOCIAL_MANIFOLD': connections.filter(c => ['wa', 'tg', 'dc', 'sg', 'ig', 'fb', 'x'].includes(c.id)),
     'ENTERPRISE_CORE': connections.filter(c => ['sl', 'mt', 'gm', 'gd', 'webchat', 'wechat'].includes(c.id)),
     'VERUS_IDENTITY': connections.filter(c => ['verus'].includes(c.id))
-  };
-
-  const renderApiSection = (category: keyof ApiManifoldKeys, title: string, titleClass: string) => {
-    const known = KNOWN_PROVIDERS[category];
-    const knownIds = new Set(known.map(k => k.id));
-    const currentKeys = apiKeys[category];
-    const customKeys = Object.keys(currentKeys).filter(k => !knownIds.has(k));
-
-    return (
-      <div className="space-y-6">
-        <h3 className={`baunk-style text-[10px] ${titleClass} border-b border-current pb-2`}>{title}</h3>
-        {known.map(item => {
-          const val = currentKeys[item.id] || '';
-          const valid = validateApiKey(item.id, val);
-          return (
-            <div key={item.id} className="space-y-2">
-              <label className="text-[7px] baunk-style opacity-50 block">{item.label}</label>
-              <input type="password" value={val} onChange={(e) => updateApiKey(category, item.id, e.target.value)} placeholder="ENTER_TOKEN..." className={`w-full bg-zinc/5 border p-2 text-[9px] font-mono outline-none transition-colors ${valid ? 'border-zinc/20 focus:border-agent' : 'border-red-500 focus:border-red-600 text-red-900'}`} />
-              {!valid && <span className="text-[7px] text-red-500 baunk-style block">⚠ FORMAT_INVALID</span>}
-            </div>
-          )
-        })}
-        {customKeys.map(key => (
-          <div key={key} className="space-y-2 animate-in slide-in-from-left-2">
-            <div className="flex justify-between items-center">
-              <label className="text-[7px] baunk-style opacity-50 block uppercase text-agent">{key.replace(/_/g, ' ')} (CUSTOM)</label>
-              <button onClick={() => deleteCustomKey(category, key)} className="text-[8px] text-zinc hover:text-red-500 font-bold">✕</button>
-            </div>
-            <input type="password" value={currentKeys[key] || ''} onChange={(e) => updateApiKey(category, key, e.target.value)} placeholder="ENTER_CUSTOM_TOKEN..." className="w-full bg-zinc/5 border border-zinc/20 p-2 text-[9px] font-mono focus:border-agent outline-none" />
-          </div>
-        ))}
-        {addingServiceCategory === category ? (
-          <div className="p-3 bg-zinc/5 border border-dashed border-zinc/20 space-y-3 animate-in fade-in zoom-in-95">
-            <input autoFocus value={newServiceName} onChange={(e) => setNewServiceName(e.target.value)} placeholder="SERVICE_NAME..." className="w-full bg-white border border-zinc/20 p-2 text-[9px] font-mono outline-none" />
-            <input value={newServiceKey} onChange={(e) => setNewServiceKey(e.target.value)} placeholder="API_KEY..." type="password" className="w-full bg-white border border-zinc/20 p-2 text-[9px] font-mono outline-none" />
-            <div className="flex gap-2"><button onClick={handleAddService} className="flex-1 bg-sovereign text-white text-[9px] baunk-style py-1 hover:bg-agent">SAVE</button><button onClick={() => { setAddingServiceCategory(null); setNewServiceName(''); setNewServiceKey(''); }} className="flex-1 bg-zinc/10 text-[9px] baunk-style py-1 hover:bg-zinc/20">CANCEL</button></div>
-          </div>
-        ) : (
-          <button onClick={() => setAddingServiceCategory(category)} className="w-full py-2 border border-dashed border-zinc/20 text-[9px] baunk-style opacity-40 hover:opacity-100 hover:border-agent hover:text-agent transition-all">+ ADD_CUSTOM_SERVICE</button>
-        )}
-      </div>
-    );
   };
 
   const copyText = (text: string) => {
@@ -991,7 +1066,7 @@ const App: React.FC = () => {
           <button onClick={() => setIsTaskPanelOpen(true)} className="alce-button text-[8px] baunk-style">[ TASKS ]</button>
           <button onClick={() => setIsSettingsOpen(!isSettingsOpen)} className="alce-button text-[8px] baunk-style">[ SKILLS ]</button>
           <button onClick={() => setIsPreferencesOpen(true)} className="alce-button text-[8px] baunk-style">[ BRIDGES ]</button>
-          <button onClick={() => setIsApiManifoldOpen(true)} className="alce-button text-[8px] baunk-style">[ API ]</button>
+          <button onClick={() => setIsApiWizardOpen(true)} className="alce-button text-[8px] baunk-style">[ API ]</button>
           <button onClick={() => setIsSoulOpen(true)} className="alce-button text-[8px] baunk-style">[ SOUL ]</button>
           <button onClick={handleConnect} className={`alce-button text-[9px] baunk-style px-6 ${isConnected ? 'text-tension' : 'text-agent'}`}>{isConnected ? '[ SLEEP ]' : '[ AWAKEN ]'}</button>
         </div>
@@ -1062,7 +1137,18 @@ const App: React.FC = () => {
               <button onClick={() => { setIsAuditOpen(false); setIsPreferencesOpen(false); setIsSettingsOpen(false); setIsDriveOpen(false); setIsSoulOpen(false); setIsApiManifoldOpen(false); setIsTaskPanelOpen(false); setSelectedSkill(null); setShowSkillWizard(false); }} className="alce-button baunk-style text-[9px] md:text-[10px] hover:bg-tension px-4 md:px-10 py-2">[ EXIT ]</button>
             </header>
             <div className="flex-1 overflow-y-auto p-4 md:p-10 scrollbar-hide relative">
-              {isTaskPanelOpen ? (<TaskPanel onClose={() => setIsTaskPanelOpen(false)} />) : isApiManifoldOpen ? (<div className="flex flex-col gap-12 pb-20"><div className="p-6 bg-sovereign/5 border border-sovereign/20 mb-8"><h3 className="baunk-style text-[10px] text-black border-b border-black/10 pb-2 mb-4">0. DAEMON_ACCESS_CONTROL</h3><div className="space-y-4"><p className="text-[9px] font-mono opacity-60">Authenticate with your Sovereign Master Key to enable autonomous objective execution.</p><div className="flex gap-2"><input type="password" value={masterKeyInput} onChange={(e) => setMasterKeyInput(e.target.value)} placeholder="ENTER_SOVEREIGN_MASTER_KEY..." className="flex-1 bg-white border border-zinc/20 p-2 text-[9px] font-mono focus:border-black outline-none" /><button onClick={handleDaemonLogin} disabled={isAuthenticating} className="alce-button baunk-style text-[9px] bg-black text-white hover:bg-zinc-800 disabled:opacity-50">{isAuthenticating ? '[ VERIFYING... ]' : '[ AUTHENTICATE ]'}</button></div>{authStatus && (<div className={`text-[8px] font-mono font-bold tracking-wider ${authStatus.includes('SUCCESS') ? 'text-agent' : 'text-tension'}`}>{authStatus}</div>)}</div></div><div className="p-6 bg-agent/5 border border-agent/20 text-[10px] font-mono leading-relaxed mb-6"><p className="font-bold text-agent mb-2 uppercase tracking-[0.2em]">Security Protocol Awareness:</p><p>All API keys entered here are stored within your local Sovereign Manifold (localStorage). They grant Alluci autonomous reach into your subscription silos for Text Reasoning, Audio, Music, Image, and Video synthesis. Ensure your project environments are secure.</p></div><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">{renderApiSection('llm', '1. LLM_REASONING_&_LOGIC', 'text-sovereign')}{renderApiSection('audio', '2. CONVERSATIONAL_AUDIO', 'text-agent')}{renderApiSection('music', '3. MUSIC_SYNTHESIS', 'text-flux')}{renderApiSection('image', '4. IMAGE_MANIFESTATION', 'text-tension')}{renderApiSection('video', '5. VIDEO_TEMPORAL_GENESIS', 'text-zinc')}</div><div className="mt-12 pt-12 border-t border-sovereign/10 flex justify-end"><button onClick={() => { localStorage.setItem('alluci_api_keys', JSON.stringify(apiKeys)); setIsApiManifoldOpen(false); geminiServiceRef.current?.audit.addEntry("API_MANIFOLD_PERSISTED", { status: "SUCCESS" }); refreshAuditLog(); }} className="alce-button baunk-style text-[10px] px-12 py-4 bg-sovereign text-white hover:bg-agent">[ SAVE_TO_MANIFOLD ]</button></div></div>) : isSoulOpen ? (<SoulPreferencesPanel onClose={() => setIsSoulOpen(false)} onManifestUpdate={handleManifestUpdate} />) : isPreferencesOpen ? (<div className="flex flex-col gap-16"><div className="grid grid-cols-1 lg:grid-cols-1 gap-16"><div className="flex flex-col"><h3 className="baunk-style text-[12px] border-b border-sovereign pb-1 mb-8 opacity-50 tracking-[0.3em]">Security_&_Trust_Protocol</h3><div className="p-6 bg-agent/5 border border-agent/20 text-[10px] font-mono leading-relaxed mb-10 space-y-4"><p>● <span className="font-bold">ONE_TOUCH_LOGIN</span>: Enabled for all verified biometric platforms.</p><p>● <span className="font-bold">E2E_ENCRYPTION</span>: Mandatory for iMessage, Signal, and WhatsApp bridges.</p><p>● <span className="font-bold">SESSION_ISOLATION</span>: Each bridge operates in a secure Simplicial Vault.</p><p>● <span className="font-bold">AUTONOMY_LEVEL</span>: Full sovereign execution authorized.</p></div><div className="grid grid-cols-2 gap-4 max-w-sm"><button className="alce-button text-[8px] baunk-style w-full bg-sovereign text-white">[ ROTATE_KEYS ]</button><button className="alce-button text-[8px] baunk-style w-full">[ FLUSH_CACHE ]</button></div></div></div><div className="space-y-12 pb-20">{Object.entries(groupedConnections).map(([groupName, groupConns]) => (<div key={groupName}><h3 className="baunk-style text-[12px] border-b border-sovereign pb-1 mb-8 opacity-50 tracking-[0.3em]">{groupName}</h3><div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">{groupConns.map(conn => (<div key={conn.id} className={`facet p-6 transition-all duration-300 group hover:shadow-xl ${conn.status === 'CONNECTED' ? 'border-agent' : 'border-zinc/20 hover:border-sovereign'}`}><div className="flex justify-between items-start mb-6"><div className="flex flex-col"><span className="baunk-style text-[10px] block font-bold mb-1">{conn.name}</span><span className="text-[7px] font-mono opacity-40 uppercase">{conn.type}</span></div><span className={`text-[6px] baunk-style p-1.5 border ${conn.status === 'CONNECTED' ? 'bg-agent text-white border-agent' : 'bg-zinc/5 opacity-40 border-zinc/20'}`}>{conn.authType}</span></div>{conn.status === 'CONNECTED' ? (<div className="flex items-center gap-3 mb-6 animate-in slide-in-from-top-2"><div className="relative"><img src={conn.profileImg || `https://api.dicebear.com/7.x/identicon/svg?seed=${conn.id}`} className="w-10 h-10 rounded-full border border-sovereign/10 grayscale group-hover:grayscale-0 transition-all" alt="" /><div className="absolute bottom-0 right-0 w-3 h-3 bg-agent rounded-full border-2 border-white" /></div><div className="flex flex-col"><div className="text-[8px] font-bold font-mono text-sovereign">{conn.accountAlias}</div><div className="text-[6px] font-mono opacity-40 uppercase tracking-tighter">Verified Session</div></div></div>) : (<div className="h-10 mb-6 flex items-center justify-center border border-dashed border-zinc/20 bg-zinc/5"><span className="text-[7px] font-mono opacity-20 uppercase tracking-widest italic">Signal Offline</span></div>)}<button onClick={() => startAuthFlow(conn)} className={`alce-button py-3 text-[8px] w-full baunk-style transition-all ${conn.status === 'CONNECTED' ? 'text-tension border-tension hover:bg-tension hover:text-white' : 'text-sovereign hover:bg-sovereign hover:text-white'}`}>{conn.status === 'CONNECTED' ? '[ TERMINATE ]' : '[ ACTIVATE ]'}</button></div>))}</div></div>))}</div></div>) : isSettingsOpen ? (showSkillWizard ? (<SkillBuilderWizard onClose={() => { setShowSkillWizard(false); fetchSkills(); }} />) : (<div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative"><div onClick={() => setShowSkillWizard(true)} className="facet p-8 border-dashed border-zinc/20 hover:border-agent transition-all duration-300 group cursor-pointer flex flex-col items-center justify-center gap-4 bg-zinc/5 hover:bg-agent/5 h-[300px]"><div className="w-16 h-16 rounded-full border border-zinc/20 flex items-center justify-center group-hover:border-agent transition-colors"><span className="text-2xl text-zinc-400 group-hover:text-agent">+</span></div><span className="baunk-style text-[10px] tracking-[0.2em] group-hover:text-agent">CREATE_NEW_COGNITIVE_MODULE</span></div>{skills.map(skill => (<div key={skill.id} onClick={() => setSelectedSkill(skill)} className={`facet p-8 border-zinc/10 relative hover:border-agent transition-all duration-500 group cursor-pointer ${!skill.verified ? 'opacity-40 grayscale' : 'shadow-sm'}`}><div className="flex justify-between items-start mb-6"><div className="flex flex-col"><span className="baunk-style text-[12px] group-hover:text-agent transition-colors">{skill.name}</span><span className="text-[7px] font-mono opacity-30 mt-1 uppercase tracking-tighter">{skill.category} / {skill.id}</span></div><div className="flex gap-2"><button onClick={(e) => { e.stopPropagation(); handleDeleteSkill(skill.id); }} className="px-2 py-1 text-[8px] baunk-style text-red-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">✕</button><button onClick={(e) => { e.stopPropagation(); handleToggleSkill(skill.id); }} className={`px-3 py-1 text-[8px] baunk-style border ${skill.verified ? 'bg-agent text-white border-agent' : 'bg-white text-zinc border-zinc/20 hover:border-tension hover:text-tension'}`}>{skill.verified ? '[ ACTIVE ]' : '[ OFFLINE ]'}</button></div></div><div className="space-y-2 mb-6"><span className="text-[7px] baunk-style opacity-30 block">Capabilities:</span><div className="flex flex-wrap gap-1">{(skill.capabilities || []).length > 0 ? (skill.capabilities.map((cap, ci) => (<span key={ci} className="bg-zinc/5 border border-zinc/10 px-2 py-0.5 text-[7px] font-mono opacity-60 truncate max-w-full">{cap}</span>))) : (<span className="text-[7px] font-mono opacity-30 italic">No specific tool bindings.</span>)}</div></div><div className="flex justify-between items-center text-[7px] font-mono opacity-20 mt-8 pt-4 border-t border-zinc/5"><span>SIG: {skill.signature}</span></div></div>))}</div>)) : isDriveOpen ? (<div className="flex flex-col items-center justify-center h-full gap-12 py-20"><div className="relative"><div className="absolute inset-0 bg-agent/5 rounded-full blur-3xl scale-150 animate-pulse" /><PolytopeIdentity color="#000" size={160} active={isConnected} /></div><div className="text-center space-y-4 max-w-xl px-6"><h3 className="baunk-style text-xl tracking-[0.8em]">MANIFOLD_STORAGE_STABLE</h3><p className="text-[11px] opacity-40 font-mono leading-relaxed">Awaiting sovereign data packets. Integrated iCloud, Google Drive, and MS Teams bridges are prepared for bi-directional synchronization.</p></div><button onClick={() => fileInputRef.current?.click()} className="alce-button baunk-style text-[10px] px-20 h-16">[ UPLOAD_DATA_PACKET ]</button></div>) : null}
+              {isTaskPanelOpen ? (<TaskPanel onClose={() => setIsTaskPanelOpen(false)} />) : isApiManifoldOpen ? (
+                <div className="flex flex-col items-center justify-center py-20 gap-8">
+                  <h3 className="baunk-style text-lg tracking-widest text-center">SOVEREIGN_API_MANIFOLD_CONTROL</h3>
+                  <button
+                    onClick={() => { setIsApiManifoldOpen(false); setIsApiWizardOpen(true); }}
+                    className="alce-button baunk-style text-[10px] px-12 py-4 bg-sovereign text-white hover:bg-agent"
+                  >
+                    [ LAUNCH_API_WIZARD ]
+                  </button>
+                </div>
+              ) : isSoulOpen ? (<SoulPreferencesPanel onClose={() => setIsSoulOpen(false)} onManifestUpdate={handleManifestUpdate} />) : isPreferencesOpen ? (
+                <div className="flex flex-col gap-16"><div className="grid grid-cols-1 lg:grid-cols-1 gap-16"><div className="flex flex-col"><h3 className="baunk-style text-[12px] border-b border-sovereign pb-1 mb-8 opacity-50 tracking-[0.3em]">Security_&_Trust_Protocol</h3><div className="p-6 bg-agent/5 border border-agent/20 text-[10px] font-mono leading-relaxed mb-10 space-y-4"><p>● <span className="font-bold">ONE_TOUCH_LOGIN</span>: Enabled for all verified biometric platforms.</p><p>● <span className="font-bold">E2E_ENCRYPTION</span>: Mandatory for iMessage, Signal, and WhatsApp bridges.</p><p>● <span className="font-bold">SESSION_ISOLATION</span>: Each bridge operates in a secure Simplicial Vault.</p><p>● <span className="font-bold">AUTONOMY_LEVEL</span>: Full sovereign execution authorized.</p></div><div className="grid grid-cols-2 gap-4 max-w-sm"><button className="alce-button text-[8px] baunk-style w-full bg-sovereign text-white">[ ROTATE_KEYS ]</button><button className="alce-button text-[8px] baunk-style w-full">[ FLUSH_CACHE ]</button></div></div></div><div className="space-y-12 pb-20">{Object.entries(groupedConnections).map(([groupName, groupConns]) => (<div key={groupName}><h3 className="baunk-style text-[12px] border-b border-sovereign pb-1 mb-8 opacity-50 tracking-[0.3em]">{groupName}</h3><div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">{groupConns.map(conn => (<div key={conn.id} className={`facet p-6 transition-all duration-300 group hover:shadow-xl ${conn.status === 'CONNECTED' ? 'border-agent' : 'border-zinc/20 hover:border-sovereign'}`}><div className="flex justify-between items-start mb-6"><div className="flex flex-col"><span className="baunk-style text-[10px] block font-bold mb-1">{conn.name}</span><span className="text-[7px] font-mono opacity-40 uppercase">{conn.type}</span></div><span className={`text-[6px] baunk-style p-1.5 border ${conn.status === 'CONNECTED' ? 'bg-agent text-white border-agent' : 'bg-zinc/5 opacity-40 border-zinc/20'}`}>{conn.authType}</span></div>{conn.status === 'CONNECTED' ? (<div className="flex items-center gap-3 mb-6 animate-in slide-in-from-top-2"><div className="relative"><img src={conn.profileImg || `https://api.dicebear.com/7.x/identicon/svg?seed=${conn.id}`} className="w-10 h-10 rounded-full border border-sovereign/10 grayscale group-hover:grayscale-0 transition-all" alt="" /><div className="absolute bottom-0 right-0 w-3 h-3 bg-agent rounded-full border-2 border-white" /></div><div className="flex flex-col"><div className="text-[8px] font-bold font-mono text-sovereign">{conn.accountAlias}</div><div className="text-[6px] font-mono opacity-40 uppercase tracking-tighter">Verified Session</div></div></div>) : (<div className="h-10 mb-6 flex items-center justify-center border border-dashed border-zinc/20 bg-zinc/5"><span className="text-[7px] font-mono opacity-20 uppercase tracking-widest italic">Signal Offline</span></div>)}<button onClick={() => startAuthFlow(conn)} className={`alce-button py-3 text-[8px] w-full baunk-style transition-all ${conn.status === 'CONNECTED' ? 'text-tension border-tension hover:bg-tension hover:text-white' : 'text-sovereign hover:bg-sovereign hover:text-white'}`}>{conn.status === 'CONNECTED' ? '[ TERMINATE ]' : '[ ACTIVATE ]'}</button></div>))}</div></div>))}</div></div>) : isSettingsOpen ? (showSkillWizard ? (<SkillBuilderWizard onClose={() => { setShowSkillWizard(false); fetchSkills(); }} />) : (<div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative"><div onClick={() => setShowSkillWizard(true)} className="facet p-8 border-dashed border-zinc/20 hover:border-agent transition-all duration-300 group cursor-pointer flex flex-col items-center justify-center gap-4 bg-zinc/5 hover:bg-agent/5 h-[300px]"><div className="w-16 h-16 rounded-full border border-zinc/20 flex items-center justify-center group-hover:border-agent transition-colors"><span className="text-2xl text-zinc-400 group-hover:text-agent">+</span></div><span className="baunk-style text-[10px] tracking-[0.2em] group-hover:text-agent">CREATE_NEW_COGNITIVE_MODULE</span></div>{skills.map(skill => (<div key={skill.id} onClick={() => setSelectedSkill(skill)} className={`facet p-8 border-zinc/10 relative hover:border-agent transition-all duration-500 group cursor-pointer ${!skill.verified ? 'opacity-40 grayscale' : 'shadow-sm'}`}><div className="flex justify-between items-start mb-6"><div className="flex flex-col"><span className="baunk-style text-[12px] group-hover:text-agent transition-colors">{skill.name}</span><span className="text-[7px] font-mono opacity-30 mt-1 uppercase tracking-tighter">{skill.category} / {skill.id}</span></div><div className="flex gap-2"><button onClick={(e) => { e.stopPropagation(); handleDeleteSkill(skill.id); }} className="px-2 py-1 text-[8px] baunk-style text-red-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">✕</button><button onClick={(e) => { e.stopPropagation(); handleToggleSkill(skill.id); }} className={`px-3 py-1 text-[8px] baunk-style border ${skill.verified ? 'bg-agent text-white border-agent' : 'bg-white text-zinc border-zinc/20 hover:border-tension hover:text-tension'}`}>{skill.verified ? '[ ACTIVE ]' : '[ OFFLINE ]'}</button></div></div><div className="space-y-2 mb-6"><span className="text-[7px] baunk-style opacity-30 block">Capabilities:</span><div className="flex flex-wrap gap-1">{(skill.capabilities || []).length > 0 ? (skill.capabilities.map((cap, ci) => (<span key={ci} className="bg-zinc/5 border border-zinc/10 px-2 py-0.5 text-[7px] font-mono opacity-60 truncate max-w-full">{cap}</span>))) : (<span className="text-[7px] font-mono opacity-30 italic">No specific tool bindings.</span>)}</div></div><div className="flex justify-between items-center text-[7px] font-mono opacity-20 mt-8 pt-4 border-t border-zinc/5"><span>SIG: {skill.signature}</span></div></div>))}</div>)) : isDriveOpen ? (<div className="flex flex-col items-center justify-center h-full gap-12 py-20"><div className="relative"><div className="absolute inset-0 bg-agent/5 rounded-full blur-3xl scale-150 animate-pulse" /><PolytopeIdentity color="#000" size={160} active={isConnected} /></div><div className="text-center space-y-4 max-w-xl px-6"><h3 className="baunk-style text-xl tracking-[0.8em]">MANIFOLD_STORAGE_STABLE</h3><p className="text-[11px] opacity-40 font-mono leading-relaxed">Awaiting sovereign data packets. Integrated iCloud, Google Drive, and MS Teams bridges are prepared for bi-directional synchronization.</p></div><button onClick={() => fileInputRef.current?.click()} className="alce-button baunk-style text-[10px] px-20 h-16">[ UPLOAD_DATA_PACKET ]</button></div>) : null}
             </div>
             {selectedSkill && (
               <div className="absolute top-0 md:top-24 left-0 md:left-1/2 md:-translate-x-1/2 z-[150] w-full h-full md:h-auto md:w-[90%] max-w-2xl md:max-h-[75vh] bg-white border-2 border-sovereign shadow-[0_20px_60px_rgba(0,0,0,0.3)] flex flex-col animate-in slide-in-from-top-10 duration-500">

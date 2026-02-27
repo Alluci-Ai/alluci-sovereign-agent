@@ -41,6 +41,14 @@ class Settings(BaseSettings):
     CRITIC_THRESHOLD: float = 0.75
     MAX_CONCURRENT_TASKS: int = 5
 
+    # Verus RPC Settings
+    VERUS_RPC_HOST: str = "127.0.0.1"
+    VERUS_RPC_PORT: int = 27486
+    VERUS_RPC_USER: str = ""
+    VERUS_RPC_PASSWORD: str = ""
+    VERUS_AUTH_ENABLED: bool = False
+    VERUS_ID_IDENTITY: str = ""  # The agent's VerusID (e.g., alluci@)
+
     # Rate Limiting
     RATE_LIMIT_PER_MINUTE: int = 60
 

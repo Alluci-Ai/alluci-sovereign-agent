@@ -5,7 +5,9 @@ import stat
 import shutil
 import contextlib
 from cryptography.fernet import Fernet
-from typing import Dict, Any, Set
+from typing import Dict, Any, Set, Optional
+from backend.security.vdxf_store import VDXFStore
+from backend.config import settings
 
 class VaultManager:
     def __init__(self, master_key: str):
@@ -13,6 +15,11 @@ class VaultManager:
         self.fernet = Fernet(master_key.encode() if isinstance(master_key, str) else master_key)
         self.vault_root = os.path.expanduser("~/.polytope/vaults")
         self._ensure_vault_root()
+        
+        # Tier 1 & 3: VDXF Store (Integrity Anchoring)
+        self.vdxf = None
+        if settings.VERUS_AUTH_ENABLED and settings.VERUS_ID_IDENTITY:
+            self.vdxf = VDXFStore(settings.VERUS_ID_IDENTITY)
 
     def _ensure_vault_root(self):
         """Create vault root with strict permissions (rwx------) for isolation."""
@@ -31,10 +38,12 @@ class VaultManager:
         except OSError:
             return set()
 
-    def store_secret(self, bridge_id: str, data: Dict[str, Any]):
-        """Encrypted storage of API keys or session tokens."""
-        encrypted = self.fernet.encrypt(json.dumps(data).encode())
+    async def store_secret(self, bridge_id: str, data: Dict[str, Any]):
+        """Encrypted storage of API keys or session tokens with on-chain anchoring."""
+        raw_data = json.dumps(data)
+        encrypted = self.fernet.encrypt(raw_data.encode())
         path = os.path.join(self.vault_root, f"{bridge_id}.vault")
+        
         # Write atomically: write to temp then rename
         tmp_path = path + ".tmp"
         with open(tmp_path, "wb") as f:
@@ -43,14 +52,51 @@ class VaultManager:
         # Restrict file permissions
         os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)
 
-    def retrieve_secret(self, bridge_id: str) -> Dict[str, Any]:
-        """Decrypts and returns data for a specific manifold bridge."""
+        # Tier 3: Warm memory cache
+        if self.vdxf:
+            self.vdxf.set_memory(bridge_id, data)
+            # Tier 1: Anchor the NEW aggregate state hash on-chain
+            # In a real implementation, we'd batch this after multiple writes
+            vault_aggregate = self._get_full_vault_state()
+            await self.vdxf.anchor_vault_hash(vault_aggregate)
+
+    def _get_full_vault_state(self) -> str:
+        """Returns a stable string representation of all vault files for hashing."""
+        all_content = []
+        for vfile in sorted(os.listdir(self.vault_root)):
+            if vfile.endswith(".vault"):
+                with open(os.path.join(self.vault_root, vfile), "rb") as f:
+                    all_content.append(f.read().hex())
+        return "".join(all_content)
+
+    async def retrieve_secret(self, bridge_id: str) -> Dict[str, Any]:
+        """Decrypts and returns data for a specific manifold bridge with integrity check."""
+        # Tier 3: Memory Cache hit? 
+        if self.vdxf:
+            cached = self.vdxf.get_from_memory(bridge_id)
+            if cached: return cached
+
         path = os.path.join(self.vault_root, f"{bridge_id}.vault")
         if not os.path.exists(path):
             return {}
+        
         with open(path, "rb") as f:
-            decrypted = self.fernet.decrypt(f.read())
-            return json.loads(decrypted.decode())
+            secret_data = f.read()
+            # Tier 1: Optimal Integrity Check (Only on load)
+            if self.vdxf:
+                vault_aggregate = self._get_full_vault_state()
+                if not await self.vdxf.verify_integrity(vault_aggregate):
+                    logger.error("VAULT INTEGRITY ERROR: Local data does not match on-chain anchor.")
+                    raise PermissionError("Blockchain integrity verification failed.")
+
+            decrypted = self.fernet.decrypt(secret_data)
+            data = json.loads(decrypted.decode())
+            
+            # Populate cache
+            if self.vdxf:
+                self.vdxf.set_memory(bridge_id, data)
+                
+            return data
 
     def update_vault_status(self, bridge_id: str, status: str):
         """Updates the health status of a vault (e.g., HEALTHY, UNSTABLE)."""

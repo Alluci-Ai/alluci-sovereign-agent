@@ -24,7 +24,8 @@ from .inference.router import ModelRouter
 from .ace.engine import AffectiveEngine
 from .orchestrator import ExecutiveOrchestrator
 from .tasks import TaskManager
-from .skill_manager import SkillManager
+from .security.verusid_auth import verus_auth
+from .security.verus_rpc import verus_rpc
 
 logger = logging.getLogger("PolytopeApp")
 
@@ -203,12 +204,34 @@ async def readiness_check():
 
 # --- Auth ---
 
-@app.post("/auth/login")
-async def login(req: LoginRequest):
-    if req.key == settings.POLYTOPE_MASTER_KEY:
-        token = create_access_token(data={"sub": "sovereign_admin"})
-        return {"access_token": token, "token_type": "bearer"}
     raise HTTPException(status_code=401, detail="Invalid key")
+
+
+# --- VerusID (SSID) Auth ---
+
+@app.get("/auth/verusid/challenge")
+async def get_verusid_challenge(identity: str = Query("")):
+    """Generates a login challenge for Verus Mobile scan."""
+    if not settings.VERUS_AUTH_ENABLED:
+        raise HTTPException(status_code=501, detail="VerusID Authentication not enabled")
+    return verus_auth.create_login_challenge(identity)
+
+@app.post("/auth/verusid/callback")
+async def verusid_callback(payload: Dict[str, str] = Body(...)):
+    """Verifies the signed challenge and issues a JWT."""
+    identity = payload.get("identity")
+    signature = payload.get("signature")
+    challenge_id = payload.get("challenge_id")
+    
+    if not all([identity, signature, challenge_id]):
+        raise HTTPException(status_code=400, detail="Missing identity, signature, or challenge_id")
+    
+    is_valid = await verus_auth.verify_login_response(identity, signature, challenge_id)
+    if is_valid:
+        token = create_access_token(data={"sub": identity, "vauth": True})
+        return {"access_token": token, "token_type": "bearer", "identity": identity}
+    
+    raise HTTPException(status_code=401, detail="VerusID signature verification failed")
 
 
 # --- System Status ---
