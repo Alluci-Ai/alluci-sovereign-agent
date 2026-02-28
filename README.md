@@ -4,124 +4,95 @@
 
 # Alluci Sovereign Agent
 
-A multi-modal autonomous AI agent featuring real-time voice interaction via Gemini Live API, DAG-based task execution, an affective computing engine, a heartbeat daemon, and a novel "Polytope" reasoning framework with manifold integrity checks.
+Alluci is a professional-grade, multi-modal autonomous AI agent designed for **sovereign, local-first execution**. It features real-time voice interaction, a decentralized "Hive" architecture, and deep integration with the VerusID ecosystem for secure identity and data management.
 
-## Architecture
+## 🏗️ Architecture Overview
 
-```
-┌─────────────────────────────────────────────────────┐
-│                    Frontend (React/Vite)             │
-│  ┌─────────┐  ┌──────────────┐  ┌──────────────┐   │
-│  │ App.tsx  │  │ GeminiService│  │  AlluciCore   │   │
-│  └────┬─────┘  └──────┬───────┘  └──────────────┘   │
-│       │               │                              │
-│       └───────┬───────┘                              │
-└───────────────┼──────────────────────────────────────┘
-                │ REST API / WebSocket
-┌───────────────┼──────────────────────────────────────┐
-│               ▼       Backend (FastAPI)               │
-│  ┌──────────────────────────────────────────────┐    │
-│  │             Orchestrator                      │    │
-│  │  ┌────────┐  ┌──────────┐  ┌───────┐        │    │
-│  │  │Planner │→ │ Executor │→ │Critic │→ Loop  │    │
-│  │  └────────┘  └──────────┘  └───────┘        │    │
-│  └──────────────────────────────────────────────┘    │
-│  ┌───────────┐ ┌─────────┐ ┌────────┐ ┌──────────┐ │
-│  │  Security │ │Inference│ │Bridges │ │ Heartbeat│ │
-│  │Vault|Auth │ │Router   │ │Email   │ │  Daemon  │ │
-│  │DPK|Verus  │ │PPN      │ │Slack   │ │          │ │
-│  └───────────┘ └─────────┘ └────────┘ └──────────┘ │
-└──────────────────────────────────────────────────────┘
+Alluci is built on a modular **Manifold Architecture** that prioritizes security, privacy, and autonomy:
+
+- **Sovereign Mode (Local Inference)**: Utilizes a dedicated `LocalInferenceBridge` to manage singleton processes for ASR (Whisper.cpp), LLMs (Ollama), and TTS (Piper). This ensures zero external data leakage.
+- **Hive Orchestration**: A DAG-based execution engine (`Planner` → `Executor` → `Critic`) that handles complex objectives across various tool silos.
+- **Simplicial Vault**: A zero-trust security layer that encrypts and stores API keys server-side, anchored by VDXF (Verus Data Exchange Format) for on-chain integrity.
+- **Polytope Framework**: A novel reasoning layer with manifold integrity checks to prevent state drift and ensure logical coherence.
+- **Affective Engine**: Real-time biometric and emotional telemetry analysis for high-bandwidth human-agent resonance.
+
+### System Diagram
+```mermaid
+graph TD
+    A[Frontend React/Vite] -- WebSocket/REST --> B[FastAPI Backend]
+    B -- Unified WS --> C[Local Inference Bridge]
+    C --> D[Whisper.cpp ASR]
+    C --> E[Ollama LLM]
+    C --> F[Piper TTS]
+    B -- Secure Proxy --> G[Cloud APIs Gemini/OpenAI]
+    B -- Encryption --> H[Simplicial Vault]
+    H -- VDXF --> I[VerusID Blockchain]
 ```
 
-## Prerequisites
+## 📋 Prerequisites
 
-- **Node.js** ≥ 18 (frontend)
-- **Python** ≥ 3.11 (backend)
-- **Docker** (optional, for containerized deployment)
+- **Frontend**: Node.js ≥ 20
+- **Backend**: Python ≥ 3.12
+- **Local Inference Tools**:
+    - [Ollama](https://ollama.com/) (for local LLMs)
+    - [Whisper.cpp](https://github.com/ggerganov/whisper.cpp) (for ASR)
+    - [Piper](https://github.com/rhasspy/piper) (for TTS)
+- **Optional**: Homebrew (macOS) for automated dependency management.
 
-## Quick Start
+## 🚀 Quick Start Guide
 
-### 1. Clone & Configure
+### 1. Setup Environment
+Run the automated setup script to install local inference binaries and models:
+```bash
+chmod +x scripts/setup_sovereign_stack.sh
+./scripts/setup_sovereign_stack.sh
+```
 
+### 2. Configuration
+Copy the environment template and fill in your master keys:
 ```bash
 cp .env.example .env
-# Edit .env with your keys (see .env.example for documentation)
 ```
+Key variables: `POLYTOPE_MASTER_KEY` (Vault encryption), `JWT_SECRET_KEY` (Auth signing).
 
-### 2. Frontend
-
+### 3. Execution
+**Backend**:
+```bash
+# Recommended: Create a virtual environment
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+python -m uvicorn backend.app:app --reload
+```
+**Frontend**:
 ```bash
 npm install
-npm run dev        # → http://localhost:3000
+npm run dev
 ```
 
-### 3. Backend
+## 🔌 API Support & Proxying
 
-```bash
-pip install -r requirements.txt
-python -m uvicorn backend.app:app --reload   # → http://localhost:8000
-```
+- **Sovereign Support**: Built-in support for local Llama 3, Mistral, and Phi-3 via Ollama.
+- **Cloud Failover**: Unified routing across Gemini, OpenAI, Anthropic, Groq, and DeepSeek.
+- **Zero-Exposure Policy**: All 3rd-party API calls are strictly proxied through the backend. **API keys never touch the browser.**
 
-### 4. Docker (Production)
+## 🧪 Testing & CI/CD
 
-```bash
-docker compose up --build   # Starts both services
-```
+Alluci uses `pytest` for backend verification and GitHub Actions for continuous integration.
 
-## API Endpoints
+- **Run Standard Tests**: `python -m pytest backend/tests/`
+- **With Coverage**: `python -m pytest --cov=backend backend/tests/`
+- **CI Workflows**: Integrated `.github/workflows/ci.yml` runs linting and tests on every push.
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| `GET` | `/health` | No | Liveness probe |
-| `GET` | `/ready` | No | Readiness probe |
-| `POST` | `/auth/login` | No | Get JWT token |
-| `GET` | `/status` | Yes | System status |
-| `POST` | `/objective/execute` | Yes | Execute autonomous objective |
-| `POST` | `/telemetry` | Yes | Ingest biometric telemetry |
-| `GET/POST/PUT/DELETE` | `/tasks/*` | Yes | Task management |
-| `GET/PUT` | `/soul/manifest` | Yes | Identity configuration |
-| `POST` | `/soul/preview` | Yes | Preview personality changes |
-| `GET/POST/DELETE` | `/skills/*` | Yes | Cognitive module management |
-| `POST` | `/api/gemini/proxy` | Yes | Server-side Gemini API proxy |
+## 🔐 Security & Cryptography
 
-## Environment Variables
+- **Audit Ledger**: All critical agent actions are hashed using **WebCrypto SHA-256** and appended to a tamper-proof log.
+- **No localStorage**: Sensitive session data and API keys are stored in `HttpOnly` cookies and the secure backend vault.
+- **Heartbeat Integrity**: The `HeartbeatDaemon` performs periodic SHA-256 file integrity checks on its own core logic.
+- **VerusID Auth**: Multi-signature authentication and VDXF-anchored data storage (optional).
 
-See [`.env.example`](.env.example) for the full list. Key variables:
+## 📄 License
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `POLYTOPE_MASTER_KEY` | ✅ | Fernet key for vault encryption |
-| `JWT_SECRET_KEY` | ✅ | Separate key for JWT signing |
-| `GEMINI_API_KEY` | ✅ | Google Gemini API key |
-| `OPENAI_API_KEY` | ❌ | Failover inference provider |
-| `ANTHROPIC_API_KEY` | ❌ | Failover inference provider |
+Alluci Sovereign Agent is released under the **MIT License**. See [LICENSE](LICENSE) for details.
 
-## Testing
-
-```bash
-# Run backend tests
-pip install pytest pytest-asyncio pytest-cov
-python -m pytest backend/tests/ -v --tb=short
-
-# With coverage
-python -m pytest backend/tests/ -v --cov=backend --cov-report=term-missing
-```
-
-## Security
-
-- All API keys are managed server-side; the frontend never stores secrets
-- JWT tokens use a dedicated signing key (separate from the vault master key)
-- Rate limiting protects all endpoints (configurable via `RATE_LIMIT_PER_MINUTE`)
-- Input sanitization blocks prompt injection attempts
-- Vault files are encrypted (Fernet) with strict file permissions (0o600)
-- Execution manifests are signed with Ed25519 (when VerusID is configured)
-- DPK manifold integrity checks block invalid topology states
-
-## Contributing
-
-Contributions are welcome! Please see [`CONTRIBUTING.md`](CONTRIBUTING.md) for guidelines on how to get started.
-
-## License
-
-Alluci Sovereign Agent is released under the [MIT License](LICENSE).
+---
+Contributions are welcome! Please review [`CONTRIBUTING.md`](CONTRIBUTING.md) before submitting Pull Requests.
