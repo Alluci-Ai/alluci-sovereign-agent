@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
 import {
   AlluciGeminiService,
@@ -7,6 +6,7 @@ import {
   FilePart,
   GroundingSource
 } from './geminiService';
+import { AlluciSovereignService, SovereignCallbacks } from './sovereignService';
 import {
   clamp01,
   SkillVerifier
@@ -585,30 +585,13 @@ const App: React.FC = () => {
   const [baseManifest, setBaseManifest] = useState<SoulManifest | null>(null);
 
   const [apiKeys, setApiKeys] = useState<ApiManifoldKeys>(() => {
-    const defaultKeys: ApiManifoldKeys = {
+    return {
       llm: { openai: '', anthropic: '', googleCloud: '', groq: '', deepseek: '' },
       audio: { openaiRealtime: '', elevenLabsAgents: '', retellAi: '', inworldAi: '' },
       music: { suno: '', elevenLabsMusic: '', stableAudio: '', soundverse: '', udio: '', googleLyria: '' },
       image: { openaiDalle: '', falAi: '', midjourney: '', adobeFirefly: '', googleNanoBanana: '', seedance: '' },
       video: { runway: '', luma: '', heygen: '', livepeer: '', googleVeo: '', googleGenie: '' }
     };
-    const saved = localStorage.getItem('alluci_api_keys');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        // Deep merge with defaults to ensure all categories exist even if local storage is partial
-        return {
-          llm: { ...defaultKeys.llm, ...(parsed.llm || {}) },
-          audio: { ...defaultKeys.audio, ...(parsed.audio || {}) },
-          music: { ...defaultKeys.music, ...(parsed.music || {}) },
-          image: { ...defaultKeys.image, ...(parsed.image || {}) },
-          video: { ...defaultKeys.video, ...(parsed.video || {}) }
-        };
-      } catch (e) {
-        console.error("Failed to parse saved API keys", e);
-      }
-    }
-    return defaultKeys;
   });
 
   useEffect(() => {
@@ -673,6 +656,8 @@ const App: React.FC = () => {
   const nextStartTimeRef = useRef<number>(0);
   const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
   const geminiServiceRef = useRef<AlluciGeminiService | null>(null);
+  const sovereignServiceRef = useRef<AlluciSovereignService | null>(null);
+  const [sovereignMode, setSovereignMode] = useState(true); // Default to Sovereign for privacy-first
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -833,53 +818,112 @@ const App: React.FC = () => {
   const handleConnect = async () => {
     if (isConnected) {
       geminiServiceRef.current?.disconnect();
+      sovereignServiceRef.current?.disconnect();
       setIsConnected(false);
       setAudioStream(null);
       return;
     }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       setAudioStream(stream);
-      geminiServiceRef.current?.setConnections(connections);
-      geminiServiceRef.current?.setSkills(skills.filter(s => s.verified));
 
-      await geminiServiceRef.current?.connect({
-        onAudioOutput: handleAudioOutput,
-        onTranscription: (text, isUser) => {
-          setTranscriptions(prev => {
-            const last = prev[prev.length - 1];
-            if (last && last.isUser === isUser) {
-              const updated = [...prev];
-              updated[updated.length - 1] = { ...last, text: last.text + text };
-              return updated;
-            } else {
-              return [...prev.slice(-49), { text, isUser, timestamp: new Date().toISOString() }];
-            }
-          });
-          refreshAuditLog();
-        },
-        onInterrupted: () => {
-          sourcesRef.current.forEach(s => s.stop());
-          sourcesRef.current.clear();
-          nextStartTimeRef.current = 0;
-        },
-        onOpen: () => { setIsConnected(true); refreshAuditLog(); },
-        onClose: () => setIsConnected(false),
-        onError: (err) => console.error(err),
-        onGroundingSources: (sources) => {
-          setTranscriptions(prev => {
-            const next = [...prev];
-            for (let i = next.length - 1; i >= 0; i--) {
-              if (!next[i].isUser) {
-                next[i].sources = sources;
-                break;
-              }
-            }
-            return next;
-          });
+      // Create an AudioWorkletNode for real-time audio processing
+      const audioContext = audioContextRef.current!;
+      await audioContext.audioWorklet.addModule('/audio-processor.js');
+      const audioWorkletNode = new AudioWorkletNode(audioContext, 'audio-processor');
+      const sourceNode = audioContext.createMediaStreamSource(stream);
+      sourceNode.connect(audioWorkletNode);
+      audioWorkletNode.connect(audioContext.destination);
+
+      audioWorkletNode.port.onmessage = (e) => {
+        const inputData = e.data;
+        if (sovereignMode && sovereignServiceRef.current) {
+          sovereignServiceRef.current.sendAudio(inputData);
+        } else if (geminiServiceRef.current) {
+          geminiServiceRef.current.sendRealtimeInput(inputData);
         }
-      });
-    } catch (err) { console.error(err); }
+      };
+
+      if (sovereignMode) {
+        if (!sovereignServiceRef.current) sovereignServiceRef.current = new AlluciSovereignService();
+
+        const callbacks: SovereignCallbacks = {
+          onOpen: () => { setIsConnected(true); refreshAuditLog(); },
+          onClose: () => setIsConnected(false),
+          onAudioOutput: (b64) => {
+            const audio = new Audio("data:audio/wav;base64," + b64);
+            audio.play();
+          },
+          onTranscription: (text, isUser) => {
+            setTranscriptions(prev => {
+              const last = prev[prev.length - 1];
+              if (last && last.isUser === isUser) {
+                const updated = [...prev];
+                updated[updated.length - 1] = { ...last, text: last.text + text };
+                return updated;
+              }
+              return [...prev.slice(-49), { text, isUser, timestamp: new Date().toISOString() }];
+            });
+            refreshAuditLog();
+          },
+          onLLMChunk: (chunk) => {
+            setTranscriptions(prev => {
+              const last = prev[prev.length - 1];
+              if (last && !last.isUser) {
+                const updated = [...prev];
+                updated[updated.length - 1] = { ...last, text: last.text + chunk };
+                return updated;
+              }
+              return [...prev.slice(-49), { text: chunk, isUser: false, timestamp: new Date().toISOString() }];
+            });
+          },
+          onInterrupted: () => {
+            sourcesRef.current.forEach(s => s.stop());
+            sourcesRef.current.clear();
+            nextStartTimeRef.current = 0;
+          },
+          onError: (err) => console.error("Sovereign Error:", err),
+          onGroundingSources: (sources) => {
+            setTranscriptions(prev => {
+              const next = [...prev];
+              for (let i = next.length - 1; i >= 0; i--) {
+                if (!next[i].isUser) {
+                  next[i].sources = sources;
+                  break;
+                }
+              }
+              return next;
+            });
+          }
+        };
+        await sovereignServiceRef.current.connect(callbacks);
+      } else {
+        // Cloud Gemini Flow
+        if (!geminiServiceRef.current) geminiServiceRef.current = new AlluciGeminiService();
+        geminiServiceRef.current.setConnections(connections);
+        geminiServiceRef.current.setSkills(skills.filter(s => s.verified));
+
+        await geminiServiceRef.current.connect({
+          onAudioOutput: handleAudioOutput,
+          onTranscription: (text, isUser) => {
+            setTranscriptions(prev => {
+              const last = prev[prev.length - 1];
+              if (last && last.isUser === isUser) {
+                const updated = [...prev];
+                updated[updated.length - 1] = { ...last, text: last.text + text };
+                return updated;
+              }
+              return [...prev.slice(-49), { text, isUser, timestamp: new Date().toISOString() }];
+            });
+            refreshAuditLog();
+          }
+        });
+      }
+    } catch (err) {
+      console.error("Connection failed:", err);
+      setIsConnected(false);
+    }
   };
 
   // ... (Auth helpers, camera toggle, command submit, file handling ... same as original)
@@ -1077,6 +1121,20 @@ const App: React.FC = () => {
           <button onClick={() => setIsPreferencesOpen(true)} className="alce-button text-[8px] baunk-style">[ BRIDGES ]</button>
           <button onClick={() => setIsApiWizardOpen(true)} className="alce-button text-[8px] baunk-style">[ API ]</button>
           <button onClick={() => setIsSoulOpen(true)} className="alce-button text-[8px] baunk-style">[ SOUL ]</button>
+          <div className="flex bg-zinc/10 rounded-full p-1 scale-90">
+            <button
+              onClick={() => setSovereignMode(false)}
+              className={`px-3 py-1 rounded-full text-[8px] baunk-style transition-all ${!sovereignMode ? 'bg-agent text-white shadow-lg' : 'opacity-40 hover:opacity-100'}`}
+            >
+              GEMINI_CLOUD
+            </button>
+            <button
+              onClick={() => setSovereignMode(true)}
+              className={`px-3 py-1 rounded-full text-[8px] baunk-style transition-all ${sovereignMode ? 'bg-tension text-white shadow-lg' : 'opacity-40 hover:opacity-100'}`}
+            >
+              SOVEREIGN_LOCAL
+            </button>
+          </div>
           <button onClick={handleConnect} className={`alce-button text-[9px] baunk-style px-6 ${isConnected ? 'text-tension' : 'text-agent'}`}>{isConnected ? '[ SLEEP ]' : '[ AWAKEN ]'}</button>
         </div>
         <div className="flex md:hidden items-center gap-3"><HeartbeatIndicator active={daemonStatus === 'ONLINE'} /><button onClick={handleConnect} className={`alce-button text-[8px] baunk-style px-3 py-1.5 ${isConnected ? 'text-tension' : 'text-agent'}`}>{isConnected ? '[ SLEEP ]' : '[ AWAKEN ]'}</button><button onClick={() => setIsMobileMenuOpen(true)} className="alce-button baunk-style text-[10px] px-3 py-1.5 border-l border-sovereign">☰</button></div>

@@ -33,7 +33,8 @@ class FileProbe(Probe):
             # If it's a file, hash it for accuracy
             if os.path.isfile(self.path):
                 with open(self.path, "rb") as f:
-                    file_hash = hashlib.md5(f.read()).hexdigest()
+                    # Use SHA-256 for file integrity checks (Autonomy Audit)
+                    file_hash = hashlib.sha256(f.read()).hexdigest()
                 
                 if file_hash != self.last_hash:
                     return {"type": "file_change", "path": self.path, "hash": file_hash}
