@@ -53,6 +53,12 @@ Alluci is built on the **Polytope Manifold Architecture**, prioritizing security
   <p>The ACE aligns machine logic with human biology. It bridges raw data and human sentiment, ensuring the assistant works in resonance with your current physiological and mental state.</p>
   
   <div style="margin-left: 20px;">
+    <h4>Sovereign Bio-Monitor (HealthKit)</h4>
+    <ul>
+      <li><strong>iWatch Integration:</strong> Real-time streaming of Heart Rate (BPM), HRV (SDNN), and Respiratory metrics via the local Simplicial Vault.</li>
+      <li><strong>Resonance Mapping:</strong> ACE maps biological telemetry to active "Resonance" scores, adjusting agent autonomy and notification intensity in real-time.</li>
+    </ul>
+
     <h4>Biometric State Transmission</h4>
     <ul>
       <li><strong>Physical State (Vitality):</strong> Tracks HR, HRV, and Blood Oxygen. If strain is high, the Assistant deprioritizes non-urgent tasks.</li>
@@ -111,6 +117,16 @@ npm install
 npm run dev
 ```
 Open `http://localhost:5173` to access the Alluci Sovereign Gateway.
+
+---
+
+## 🌐 The Sovereign Manifold
+
+Alluci empowers you to act across your entire digital life from a single, secure interface, ensuring that all actualization occurs within cryptographically isolated vaults:
+
+- **Social_Manifold**: Targeted actualization across WhatsApp, Telegram, Discord, Signal, X, and Meta. Supports message dispatching, sovereign posting, and feed synchronization.
+- **Enterprise_Core**: Deep professional workflow integration with Slack, MS Teams, and the full G-Suite (Gmail, G-Drive, Calendar). Supports automated drafting, file vaulting, and unified manifold indexing.
+- **Cloud_Manifold**: Sovereign file management and E2EE pulse dispatching via iCloud and iMessage secure tunnels.
 
 ---
 
