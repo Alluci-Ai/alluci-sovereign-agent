@@ -26,6 +26,8 @@ from .orchestrator import ExecutiveOrchestrator
 from .tasks import TaskManager
 from .security.verusid_auth import verus_auth
 from .security.verus_rpc import verus_rpc
+from .inference.local_bridge import LocalInferenceBridge
+from fastapi import WebSocket, WebSocketDisconnect
 
 logger = logging.getLogger("PolytopeApp")
 
@@ -39,6 +41,7 @@ orchestrator: ExecutiveOrchestrator = None
 task_manager: TaskManager = None
 skill_manager: SkillManager = None
 sovereign_identity: SovereignIdentity = None
+local_inference: LocalInferenceBridge = None
 
 # --- Input Sanitization ---
 
@@ -132,6 +135,9 @@ async def lifespan(app: FastAPI):
 
     # 6. Task Manager
     task_manager = TaskManager()
+
+    # 7. Local Inference Bridge
+    local_inference = LocalInferenceBridge(settings)
 
     # 7. Background Services
     await orchestrator.start_background_services()
@@ -553,6 +559,66 @@ async def gemini_proxy(payload: Dict[str, Any]):
     except Exception as e:
         logger.error(f"Gemini proxy error: {e}")
         raise HTTPException(status_code=500, detail="Inference request failed.")
+
+# --- Sovereign Unified Streaming WebSocket ---
+
+@app.websocket("/ws/sovereign")
+async def sovereign_socket(websocket: WebSocket):
+    """
+    Unified WebSocket for Real-Time Sovereign Interaction.
+    Handles Audio (ASR) -> Intent -> LLM -> Audio (TTS).
+    """
+    await websocket.accept()
+    logger.info("[ SOVEREIGN_WS ]: Client connected.")
+    
+    try:
+        while True:
+            # Expecting either JSON (commands) or Binary (Audio)
+            data = await websocket.receive()
+            
+            if "bytes" in data:
+                # Binary Step: Automatic Speech Recognition (ASR)
+                audio_chunk = data["bytes"]
+                transcript = await local_inference.transcribe_stream(audio_chunk)
+                
+                if transcript:
+                    await websocket.send_json({"type": "transcript", "text": transcript})
+                    
+                    # LLM Generation Loop
+                    full_response = ""
+                    async for chunk in local_inference.chat_ollama(transcript):
+                        full_response += chunk
+                        await websocket.send_json({"type": "llm_chunk", "text": chunk})
+                    
+                    # TTS Synthesis
+                    if full_response:
+                        audio_out = await local_inference.speak_piper(full_response)
+                        if audio_out:
+                            # Send original PCM or base64? Let's go base64 for unified JSON.
+                            b64_audio = base64.b64encode(audio_out).decode()
+                            await websocket.send_json({"type": "audio_out", "data": b64_audio})
+            
+            elif "text" in data:
+                # Text Input Step: Direct LLM query
+                msg = json.loads(data["text"])
+                if msg.get("type") == "chat":
+                    prompt = msg.get("text")
+                    full_response = ""
+                    async for chunk in local_inference.chat_ollama(prompt):
+                        full_response += chunk
+                        await websocket.send_json({"type": "llm_chunk", "text": chunk})
+                    
+                    # Final TTS
+                    audio_out = await local_inference.speak_piper(full_response)
+                    if audio_out:
+                        b64_audio = base64.b64encode(audio_out).decode()
+                        await websocket.send_json({"type": "audio_out", "data": b64_audio})
+
+    except WebSocketDisconnect:
+        logger.info("[ SOVEREIGN_WS ]: Client disconnected.")
+    except Exception as e:
+        logger.error(f"[ SOVEREIGN_WS ]: Error: {e}")
+        await websocket.close()
 
 
 if __name__ == "__main__":

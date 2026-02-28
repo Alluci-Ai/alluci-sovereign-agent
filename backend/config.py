@@ -54,6 +54,12 @@ class Settings(BaseSettings):
     # Rate Limiting
     RATE_LIMIT_PER_MINUTE: int = 60
 
+    # Local Sovereign Inference
+    WHISPER_CPP_PATH: str = "whisper-cpp"
+    OLLAMA_URL: str = "http://localhost:11434"
+    PIPER_PATH: str = "piper"
+    PIPER_MODEL: str = "en_US-amy-medium.onnx"
+
     # Database
     DATABASE_URL: str = "sqlite:///polytope_data.db"
 
