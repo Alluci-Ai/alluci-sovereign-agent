@@ -151,6 +151,7 @@ export class AuditLedger {
     const msgUint8 = new TextEncoder().encode(hashData);
     const hashBuffer = await window.crypto.subtle.digest('SHA-256', msgUint8);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
     const hash = "0x" + hashHex;
 
     const entry: AuditEntry = {
