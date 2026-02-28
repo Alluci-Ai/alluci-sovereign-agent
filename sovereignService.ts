@@ -8,6 +8,7 @@ export interface SovereignCallbacks {
     onError: (error: any) => void;
     onGroundingSources?: (sources: any[]) => void;
     onInterrupted?: () => void;
+    onCanvasManifest?: (node: any) => void;
 }
 
 export class AlluciSovereignService {
@@ -35,6 +36,8 @@ export class AlluciSovereignService {
                     callbacks.onLLMChunk(msg.text);
                 } else if (msg.type === 'audio_out') {
                     callbacks.onAudioOutput(msg.data);
+                } else if (msg.type === 'manifest' && callbacks.onCanvasManifest) {
+                    callbacks.onCanvasManifest(msg.node);
                 }
             }
         };

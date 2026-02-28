@@ -919,6 +919,12 @@ const App: React.FC = () => {
               }
               return next;
             });
+          },
+          onCanvasManifest: (node) => {
+            setCanvasNodes(prev => [...prev, { ...node, id: `node_${Date.now()}` }]);
+            setActiveMainView('CANVAS'); // Auto-switch to showcase the manifest
+            geminiServiceRef.current?.audit.addEntry("A2UI_MANIFEST_RECEIVED", { type: node.type });
+            refreshAuditLog();
           }
         };
         await sovereignServiceRef.current.connect(callbacks);
