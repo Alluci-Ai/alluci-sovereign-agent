@@ -7,10 +7,9 @@ import {
   GroundingSource
 } from './geminiService';
 import { AlluciSovereignService, SovereignCallbacks } from './sovereignService';
-import {
-  clamp01,
-  SkillVerifier
-} from './alluciCore';
+import { AuditLedger, SovereignSecurityManager, SkillVerifier, generateSystemPrompt, BioVault, clamp01 } from './alluciCore';
+import { ACEController, ACENudge } from './aceController';
+import LiveCanvas, { CanvasNode } from './LiveCanvas';
 import { AuditEntry, PersonalityTraits, Connection, AuthType, SkillManifest, ApiManifoldKeys, AutonomyLevel, SoulPreferences, SoulHumor, SoulConciseness, SoulManifest, GraphNode, GraphEdge } from './types';
 import SoulPreferencesPanel from './SoulPreferencesPanel';
 import SkillBuilderWizard from './SkillBuilderWizard';
@@ -594,6 +593,18 @@ const App: React.FC = () => {
     };
   });
 
+  const [activeNudges, setActiveNudges] = useState<ACENudge[]>([]);
+  const [activeMainView, setActiveMainView] = useState<'TERMINAL' | 'CANVAS'>('TERMINAL');
+  const [canvasNodes, setCanvasNodes] = useState<CanvasNode[]>([
+    { id: 'initial_node', type: 'TEXT', content: 'SYSTEM READY: A2UI_PROTOCOL_ACTIVE', x: 50, y: 150 }
+  ]);
+  const aceControllerRef = useRef(new ACEController());
+  const bioVaultRef = useRef(new BioVault());
+
+  const clearNudge = (id: string) => {
+    setActiveNudges(prev => prev.filter(n => n.id !== id));
+  };
+
   useEffect(() => {
     // Initial load from secure vault
     const loadVaultKeys = async () => {
@@ -611,6 +622,19 @@ const App: React.FC = () => {
     };
     loadVaultKeys();
   }, []);
+
+  useEffect(() => {
+    // [ ACE_FLOW_SENSING_LOOP ]
+    const nudge = aceControllerRef.current.computeNudge(userEmotional, userPhysical, userCognitive);
+    if (nudge) {
+      setActiveNudges(prev => [...prev, nudge]);
+      geminiServiceRef.current?.audit.addEntry("ACE_FLOW_NUDGE_ISSUED", { type: nudge.type, message: nudge.message });
+      refreshAuditLog();
+    }
+
+    // [ BIO_VAULT_ENCLAVE_SYNC ]
+    bioVaultRef.current.ingestTelemetry({ v: userEmotional, a: userPhysical, l: userCognitive });
+  }, [userEmotional, userPhysical, userCognitive]);
 
   const handleSaveApiKeys = async (newKeys: ApiManifoldKeys) => {
     setApiKeys(newKeys);
@@ -1157,36 +1181,90 @@ const App: React.FC = () => {
       </aside>
 
       <main className={`md:col-span-6 facet relative md:border-none flex flex-col min-h-0 ${mobileView === 'terminal' ? 'flex-1' : 'hidden md:flex'}`}>
-        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4 md:p-8 flex flex-col gap-6 md:gap-8 scrollbar-hide bg-white">
-          <ExecutionTimeline isProcessing={isProcessing} />
-          {transcriptions.length === 0 && (<div className="h-full flex flex-col items-center justify-center opacity-5 select-none animate-pulse"><PolytopeIdentity color="#000" size={100} /><h2 className="baunk-style text-[8px] mt-6 tracking-[1.2em]">EXECUTIVE_SESSION_IDLE</h2></div>)}
-          {transcriptions.map((t, i) => (
-            <div key={i} className={`flex flex-col ${t.isUser ? 'items-end' : 'items-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
-              <div className="flex items-center gap-2 mb-1 opacity-40">
-                <span className="text-[6px] baunk-style tracking-widest">{t.isUser ? 'USER_PROJECTION' : 'ALLUCI_EXECUTIVE'}</span>
-                <span className="text-[6px] font-mono">[{getFormattedTime(t.timestamp)}]</span>
+        {/* ACE_NUDGE_OVERLAY */}
+        {activeNudges.length > 0 && (
+          <div className="absolute top-4 left-4 right-4 z-[60] flex flex-col gap-2 pointer-events-none">
+            {activeNudges.map(nudge => (
+              <div key={nudge.id} className="p-4 bg-white border-2 border-tension shadow-2xl animate-in slide-in-from-top-4 duration-500 pointer-events-auto flex justify-between items-start gap-4">
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-tension animate-pulse" />
+                    <span className="baunk-style text-[8px] tracking-[0.2em] text-tension">{nudge.type}_FLOW_INTERVENTION</span>
+                  </div>
+                  <p className="text-[10px] font-mono leading-relaxed opacity-80">{nudge.message}</p>
+                </div>
+                <button onClick={() => clearNudge(nudge.id)} className="text-[10px] baunk-style hover:text-tension transition-colors">[ RESOLVED ]</button>
               </div>
-              <div className={`relative group max-w-[90%] md:max-w-[85%] px-4 md:px-5 py-3 md:py-4 text-[11px] md:text-[12px] border font-mono leading-relaxed ${t.isUser ? 'bg-white border-zinc/20' : 'bg-agent/5 border-agent/20'}`}>
-                {t.text}
-                <button
-                  onClick={() => copyText(t.text)}
-                  className="absolute -top-3 -right-3 opacity-0 group-hover:opacity-100 transition-opacity bg-white border border-zinc/20 text-[6px] baunk-style px-2 py-1 shadow-sm hover:bg-zinc/5 z-10"
-                  title="Copy to Clipboard"
-                >
-                  [ COPY ]
-                </button>
-                {t.sources && t.sources.length > 0 && (<div className="mt-4 pt-4 border-t border-agent/10 flex flex-wrap gap-2"><span className="baunk-style text-[6px] opacity-40 w-full mb-1">Grounding_Context_Retrieved</span>{t.sources.map((s, idx) => (<a key={idx} href={s.uri} target="_blank" rel="noopener noreferrer" className="text-[8px] bg-agent/10 hover:bg-agent/30 text-agent px-2 py-1 border border-agent/20 no-underline transition-all uppercase font-bold">{s.title.slice(0, 20)}...</a>))}</div>)}
-              </div>
-            </div>
-          ))}
-          {isProcessing && <div className="text-[8px] baunk-style text-flux animate-pulse tracking-[0.5em] py-2">ALLUCI_CORE_CALCULATING_TRAJECTORY...</div>}
-          <div ref={messagesEndRef} className="h-2 flex-none" />
+            ))}
+          </div>
+        )}
+
+        {/* VIEW_SWITCHER */}
+        <div className="absolute top-4 right-4 z-[50] flex bg-white/50 backdrop-blur-md border border-black/5 rounded-full p-1 scale-90 origin-right">
+          <button
+            onClick={() => setActiveMainView('TERMINAL')}
+            className={`px-4 py-1.5 rounded-full text-[8px] baunk-style transition-all ${activeMainView === 'TERMINAL' ? 'bg-black text-white shadow-md' : 'opacity-40 hover:opacity-100'}`}
+          >
+            TERMINAL
+          </button>
+          <button
+            onClick={() => setActiveMainView('CANVAS')}
+            className={`px-4 py-1.5 rounded-full text-[8px] baunk-style transition-all ${activeMainView === 'CANVAS' ? 'bg-black text-white shadow-md' : 'opacity-40 hover:opacity-100'}`}
+          >
+            A2UI_CANVAS
+          </button>
         </div>
+
+        {activeMainView === 'CANVAS' ? (
+          <div className="flex-1 p-4 md:p-8 bg-zinc/5">
+            <LiveCanvas nodes={canvasNodes} />
+          </div>
+        ) : (
+          <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4 md:p-8 flex flex-col gap-6 md:gap-8 scrollbar-hide bg-white">
+            <ExecutionTimeline isProcessing={isProcessing} />
+            {transcriptions.length === 0 && (
+              <div className="h-full flex flex-col items-center justify-center opacity-5 select-none animate-pulse">
+                <PolytopeIdentity color="#000" size={100} />
+                <h2 className="baunk-style text-[8px] mt-6 tracking-[1.2em]">EXECUTIVE_SESSION_IDLE</h2>
+              </div>
+            )}
+            {transcriptions.map((t, i) => (
+              <div key={i} className={`flex flex-col ${t.isUser ? 'items-end' : 'items-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
+                <div className="flex items-center gap-2 mb-1 opacity-40">
+                  <span className="text-[6px] baunk-style tracking-widest">{t.isUser ? 'USER_PROJECTION' : 'ALLUCI_EXECUTIVE'}</span>
+                  <span className="text-[6px] font-mono">[{getFormattedTime(t.timestamp)}]</span>
+                </div>
+                <div className={`relative group max-w-[90%] md:max-w-[85%] px-4 md:px-5 py-3 md:py-4 text-[11px] md:text-[12px] border font-mono leading-relaxed ${t.isUser ? 'bg-white border-zinc/20' : 'bg-agent/5 border-agent/20'}`}>
+                  {t.text}
+                  <button
+                    onClick={() => copyText(t.text)}
+                    className="absolute -top-3 -right-3 opacity-0 group-hover:opacity-100 transition-opacity bg-white border border-zinc/20 text-[6px] baunk-style px-2 py-1 shadow-sm hover:bg-zinc/5 z-10"
+                    title="Copy to Clipboard"
+                  >
+                    [ COPY ]
+                  </button>
+                  {t.sources && t.sources.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-agent/10 flex flex-wrap gap-2">
+                      <span className="baunk-style text-[6px] opacity-40 w-full mb-1">Grounding_Context_Retrieved</span>
+                      {t.sources.map((s, idx) => (
+                        <a key={idx} href={s.uri} target="_blank" rel="noopener noreferrer" className="text-[8px] bg-agent/10 hover:bg-agent/30 text-agent px-2 py-1 border border-agent/20 no-underline transition-all uppercase font-bold">
+                          {s.title.slice(0, 20)}...
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+            {isProcessing && <div className="text-[8px] baunk-style text-flux animate-pulse tracking-[0.5em] py-2">ALLUCI_CORE_CALCULATING_TRAJECTORY...</div>}
+            <div ref={messagesEndRef} className="h-2 flex-none" />
+          </div>
+        )}
         <form onSubmit={handleCommandSubmit} className="shrink-0 p-3 md:p-4 border-t border-sovereign bg-zinc/5 flex flex-col gap-2 shadow-[0_-10px_30px_rgba(0,0,0,0.03)] z-10">
           {attachments.length > 0 && (<div className="flex flex-wrap gap-2 mb-1">{attachments.map((file, idx) => (<div key={idx} className="flex items-center gap-2 bg-white border border-sovereign/10 px-3 py-1.5 text-[7px] font-mono group animate-in slide-in-from-left-2"><span className="opacity-40">{file.mimeType.split('/')[0].toUpperCase()}</span><span className="truncate max-w-[150px] font-bold">{file.name}</span><button type="button" onClick={() => removeAttachment(idx)} className="text-tension hover:text-black transition-colors px-1 font-bold">✕</button></div>))}</div>)}
           <div className="flex gap-2 md:gap-3 items-end"><div className="flex gap-1"><button type="button" onClick={() => fileInputRef.current?.click()} title="Ingest Data" className="alce-button baunk-style text-[14px] h-10 w-10 md:h-12 md:w-12 p-0 flex items-center justify-center transition-transform active:scale-95 bg-white">+</button><input type="file" ref={fileInputRef} onChange={handleFileChange} multiple className="hidden" /></div><textarea value={textInput} onChange={(e) => setTextInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleCommandSubmit(e); } }} placeholder="EXECUTIVE_COMMAND..." className="flex-1 bg-white border border-sovereign/10 focus:border-sovereign transition-colors text-xs tracking-widest font-medium p-3 md:p-4 resize-none scrollbar-hide h-10 md:h-12 rounded-none" /><button type="submit" className="alce-button baunk-style text-[9px] md:text-[10px] h-10 md:h-12 px-4 md:px-8 flex items-center justify-center bg-white">[ TRANSMIT ]</button></div>
         </form>
-      </main>
+      </main >
 
       <aside className={`md:col-span-3 p-4 md:p-6 bg-zinc/5 overflow-hidden border-l border-sovereign flex flex-col gap-6 ${mobileView === 'system' ? 'flex-1' : 'hidden md:flex'}`}>
         <h3 className="baunk-style text-[8px] opacity-40 border-b border-sovereign pb-1 text-center">Audit_Chain_v4.3</h3>
@@ -1196,43 +1274,45 @@ const App: React.FC = () => {
       <MobileNav active={mobileView} setActive={setMobileView} />
       <footer className="facet hidden md:flex col-span-full h-8 items-center justify-center bg-zinc/5 border-t border-sovereign text-[7px] baunk-style opacity-30 tracking-[2em] font-bold">ALLUCI_EXECUTIVE_OS_v4.3_STABLE_SOVEREIGN_PROTOCOL</footer>
 
-      {(isAuditOpen || isPreferencesOpen || isSettingsOpen || isDriveOpen || isSoulOpen || isApiManifoldOpen || isTaskPanelOpen) && (
-        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm p-0 md:p-6 flex items-end md:items-center justify-center animate-in fade-in duration-300">
-          <div className="facet w-full h-[100dvh] md:h-[90vh] md:w-full md:max-w-6xl bg-white shadow-2xl flex flex-col border-t-2 md:border-2 border-sovereign overflow-hidden animate-in slide-in-from-bottom-10 md:zoom-in-95 relative">
-            <header className="p-4 md:p-8 border-b border-sovereign flex justify-between items-center bg-white z-[120]">
-              <div className="flex flex-col"><h2 className="baunk-style text-xs md:text-lg tracking-[0.2em] md:tracking-[0.5em] truncate max-w-[200px] md:max-w-none">{isAuditOpen ? 'EXECUTIVE_LEDGER' : isSettingsOpen ? 'SKILL_MANIFEST' : isPreferencesOpen ? 'BRIDGE_DIRECTORY' : isDriveOpen ? 'FILE_MANIFOLD' : isSoulOpen ? 'SOUL_PREFERENCES' : isApiManifoldOpen ? 'API_MANIFOLD_PREFERENCES' : isTaskPanelOpen ? 'TASK_MANIFOLD' : ''}</h2><span className="text-[6px] md:text-[8px] font-mono opacity-30 uppercase mt-1">Sovereign_Protocol_v4.3_Active</span></div>
-              <button onClick={() => { setIsAuditOpen(false); setIsPreferencesOpen(false); setIsSettingsOpen(false); setIsDriveOpen(false); setIsSoulOpen(false); setIsApiManifoldOpen(false); setIsTaskPanelOpen(false); setSelectedSkill(null); setShowSkillWizard(false); }} className="alce-button baunk-style text-[9px] md:text-[10px] hover:bg-tension px-4 md:px-10 py-2">[ EXIT ]</button>
-            </header>
-            <div className="flex-1 overflow-y-auto p-4 md:p-10 scrollbar-hide relative">
-              {isTaskPanelOpen ? (<TaskPanel onClose={() => setIsTaskPanelOpen(false)} />) : isApiManifoldOpen ? (
-                <div className="flex flex-col items-center justify-center py-20 gap-8">
-                  <h3 className="baunk-style text-lg tracking-widest text-center">SOVEREIGN_API_MANIFOLD_CONTROL</h3>
-                  <button
-                    onClick={() => { setIsApiManifoldOpen(false); setIsApiWizardOpen(true); }}
-                    className="alce-button baunk-style text-[10px] px-12 py-4 bg-sovereign text-white hover:bg-agent"
-                  >
-                    [ LAUNCH_API_WIZARD ]
-                  </button>
-                </div>
-              ) : isSoulOpen ? (<SoulPreferencesPanel onClose={() => setIsSoulOpen(false)} onManifestUpdate={handleManifestUpdate} />) : isPreferencesOpen ? (
-                <div className="flex flex-col gap-16"><div className="grid grid-cols-1 lg:grid-cols-1 gap-16"><div className="flex flex-col"><h3 className="baunk-style text-[12px] border-b border-sovereign pb-1 mb-8 opacity-50 tracking-[0.3em]">Security_&_Trust_Protocol</h3><div className="p-6 bg-agent/5 border border-agent/20 text-[10px] font-mono leading-relaxed mb-10 space-y-4"><p>● <span className="font-bold">ONE_TOUCH_LOGIN</span>: Enabled for all verified biometric platforms.</p><p>● <span className="font-bold">E2E_ENCRYPTION</span>: Mandatory for iMessage, Signal, and WhatsApp bridges.</p><p>● <span className="font-bold">SESSION_ISOLATION</span>: Each bridge operates in a secure Simplicial Vault.</p><p>● <span className="font-bold">AUTONOMY_LEVEL</span>: Full sovereign execution authorized.</p></div><div className="grid grid-cols-2 gap-4 max-w-sm"><button className="alce-button text-[8px] baunk-style w-full bg-sovereign text-white">[ ROTATE_KEYS ]</button><button className="alce-button text-[8px] baunk-style w-full">[ FLUSH_CACHE ]</button></div></div></div><div className="space-y-12 pb-20">{Object.entries(groupedConnections).map(([groupName, groupConns]) => (<div key={groupName}><h3 className="baunk-style text-[12px] border-b border-sovereign pb-1 mb-8 opacity-50 tracking-[0.3em]">{groupName}</h3><div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">{groupConns.map(conn => (<div key={conn.id} className={`facet p-6 transition-all duration-300 group hover:shadow-xl ${conn.status === 'CONNECTED' ? 'border-agent' : 'border-zinc/20 hover:border-sovereign'}`}><div className="flex justify-between items-start mb-6"><div className="flex flex-col"><span className="baunk-style text-[10px] block font-bold mb-1">{conn.name}</span><span className="text-[7px] font-mono opacity-40 uppercase">{conn.type}</span></div><span className={`text-[6px] baunk-style p-1.5 border ${conn.status === 'CONNECTED' ? 'bg-agent text-white border-agent' : 'bg-zinc/5 opacity-40 border-zinc/20'}`}>{conn.authType}</span></div>{conn.status === 'CONNECTED' ? (<div className="flex items-center gap-3 mb-6 animate-in slide-in-from-top-2"><div className="relative"><img src={conn.profileImg || `https://api.dicebear.com/7.x/identicon/svg?seed=${conn.id}`} className="w-10 h-10 rounded-full border border-sovereign/10 grayscale group-hover:grayscale-0 transition-all" alt="" /><div className="absolute bottom-0 right-0 w-3 h-3 bg-agent rounded-full border-2 border-white" /></div><div className="flex flex-col"><div className="text-[8px] font-bold font-mono text-sovereign">{conn.accountAlias}</div><div className="text-[6px] font-mono opacity-40 uppercase tracking-tighter">Verified Session</div></div></div>) : (<div className="h-10 mb-6 flex items-center justify-center border border-dashed border-zinc/20 bg-zinc/5"><span className="text-[7px] font-mono opacity-20 uppercase tracking-widest italic">Signal Offline</span></div>)}<button onClick={() => startAuthFlow(conn)} className={`alce-button py-3 text-[8px] w-full baunk-style transition-all ${conn.status === 'CONNECTED' ? 'text-tension border-tension hover:bg-tension hover:text-white' : 'text-sovereign hover:bg-sovereign hover:text-white'}`}>{conn.status === 'CONNECTED' ? '[ TERMINATE ]' : '[ ACTIVATE ]'}</button></div>))}</div></div>))}</div></div>) : isSettingsOpen ? (showSkillWizard ? (<SkillBuilderWizard onClose={() => { setShowSkillWizard(false); fetchSkills(); }} />) : (<div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative"><div onClick={() => setShowSkillWizard(true)} className="facet p-8 border-dashed border-zinc/20 hover:border-agent transition-all duration-300 group cursor-pointer flex flex-col items-center justify-center gap-4 bg-zinc/5 hover:bg-agent/5 h-[300px]"><div className="w-16 h-16 rounded-full border border-zinc/20 flex items-center justify-center group-hover:border-agent transition-colors"><span className="text-2xl text-zinc-400 group-hover:text-agent">+</span></div><span className="baunk-style text-[10px] tracking-[0.2em] group-hover:text-agent">CREATE_NEW_COGNITIVE_MODULE</span></div>{skills.map(skill => (<div key={skill.id} onClick={() => setSelectedSkill(skill)} className={`facet p-8 border-zinc/10 relative hover:border-agent transition-all duration-500 group cursor-pointer ${!skill.verified ? 'opacity-40 grayscale' : 'shadow-sm'}`}><div className="flex justify-between items-start mb-6"><div className="flex flex-col"><span className="baunk-style text-[12px] group-hover:text-agent transition-colors">{skill.name}</span><span className="text-[7px] font-mono opacity-30 mt-1 uppercase tracking-tighter">{skill.category} / {skill.id}</span></div><div className="flex gap-2"><button onClick={(e) => { e.stopPropagation(); handleDeleteSkill(skill.id); }} className="px-2 py-1 text-[8px] baunk-style text-red-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">✕</button><button onClick={(e) => { e.stopPropagation(); handleToggleSkill(skill.id); }} className={`px-3 py-1 text-[8px] baunk-style border ${skill.verified ? 'bg-agent text-white border-agent' : 'bg-white text-zinc border-zinc/20 hover:border-tension hover:text-tension'}`}>{skill.verified ? '[ ACTIVE ]' : '[ OFFLINE ]'}</button></div></div><div className="space-y-2 mb-6"><span className="text-[7px] baunk-style opacity-30 block">Capabilities:</span><div className="flex flex-wrap gap-1">{(skill.capabilities || []).length > 0 ? (skill.capabilities.map((cap, ci) => (<span key={ci} className="bg-zinc/5 border border-zinc/10 px-2 py-0.5 text-[7px] font-mono opacity-60 truncate max-w-full">{cap}</span>))) : (<span className="text-[7px] font-mono opacity-30 italic">No specific tool bindings.</span>)}</div></div><div className="flex justify-between items-center text-[7px] font-mono opacity-20 mt-8 pt-4 border-t border-zinc/5"><span>SIG: {skill.signature}</span></div></div>))}</div>)) : isDriveOpen ? (<div className="flex flex-col items-center justify-center h-full gap-12 py-20"><div className="relative"><div className="absolute inset-0 bg-agent/5 rounded-full blur-3xl scale-150 animate-pulse" /><PolytopeIdentity color="#000" size={160} active={isConnected} /></div><div className="text-center space-y-4 max-w-xl px-6"><h3 className="baunk-style text-xl tracking-[0.8em]">MANIFOLD_STORAGE_STABLE</h3><p className="text-[11px] opacity-40 font-mono leading-relaxed">Awaiting sovereign data packets. Integrated iCloud, Google Drive, and MS Teams bridges are prepared for bi-directional synchronization.</p></div><button onClick={() => fileInputRef.current?.click()} className="alce-button baunk-style text-[10px] px-20 h-16">[ UPLOAD_DATA_PACKET ]</button></div>) : null}
-            </div>
-            {selectedSkill && (
-              <div className="absolute top-0 md:top-24 left-0 md:left-1/2 md:-translate-x-1/2 z-[150] w-full h-full md:h-auto md:w-[90%] max-w-2xl md:max-h-[75vh] bg-white border-2 border-sovereign shadow-[0_20px_60px_rgba(0,0,0,0.3)] flex flex-col animate-in slide-in-from-top-10 duration-500">
-                <header className="p-6 border-b border-sovereign flex justify-between items-center bg-white shrink-0"><div className="flex flex-col"><span className="text-agent baunk-style text-[8px] tracking-[0.4em] mb-1">{selectedSkill.category}</span><h3 className="baunk-style text-sm md:text-base tracking-tighter">{selectedSkill.name}</h3></div><button onClick={() => setSelectedSkill(null)} className="alce-button baunk-style text-[8px] hover:bg-tension border-none font-bold">[ EXIT ]</button></header>
-                <div className="flex-1 overflow-y-auto p-8 scrollbar-hide space-y-10">
-                  <section className="space-y-4"><h4 className="baunk-style text-[10px] opacity-40 border-b border-sovereign/10 pb-1">Skill_Overview</h4><p className="text-xs font-mono leading-relaxed opacity-70">{selectedSkill.description}</p></section>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8"><section className="space-y-3"><h4 className="baunk-style text-[9px] text-agent">Mindsets</h4><ul className="space-y-2">{selectedSkill.mindsets.map((m, i) => (<li key={i} className="text-[10px] font-mono flex gap-2"><span className="opacity-30">[{i + 1}]</span><span className="uppercase">{m}</span></li>))}</ul></section><section className="space-y-3"><h4 className="baunk-style text-[9px] text-flux">Methodologies</h4><ul className="space-y-2">{selectedSkill.methodologies.map((m, i) => (<li key={i} className="text-[10px] font-mono flex gap-2"><span className="opacity-30">[{i + 1}]</span><span>{m}</span></li>))}</ul></section></div>
-                  <section className="space-y-4"><h4 className="baunk-style text-[9px] text-tension">Cognitive_Chains_&_Logic</h4><div className="bg-zinc/5 p-4 border border-zinc/10 space-y-4"><div className="flex flex-wrap gap-3 items-center">{selectedSkill.chainsOfThought.map((t, i) => (<React.Fragment key={i}><div className="flex items-center gap-2 text-[9px] font-mono"><span className="bg-sovereign text-white w-4 h-4 rounded-full flex items-center justify-center text-[7px]">{i + 1}</span><span>{t}</span></div>{i < selectedSkill.chainsOfThought.length - 1 && <span className="text-agent opacity-40">→</span>}</React.Fragment>))}</div><div className="pt-3 border-t border-zinc/10"><span className="text-[7px] baunk-style opacity-30 block mb-1">Fundamental_Logic:</span><div className="space-y-1">{selectedSkill.logic.map((l, i) => (<p key={i} className="text-[10px] font-mono italic opacity-60">"{l}"</p>))}</div></div></div></section>
-                  <section className="space-y-4"><h4 className="baunk-style text-[9px] text-sovereign">Best_Practices_Guide</h4><div className="space-y-2">{selectedSkill.bestPractices && selectedSkill.bestPractices.map((b, i) => (<div key={i} className="p-3 bg-white border border-sovereign/5 text-[10px] font-mono flex gap-3 shadow-sm"><span className="text-agent">●</span><span>{b}</span></div>))}</div></section>
-                  <footer className="pt-8 border-t border-zinc/10 flex flex-col gap-2 text-[6px] font-mono opacity-20 pb-4"><span>SIGNATURE: {selectedSkill.signature}</span><span>PUBLIC_KEY: {selectedSkill.publicKey}</span><span>AUTHORIZED_EXECUTIVE_MANIFOLD_CALIBRATION_STABLE</span></footer>
-                </div>
+      {
+        (isAuditOpen || isPreferencesOpen || isSettingsOpen || isDriveOpen || isSoulOpen || isApiManifoldOpen || isTaskPanelOpen) && (
+          <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm p-0 md:p-6 flex items-end md:items-center justify-center animate-in fade-in duration-300">
+            <div className="facet w-full h-[100dvh] md:h-[90vh] md:w-full md:max-w-6xl bg-white shadow-2xl flex flex-col border-t-2 md:border-2 border-sovereign overflow-hidden animate-in slide-in-from-bottom-10 md:zoom-in-95 relative">
+              <header className="p-4 md:p-8 border-b border-sovereign flex justify-between items-center bg-white z-[120]">
+                <div className="flex flex-col"><h2 className="baunk-style text-xs md:text-lg tracking-[0.2em] md:tracking-[0.5em] truncate max-w-[200px] md:max-w-none">{isAuditOpen ? 'EXECUTIVE_LEDGER' : isSettingsOpen ? 'SKILL_MANIFEST' : isPreferencesOpen ? 'BRIDGE_DIRECTORY' : isDriveOpen ? 'FILE_MANIFOLD' : isSoulOpen ? 'SOUL_PREFERENCES' : isApiManifoldOpen ? 'API_MANIFOLD_PREFERENCES' : isTaskPanelOpen ? 'TASK_MANIFOLD' : ''}</h2><span className="text-[6px] md:text-[8px] font-mono opacity-30 uppercase mt-1">Sovereign_Protocol_v4.3_Active</span></div>
+                <button onClick={() => { setIsAuditOpen(false); setIsPreferencesOpen(false); setIsSettingsOpen(false); setIsDriveOpen(false); setIsSoulOpen(false); setIsApiManifoldOpen(false); setIsTaskPanelOpen(false); setSelectedSkill(null); setShowSkillWizard(false); }} className="alce-button baunk-style text-[9px] md:text-[10px] hover:bg-tension px-4 md:px-10 py-2">[ EXIT ]</button>
+              </header>
+              <div className="flex-1 overflow-y-auto p-4 md:p-10 scrollbar-hide relative">
+                {isTaskPanelOpen ? (<TaskPanel onClose={() => setIsTaskPanelOpen(false)} />) : isApiManifoldOpen ? (
+                  <div className="flex flex-col items-center justify-center py-20 gap-8">
+                    <h3 className="baunk-style text-lg tracking-widest text-center">SOVEREIGN_API_MANIFOLD_CONTROL</h3>
+                    <button
+                      onClick={() => { setIsApiManifoldOpen(false); setIsApiWizardOpen(true); }}
+                      className="alce-button baunk-style text-[10px] px-12 py-4 bg-sovereign text-white hover:bg-agent"
+                    >
+                      [ LAUNCH_API_WIZARD ]
+                    </button>
+                  </div>
+                ) : isSoulOpen ? (<SoulPreferencesPanel onClose={() => setIsSoulOpen(false)} onManifestUpdate={handleManifestUpdate} />) : isPreferencesOpen ? (
+                  <div className="flex flex-col gap-16"><div className="grid grid-cols-1 lg:grid-cols-1 gap-16"><div className="flex flex-col"><h3 className="baunk-style text-[12px] border-b border-sovereign pb-1 mb-8 opacity-50 tracking-[0.3em]">Security_&_Trust_Protocol</h3><div className="p-6 bg-agent/5 border border-agent/20 text-[10px] font-mono leading-relaxed mb-10 space-y-4"><p>● <span className="font-bold">ONE_TOUCH_LOGIN</span>: Enabled for all verified biometric platforms.</p><p>● <span className="font-bold">E2E_ENCRYPTION</span>: Mandatory for iMessage, Signal, and WhatsApp bridges.</p><p>● <span className="font-bold">SESSION_ISOLATION</span>: Each bridge operates in a secure Simplicial Vault.</p><p>● <span className="font-bold">AUTONOMY_LEVEL</span>: Full sovereign execution authorized.</p></div><div className="grid grid-cols-2 gap-4 max-w-sm"><button className="alce-button text-[8px] baunk-style w-full bg-sovereign text-white">[ ROTATE_KEYS ]</button><button className="alce-button text-[8px] baunk-style w-full">[ FLUSH_CACHE ]</button></div></div></div><div className="space-y-12 pb-20">{Object.entries(groupedConnections).map(([groupName, groupConns]) => (<div key={groupName}><h3 className="baunk-style text-[12px] border-b border-sovereign pb-1 mb-8 opacity-50 tracking-[0.3em]">{groupName}</h3><div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">{groupConns.map(conn => (<div key={conn.id} className={`facet p-6 transition-all duration-300 group hover:shadow-xl ${conn.status === 'CONNECTED' ? 'border-agent' : 'border-zinc/20 hover:border-sovereign'}`}><div className="flex justify-between items-start mb-6"><div className="flex flex-col"><span className="baunk-style text-[10px] block font-bold mb-1">{conn.name}</span><span className="text-[7px] font-mono opacity-40 uppercase">{conn.type}</span></div><span className={`text-[6px] baunk-style p-1.5 border ${conn.status === 'CONNECTED' ? 'bg-agent text-white border-agent' : 'bg-zinc/5 opacity-40 border-zinc/20'}`}>{conn.authType}</span></div>{conn.status === 'CONNECTED' ? (<div className="flex items-center gap-3 mb-6 animate-in slide-in-from-top-2"><div className="relative"><img src={conn.profileImg || `https://api.dicebear.com/7.x/identicon/svg?seed=${conn.id}`} className="w-10 h-10 rounded-full border border-sovereign/10 grayscale group-hover:grayscale-0 transition-all" alt="" /><div className="absolute bottom-0 right-0 w-3 h-3 bg-agent rounded-full border-2 border-white" /></div><div className="flex flex-col"><div className="text-[8px] font-bold font-mono text-sovereign">{conn.accountAlias}</div><div className="text-[6px] font-mono opacity-40 uppercase tracking-tighter">Verified Session</div></div></div>) : (<div className="h-10 mb-6 flex items-center justify-center border border-dashed border-zinc/20 bg-zinc/5"><span className="text-[7px] font-mono opacity-20 uppercase tracking-widest italic">Signal Offline</span></div>)}<button onClick={() => startAuthFlow(conn)} className={`alce-button py-3 text-[8px] w-full baunk-style transition-all ${conn.status === 'CONNECTED' ? 'text-tension border-tension hover:bg-tension hover:text-white' : 'text-sovereign hover:bg-sovereign hover:text-white'}`}>{conn.status === 'CONNECTED' ? '[ TERMINATE ]' : '[ ACTIVATE ]'}</button></div>))}</div></div>))}</div></div>) : isSettingsOpen ? (showSkillWizard ? (<SkillBuilderWizard onClose={() => { setShowSkillWizard(false); fetchSkills(); }} />) : (<div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative"><div onClick={() => setShowSkillWizard(true)} className="facet p-8 border-dashed border-zinc/20 hover:border-agent transition-all duration-300 group cursor-pointer flex flex-col items-center justify-center gap-4 bg-zinc/5 hover:bg-agent/5 h-[300px]"><div className="w-16 h-16 rounded-full border border-zinc/20 flex items-center justify-center group-hover:border-agent transition-colors"><span className="text-2xl text-zinc-400 group-hover:text-agent">+</span></div><span className="baunk-style text-[10px] tracking-[0.2em] group-hover:text-agent">CREATE_NEW_COGNITIVE_MODULE</span></div>{skills.map(skill => (<div key={skill.id} onClick={() => setSelectedSkill(skill)} className={`facet p-8 border-zinc/10 relative hover:border-agent transition-all duration-500 group cursor-pointer ${!skill.verified ? 'opacity-40 grayscale' : 'shadow-sm'}`}><div className="flex justify-between items-start mb-6"><div className="flex flex-col"><span className="baunk-style text-[12px] group-hover:text-agent transition-colors">{skill.name}</span><span className="text-[7px] font-mono opacity-30 mt-1 uppercase tracking-tighter">{skill.category} / {skill.id}</span></div><div className="flex gap-2"><button onClick={(e) => { e.stopPropagation(); handleDeleteSkill(skill.id); }} className="px-2 py-1 text-[8px] baunk-style text-red-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">✕</button><button onClick={(e) => { e.stopPropagation(); handleToggleSkill(skill.id); }} className={`px-3 py-1 text-[8px] baunk-style border ${skill.verified ? 'bg-agent text-white border-agent' : 'bg-white text-zinc border-zinc/20 hover:border-tension hover:text-tension'}`}>{skill.verified ? '[ ACTIVE ]' : '[ OFFLINE ]'}</button></div></div><div className="space-y-2 mb-6"><span className="text-[7px] baunk-style opacity-30 block">Capabilities:</span><div className="flex flex-wrap gap-1">{(skill.capabilities || []).length > 0 ? (skill.capabilities.map((cap, ci) => (<span key={ci} className="bg-zinc/5 border border-zinc/10 px-2 py-0.5 text-[7px] font-mono opacity-60 truncate max-w-full">{cap}</span>))) : (<span className="text-[7px] font-mono opacity-30 italic">No specific tool bindings.</span>)}</div></div><div className="flex justify-between items-center text-[7px] font-mono opacity-20 mt-8 pt-4 border-t border-zinc/5"><span>SIG: {skill.signature}</span></div></div>))}</div>)) : isDriveOpen ? (<div className="flex flex-col items-center justify-center h-full gap-12 py-20"><div className="relative"><div className="absolute inset-0 bg-agent/5 rounded-full blur-3xl scale-150 animate-pulse" /><PolytopeIdentity color="#000" size={160} active={isConnected} /></div><div className="text-center space-y-4 max-w-xl px-6"><h3 className="baunk-style text-xl tracking-[0.8em]">MANIFOLD_STORAGE_STABLE</h3><p className="text-[11px] opacity-40 font-mono leading-relaxed">Awaiting sovereign data packets. Integrated iCloud, Google Drive, and MS Teams bridges are prepared for bi-directional synchronization.</p></div><button onClick={() => fileInputRef.current?.click()} className="alce-button baunk-style text-[10px] px-20 h-16">[ UPLOAD_DATA_PACKET ]</button></div>) : null}
               </div>
-            )}
+              {selectedSkill && (
+                <div className="absolute top-0 md:top-24 left-0 md:left-1/2 md:-translate-x-1/2 z-[150] w-full h-full md:h-auto md:w-[90%] max-w-2xl md:max-h-[75vh] bg-white border-2 border-sovereign shadow-[0_20px_60px_rgba(0,0,0,0.3)] flex flex-col animate-in slide-in-from-top-10 duration-500">
+                  <header className="p-6 border-b border-sovereign flex justify-between items-center bg-white shrink-0"><div className="flex flex-col"><span className="text-agent baunk-style text-[8px] tracking-[0.4em] mb-1">{selectedSkill.category}</span><h3 className="baunk-style text-sm md:text-base tracking-tighter">{selectedSkill.name}</h3></div><button onClick={() => setSelectedSkill(null)} className="alce-button baunk-style text-[8px] hover:bg-tension border-none font-bold">[ EXIT ]</button></header>
+                  <div className="flex-1 overflow-y-auto p-8 scrollbar-hide space-y-10">
+                    <section className="space-y-4"><h4 className="baunk-style text-[10px] opacity-40 border-b border-sovereign/10 pb-1">Skill_Overview</h4><p className="text-xs font-mono leading-relaxed opacity-70">{selectedSkill.description}</p></section>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8"><section className="space-y-3"><h4 className="baunk-style text-[9px] text-agent">Mindsets</h4><ul className="space-y-2">{selectedSkill.mindsets.map((m, i) => (<li key={i} className="text-[10px] font-mono flex gap-2"><span className="opacity-30">[{i + 1}]</span><span className="uppercase">{m}</span></li>))}</ul></section><section className="space-y-3"><h4 className="baunk-style text-[9px] text-flux">Methodologies</h4><ul className="space-y-2">{selectedSkill.methodologies.map((m, i) => (<li key={i} className="text-[10px] font-mono flex gap-2"><span className="opacity-30">[{i + 1}]</span><span>{m}</span></li>))}</ul></section></div>
+                    <section className="space-y-4"><h4 className="baunk-style text-[9px] text-tension">Cognitive_Chains_&_Logic</h4><div className="bg-zinc/5 p-4 border border-zinc/10 space-y-4"><div className="flex flex-wrap gap-3 items-center">{selectedSkill.chainsOfThought.map((t, i) => (<React.Fragment key={i}><div className="flex items-center gap-2 text-[9px] font-mono"><span className="bg-sovereign text-white w-4 h-4 rounded-full flex items-center justify-center text-[7px]">{i + 1}</span><span>{t}</span></div>{i < selectedSkill.chainsOfThought.length - 1 && <span className="text-agent opacity-40">→</span>}</React.Fragment>))}</div><div className="pt-3 border-t border-zinc/10"><span className="text-[7px] baunk-style opacity-30 block mb-1">Fundamental_Logic:</span><div className="space-y-1">{selectedSkill.logic.map((l, i) => (<p key={i} className="text-[10px] font-mono italic opacity-60">"{l}"</p>))}</div></div></div></section>
+                    <section className="space-y-4"><h4 className="baunk-style text-[9px] text-sovereign">Best_Practices_Guide</h4><div className="space-y-2">{selectedSkill.bestPractices && selectedSkill.bestPractices.map((b, i) => (<div key={i} className="p-3 bg-white border border-sovereign/5 text-[10px] font-mono flex gap-3 shadow-sm"><span className="text-agent">●</span><span>{b}</span></div>))}</div></section>
+                    <footer className="pt-8 border-t border-zinc/10 flex flex-col gap-2 text-[6px] font-mono opacity-20 pb-4"><span>SIGNATURE: {selectedSkill.signature}</span><span>PUBLIC_KEY: {selectedSkill.publicKey}</span><span>AUTHORIZED_EXECUTIVE_MANIFOLD_CALIBRATION_STABLE</span></footer>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+    </div >
   );
 };
 
