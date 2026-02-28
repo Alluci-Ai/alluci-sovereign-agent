@@ -91,6 +91,8 @@ class TelemetryData(BaseModel):
     valence: Optional[float] = 0.5
     arousal: Optional[float] = 0.5
     focus: Optional[float] = 0.5
+    respiratory_rate: Optional[float] = None
+    sleep_efficiency: Optional[float] = None
 
 class SystemStatus(BaseModel):
     cpu_usage: float

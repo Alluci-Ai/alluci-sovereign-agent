@@ -23,24 +23,33 @@ class AffectiveEngine:
         # 1. Physical Vitality (Stress)
         if data.hr and data.hrv:
             # Simple heuristic: high HR and low HRV indicates stress
-            stress = (data.hr / data.hrv) * 10 
+            # Normalized against respiratory rate if available
+            rr_factor = (data.respiratory_rate / 15.0) if data.respiratory_rate else 1.0
+            stress = (data.hr / data.hrv) * 10 * rr_factor
             self.current_state["stress_score"] = stress
             self.current_state["physical_vitality"] = max(0.0, 1.0 - (stress / 100))
         
-        # 2. Affective Valence (Emotion - if provided via skin conductance/voice)
+        # 2. Affective Valence (Emotion)
         if data.valence is not None:
-            if data.valence > 0.7:
+            # If sleep efficiency is low, bias valence toward lower values (fatigue/irritability)
+            sleep_bias = (data.sleep_efficiency - 0.8) if data.sleep_efficiency else 0.0
+            adjusted_valence = data.valence + sleep_bias
+            if adjusted_valence > 0.7:
                 self.current_state["affective_valence"] = "expansive"
-            elif data.valence < 0.3:
+            elif adjusted_valence < 0.3:
                 self.current_state["affective_valence"] = "contracted"
             else:
                 self.current_state["affective_valence"] = "neutral"
 
         # 3. Cognitive State (Mental Load)
         if data.focus is not None:
-            if data.focus > 0.8:
+            # High recovery (sleep > 0.9) increases focus capacity
+            recovery_boost = 0.1 if (data.sleep_efficiency and data.sleep_efficiency > 0.9) else 0.0
+            adjusted_focus = data.focus + recovery_boost
+            
+            if adjusted_focus > 0.8:
                 self.current_state["mental_load"] = "deep_work"
-            elif data.focus < 0.3:
+            elif adjusted_focus < 0.3:
                 self.current_state["mental_load"] = "fatigued"
             else:
                 self.current_state["mental_load"] = "nominal"

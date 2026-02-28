@@ -26,6 +26,18 @@ export class ACEController {
         const now = Date.now();
         if (now - this.lastNudgeTime < this.nudgeCooldown) return null;
 
+        // [ EXTREME_STRESS_INTERVENTION ]
+        // Driven by sudden Arousal spikes (A > 0.9) detected via HR/Respiration
+        if (a > 0.9) {
+            this.lastNudgeTime = now;
+            return {
+                id: `nudge_${now}`,
+                type: 'REST',
+                message: "CORTISOL_SPIKE_DETECTED: Sudden arousal surge. Sending haptic calming pulse to iWatch.",
+                priority: 1.0
+            };
+        }
+
         // 1. Burnout Prevention (High Load + Low Valence)
         if (l > 0.8 && v < 0.3) {
             this.lastNudgeTime = now;
