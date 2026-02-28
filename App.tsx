@@ -7,10 +7,38 @@ import {
   GroundingSource
 } from './geminiService';
 import { AlluciSovereignService, SovereignCallbacks } from './sovereignService';
-import { AuditLedger, SovereignSecurityManager, SkillVerifier, generateSystemPrompt, BioVault, clamp01 } from './alluciCore';
+import {
+  SkillVerifier,
+  generateSystemPrompt,
+  clamp01,
+  SovereignSecurityManager,
+  AuditLedger,
+  BioVault
+} from './alluciCore';
 import { ACEController, ACENudge } from './aceController';
 import LiveCanvas, { CanvasNode } from './LiveCanvas';
-import { AuditEntry, PersonalityTraits, Connection, AuthType, SkillManifest, ApiManifoldKeys, AutonomyLevel, SoulPreferences, SoulHumor, SoulConciseness, SoulManifest, GraphNode, GraphEdge } from './types';
+import {
+  AuditEntry,
+  PersonalityTraits,
+  Connection,
+  AuthType,
+  SkillManifest,
+  ApiManifoldKeys,
+  AutonomyLevel,
+  SoulPreferences,
+  SoulHumor,
+  SoulConciseness,
+  SoulManifest,
+  GraphNode
+} from './types';
+import { BridgeManager } from './bridgeManager';
+import {
+  PROFILE_IDENTITY,
+  PROFILE_AFFECTIVE_COMPUTING,
+  PROFILE_REASONING_STYLE,
+  KNOWLEDGE_FRAMEWORKS,
+  SKILL_DATABASE
+} from './knowledge';
 import SoulPreferencesPanel from './SoulPreferencesPanel';
 import SkillBuilderWizard from './SkillBuilderWizard';
 import ApiWizard from './ApiWizard';
@@ -600,9 +628,24 @@ const App: React.FC = () => {
   ]);
   const aceControllerRef = useRef(new ACEController());
   const bioVaultRef = useRef(new BioVault());
+  const auditLedgerRef = useRef(new AuditLedger());
+  const securityManagerRef = useRef(new SovereignSecurityManager(auditLedgerRef.current));
+  const bridgeManagerRef = useRef(new BridgeManager(securityManagerRef.current));
 
   const clearNudge = (id: string) => {
     setActiveNudges(prev => prev.filter(n => n.id !== id));
+  };
+
+  const handleRotateKeys = async () => {
+    await bridgeManagerRef.current.performRotateKeys();
+    auditLedgerRef.current.addEntry("KEYS_ROTATED", { scope: "ALL_VAULTS" });
+    refreshAuditLog();
+  };
+
+  const handleFlushCache = async () => {
+    await bridgeManagerRef.current.performFlushCache();
+    auditLedgerRef.current.addEntry("CACHE_FLUSHED", { scope: "ALL_VAULTS" });
+    refreshAuditLog();
   };
 
   useEffect(() => {
@@ -659,19 +702,22 @@ const App: React.FC = () => {
     { id: 'imessage', name: 'iMessage', status: 'DISCONNECTED', type: 'MESSAGING', authType: 'SECURE_TUNNEL', autonomyLevel: AutonomyLevel.RESTRICTED, isEncrypted: true },
     { id: 'iwatch', name: 'iWatch', status: 'DISCONNECTED', type: 'MESSAGING', authType: 'SECURE_TUNNEL', autonomyLevel: AutonomyLevel.RESTRICTED, isEncrypted: true },
     { id: 'iphone', name: 'iPhone', status: 'DISCONNECTED', type: 'MESSAGING', authType: 'SECURE_TUNNEL', autonomyLevel: AutonomyLevel.RESTRICTED, isEncrypted: true },
+
     { id: 'wa', name: 'WhatsApp', status: 'DISCONNECTED', type: 'MESSAGING', authType: 'QR_SYNC', autonomyLevel: AutonomyLevel.RESTRICTED, isEncrypted: true },
     { id: 'tg', name: 'Telegram', status: 'DISCONNECTED', type: 'MESSAGING', authType: 'TOKEN', autonomyLevel: AutonomyLevel.RESTRICTED, isEncrypted: true },
-    { id: 'sl', name: 'Slack', status: 'DISCONNECTED', type: 'MESSAGING', authType: 'OAUTH2', autonomyLevel: AutonomyLevel.RESTRICTED, isEncrypted: true },
     { id: 'dc', name: 'Discord', status: 'DISCONNECTED', type: 'MESSAGING', authType: 'OAUTH2', autonomyLevel: AutonomyLevel.RESTRICTED, isEncrypted: true },
     { id: 'sg', name: 'Signal', status: 'DISCONNECTED', type: 'MESSAGING', authType: 'TOKEN', autonomyLevel: AutonomyLevel.RESTRICTED, isEncrypted: true },
     { id: 'ig', name: 'Instagram', status: 'DISCONNECTED', type: 'MESSAGING', authType: 'OAUTH2', autonomyLevel: AutonomyLevel.RESTRICTED, isEncrypted: true },
     { id: 'fb', name: 'Facebook', status: 'DISCONNECTED', type: 'MESSAGING', authType: 'OAUTH2', autonomyLevel: AutonomyLevel.RESTRICTED, isEncrypted: true },
     { id: 'x', name: 'X', status: 'DISCONNECTED', type: 'MESSAGING', authType: 'OAUTH2', autonomyLevel: AutonomyLevel.RESTRICTED, isEncrypted: true },
+
+    { id: 'sl', name: 'Slack', status: 'DISCONNECTED', type: 'MESSAGING', authType: 'OAUTH2', autonomyLevel: AutonomyLevel.RESTRICTED, isEncrypted: true },
     { id: 'mt', name: 'MS Teams', status: 'DISCONNECTED', type: 'WORKSPACE', authType: 'OAUTH2', autonomyLevel: AutonomyLevel.RESTRICTED, isEncrypted: true },
     { id: 'webchat', name: 'WebChat', status: 'DISCONNECTED', type: 'MESSAGING', authType: 'WEB_SESSION', autonomyLevel: AutonomyLevel.RESTRICTED, isEncrypted: false },
     { id: 'wechat', name: 'WeChat', status: 'DISCONNECTED', type: 'MESSAGING', authType: 'QR_SYNC', autonomyLevel: AutonomyLevel.RESTRICTED, isEncrypted: true },
     { id: 'gm', name: 'Gmail', status: 'DISCONNECTED', type: 'WORKSPACE', authType: 'OAUTH2', autonomyLevel: AutonomyLevel.RESTRICTED, isEncrypted: true },
     { id: 'gd', name: 'G-Drive', status: 'DISCONNECTED', type: 'WORKSPACE', authType: 'OAUTH2', autonomyLevel: AutonomyLevel.RESTRICTED, isEncrypted: true },
+
     { id: 'verus', name: 'VerusID', status: 'DISCONNECTED', type: 'WORKSPACE', authType: 'IDENTITY_LINK', autonomyLevel: AutonomyLevel.SOVEREIGN, isEncrypted: true }
   ]);
 
@@ -958,11 +1004,20 @@ const App: React.FC = () => {
 
   // ... (Auth helpers, camera toggle, command submit, file handling ... same as original)
 
-  const startAuthFlow = (conn: Connection) => {
+  const startAuthFlow = async (conn: Connection) => {
     if (conn.status === 'CONNECTED') {
       setConnections(prev => prev.map(c => c.id === conn.id ? { ...c, status: 'DISCONNECTED', accountAlias: undefined, profileImg: undefined } : c));
       return;
     }
+
+    // Provision vault and perform handshake
+    const initialized = await bridgeManagerRef.current.initializeBridge(conn);
+    if (!initialized) {
+      auditLedgerRef.current.addEntry("BRIDGE_INIT_FAILED", { bridge: conn.id });
+      refreshAuditLog();
+      return;
+    }
+
     setActiveAuth(conn);
   };
 
@@ -1311,8 +1366,8 @@ const App: React.FC = () => {
                           <p>● <span className="font-bold">AUTONOMY_LEVEL</span>: Full sovereign execution authorized via VerusID.</p>
                         </div>
                         <div className="grid grid-cols-2 gap-4 max-w-sm">
-                          <button className="alce-button text-[8px] baunk-style w-full bg-sovereign text-white">[ ROTATE_KEYS ]</button>
-                          <button className="alce-button text-[8px] baunk-style w-full">[ FLUSH_CACHE ]</button>
+                          <button onClick={handleRotateKeys} className="alce-button text-[8px] baunk-style w-full bg-sovereign text-white">[ ROTATE_KEYS ]</button>
+                          <button onClick={handleFlushCache} className="alce-button text-[8px] baunk-style w-full">[ FLUSH_CACHE ]</button>
                         </div>
                       </div>
 

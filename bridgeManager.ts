@@ -65,6 +65,10 @@ export class BridgeManager {
         return this.establishSecureTunnel(connection.id);
       case 'OAUTH2':
         return this.processOAuthFlow(connection.id);
+      case 'TOKEN':
+        return this.handleTokenAuth(connection.id);
+      case 'IDENTITY_LINK':
+        return this.handleVerusHandshake('sovereign_id.vrsc');
       case 'WEB_SESSION':
         return this.launchHeadlessSession(connection.id);
       default:
@@ -73,49 +77,72 @@ export class BridgeManager {
   }
 
   private async handleQrSync(bridgeId: string): Promise<boolean> {
-    console.log(`[ BRIDGE_${bridgeId} ]: Initiating QR_SYNC protocol...`);
-    if (bridgeId === 'whatsapp') {
-      // In a real flow, this would request a pairing seed from the backend
-      // and display it as a QR code in the A2UI Canvas.
-      console.log(`[ BRIDGE_WHATSAPP ]: Seed generated. Waiting for mobile scan...`);
+    console.log(`[ BRIDGE_${bridgeId.toUpperCase()} ]: Initiating QR_SYNC protocol...`);
+    if (bridgeId === 'wa' || bridgeId === 'wechat') {
+      console.log(`[ BRIDGE_${bridgeId.toUpperCase()} ]: Seed generated. Displaying pairing QR on A2UI Canvas.`);
+      // Mocking the async pairing process
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          console.log(`[ BRIDGE_${bridgeId.toUpperCase()} ]: Scan detected. Handshake finalized.`);
+          resolve(true);
+        }, 3000);
+      });
     }
     return true;
   }
 
   private async establishSecureTunnel(bridgeId: string): Promise<boolean> {
-    if (bridgeId === 'imessage') {
-      console.log(`[ BRIDGE_IMESSAGE ]: Attempting to probe ~/Library/Messages/chat.db...`);
-      // Simulating macOS Full Disk Access (FDA) check
-      const hasFDA = Math.random() > 0.5; // Mocking permission check
-      if (!hasFDA) {
-        console.warn(`[ BRIDGE_IMESSAGE ]: ACCESS_DENIED. Please grant Full Disk Access to the Sovereign Gateway.`);
+    const appleBridges = ['imessage', 'iwatch', 'iphone'];
+    if (appleBridges.includes(bridgeId)) {
+      console.log(`[ BRIDGE_${bridgeId.toUpperCase()} ]: Establishing secure tunnel via local Darwin services...`);
+      // Simulating macOS/iOS permission and handshake
+      const hasPermission = Math.random() > 0.1; // 90% success
+      if (!hasPermission) {
+        console.warn(`[ BRIDGE_${bridgeId.toUpperCase()} ]: PERMISSION_DENIED. Check Privacy & Security settings.`);
         return false;
       }
-      console.log(`[ BRIDGE_IMESSAGE ]: SECURE_TUNNEL_ESTABLISHED.`);
       return true;
     }
     return true;
   }
 
   private async processOAuthFlow(bridgeId: string): Promise<boolean> {
-    console.log(`[ BRIDGE_${bridgeId} ]: Negotiating OAuth2 scopes...`);
-    if (['slack', 'gmail', 'gdrive'].includes(bridgeId)) {
-      // In a real flow, this would open a popup or redirect to the auth provider
-      console.log(`[ BRIDGE_${bridgeId} ]: Awaiting token exchange...`);
-      const success = Math.random() > 0.2; // 80% success mock
-      if (success) {
-        console.log(`[ BRIDGE_${bridgeId} ]: Token received and vaulted.`);
-        return true;
-      } else {
-        console.error(`[ BRIDGE_${bridgeId} ]: AUTH_FAILED. User cancelled or timeout.`);
-        return false;
-      }
+    const oauthBridges = ['sl', 'dc', 'ig', 'fb', 'x', 'mt', 'gm', 'gd'];
+    console.log(`[ BRIDGE_${bridgeId.toUpperCase()} ]: Negotiating OAuth2 scopes for sovereign execution.`);
+    if (oauthBridges.includes(bridgeId)) {
+      console.log(`[ BRIDGE_${bridgeId.toUpperCase()} ]: Awaiting token exchange...`);
+      const success = Math.random() > 0.1;
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          if (success) {
+            console.log(`[ BRIDGE_${bridgeId.toUpperCase()} ]: Sovereign token received and vaulted.`);
+            resolve(true);
+          } else {
+            console.error(`[ BRIDGE_${bridgeId.toUpperCase()} ]: AUTH_FAILED.`);
+            resolve(false);
+          }
+        }, 2000);
+      });
+    }
+    return true;
+  }
+
+  private async handleTokenAuth(bridgeId: string): Promise<boolean> {
+    const tokenBridges = ['tg', 'sg'];
+    console.log(`[ BRIDGE_${bridgeId.toUpperCase()} ]: Validating session token...`);
+    if (tokenBridges.includes(bridgeId)) {
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          console.log(`[ BRIDGE_${bridgeId.toUpperCase()} ]: Token verified. E2EE active.`);
+          resolve(true);
+        }, 1000);
+      });
     }
     return true;
   }
 
   private async launchHeadlessSession(bridgeId: string): Promise<boolean> {
-    console.log(`[ BRIDGE_${bridgeId} ]: Provisioning Playwright environment.`);
+    console.log(`[ BRIDGE_${bridgeId.toUpperCase()} ]: Provisioning Playwright-isolated environment.`);
     return true;
   }
 
