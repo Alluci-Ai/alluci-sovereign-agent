@@ -1661,6 +1661,17 @@ const App: React.FC = () => {
                                             {conn.id === 'gm' ? '[ DRAFT ]' : '[ SEND ]'}
                                           </button>
                                         )}
+                                        {['gm', 'mt'].includes(conn.id) && (
+                                          <button
+                                            onClick={() => {
+                                              bridgeManagerRef.current.executeEnterpriseTask(conn.id, 'SYNC_CALENDAR', {});
+                                              setEnterpriseEvents(prev => [{ platform: conn.name.toUpperCase(), type: 'CALENDAR', msg: 'Calendar manifold synchronized', time: new Date().toISOString() }, ...prev].slice(0, 5));
+                                            }}
+                                            className="text-[6px] baunk-style px-2 py-1 bg-zinc-100 text-zinc-900 border border-zinc-200 hover:bg-black hover:text-white transition-all"
+                                          >
+                                            [ CALENDAR ]
+                                          </button>
+                                        )}
                                       </div>
                                     )}
                                   </div>
