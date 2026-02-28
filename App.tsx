@@ -712,20 +712,18 @@ const App: React.FC = () => {
   const fetchSkills = useCallback(async () => {
     const core = skillVerifier.current.getManifests();
     try {
-      const token = localStorage.getItem('alluci_daemon_token');
-      if (token) {
-        const res = await fetch(`${DAEMON_URL}/skills`, {
-          headers: { 'Authorization': `Bearer ${token}` }
+      // Cookie-based auth automatically included via credentials: 'include'
+      const res = await fetch(`${DAEMON_URL}/skills`, {
+        credentials: 'include'
+      });
+      if (res.ok) {
+        const custom = await res.json();
+        const combined = [...core];
+        custom.forEach((c: SkillManifest) => {
+          if (!combined.find(k => k.id === c.id)) combined.push(c);
         });
-        if (res.ok) {
-          const custom = await res.json();
-          const combined = [...core];
-          custom.forEach((c: SkillManifest) => {
-            if (!combined.find(k => k.id === c.id)) combined.push(c);
-          });
-          setSkills(combined);
-          return;
-        }
+        setSkills(combined);
+        return;
       }
     } catch (e) { }
     setSkills(core);
@@ -739,9 +737,9 @@ const App: React.FC = () => {
 
     // Attempt to load full SoulManifest for the service on init
     const loadSoul = async () => {
-      const token = localStorage.getItem('alluci_daemon_token');
+      // Cookie-based auth
       try {
-        const res = await fetch(`${DAEMON_URL}/soul/manifest`, { headers: token ? { 'Authorization': `Bearer ${token}` } : {} });
+        const res = await fetch(`${DAEMON_URL}/soul/manifest`, { credentials: 'include' });
         if (res.ok) {
           const manifest = await res.json();
           geminiServiceRef.current?.setPersonality(manifest);
@@ -749,16 +747,6 @@ const App: React.FC = () => {
           return;
         }
       } catch (e) { }
-
-      // Fallback
-      const cached = localStorage.getItem('alluci_soul_manifest');
-      if (cached) {
-        try {
-          const manifest = JSON.parse(cached);
-          geminiServiceRef.current?.setPersonality(manifest);
-          setBaseManifest(manifest);
-        } catch (e) { }
-      }
     };
     loadSoul();
 
@@ -1016,11 +1004,11 @@ const App: React.FC = () => {
   };
 
   const handleDeleteSkill = async (id: string) => {
-    const token = localStorage.getItem('alluci_daemon_token');
+    // Cookie-based auth
     try {
       await fetch(`${DAEMON_URL}/skills/${id}`, {
         method: 'DELETE',
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+        credentials: 'include'
       });
       fetchSkills();
     } catch (e) { console.error(e); }
