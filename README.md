@@ -1,5 +1,5 @@
 <div align="center">
-  <h1>Alluci-Polytope Executive Assistant</h1>
+  <h1>Alluci-Sovereign-Agent</h1>
   <h3>Under Development — Coming Soon</h3>
   <p><strong>The Self-Sovereign Personal/Professional AI Assistant</strong></p>
   
