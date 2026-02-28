@@ -108,11 +108,10 @@ const ApiWizard: React.FC<ApiWizardProps> = ({ isOpen, onClose, apiKeys, onSave 
             const res = await fetch(`${DAEMON_URL}/auth/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ key: masterKey })
+                body: JSON.stringify({ key: masterKey }),
+                credentials: 'include'
             });
             if (res.ok) {
-                const data = await res.json();
-                localStorage.setItem('alluci_daemon_token', data.access_token);
                 handleNext();
             } else {
                 setAuthError("FAILURE: Invalid Key.");
@@ -189,7 +188,7 @@ const ApiWizard: React.FC<ApiWizardProps> = ({ isOpen, onClose, apiKeys, onSave 
                                 <div className="flex gap-4 items-start">
                                     <Info size={16} className="text-agent shrink-0 mt-0.5" />
                                     <p className="text-[9px] font-mono leading-relaxed opacity-60">
-                                        Security Protocol Awareness: All API keys entered here are stored within your local Sovereign Manifold (localStorage).
+                                        Security Protocol Awareness: All API keys entered here are stored within your local Sovereign Manifold (Vault/VDXF).
                                         They grant Alluci autonomous reach into your subscription silos. Ensure your environment is secure.
                                     </p>
                                 </div>

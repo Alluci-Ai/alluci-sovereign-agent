@@ -204,7 +204,28 @@ async def readiness_check():
 
 # --- Auth ---
 
-    raise HTTPException(status_code=401, detail="Invalid key")
+@app.post("/auth/login")
+async def login(response: Response, payload: LoginRequest):
+    """Sovereign Master Key Authentication."""
+    if payload.key == settings.POLYTOPE_MASTER_KEY:
+        token = create_access_token(data={"sub": "sovereign_admin"})
+        # Set HttpOnly, Secure, SameSite cookie
+        response.set_cookie(
+            key=settings.AUTH_COOKIE_NAME,
+            value=token,
+            httponly=True,
+            secure=settings.APP_ENV != "development",  # True in prod/local_sovereign if https
+            samesite=settings.AUTH_COOKIE_SAMESITE,
+            max_age=86400  # 24 hours
+        )
+        return {"access_token": token, "token_type": "bearer", "status": "SUCCESS"}
+    
+    raise HTTPException(status_code=401, detail="Invalid Sovereign Master Key")
+
+@app.post("/auth/logout")
+async def logout(response: Response):
+    response.delete_cookie(settings.AUTH_COOKIE_NAME)
+    return {"status": "SUCCESS", "message": "Logged out."}
 
 
 # --- VerusID (SSID) Auth ---
@@ -217,7 +238,7 @@ async def get_verusid_challenge(identity: str = Query("")):
     return verus_auth.create_login_challenge(identity)
 
 @app.post("/auth/verusid/callback")
-async def verusid_callback(payload: Dict[str, str] = Body(...)):
+async def verusid_callback(response: Response, payload: Dict[str, str] = Body(...)):
     """Verifies the signed challenge and issues a JWT."""
     identity = payload.get("identity")
     signature = payload.get("signature")
@@ -229,6 +250,14 @@ async def verusid_callback(payload: Dict[str, str] = Body(...)):
     is_valid = await verus_auth.verify_login_response(identity, signature, challenge_id)
     if is_valid:
         token = create_access_token(data={"sub": identity, "vauth": True})
+        response.set_cookie(
+            key=settings.AUTH_COOKIE_NAME,
+            value=token,
+            httponly=True,
+            secure=settings.APP_ENV != "development",
+            samesite=settings.AUTH_COOKIE_SAMESITE,
+            max_age=86400
+        )
         return {"access_token": token, "token_type": "bearer", "identity": identity}
     
     raise HTTPException(status_code=401, detail="VerusID signature verification failed")
@@ -282,6 +311,26 @@ async def check_health():
     for provider, status in results.items():
         vault.update_vault_status(provider, status)
     return {"status": "success", "results": results}
+
+@app.get("/api/vault/keys", dependencies=[Depends(verify_authenticated)])
+async def get_vault_keys():
+    """Retrieves all API keys from the secure SimplicialVault."""
+    try:
+        keys = await vault.retrieve_secret("alluci_api_keys")
+        return keys or {}
+    except Exception as e:
+        logger.error(f"Failed to retrieve vault keys: {e}")
+        return {}
+
+@app.post("/api/vault/keys", dependencies=[Depends(verify_authenticated)])
+async def save_vault_keys(keys: Dict[str, Any] = Body(...)):
+    """Persists all API keys into the secure SimplicialVault."""
+    try:
+        await vault.store_secret("alluci_api_keys", keys)
+        return {"status": "SUCCESS", "message": "API Manifold Persisted to Vault."}
+    except Exception as e:
+        logger.error(f"Failed to store vault keys: {e}")
+        raise HTTPException(status_code=500, detail="Vault storage failure.")
 
 
 # --- Objective Execution ---

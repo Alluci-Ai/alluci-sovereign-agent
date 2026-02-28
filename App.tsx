@@ -612,16 +612,38 @@ const App: React.FC = () => {
   });
 
   useEffect(() => {
-    if (Object.keys(apiKeys.llm).length > 0 || Object.keys(apiKeys.audio).length > 0) {
-      localStorage.setItem('alluci_api_keys', JSON.stringify(apiKeys));
-    }
-  }, [apiKeys]);
+    // Initial load from secure vault
+    const loadVaultKeys = async () => {
+      try {
+        const res = await fetch(`${DAEMON_URL}/api/vault/keys`, { credentials: 'include' });
+        if (res.ok) {
+          const keys = await res.json();
+          if (keys && Object.keys(keys).length > 0) {
+            setApiKeys(prev => ({ ...prev, ...keys }));
+          }
+        }
+      } catch (e) {
+        console.error("Vault retrieval failed. Local-first fallback active.");
+      }
+    };
+    loadVaultKeys();
+  }, []);
 
-  const handleSaveApiKeys = (newKeys: ApiManifoldKeys) => {
+  const handleSaveApiKeys = async (newKeys: ApiManifoldKeys) => {
     setApiKeys(newKeys);
-    // Explicitly update geminiService if needed
-    if (geminiServiceRef.current) {
-      // In a real implementation, we'd notify the provider router here
+    try {
+      const res = await fetch(`${DAEMON_URL}/api/vault/keys`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newKeys),
+        credentials: 'include'
+      });
+      if (res.ok) {
+        geminiServiceRef.current?.audit.addEntry("API_MANIFOLD_PERSISTED", { status: "SUCCESS" });
+        refreshAuditLog();
+      }
+    } catch (e) {
+      console.error("Vault persistence failed.");
     }
   };
 
@@ -896,12 +918,11 @@ const App: React.FC = () => {
       const res = await fetch(`${DAEMON_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: masterKeyInput })
+        body: JSON.stringify({ key: masterKeyInput }),
+        credentials: 'include'
       });
       if (res.ok) {
-        const data = await res.json();
-        localStorage.setItem('alluci_daemon_token', data.access_token);
-        setAuthStatus("SUCCESS: Sovereign Token Stored.");
+        setAuthStatus("SUCCESS: Sovereign Identity Verified.");
         setMasterKeyInput("");
       } else {
         setAuthStatus("FAILURE: Invalid Key.");

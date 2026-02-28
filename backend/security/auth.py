@@ -1,7 +1,7 @@
 
 from datetime import datetime, timedelta, timezone
 from typing import Optional
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request, Response
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from ..config import load_settings
@@ -18,16 +18,24 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm="HS256")
     return encoded_jwt
 
-async def verify_authenticated(token: str = Depends(oauth2_scheme)):
+async def verify_authenticated(request: Request, token: str = Depends(oauth2_scheme)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    
+    # If header is missing or empty, check cookies
+    if not token or token == "undefined":
+        token = request.cookies.get("alluci_daemon_token")
+    
+    if not token:
+        raise credentials_exception
+
     try:
         # Verify signature using dedicated JWT secret key
         payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=["HS256"])
-        if payload.get("sub") != "sovereign_admin":
+        if payload.get("sub") is None:
             raise credentials_exception
     except JWTError:
         raise credentials_exception

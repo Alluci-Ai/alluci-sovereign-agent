@@ -1,5 +1,5 @@
 
-import { 
+import {
   AuditEntry,
   SkillManifest,
   PersonalityTraits,
@@ -31,12 +31,16 @@ export class SimplicialVault {
 
   constructor(id: string) {
     this.vaultId = id;
-    this.entropy = Math.random().toString(36).substring(7);
+    const array = new Uint32Array(8);
+    window.crypto.getRandomValues(array);
+    this.entropy = Array.from(array, dec => dec.toString(16).padStart(8, '0')).join('');
   }
 
   async rotateKeys(): Promise<boolean> {
     console.log(`[ VAULT_${this.vaultId} ]: Rotating cryptographic seeds...`);
-    this.entropy = Math.random().toString(36).substring(7);
+    const array = new Uint32Array(8);
+    window.crypto.getRandomValues(array);
+    this.entropy = Array.from(array, dec => dec.toString(16).padStart(8, '0')).join('');
     return true;
   }
 
@@ -66,7 +70,7 @@ export class SovereignSecurityManager {
       window.crypto.getRandomValues(challenge);
 
       this.audit.addEntry("BIOMETRIC_CHALLENGE_ISSUED", { protocol: "FIDO2" });
-      
+
       // Note: Real implementation would use navigator.credentials.get()
       return new Promise((resolve) => {
         setTimeout(() => {
@@ -94,7 +98,7 @@ export class SovereignSecurityManager {
         return { allowed: true, approvalRequired: true };
       case AutonomyLevel.SEMI_AUTONOMOUS:
         // Logic to check whitelist (simulated)
-        const isWhitelisted = content.length < 500; 
+        const isWhitelisted = content.length < 500;
         return { allowed: isWhitelisted, approvalRequired: !isWhitelisted };
       case AutonomyLevel.SOVEREIGN:
         return { allowed: true, approvalRequired: false };
@@ -108,16 +112,47 @@ export class AuditLedger {
   private ledger: AuditEntry[] = [];
 
   constructor() {
+    this.hydrateFromLocal();
     this.addEntry("INITIALIZE_SOVEREIGN_NODE", { build: "GATEWAY_V4.3_EXECUTIVE" });
+  }
+
+  private hydrateFromLocal() {
+    try {
+      const stored = localStorage.getItem('alluci_audit_ledger');
+      if (stored) {
+        this.ledger = JSON.parse(stored);
+      }
+    } catch (e) {
+      console.error("[ AUDIT ]: Failed to hydrate ledger from local storage.");
+    }
+  }
+
+  private saveToLocal() {
+    try {
+      localStorage.setItem('alluci_audit_ledger', JSON.stringify(this.ledger));
+    } catch (e) {
+      console.error("[ AUDIT ]: Failed to persist ledger.");
+    }
   }
 
   async addEntry(event: string, details: any) {
     const timestamp = new Date().toISOString();
-    const id = Math.random().toString(36).substr(2, 9);
+
+    // Cryptographically secure ID generation
+    const randomArray = new Uint32Array(1);
+    window.crypto.getRandomValues(randomArray);
+    const id = randomArray[0].toString(36);
+
     const prevHash = this.ledger.length > 0 ? this.ledger[this.ledger.length - 1].hash : "0x0";
-    
+
     const hashData = `${timestamp}-${event}-${JSON.stringify(details)}-${prevHash}`;
-    const hash = "0x" + btoa(hashData).substr(0, 16);
+
+    // Use SHA-256 via SubtleCrypto (async)
+    const msgUint8 = new TextEncoder().encode(hashData);
+    const hashBuffer = await window.crypto.subtle.digest('SHA-256', msgUint8);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    const hash = "0x" + hashHex.substring(0, 16);
 
     const entry: AuditEntry = {
       timestamp,
@@ -129,6 +164,7 @@ export class AuditLedger {
     };
 
     this.ledger.push(entry);
+    this.saveToLocal();
     return entry;
   }
 
@@ -152,17 +188,17 @@ export class SkillVerifier {
       personalityMapping: { toneShift: 0, assertivenessShift: 0, creativityShift: 0, empathyShift: 0 } // Default
     }));
   }
-  
+
   toggleSkill(id: string) {
     const skill = this.skills.find(s => s.id === id);
     if (skill) skill.verified = !skill.verified;
   }
-  
+
   getManifests() { return this.skills; }
-  
+
   // Return only active (verified) skills for dynamic binding
   getActiveSkills() { return this.skills.filter(s => s.verified); }
-  
+
   verify(id: string) { return !!this.skills.find(s => s.id === id)?.verified; }
 }
 
@@ -172,14 +208,14 @@ export class SkillVerifier {
  * Replaces procedural logic with State Injection.
  */
 export const generateSystemPrompt = (
-  manifestOrTraits: PersonalityTraits | SoulPreferences | SoulManifest, 
+  manifestOrTraits: PersonalityTraits | SoulPreferences | SoulManifest,
   connections: Connection[] = [],
   activeSkills: SkillManifest[] = []
 ) => {
-  
+
   // Type Guard for SoulManifest
   const isManifest = (m: any): m is SoulManifest => 'identityCore' in m;
-  
+
   let manifest: SoulManifest;
 
   if (isManifest(manifestOrTraits)) {
@@ -187,23 +223,23 @@ export const generateSystemPrompt = (
   } else {
     // Fallback shim for older types or partial loads
     const prefs = 'satireLevel' in manifestOrTraits ? {
-        tone: 0.5, humor: SoulHumor.DRY, empathy: 0.5, assertiveness: 0.5, creativity: 0.5, verbosity: 0.5, conciseness: SoulConciseness.BALANCED
+      tone: 0.5, humor: SoulHumor.DRY, empathy: 0.5, assertiveness: 0.5, creativity: 0.5, verbosity: 0.5, conciseness: SoulConciseness.BALANCED
     } : manifestOrTraits as SoulPreferences;
 
     manifest = {
-        preferences: prefs,
-        identityCore: PROFILE_IDENTITY, // Default const
-        directives: ["Sovereignty", "Polytopic Reasoning", "Deterministic Execution"],
-        voiceProfile: "Professional, crisp, slightly futuristic, yet warm.",
-        reasoningStyle: PROFILE_REASONING_STYLE,
-        knowledgeGraph: ["Circular Economy", "Value Based Pricing"],
-        frameworks: ["Business Model Canvas"],
-        mindsets: ["Growth", "Sovereign"],
-        methodologies: ["First Principles"],
-        logic: ["Waste is data in the wrong place"],
-        chainsOfThought: ["Identify Variables -> Map Edges -> Solve"],
-        bestPractices: ["Verify inputs"],
-        bootSequence: "LOADING SEMANTIC COGNITION LAYER..."
+      preferences: prefs,
+      identityCore: PROFILE_IDENTITY, // Default const
+      directives: ["Sovereignty", "Polytopic Reasoning", "Deterministic Execution"],
+      voiceProfile: "Professional, crisp, slightly futuristic, yet warm.",
+      reasoningStyle: PROFILE_REASONING_STYLE,
+      knowledgeGraph: ["Circular Economy", "Value Based Pricing"],
+      frameworks: ["Business Model Canvas"],
+      mindsets: ["Growth", "Sovereign"],
+      methodologies: ["First Principles"],
+      logic: ["Waste is data in the wrong place"],
+      chainsOfThought: ["Identify Variables -> Map Edges -> Solve"],
+      bestPractices: ["Verify inputs"],
+      bootSequence: "LOADING SEMANTIC COGNITION LAYER..."
     };
   }
 
@@ -240,7 +276,7 @@ ${manifest.identityCore}
 ${manifest.voiceProfile}
 
 # PRIME DIRECTIVES
-${manifest.directives.map((d, i) => `${i+1}. ${d}`).join('\n')}
+${manifest.directives.map((d, i) => `${i + 1}. ${d}`).join('\n')}
 
 # REASONING STYLE
 ${manifest.reasoningStyle}
