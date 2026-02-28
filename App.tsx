@@ -590,6 +590,7 @@ const App: React.FC = () => {
   const [userHRV, setUserHRV] = useState(55);
   const [respiratoryRate, setRespiratoryRate] = useState(14);
   const [sleepEfficiency, setSleepEfficiency] = useState(0.85);
+  const [cloudFiles, setCloudFiles] = useState<any[]>([]);
 
   const [agentEmotional, setAgentEmotional] = useState(0.2);
   const [agentPhysical, setAgentPhysical] = useState(0.5);
@@ -1307,6 +1308,38 @@ const App: React.FC = () => {
               </div>
             </div>
 
+            <div className="space-y-4 bg-sovereign/5 p-3 border border-sovereign/10 animate-in fade-in slide-in-from-bottom-2">
+              <div className="flex justify-between items-center mb-1">
+                <span className="baunk-style text-[6px] opacity-30 block">Sovereign_Files (iCloud)</span>
+                <button onClick={async () => {
+                  const files = await bridgeManagerRef.current.retrieveFromCloud('icloud', '*');
+                  setCloudFiles(files);
+                }} className="text-[6px] font-mono hover:text-agent underline opacity-50">[ REFRESH ]</button>
+              </div>
+              <div className="space-y-1 max-h-32 overflow-y-auto pr-1 thin-scrollbar">
+                {cloudFiles.length === 0 ? (
+                  <div className="text-[7px] font-mono opacity-20 py-4 text-center">NO_FILES_INDEXED</div>
+                ) : (
+                  cloudFiles.map((f, i) => (
+                    <div key={i} className="flex justify-between items-center p-1.5 bg-white/40 border border-black/5 hover:border-agent/20 transition-all cursor-pointer group">
+                      <div className="flex items-center gap-2">
+                        <div className="w-1 h-1 rounded-full bg-agent opacity-40"></div>
+                        <div className="flex flex-col">
+                          <span className="text-[8px] font-bold baunk-style truncate max-w-[80px]">{f.name}</span>
+                          <span className="text-[5px] font-mono opacity-40 tracking-tighter">{f.type.toUpperCase()} • {f.size}</span>
+                        </div>
+                      </div>
+                      <button className="text-[6px] baunk-style opacity-0 group-hover:opacity-100 px-1 py-0.5 bg-agent text-white rounded-[1px] shadow-sm">VAULT</button>
+                    </div>
+                  ))
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button className="alce-button text-[6px] baunk-style flex-1 bg-white border-sovereign/20 shadow-sm">+ UPLOAD</button>
+                <button className="alce-button text-[6px] baunk-style flex-1 bg-white border-sovereign/20 shadow-sm">SYNC</button>
+              </div>
+            </div>
+
             <div className="space-y-2 bg-flux/5 p-3 border border-flux/10 animate-in fade-in slide-in-from-bottom-2"><span className="baunk-style text-[6px] opacity-30 block mb-1">Harmonic_State</span><div className="flex justify-between items-center text-[7px] font-mono"><span className="opacity-60">STATUS:</span><span className={`font-bold ${harmonicStatus === 'Stress_Basin' ? 'text-red-500' : harmonicStatus === 'Loop_Detected' ? 'text-tension' : 'text-agent'}`}>{harmonicStatus.toUpperCase()}</span></div></div>
           </div>
         </div>
@@ -1495,6 +1528,18 @@ const App: React.FC = () => {
                                       <div className="text-[8px] font-bold font-mono text-sovereign">{conn.accountAlias}</div>
                                       <div className="text-[6px] font-mono opacity-40 uppercase tracking-tighter">Vault_ID: {conn.id.substring(0, 8)}...</div>
                                     </div>
+                                    {conn.id === 'imessage' && (
+                                      <button
+                                        onClick={() => {
+                                          bridgeManagerRef.current.sendMessage(conn.id, 'Self', 'Sovereign Pulse Test');
+                                          auditLedgerRef.current.addEntry("IMESSAGE_PULSE_SENT", { to: 'Self' });
+                                          refreshAuditLog();
+                                        }}
+                                        className="ml-auto text-[7px] baunk-style px-3 py-1.5 bg-agent text-white rounded-[1px] hover:bg-black transition-colors"
+                                      >
+                                        [ SEND_PULSE ]
+                                      </button>
+                                    )}
                                   </div>
                                 ) : (
                                   <div className="h-10 mb-6 flex items-center justify-center border border-dashed border-zinc/20 bg-zinc/5">

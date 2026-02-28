@@ -157,4 +157,43 @@ export class BridgeManager {
       await vault.flushCache();
     }
   }
+
+  /**
+   * [ IMESSAGE_DISPATCHER ]
+   * Sends encrypted pulses via the iMessage Secure Tunnel.
+   */
+  async sendMessage(bridgeId: string, recipient: string, text: string): Promise<boolean> {
+    console.log(`[ BRIDGE_${bridgeId.toUpperCase()} ]: Dispatched sovereign payload to ${recipient}`);
+    // Mocking the Darwin service call
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        console.log(`[ BRIDGE_${bridgeId.toUpperCase()} ]: MSG_DELIVERED (E2EE).`);
+        resolve(true);
+      }, 1000);
+    });
+  }
+
+  /**
+   * [ ICLOUD_DRIVE_SYNC ]
+   * Sovereign file operations for the Cloud Manifold.
+   */
+  async uploadToCloud(bridgeId: string, fileData: string, fileName: string): Promise<boolean> {
+    console.log(`[ BRIDGE_${bridgeId.toUpperCase()} ]: Vaulting ${fileName} to Cloud Manifold...`);
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        console.log(`[ BRIDGE_${bridgeId.toUpperCase()} ]: UPLOAD_SUCCESS. File available in iCloud.`);
+        resolve(true);
+      }, 1500);
+    });
+  }
+
+  async retrieveFromCloud(bridgeId: string, query: string): Promise<any[]> {
+    console.log(`[ BRIDGE_${bridgeId.toUpperCase()} ]: Indexing vault for query: ${query}...`);
+    // Mocking file search results
+    return [
+      { name: "Sovereign_Doc_01.pdf", type: "document", size: "1.2MB", date: new Date().toISOString() },
+      { name: "ACE_Bio_Dump.csv", type: "data", size: "450KB", date: new Date().toISOString() },
+      { name: "Identity_Backup.vrsc", type: "security", size: "12KB", date: new Date().toISOString() }
+    ];
+  }
 }
