@@ -592,6 +592,7 @@ const App: React.FC = () => {
   const [sleepEfficiency, setSleepEfficiency] = useState(0.85);
   const [cloudFiles, setCloudFiles] = useState<any[]>([]);
   const [socialEvents, setSocialEvents] = useState<any[]>([]);
+  const [enterpriseEvents, setEnterpriseEvents] = useState<any[]>([]);
 
   const [agentEmotional, setAgentEmotional] = useState(0.2);
   const [agentPhysical, setAgentPhysical] = useState(0.5);
@@ -1377,6 +1378,42 @@ const App: React.FC = () => {
               </div>
             </div>
 
+            <div className="space-y-4 bg-agent/5 p-3 border border-agent/10 animate-in fade-in slide-in-from-bottom-2">
+              <div className="flex justify-between items-center mb-1">
+                <span className="baunk-style text-[6px] opacity-30 block">Enterprise_Control (Workspace)</span>
+                <button onClick={async () => {
+                  // Mock sync from all connected enterprise bridges
+                  const newEvent = { platform: 'SLACK', type: 'SYNC', msg: 'Workspace manifold synchronized. 4 new mentions vaulted', time: new Date().toISOString() };
+                  setEnterpriseEvents(prev => [newEvent, ...prev].slice(0, 5));
+                }} className="text-[6px] font-mono hover:text-agent underline opacity-50">[ SYNC_WORKSPACE ]</button>
+              </div>
+              <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1 thin-scrollbar">
+                {enterpriseEvents.length === 0 ? (
+                  <div className="text-[7px] font-mono opacity-20 py-4 text-center italic">NO_ENTERPRISE_ACTUALIZATION_LOGGED</div>
+                ) : (
+                  enterpriseEvents.map((ev, i) => (
+                    <div key={i} className="flex flex-col gap-1 p-2 bg-white/40 border-l-2 border-agent shadow-sm">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[6px] font-bold baunk-style text-agent">{ev.platform}</span>
+                        <span className="text-[5px] font-mono opacity-40">{getFormattedTime(ev.time)}</span>
+                      </div>
+                      <span className="text-[7px] font-mono opacity-70 leading-tight">{ev.msg}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-2 mt-2">
+                <button onClick={() => {
+                  bridgeManagerRef.current.executeEnterpriseTask('gm', 'DRAFT_EMAIL', { subject: 'Sovereign Protocol Update' });
+                  setEnterpriseEvents(prev => [{ platform: 'GMAIL', type: 'DRAFT', msg: 'Email draft prepared in G-Suite', time: new Date().toISOString() }, ...prev]);
+                }} className="alce-button text-[6px] baunk-style bg-white border-sovereign/20 shadow-sm">DRAFT_GMAIL</button>
+                <button onClick={() => {
+                  bridgeManagerRef.current.executeEnterpriseTask('sl', 'SEND_MESSAGE', { text: 'Polytope Status: Nominal' });
+                  setEnterpriseEvents(prev => [{ platform: 'SLACK', type: 'POST', msg: 'Workspace update dispatched', time: new Date().toISOString() }, ...prev]);
+                }} className="alce-button text-[6px] baunk-style bg-zinc-800 text-white border-zinc-800 shadow-sm">SLACK_UPDATE</button>
+              </div>
+            </div>
+
             <div className="space-y-2 bg-flux/5 p-3 border border-flux/10 animate-in fade-in slide-in-from-bottom-2"><span className="baunk-style text-[6px] opacity-30 block mb-1">Harmonic_State</span><div className="flex justify-between items-center text-[7px] font-mono"><span className="opacity-60">STATUS:</span><span className={`font-bold ${harmonicStatus === 'Stress_Basin' ? 'text-red-500' : harmonicStatus === 'Loop_Detected' ? 'text-tension' : 'text-agent'}`}>{harmonicStatus.toUpperCase()}</span></div></div>
           </div>
         </div>
@@ -1597,6 +1634,31 @@ const App: React.FC = () => {
                                             className="text-[6px] baunk-style px-2 py-1 bg-agent/10 text-agent border border-agent/20 hover:bg-agent hover:text-white transition-all"
                                           >
                                             [ POST ]
+                                          </button>
+                                        )}
+                                      </div>
+                                    )}
+                                    {['sl', 'mt', 'gm', 'gd', 'wechat', 'webchat'].includes(conn.id) && (
+                                      <div className="ml-auto flex gap-1">
+                                        <button
+                                          onClick={() => {
+                                            bridgeManagerRef.current.executeEnterpriseTask(conn.id, 'SEARCH_FILES', {});
+                                            setEnterpriseEvents(prev => [{ platform: conn.name.toUpperCase(), type: 'SEARCH', msg: 'Workspace index updated', time: new Date().toISOString() }, ...prev].slice(0, 5));
+                                          }}
+                                          className="text-[6px] baunk-style px-2 py-1 bg-agent/10 text-agent border border-agent/20 hover:bg-agent hover:text-white transition-all"
+                                        >
+                                          [ SEARCH ]
+                                        </button>
+                                        {['gm', 'sl', 'mt'].includes(conn.id) && (
+                                          <button
+                                            onClick={() => {
+                                              const task = conn.id === 'gm' ? 'DRAFT_EMAIL' : 'SEND_MESSAGE';
+                                              bridgeManagerRef.current.executeEnterpriseTask(conn.id, task, { subject: 'Automated Status' });
+                                              setEnterpriseEvents(prev => [{ platform: conn.name.toUpperCase(), type: 'ACTION', msg: 'Task dispatched to vault', time: new Date().toISOString() }, ...prev].slice(0, 5));
+                                            }}
+                                            className="text-[6px] baunk-style px-2 py-1 bg-black text-white border border-black hover:bg-white hover:text-black transition-all"
+                                          >
+                                            {conn.id === 'gm' ? '[ DRAFT ]' : '[ SEND ]'}
                                           </button>
                                         )}
                                       </div>
