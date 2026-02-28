@@ -50,7 +50,7 @@ export interface SkillManifest {
   name: string;
   category: 'BRIDGE' | 'MANIFOLD' | 'FRAMEWORK' | 'CUSTOM';
   description: string;
-  
+
   // [ COGNITIVE_LAYERS ]
   knowledge: string[];       // Declarative memory blocks
   mindsets: string[];        // Attitudinal stances
@@ -58,7 +58,7 @@ export interface SkillManifest {
   frameworks: string[];      // Structural logic schemas
   chainsOfThought: string[]; // Explicit reasoning steps
   logic: string[];           // Governing axioms (Deductive/Inductive)
-  
+
   // [ DYNAMIC_BINDING ]
   personalityMapping: SkillPersonalityImpact;
 
@@ -66,7 +66,7 @@ export interface SkillManifest {
   signature: string;
   publicKey: string;
   verified: boolean;
-  
+
   // Legacy support for capability routing
   capabilities: string[];
   bestPractices?: string[];
@@ -136,14 +136,21 @@ export interface PersonalityTraits {
   verbosity: number;
 }
 
-export type AuthType = 
-  | 'OAUTH2' 
-  | 'SECURE_TUNNEL' 
-  | 'IDENTITY_LINK' 
-  | 'QR_SYNC' 
-  | 'TOKEN' 
-  | 'WEB_SESSION' 
+export type AuthType =
+  | 'OAUTH2'
+  | 'SECURE_TUNNEL'
+  | 'IDENTITY_LINK'
+  | 'QR_SYNC'
+  | 'TOKEN'
+  | 'WEB_SESSION'
   | 'VDXF_HANDSHAKE';
+
+export interface HardwareProfile {
+  arch: string;
+  os: string;
+  acceleration: 'METAL' | 'CUDA' | 'ROCM' | 'CPU' | 'NEON' | 'NONE';
+  integrity: number;
+}
 
 export interface Connection {
   id: string;
@@ -156,6 +163,7 @@ export interface Connection {
   profileImg?: string;
   lastSynced?: string;
   isEncrypted: boolean;
+  vaultId?: string;
 }
 
 export interface ApiManifoldKeys {

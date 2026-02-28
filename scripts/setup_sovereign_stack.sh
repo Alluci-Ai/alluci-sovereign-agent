@@ -1,27 +1,55 @@
 #!/bin/bash
 
-# Alluci Sovereign Stack Setup Script (macOS)
-# Installs Ollama, Whisper.cpp, and Piper TTS
+# Alluci Sovereign Stack Setup Script (Cross-Platform)
+# Installs Ollama, Whisper.cpp, and Piper TTS for Mac, Linux, and RPi
 
-echo "--- Initializing Sovereign Architecture Setup ---"
+echo "--- Initializing Alluci Sovereign Architecture Setup ---"
+
+# Detect Architecture
+OS="$(uname -s)"
+ARCH="$(uname -m)"
+echo "[ INFO ]: Detected Platform: $OS ($ARCH)"
 
 # 1. Ollama
 if ! command -v ollama &> /dev/null; then
-    echo "[ INFO ]: Ollama not found. Installing via Homebrew..."
-    brew install --cask ollama
+    echo "[ INFO ]: Ollama not found. Installing..."
+    if [[ "$OS" == "Darwin" ]]; then
+        brew install --cask ollama
+    elif [[ "$OS" == "Linux" ]]; then
+        curl -fsSL https://ollama.com/install.sh | sh
+    fi
 else
     echo "[ OK ]: Ollama already installed."
 fi
 
-# 2. Whisper.cpp (GGML)
+# 2. Whisper.cpp
 WHISPER_DIR="$HOME/whisper.cpp"
 if [ ! -d "$WHISPER_DIR" ]; then
-    echo "[ INFO ]: Cloning Whisper.cpp..."
+    echo "[ INFO ]: Cloning and building Whisper.cpp..."
     git clone https://github.com/ggerganov/whisper.cpp.git "$WHISPER_DIR"
     cd "$WHISPER_DIR"
-    make
-    # Download small model
-    bash ./models/download-ggml-model.sh small.en
+    
+    if [[ "$OS" == "Darwin" ]]; then
+        # Mac usually has Accelerate/Metal enabled by default
+        make
+    elif [[ "$OS" == "Linux" ]]; then
+        # Check for CUDA
+        if command -v nvidia-smi &> /dev/null; then
+            echo "[ INFO ]: CUDA detected. Enabling GPU offload..."
+            GGML_CUDA=1 make
+        else
+            make
+        fi
+    fi
+    
+    # Download models based on ARCH
+    if [[ "$ARCH" == "aarch64" || "$ARCH" == "arm"* ]]; then
+        echo "[ INFO ]: Low-power architecture detected. Downloading 'tiny' model..."
+        bash ./models/download-ggml-model.sh tiny.en
+    else
+        echo "[ INFO ]: Standard architecture detected. Downloading 'small' model..."
+        bash ./models/download-ggml-model.sh small.en
+    fi
     cd -
 else
     echo "[ OK ]: Whisper.cpp found at $WHISPER_DIR."
@@ -30,15 +58,22 @@ fi
 # 3. Piper TTS
 if ! command -v piper &> /dev/null; then
     echo "[ INFO ]: Downloading Piper TTS..."
-    # macOS binary URL (example, verify latest)
     PIPER_VERSION="1.2.0"
-    curl -L "https://github.com/rhasspy/piper/releases/download/v${PIPER_VERSION}/piper_macos_x64.tar.gz" -o piper.tar.gz
-    tar -xzf piper.tar.gz
-    sudo mv piper/piper /usr/local/bin/
-    rm -rf piper piper.tar.gz
+    if [[ "$OS" == "Darwin" ]]; then
+        curl -L "https://github.com/rhasspy/piper/releases/download/v${PIPER_VERSION}/piper_macos_x64.tar.gz" -o piper.tar.gz
+    elif [[ "$ARCH" == "aarch64" || "$ARCH" == "arm"* ]]; then
+        curl -L "https://github.com/rhasspy/piper/releases/download/v${PIPER_VERSION}/piper_linux_aarch64.tar.gz" -o piper.tar.gz
+    else
+        curl -L "https://github.com/rhasspy/piper/releases/download/v${PIPER_VERSION}/piper_linux_x86_64.tar.gz" -o piper.tar.gz
+    fi
+    
+    mkdir -p piper_tmp && tar -xzf piper.tar.gz -C piper_tmp
+    sudo mv piper_tmp/piper/piper /usr/local/bin/
+    rm -rf piper_tmp piper.tar.gz
 else
     echo "[ OK ]: Piper already installed."
 fi
 
 echo "--- Setup Complete ---"
-echo "Please ensure Ollama is running ('ollama serve') and has 'mistral' pulled ('ollama pull mistral')."
+echo "[ ACTION ]: Ensure Ollama is running ('ollama serve') and has models pulled."
+echo "[ ACTION ]: Suggested: 'ollama pull mistral' (Desktop) or 'ollama pull phi3:mini' (RPi)."
