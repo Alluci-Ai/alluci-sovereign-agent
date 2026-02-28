@@ -21,15 +21,29 @@ class LocalInferenceBridge:
         self.piper_path = getattr(settings, "PIPER_PATH", "piper")
         self.voice_model = getattr(settings, "PIPER_MODEL", "en_US-amy-medium.onnx")
         
-        # Acceleration detection
-        self.is_apple_silicon = os.uname().machine == 'arm64' and os.uname().sysname == 'Darwin'
+        # Hardware & Acceleration Detection
+        uname = os.uname()
+        self.sysname = uname.sysname
+        self.machine = uname.machine
+        
+        self.is_apple_silicon = self.sysname == 'Darwin' and self.machine == 'arm64'
+        self.is_apple_intel = self.sysname == 'Darwin' and self.machine == 'x86_64'
+        self.is_linux = self.sysname == 'Linux'
+        self.is_raspberry_pi = self.is_linux and (self.machine.startswith('arm') or self.machine == 'aarch64')
+        
+        # GPU Detection (Linux)
+        self.has_cuda = self.is_linux and shutil.which("nvidia-smi") is not None
+        self.has_rocm = self.is_linux and shutil.which("rocm-smi") is not None
         
         # Check binary availability
         self.whisper_ready = shutil.which(self.whisper_path) is not None
         self.ollama_ready = self._check_ollama()
         self.piper_ready = shutil.which(self.piper_path) is not None
         
+        logger.info(f"[ BRIDGE_STATUS ]: Arch: {self.machine}, Platform: {self.sysname}")
         logger.info(f"[ BRIDGE_STATUS ]: Whisper: {self.whisper_ready}, Ollama: {self.ollama_ready}, Piper: {self.piper_ready}")
+        if self.has_cuda: logger.info("[ BRIDGE_ACCELERATION ]: CUDA_DETECTED")
+        if self.has_rocm: logger.info("[ BRIDGE_ACCELERATION ]: ROCM_DETECTED")
 
     def _check_ollama(self) -> bool:
         import socket
@@ -82,15 +96,24 @@ class LocalInferenceBridge:
         """
         import httpx
         url = f"{self.ollama_url}/api/chat"
+        # Dynamic Tuning
+        num_ctx = 2048
+        if self.is_raspberry_pi:
+            num_ctx = 512 # Reduce context for RPi
+            model = "phi3:mini" if model.startswith("mistral") else model # Suggest lighter model
+            
         payload = {
             "model": model,
             "messages": [{"role": "user", "content": prompt}],
             "stream": True,
             "options": {
-                "num_ctx": 2048,
-                "num_thread": 8 if not self.is_apple_silicon else 4
+                "num_ctx": num_ctx,
+                "num_thread": os.cpu_count() or 4
             }
         }
+        
+        if self.has_cuda or self.is_apple_silicon:
+            payload["options"]["num_gpu"] = 35 # Offload layers if GPU present
         
         async with httpx.AsyncClient(timeout=None) as client:
             async with client.stream("POST", url, json=payload) as response:

@@ -73,14 +73,25 @@ export class BridgeManager {
   }
 
   private async handleQrSync(bridgeId: string): Promise<boolean> {
-    console.log(`[ BRIDGE_${bridgeId} ]: Generating base64 QR payload...`);
+    console.log(`[ BRIDGE_${bridgeId} ]: Initiating QR_SYNC protocol...`);
+    if (bridgeId === 'whatsapp') {
+      // In a real flow, this would request a pairing seed from the backend
+      // and display it as a QR code in the A2UI Canvas.
+      console.log(`[ BRIDGE_WHATSAPP ]: Seed generated. Waiting for mobile scan...`);
+    }
     return true;
   }
 
   private async establishSecureTunnel(bridgeId: string): Promise<boolean> {
     if (bridgeId === 'imessage') {
-      console.log(`[ BRIDGE_IMESSAGE ]: Probing ~/Library/Messages/chat.db...`);
-      // Simulating macOS FDA permissions check
+      console.log(`[ BRIDGE_IMESSAGE ]: Attempting to probe ~/Library/Messages/chat.db...`);
+      // Simulating macOS Full Disk Access (FDA) check
+      const hasFDA = Math.random() > 0.5; // Mocking permission check
+      if (!hasFDA) {
+        console.warn(`[ BRIDGE_IMESSAGE ]: ACCESS_DENIED. Please grant Full Disk Access to the Sovereign Gateway.`);
+        return false;
+      }
+      console.log(`[ BRIDGE_IMESSAGE ]: SECURE_TUNNEL_ESTABLISHED.`);
       return true;
     }
     return true;
@@ -88,6 +99,18 @@ export class BridgeManager {
 
   private async processOAuthFlow(bridgeId: string): Promise<boolean> {
     console.log(`[ BRIDGE_${bridgeId} ]: Negotiating OAuth2 scopes...`);
+    if (['slack', 'gmail', 'gdrive'].includes(bridgeId)) {
+      // In a real flow, this would open a popup or redirect to the auth provider
+      console.log(`[ BRIDGE_${bridgeId} ]: Awaiting token exchange...`);
+      const success = Math.random() > 0.2; // 80% success mock
+      if (success) {
+        console.log(`[ BRIDGE_${bridgeId} ]: Token received and vaulted.`);
+        return true;
+      } else {
+        console.error(`[ BRIDGE_${bridgeId} ]: AUTH_FAILED. User cancelled or timeout.`);
+        return false;
+      }
+    }
     return true;
   }
 

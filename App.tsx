@@ -1300,7 +1300,92 @@ const App: React.FC = () => {
                     </button>
                   </div>
                 ) : isSoulOpen ? (<SoulPreferencesPanel onClose={() => setIsSoulOpen(false)} onManifestUpdate={handleManifestUpdate} />) : isPreferencesOpen ? (
-                  <div className="flex flex-col gap-16"><div className="grid grid-cols-1 lg:grid-cols-1 gap-16"><div className="flex flex-col"><h3 className="baunk-style text-[12px] border-b border-sovereign pb-1 mb-8 opacity-50 tracking-[0.3em]">Security_&_Trust_Protocol</h3><div className="p-6 bg-agent/5 border border-agent/20 text-[10px] font-mono leading-relaxed mb-10 space-y-4"><p>● <span className="font-bold">ONE_TOUCH_LOGIN</span>: Enabled for all verified biometric platforms.</p><p>● <span className="font-bold">E2E_ENCRYPTION</span>: Mandatory for iMessage, Signal, and WhatsApp bridges.</p><p>● <span className="font-bold">SESSION_ISOLATION</span>: Each bridge operates in a secure Simplicial Vault.</p><p>● <span className="font-bold">AUTONOMY_LEVEL</span>: Full sovereign execution authorized.</p></div><div className="grid grid-cols-2 gap-4 max-w-sm"><button className="alce-button text-[8px] baunk-style w-full bg-sovereign text-white">[ ROTATE_KEYS ]</button><button className="alce-button text-[8px] baunk-style w-full">[ FLUSH_CACHE ]</button></div></div></div><div className="space-y-12 pb-20">{Object.entries(groupedConnections).map(([groupName, groupConns]) => (<div key={groupName}><h3 className="baunk-style text-[12px] border-b border-sovereign pb-1 mb-8 opacity-50 tracking-[0.3em]">{groupName}</h3><div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">{groupConns.map(conn => (<div key={conn.id} className={`facet p-6 transition-all duration-300 group hover:shadow-xl ${conn.status === 'CONNECTED' ? 'border-agent' : 'border-zinc/20 hover:border-sovereign'}`}><div className="flex justify-between items-start mb-6"><div className="flex flex-col"><span className="baunk-style text-[10px] block font-bold mb-1">{conn.name}</span><span className="text-[7px] font-mono opacity-40 uppercase">{conn.type}</span></div><span className={`text-[6px] baunk-style p-1.5 border ${conn.status === 'CONNECTED' ? 'bg-agent text-white border-agent' : 'bg-zinc/5 opacity-40 border-zinc/20'}`}>{conn.authType}</span></div>{conn.status === 'CONNECTED' ? (<div className="flex items-center gap-3 mb-6 animate-in slide-in-from-top-2"><div className="relative"><img src={conn.profileImg || `https://api.dicebear.com/7.x/identicon/svg?seed=${conn.id}`} className="w-10 h-10 rounded-full border border-sovereign/10 grayscale group-hover:grayscale-0 transition-all" alt="" /><div className="absolute bottom-0 right-0 w-3 h-3 bg-agent rounded-full border-2 border-white" /></div><div className="flex flex-col"><div className="text-[8px] font-bold font-mono text-sovereign">{conn.accountAlias}</div><div className="text-[6px] font-mono opacity-40 uppercase tracking-tighter">Verified Session</div></div></div>) : (<div className="h-10 mb-6 flex items-center justify-center border border-dashed border-zinc/20 bg-zinc/5"><span className="text-[7px] font-mono opacity-20 uppercase tracking-widest italic">Signal Offline</span></div>)}<button onClick={() => startAuthFlow(conn)} className={`alce-button py-3 text-[8px] w-full baunk-style transition-all ${conn.status === 'CONNECTED' ? 'text-tension border-tension hover:bg-tension hover:text-white' : 'text-sovereign hover:bg-sovereign hover:text-white'}`}>{conn.status === 'CONNECTED' ? '[ TERMINATE ]' : '[ ACTIVATE ]'}</button></div>))}</div></div>))}</div></div>) : isSettingsOpen ? (showSkillWizard ? (<SkillBuilderWizard onClose={() => { setShowSkillWizard(false); fetchSkills(); }} />) : (<div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative"><div onClick={() => setShowSkillWizard(true)} className="facet p-8 border-dashed border-zinc/20 hover:border-agent transition-all duration-300 group cursor-pointer flex flex-col items-center justify-center gap-4 bg-zinc/5 hover:bg-agent/5 h-[300px]"><div className="w-16 h-16 rounded-full border border-zinc/20 flex items-center justify-center group-hover:border-agent transition-colors"><span className="text-2xl text-zinc-400 group-hover:text-agent">+</span></div><span className="baunk-style text-[10px] tracking-[0.2em] group-hover:text-agent">CREATE_NEW_COGNITIVE_MODULE</span></div>{skills.map(skill => (<div key={skill.id} onClick={() => setSelectedSkill(skill)} className={`facet p-8 border-zinc/10 relative hover:border-agent transition-all duration-500 group cursor-pointer ${!skill.verified ? 'opacity-40 grayscale' : 'shadow-sm'}`}><div className="flex justify-between items-start mb-6"><div className="flex flex-col"><span className="baunk-style text-[12px] group-hover:text-agent transition-colors">{skill.name}</span><span className="text-[7px] font-mono opacity-30 mt-1 uppercase tracking-tighter">{skill.category} / {skill.id}</span></div><div className="flex gap-2"><button onClick={(e) => { e.stopPropagation(); handleDeleteSkill(skill.id); }} className="px-2 py-1 text-[8px] baunk-style text-red-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">✕</button><button onClick={(e) => { e.stopPropagation(); handleToggleSkill(skill.id); }} className={`px-3 py-1 text-[8px] baunk-style border ${skill.verified ? 'bg-agent text-white border-agent' : 'bg-white text-zinc border-zinc/20 hover:border-tension hover:text-tension'}`}>{skill.verified ? '[ ACTIVE ]' : '[ OFFLINE ]'}</button></div></div><div className="space-y-2 mb-6"><span className="text-[7px] baunk-style opacity-30 block">Capabilities:</span><div className="flex flex-wrap gap-1">{(skill.capabilities || []).length > 0 ? (skill.capabilities.map((cap, ci) => (<span key={ci} className="bg-zinc/5 border border-zinc/10 px-2 py-0.5 text-[7px] font-mono opacity-60 truncate max-w-full">{cap}</span>))) : (<span className="text-[7px] font-mono opacity-30 italic">No specific tool bindings.</span>)}</div></div><div className="flex justify-between items-center text-[7px] font-mono opacity-20 mt-8 pt-4 border-t border-zinc/5"><span>SIG: {skill.signature}</span></div></div>))}</div>)) : isDriveOpen ? (<div className="flex flex-col items-center justify-center h-full gap-12 py-20"><div className="relative"><div className="absolute inset-0 bg-agent/5 rounded-full blur-3xl scale-150 animate-pulse" /><PolytopeIdentity color="#000" size={160} active={isConnected} /></div><div className="text-center space-y-4 max-w-xl px-6"><h3 className="baunk-style text-xl tracking-[0.8em]">MANIFOLD_STORAGE_STABLE</h3><p className="text-[11px] opacity-40 font-mono leading-relaxed">Awaiting sovereign data packets. Integrated iCloud, Google Drive, and MS Teams bridges are prepared for bi-directional synchronization.</p></div><button onClick={() => fileInputRef.current?.click()} className="alce-button baunk-style text-[10px] px-20 h-16">[ UPLOAD_DATA_PACKET ]</button></div>) : null}
+                  <div className="flex flex-col gap-16">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-16">
+                      <div className="flex flex-col">
+                        <h3 className="baunk-style text-[12px] border-b border-sovereign pb-1 mb-8 opacity-50 tracking-[0.3em]">Security_&_Trust_Protocol</h3>
+                        <div className="p-6 bg-agent/5 border border-agent/20 text-[10px] font-mono leading-relaxed mb-10 space-y-4">
+                          <p>● <span className="font-bold">ONE_TOUCH_LOGIN</span>: Enabled for all verified biometric platforms.</p>
+                          <p>● <span className="font-bold">E2E_ENCRYPTION</span>: Mandatory for iMessage, Signal, and WhatsApp bridges.</p>
+                          <p>● <span className="font-bold">SESSION_ISOLATION</span>: Each bridge operates in a secure Simplicial Vault.</p>
+                          <p>● <span className="font-bold">AUTONOMY_LEVEL</span>: Full sovereign execution authorized via VerusID.</p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4 max-w-sm">
+                          <button className="alce-button text-[8px] baunk-style w-full bg-sovereign text-white">[ ROTATE_KEYS ]</button>
+                          <button className="alce-button text-[8px] baunk-style w-full">[ FLUSH_CACHE ]</button>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col">
+                        <h3 className="baunk-style text-[12px] border-b border-sovereign pb-1 mb-8 opacity-50 tracking-[0.3em]">Hardware_&_Safety_Report</h3>
+                        <div className="p-6 bg-zinc/5 border border-zinc/10 text-[10px] font-mono leading-relaxed space-y-4">
+                          <div className="flex justify-between">
+                            <span className="opacity-40">ARCHITECTURE:</span>
+                            <span className="font-bold">{navigator.userAgent.includes('Mac OS X') ? 'APPLE_SILICON' : 'X86_64_LINUX'}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="opacity-40">ACCELERATION:</span>
+                            <span className="text-agent font-bold">[ METAL_ACTIVE ]</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="opacity-40">MANIFOLD_INTEGRITY:</span>
+                            <span className="text-flux font-bold">100%_SECURE</span>
+                          </div>
+                          <div className="pt-4 border-t border-zinc/10 text-[8px] opacity-40">
+                            Strict Isolation Protocol: Data and Vault keys never leave local hardware.
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-12 pb-20">
+                      {Object.entries(groupedConnections).map(([groupName, groupConns]) => (
+                        <div key={groupName}>
+                          <h3 className="baunk-style text-[12px] border-b border-sovereign pb-1 mb-8 opacity-50 tracking-[0.3em]">{groupName}</h3>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                            {groupConns.map(conn => (
+                              <div key={conn.id} className={`facet p-6 transition-all duration-300 group hover:shadow-xl ${conn.status === 'CONNECTED' ? 'border-agent shadow-lg' : 'border-zinc/20 hover:border-sovereign'}`}>
+                                <div className="flex justify-between items-start mb-6">
+                                  <div className="flex flex-col">
+                                    <span className="baunk-style text-[10px] block font-bold mb-1">{conn.name}</span>
+                                    <span className="text-[7px] font-mono opacity-40 uppercase">{conn.type}</span>
+                                  </div>
+                                  <div className="flex flex-col items-end gap-1">
+                                    <span className={`text-[6px] baunk-style px-1.5 py-0.5 border ${conn.status === 'CONNECTED' ? 'bg-agent text-white border-agent' : 'bg-zinc/5 opacity-40 border-zinc/20'}`}>
+                                      {conn.authType}
+                                    </span>
+                                    {conn.isEncrypted && (
+                                      <span className="text-[5px] baunk-style text-agent">[ E2EE_ACTIVE ]</span>
+                                    )}
+                                  </div>
+                                </div>
+                                {conn.status === 'CONNECTED' ? (
+                                  <div className="flex items-center gap-3 mb-6 animate-in slide-in-from-top-2">
+                                    <div className="relative">
+                                      <img src={conn.profileImg || `https://api.dicebear.com/7.x/identicon/svg?seed=${conn.id}`} className="w-10 h-10 rounded-full border border-sovereign/10 grayscale group-hover:grayscale-0 transition-all" alt="" />
+                                      <div className="absolute bottom-0 right-0 w-3 h-3 bg-agent rounded-full border-2 border-white shadow-sm" />
+                                    </div>
+                                    <div className="flex flex-col">
+                                      <div className="text-[8px] font-bold font-mono text-sovereign">{conn.accountAlias}</div>
+                                      <div className="text-[6px] font-mono opacity-40 uppercase tracking-tighter">Vault_ID: {conn.id.substring(0, 8)}...</div>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="h-10 mb-6 flex items-center justify-center border border-dashed border-zinc/20 bg-zinc/5">
+                                    <span className="text-[7px] font-mono opacity-20 uppercase tracking-widest italic">{conn.name} Offline</span>
+                                  </div>
+                                )}
+                                <button onClick={() => startAuthFlow(conn)} className={`alce-button py-3 text-[8px] w-full baunk-style transition-all ${conn.status === 'CONNECTED' ? 'text-tension border-tension hover:bg-tension hover:text-white' : 'text-sovereign hover:bg-sovereign hover:text-white'}`}>
+                                  {conn.status === 'CONNECTED' ? '[ TERMINATE_VAULT ]' : '[ ACTIVATE_BRIDGE ]'}
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : isSettingsOpen ? (showSkillWizard ? (<SkillBuilderWizard onClose={() => { setShowSkillWizard(false); fetchSkills(); }} />) : (<div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative"><div onClick={() => setShowSkillWizard(true)} className="facet p-8 border-dashed border-zinc/20 hover:border-agent transition-all duration-300 group cursor-pointer flex flex-col items-center justify-center gap-4 bg-zinc/5 hover:bg-agent/5 h-[300px]"><div className="w-16 h-16 rounded-full border border-zinc/20 flex items-center justify-center group-hover:border-agent transition-colors"><span className="text-2xl text-zinc-400 group-hover:text-agent">+</span></div><span className="baunk-style text-[10px] tracking-[0.2em] group-hover:text-agent">CREATE_NEW_COGNITIVE_MODULE</span></div>{skills.map(skill => (<div key={skill.id} onClick={() => setSelectedSkill(skill)} className={`facet p-8 border-zinc/10 relative hover:border-agent transition-all duration-500 group cursor-pointer ${!skill.verified ? 'opacity-40 grayscale' : 'shadow-sm'}`}><div className="flex justify-between items-start mb-6"><div className="flex flex-col"><span className="baunk-style text-[12px] group-hover:text-agent transition-colors">{skill.name}</span><span className="text-[7px] font-mono opacity-30 mt-1 uppercase tracking-tighter">{skill.category} / {skill.id}</span></div><div className="flex gap-2"><button onClick={(e) => { e.stopPropagation(); handleDeleteSkill(skill.id); }} className="px-2 py-1 text-[8px] baunk-style text-red-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">✕</button><button onClick={(e) => { e.stopPropagation(); handleToggleSkill(skill.id); }} className={`px-3 py-1 text-[8px] baunk-style border ${skill.verified ? 'bg-agent text-white border-agent' : 'bg-white text-zinc border-zinc/20 hover:border-tension hover:text-tension'}`}>{skill.verified ? '[ ACTIVE ]' : '[ OFFLINE ]'}</button></div></div><div className="space-y-2 mb-6"><span className="text-[7px] baunk-style opacity-30 block">Capabilities:</span><div className="flex flex-wrap gap-1">{(skill.capabilities || []).length > 0 ? (skill.capabilities.map((cap, ci) => (<span key={ci} className="bg-zinc/5 border border-zinc/10 px-2 py-0.5 text-[7px] font-mono opacity-60 truncate max-w-full">{cap}</span>))) : (<span className="text-[7px] font-mono opacity-30 italic">No specific tool bindings.</span>)}</div></div><div className="flex justify-between items-center text-[7px] font-mono opacity-20 mt-8 pt-4 border-t border-zinc/5"><span>SIG: {skill.signature}</span></div></div>))}</div>)) : isDriveOpen ? (<div className="flex flex-col items-center justify-center h-full gap-12 py-20"><div className="relative"><div className="absolute inset-0 bg-agent/5 rounded-full blur-3xl scale-150 animate-pulse" /><PolytopeIdentity color="#000" size={160} active={isConnected} /></div><div className="text-center space-y-4 max-w-xl px-6"><h3 className="baunk-style text-xl tracking-[0.8em]">MANIFOLD_STORAGE_STABLE</h3><p className="text-[11px] opacity-40 font-mono leading-relaxed">Awaiting sovereign data packets. Integrated iCloud, Google Drive, and MS Teams bridges are prepared for bi-directional synchronization.</p></div><button onClick={() => fileInputRef.current?.click()} className="alce-button baunk-style text-[10px] px-20 h-16">[ UPLOAD_DATA_PACKET ]</button></div>) : null}
               </div>
               {selectedSkill && (
                 <div className="absolute top-0 md:top-24 left-0 md:left-1/2 md:-translate-x-1/2 z-[150] w-full h-full md:h-auto md:w-[90%] max-w-2xl md:max-h-[75vh] bg-white border-2 border-sovereign shadow-[0_20px_60px_rgba(0,0,0,0.3)] flex flex-col animate-in slide-in-from-top-10 duration-500">
