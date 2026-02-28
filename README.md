@@ -8,13 +8,13 @@ Alluci is a professional-grade, multi-modal autonomous AI agent designed for **s
 
 ## 🏗️ Architecture Overview
 
-Alluci is built on a modular **Manifold Architecture** that prioritizes security, privacy, and autonomy:
+Alluci is built on the **Polytope Manifold Architecture**, prioritizing security and affective resonance:
 
-- **Sovereign Mode (Local Inference)**: Utilizes a dedicated `LocalInferenceBridge` to manage singleton processes for ASR (Whisper.cpp), LLMs (Ollama), and TTS (Piper). This ensures zero external data leakage.
-- **Hive Orchestration**: A DAG-based execution engine (`Planner` → `Executor` → `Critic`) that handles complex objectives across various tool silos.
-- **Simplicial Vault**: A zero-trust security layer that encrypts and stores API keys server-side, anchored by VDXF (Verus Data Exchange Format) for on-chain integrity.
-- **Polytope Framework**: A novel reasoning layer with manifold integrity checks to prevent state drift and ensure logical coherence.
-- **Affective Engine**: Real-time biometric and emotional telemetry analysis for high-bandwidth human-agent resonance.
+- **Bio-Vault Isolation**: Specialized secure enclave logic in `alluciCore.ts` (`BioVault`) that isolates raw biometric telemetry, releasing only abstracted "State Tokens" to the reasoning engine.
+- **Affective Computing Engine (ACE)**: A proactive flow-sensing controller (`aceController.ts`) that monitors user valence, arousal, and cognitive load to issue real-time "Flow Nudges" and interventions.
+- **Sovereign Mode (Local Inference)**: A dedicated `LocalInferenceBridge` manages local processes for ASR (Whisper.cpp), LLMs (Ollama), and TTS (Piper), ensuring zero external data leakage.
+- **A2UI (Live Canvas)**: An Agent-to-User visual interface (`LiveCanvas.tsx`) that allows agents to spatially project text, images, and data manifests onto a collaborative workspace.
+- **Simplicial Sandboxing**: High-integrity bridge management (`bridgeManager.ts`) that enforces strict one-vault-per-bridge segregation (iMessage, Signal, Slack, etc.).
 
 ### System Diagram
 ```mermaid
@@ -24,9 +24,11 @@ graph TD
     C --> D[Whisper.cpp ASR]
     C --> E[Ollama LLM]
     C --> F[Piper TTS]
-    B -- Secure Proxy --> G[Cloud APIs Gemini/OpenAI]
-    B -- Encryption --> H[Simplicial Vault]
-    H -- VDXF --> I[VerusID Blockchain]
+    A -- ACE Control --> G[Bio-Vault Enclave]
+    G -- State Tokens --> H[Polytope Reasoning]
+    H -- Manifests --> I[Live Canvas A2UI]
+    B -- Secure Proxy --> J[Cloud APIs Gemini/OpenAI]
+    B -- Isolation --> K[Simplicial Sandbox]
 ```
 
 ## 📋 Prerequisites
@@ -37,19 +39,18 @@ graph TD
     - [Ollama](https://ollama.com/) (for local LLMs)
     - [Whisper.cpp](https://github.com/ggerganov/whisper.cpp) (for ASR)
     - [Piper](https://github.com/rhasspy/piper) (for TTS)
-- **Optional**: Homebrew (macOS) for automated dependency management.
+- **Optional**: Homebrew (macOS) for dependency management.
 
 ## 🚀 Quick Start Guide
 
 ### 1. Setup Environment
-Run the automated setup script to install local inference binaries and models:
+Install local inference binaries and models:
 ```bash
 chmod +x scripts/setup_sovereign_stack.sh
 ./scripts/setup_sovereign_stack.sh
 ```
 
 ### 2. Configuration
-Copy the environment template and fill in your master keys:
 ```bash
 cp .env.example .env
 ```
@@ -58,7 +59,6 @@ Key variables: `POLYTOPE_MASTER_KEY` (Vault encryption), `JWT_SECRET_KEY` (Auth 
 ### 3. Execution
 **Backend**:
 ```bash
-# Recommended: Create a virtual environment
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 python -m uvicorn backend.app:app --reload
@@ -71,28 +71,20 @@ npm run dev
 
 ## 🔌 API Support & Proxying
 
-- **Sovereign Support**: Built-in support for local Llama 3, Mistral, and Phi-3 via Ollama.
-- **Cloud Failover**: Unified routing across Gemini, OpenAI, Anthropic, Groq, and DeepSeek.
-- **Zero-Exposure Policy**: All 3rd-party API calls are strictly proxied through the backend. **API keys never touch the browser.**
+- **Zero-Exposure Policy**: All 3rd-party API calls are strictly proxied through the backend. **API keys NEVER touch the browser.**
+- **Automatic Synthesis**: Support for Suno, ElevenLabs (Music/Voice), Midjourney, and Runway gen-4 via secure backend routing.
 
 ## 🧪 Testing & CI/CD
 
-Alluci uses `pytest` for backend verification and GitHub Actions for continuous integration.
-
-- **Run Standard Tests**: `python -m pytest backend/tests/`
-- **With Coverage**: `python -m pytest --cov=backend backend/tests/`
-- **CI Workflows**: Integrated `.github/workflows/ci.yml` runs linting and tests on every push.
+- **Backend Tests**: `python -m pytest backend/tests/`
+- **Frontend Lint**: `npm run lint`
+- **CI Workflows**: GitHub Actions (`ci.yml`) and Dependabot (`dependabot.yml`) ensure stability and security.
 
 ## 🔐 Security & Cryptography
 
-- **Audit Ledger**: All critical agent actions are hashed using **WebCrypto SHA-256** and appended to a tamper-proof log.
-- **No localStorage**: Sensitive session data and API keys are stored in `HttpOnly` cookies and the secure backend vault.
-- **Heartbeat Integrity**: The `HeartbeatDaemon` performs periodic SHA-256 file integrity checks on its own core logic.
-- **VerusID Auth**: Multi-signature authentication and VDXF-anchored data storage (optional).
+- **Audit Ledger**: All actions are hashed with **WebCrypto SHA-256** and appended to a tamper-proof log.
+- **No localStorage**: Session data and keys reside in `HttpOnly` cookies and the secure backend `SimplicialVault`.
 
 ## 📄 License
 
 Alluci Sovereign Agent is released under the **MIT License**. See [LICENSE](LICENSE) for details.
-
----
-Contributions are welcome! Please review [`CONTRIBUTING.md`](CONTRIBUTING.md) before submitting Pull Requests.
