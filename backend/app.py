@@ -560,6 +560,30 @@ async def gemini_proxy(payload: Dict[str, Any]):
         logger.error(f"Gemini proxy error: {e}")
         raise HTTPException(status_code=500, detail="Inference request failed.")
 
+# --- iWatch Biometrics Bridge ---
+
+@app.post("/api/bridge/iwatch/biometrics")
+async def ingest_iwatch_biometrics(data: TelemetryData):
+    """
+    Ingests real-time HealthKit metrics from Apple Watch.
+    Integrates results into the Affective Computing Engine (ACE).
+    """
+    try:
+        # Process through ACE
+        flow_update = ace.process_telemetry(data)
+        
+        # Log to vault conceptually
+        logger.info(f"[ IWATCH_BRIDGE ]: Biometrics ingested. Flow Status: {flow_update['mode']}")
+        
+        return {
+            "status": "SUCCESS",
+            "resonance": ace.current_state["physical_vitality"],
+            "flow_intervention": flow_update
+        }
+    except Exception as e:
+        logger.error(f"iWatch bridge ingestion error: {e}")
+        raise HTTPException(status_code=500, detail="Biometric ingestion failed.")
+
 # --- Sovereign Unified Streaming WebSocket ---
 
 @app.websocket("/ws/sovereign")

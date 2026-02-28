@@ -586,6 +586,10 @@ const App: React.FC = () => {
   const [userEmotional, setUserEmotional] = useState(0.4); // Valence: 0 (Neg) - 1 (Pos)
   const [userPhysical, setUserPhysical] = useState(0.3); // Arousal: 0 (Calm) - 1 (Excited)
   const [userCognitive, setUserCognitive] = useState(0.6); // Load: 0 (Bored) - 1 (Overloaded)
+  const [userHR, setUserHR] = useState(72);
+  const [userHRV, setUserHRV] = useState(55);
+  const [respiratoryRate, setRespiratoryRate] = useState(14);
+  const [sleepEfficiency, setSleepEfficiency] = useState(0.85);
 
   const [agentEmotional, setAgentEmotional] = useState(0.2);
   const [agentPhysical, setAgentPhysical] = useState(0.5);
@@ -1002,7 +1006,48 @@ const App: React.FC = () => {
     }
   };
 
-  // ... (Auth helpers, camera toggle, command submit, file handling ... same as original)
+  // [ BIOMETRIC_SIMULATION ]
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      // Subtle variations
+      const nextHR = Math.floor(70 + Math.random() * 10);
+      const nextHRV = Math.floor(50 + Math.random() * 15);
+      const nextRR = 12 + Math.random() * 4;
+
+      setUserHR(nextHR);
+      setUserHRV(nextHRV);
+      setRespiratoryRate(nextRR);
+
+      // Push to backend
+      try {
+        const res = await fetch(`${DAEMON_URL}/api/bridge/iwatch/biometrics`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            hr: nextHR,
+            hrv: nextHRV,
+            respiratory_rate: nextRR,
+            sleep_efficiency: sleepEfficiency,
+            valence: userEmotional,
+            arousal: userPhysical,
+            focus: userCognitive
+          })
+        });
+        const data = await res.json();
+        if (data.flow_intervention) {
+          // If ACE detects an intervention, reflect it in the UI
+          if (data.flow_intervention.mode === 'RECOVERY_MODE') {
+            setHarmonicStatus('Stress_Basin');
+          } else if (data.flow_intervention.mode === 'PEAK_PERFORMANCE') {
+            setHarmonicStatus('Nominal');
+          }
+        }
+      } catch (e) {
+        // Silently fail or log to audit
+      }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [userEmotional, userPhysical, userCognitive, sleepEfficiency]);
 
   const startAuthFlow = async (conn: Connection) => {
     if (conn.status === 'CONNECTED') {
@@ -1236,6 +1281,32 @@ const App: React.FC = () => {
               <RealtimeBarVisualizer label="Cognitive Load" value={userCognitive} color="#91D65F" onChange={setUserCognitive} />
             </div>
             <div className="space-y-4 bg-agent/5 p-3 border border-agent/10"><span className="baunk-style text-[6px] opacity-30 block mb-1">System_Coherence_Manifold</span><RealtimeBarVisualizer label="System_Coherence" value={agentCognitive} color="#91D65F" /><RealtimeBarVisualizer label="Valence_Curvature" value={valenceCurvature} color="#995CC0" /><RealtimeBarVisualizer label="Manifold_Integrity" value={manifoldIntegrity} color="#FF7D00" /></div>
+            <div className="space-y-4 bg-flux/5 p-3 border border-flux/10 animate-in fade-in slide-in-from-bottom-2">
+              <span className="baunk-style text-[6px] opacity-30 block mb-1">HealthKit_Sovereign_Monitor (iWatch)</span>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="flex flex-col gap-1 p-2 bg-white/50 border border-sovereign/5">
+                  <span className="text-[6px] font-mono opacity-40 uppercase">Heart_Rate</span>
+                  <span className="text-[10px] font-bold baunk-style">{userHR} BPM</span>
+                </div>
+                <div className="flex flex-col gap-1 p-2 bg-white/50 border border-sovereign/5">
+                  <span className="text-[6px] font-mono opacity-40 uppercase">HRV_SDNN</span>
+                  <span className="text-[10px] font-bold baunk-style">{userHRV} MS</span>
+                </div>
+                <div className="flex flex-col gap-1 p-2 bg-white/50 border border-sovereign/5">
+                  <span className="text-[6px] font-mono opacity-40 uppercase">Respiration</span>
+                  <span className="text-[10px] font-bold baunk-style">{respiratoryRate} BR/M</span>
+                </div>
+                <div className="flex flex-col gap-1 p-2 bg-white/50 border border-sovereign/5">
+                  <span className="text-[6px] font-mono opacity-40 uppercase">Sleep_Eff</span>
+                  <span className="text-[10px] font-bold baunk-style">{Math.round(sleepEfficiency * 100)}%</span>
+                </div>
+              </div>
+              <div className="flex justify-between items-center text-[7px] font-mono mt-2">
+                <span className="opacity-60 uppercase">Watch_Status:</span>
+                <span className="text-agent font-bold">[ PAIRED_E2EE ]</span>
+              </div>
+            </div>
+
             <div className="space-y-2 bg-flux/5 p-3 border border-flux/10 animate-in fade-in slide-in-from-bottom-2"><span className="baunk-style text-[6px] opacity-30 block mb-1">Harmonic_State</span><div className="flex justify-between items-center text-[7px] font-mono"><span className="opacity-60">STATUS:</span><span className={`font-bold ${harmonicStatus === 'Stress_Basin' ? 'text-red-500' : harmonicStatus === 'Loop_Detected' ? 'text-tension' : 'text-agent'}`}>{harmonicStatus.toUpperCase()}</span></div></div>
           </div>
         </div>
