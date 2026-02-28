@@ -1,90 +1,151 @@
 <div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+  <img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+
+  <p><strong>The Self-Sovereign Personal/Professional AI Assistant</strong></p>
+  
+  <p align="center">
+    <img src="https://img.shields.io/badge/Identity-VerusID_Sovereign-green" alt="VerusID" />
+    <img src="https://img.shields.io/badge/Logic-Harmonic_Lattice-orange" alt="Harmonic Logic" />
+    <img src="https://img.shields.io/badge/Security-Simplicial_Vaults-red" alt="Security" />
+    <img src="https://img.shields.io/badge/Runtime-Alluci_Sovereign_Gateway-purple" alt="Sovereign Gateway" />
+    <img src="https://img.shields.io/badge/Affective_Computing-Alluci_ACE_Engine-blue" alt="ACE Engine" />
+    <img src="https://img.shields.io/badge/Autonomous_Multi_Agent-Polytope_Executive_Orchestration-pink" alt="Orchestration" />
+    <img src="https://img.shields.io/badge/Multi_Media_Synthesis-Polytope_Gateway_Engine-lavender" alt="Synthesis" />
+  </p>
 </div>
 
-# Alluci Sovereign Agent
+---
 
-Alluci is a professional-grade, multi-modal autonomous AI agent designed for **sovereign, local-first execution**. It features real-time voice interaction, a decentralized "Hive" architecture, and deep integration with the VerusID ecosystem for secure identity and data management.
+<div id="mission" style="padding: 20px; border-radius: 15px; background-color: #f8fafc; border: 1px solid #e2e8f0;">
+  <h2>Executive Intelligence</h2>
+  <p>
+    The <strong>Alluci-Polytope Executive Assistant</strong> is a distributed, agentic runtime acting as your primary digital interface. By merging strategic hierarchical planning with a local-first execution gateway, it coordinates across a secure multi-bridge ecosystem. It is engineered for 100% data sovereignty, ensuring your personal and professional digital life remains cryptographically secured and physically under your control.
+  </p>
+</div>
+
+---
 
 ## 🏗️ Architecture Overview
 
 Alluci is built on the **Polytope Manifold Architecture**, prioritizing security and affective resonance:
 
-- **Bio-Vault Isolation**: Specialized secure enclave logic in `alluciCore.ts` (`BioVault`) that isolates raw biometric telemetry, releasing only abstracted "State Tokens" to the reasoning engine.
-- **Affective Computing Engine (ACE)**: A proactive flow-sensing controller (`aceController.ts`) that monitors user valence, arousal, and cognitive load to issue real-time "Flow Nudges" and interventions.
-- **Sovereign Mode (Local Inference)**: A dedicated `LocalInferenceBridge` manages local processes for ASR (Whisper.cpp), LLMs (Ollama), and TTS (Piper), ensuring zero external data leakage.
-- **A2UI (Live Canvas)**: An Agent-to-User visual interface (`LiveCanvas.tsx`) that allows agents to spatially project text, images, and data manifests onto a collaborative workspace.
-- **Simplicial Sandboxing**: High-integrity bridge management (`bridgeManager.ts`) that enforces strict one-vault-per-bridge segregation (iMessage, Signal, Slack, etc.).
+<div id="simplicial-vault">
+  <h3>The Simplicial Vault</h3>
+  <p>The Simplicial Vault is the core architectural primitive for security and isolation within the Alluci-Polytope ecosystem. Unlike flat security models, it treats every connection, data source, and agent session as a cryptographically isolated node.</p>
+  
+  <div style="margin-left: 20px;">
+    <h4>Isolated Execution Containers</h4>
+    <ul>
+      <li><strong>Bridge Segregation:</strong> Every external bridge (Signal, iMessage, Slack, G-Drive) operates in its own dedicated Vault. If one bridge is compromised, the breach is physically and cryptographically contained.</li>
+      <li><strong>Zero-Trust Sandboxing:</strong> Agents execute tools and code within a "Simplicial Sandbox," ensuring they cannot access local system files unless explicitly authorized.</li>
+    </ul>
 
-### System Diagram
-```mermaid
-graph TD
-    A[Frontend React/Vite] -- WebSocket/REST --> B[FastAPI Backend]
-    B -- Unified WS --> C[Local Inference Bridge]
-    C --> D[Whisper.cpp ASR]
-    C --> E[Ollama LLM]
-    C --> F[Piper TTS]
-    A -- ACE Control --> G[Bio-Vault Enclave]
-    G -- State Tokens --> H[Polytope Reasoning]
-    H -- Manifests --> I[Live Canvas A2UI]
-    B -- Secure Proxy --> J[Cloud APIs Gemini/OpenAI]
-    B -- Isolation --> K[Simplicial Sandbox]
-```
+   <h4>Cryptographic Sovereignty</h4>
+    <ul>
+      <li><strong>Identity-Bound Access:</strong> Access to a Vault is tethered to your <strong>VerusID</strong>. Every interaction within the vault is signed, providing an immutable audit trail of agent actions.</li>
+      <li><strong>The Bio-Vault:</strong> A specialized high-security layer for ACE telemetry. Raw biometric data never leaves this local vault; only abstracted "State Tokens" are released to the reasoning engine.</li>
+    </ul>
+  </div>
+</div>
 
-## 📋 Prerequisites
+<div id="affective-computing-overview">
+  <h3>Affective Computing Engine (ACE)</h3>
+  <p>The ACE aligns machine logic with human biology. It bridges raw data and human sentiment, ensuring the assistant works in resonance with your current physiological and mental state.</p>
+  
+  <div style="margin-left: 20px;">
+    <h4>Biometric State Transmission</h4>
+    <ul>
+      <li><strong>Physical State (Vitality):</strong> Tracks HR, HRV, and Blood Oxygen. If strain is high, the Assistant deprioritizes non-urgent tasks.</li>
+      <li><strong>Emotional State (Affective Valence):</strong> Detects state positivity/negativity via skin conductance or sentiment.</li>
+      <li><strong>Cognitive State (Mental Load):</strong> Identifies "Deep Work" states via biomarkers to auto-silence distracting bridges.</li>
+    </ul>
 
-- **Frontend**: Node.js ≥ 20
-- **Backend**: Python ≥ 3.12
+  <h4>The Flow Assistance Framework</h4>
+    <ul>
+      <li><strong>Peak Performance:</strong> Suggests high-logic "Epics" during peak energy windows.</li>
+      <li><strong>Burnout Prevention:</strong> Intervenes during prolonged cognitive load with micro-break suggestions ("Flow Nudges").</li>
+      <li><strong>Flow Signature:</strong> Learns which tasks excite you versus which cause friction to refine delegation.</li>
+    </ul>
+  </div>
+</div>
+
+---
+
+## 🚀 Quick Start & Local Setup Guide
+
+Follow these steps to deploy your sovereign agent locally.
+
+### 1. Prerequisites
+- **Frontend**: [Node.js](https://nodejs.org/) (v20+)
+- **Backend**: [Python](https://www.python.org/) (v3.12+)
 - **Local Inference Tools**:
-    - [Ollama](https://ollama.com/) (for local LLMs)
-    - [Whisper.cpp](https://github.com/ggerganov/whisper.cpp) (for ASR)
-    - [Piper](https://github.com/rhasspy/piper) (for TTS)
-- **Optional**: Homebrew (macOS) for dependency management.
+    - [Ollama](https://ollama.com/) (LLMs)
+    - [Whisper.cpp](https://github.com/ggerganov/whisper.cpp) (ASR)
+    - [Piper](https://github.com/rhasspy/piper) (TTS)
 
-## 🚀 Quick Start Guide
-
-### 1. Setup Environment
-Install local inference binaries and models:
+### 2. Automated Stack Setup
+Run the setup script to install local binaries and pull the required models (Llama 3, Whisper, Piper):
 ```bash
 chmod +x scripts/setup_sovereign_stack.sh
 ./scripts/setup_sovereign_stack.sh
 ```
 
-### 2. Configuration
+### 3. Environment Configuration
+Clone the repository and initialize the environment:
 ```bash
 cp .env.example .env
 ```
-Key variables: `POLYTOPE_MASTER_KEY` (Vault encryption), `JWT_SECRET_KEY` (Auth signing).
+Fill in your `POLYTOPE_MASTER_KEY` (used for Vault 2FA and encryption) and `JWT_SECRET_KEY`.
 
-### 3. Execution
-**Backend**:
+### 4. Backend Execution
 ```bash
-python -m venv .venv && source .venv/bin/activate
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 python -m uvicorn backend.app:app --reload
 ```
-**Frontend**:
+
+### 5. Frontend Execution
 ```bash
 npm install
 npm run dev
 ```
+Open `http://localhost:5173` to access the Alluci Sovereign Gateway.
 
-## 🔌 API Support & Proxying
+---
 
-- **Zero-Exposure Policy**: All 3rd-party API calls are strictly proxied through the backend. **API keys NEVER touch the browser.**
-- **Automatic Synthesis**: Support for Suno, ElevenLabs (Music/Voice), Midjourney, and Runway gen-4 via secure backend routing.
+## 🔌 Multi-Modal Synthesis & API Orchestration
 
-## 🧪 Testing & CI/CD
+Alluci coordinates across a secure multi-bridge ecosystem, providing unified access to state-of-the-art tools:
 
-- **Backend Tests**: `python -m pytest backend/tests/`
-- **Frontend Lint**: `npm run lint`
-- **CI Workflows**: GitHub Actions (`ci.yml`) and Dependabot (`dependabot.yml`) ensure stability and security.
+#### 1. LLM_REASONING_&_LOGIC
+- **OpenAI**: GPT-5.1 & o1 for deep strategic planning.
+- **Anthropic**: Claude 4.5 / 4.6 for nuanced context and coding.
+- **Google Cloud**: Gemini 3 for massive context windows.
+- **Groq**: LPU-powered high-speed tactical execution.
 
-## 🔐 Security & Cryptography
+#### 2. CONVERSATIONAL_AUDIO
+- **OpenAI Realtime API**: emotionally resonant vocal interaction.
+- **ElevenLabs**: Specialized Agents API for high-fidelity voice synthesis.
+- **Retell AI / Inworld**: Professional telephony and character-driven dialogue.
 
-- **Audit Ledger**: All actions are hashed with **WebCrypto SHA-256** and appended to a tamper-proof log.
-- **No localStorage**: Session data and keys reside in `HttpOnly` cookies and the secure backend `SimplicialVault`.
+#### 3. MULTI-MODAL CREATIVITY
+- **Music**: Suno API, Stable Audio, & Soundverse for melodic composition.
+- **Image**: Midjourney Alpha, DALL·E 3, Fal.ai, & Adobe Firefly.
+- **Video**: Runway Gen-4.5 & Luma Dream Machine for temporal genesis.
+
+---
+
+## 🔐 Security & Trust Protocol
+
+- **ONE_TOUCH_LOGIN**: FaceID/TouchID verification via biometric handshakes.
+- **E2E_ENCRYPTION**: Mandatory for iMessage, Signal, and WhatsApp bridges.
+- **SHA-256 Audit Trail**: Every session event is hashed using WebCrypto for tamper-proof accountability.
+- **Vault Operations**: `[ ROTATE_KEYS ]` and `[ FLUSH_CACHE ]` for instant cryptographic resets.
 
 ## 📄 License
 
 Alluci Sovereign Agent is released under the **MIT License**. See [LICENSE](LICENSE) for details.
+
+---
+<p align="center"><em>"Alluci-Polytope: Turning AI from a passive tool into a sovereign, affective partner."</em></p>
