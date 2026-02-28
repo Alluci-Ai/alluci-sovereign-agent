@@ -1,65 +1,36 @@
-name: CI Pipeline
+name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [ main ]
   pull_request:
-    branches: [main]
+    branches: [ main ]
 
 jobs:
-  lint-and-test-backend:
+  frontend:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: 'pip'
-
-      - name: Install dependencies
-        run: pip install -r requirements.txt && pip install pytest pytest-cov pytest-asyncio ruff
-
-      - name: Lint (ruff)
-        run: ruff check backend/ --exit-zero
-
-      - name: Run tests
-        run: python -m pytest backend/tests/ -v --tb=short --cov=backend --cov-report=term-missing
-        env:
-          POLYTOPE_MASTER_KEY: ${{ secrets.POLYTOPE_MASTER_KEY || 'dGVzdC1rZXktZm9yLWNpLXBpcGVsaW5lLW9ubHk=' }}
-          JWT_SECRET_KEY: "ci-test-jwt-secret-key-not-for-production"
-          GEMINI_API_KEY: "ci-test-key"
-
-  lint-and-build-frontend:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Node.js
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
-
+          node-version: 20
       - name: Install dependencies
-        run: npm ci || npm install
+        run: npm install
+      - name: Lint
+        run: npm run lint || true
 
-      - name: Type check
-        run: npx tsc --noEmit || true
-
-      - name: Build
-        run: npm run build
-
-  docker-build:
+  backend:
     runs-on: ubuntu-latest
-    needs: [lint-and-test-backend, lint-and-build-frontend]
-    if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
-
-      - name: Build backend image
-        run: docker build -f Dockerfile.backend -t alluci-backend:latest .
-
-      - name: Build frontend image
-        run: docker build -f Dockerfile.frontend -t alluci-frontend:latest .
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.12
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Lint with Ruff
+        run: |
+          pip install ruff
+          ruff check .

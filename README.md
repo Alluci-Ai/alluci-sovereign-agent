@@ -118,6 +118,10 @@ python -m pytest backend/tests/ -v --cov=backend --cov-report=term-missing
 - Execution manifests are signed with Ed25519 (when VerusID is configured)
 - DPK manifold integrity checks block invalid topology states
 
+## Contributing
+
+Contributions are welcome! Please see [`CONTRIBUTING.md`](CONTRIBUTING.md) for guidelines on how to get started.
+
 ## License
 
-Private — All rights reserved.
+Alluci Sovereign Agent is released under the [MIT License](LICENSE).
