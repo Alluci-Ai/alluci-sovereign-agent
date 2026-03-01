@@ -25,7 +25,7 @@
 
 ---
 
-## 🏗️ Architecture Overview
+## Architecture Overview
 
 Alluci is built on the **Polytope Manifold Architecture**, prioritizing security and affective resonance:
 
@@ -77,7 +77,7 @@ Alluci is built on the **Polytope Manifold Architecture**, prioritizing security
 
 ---
 
-## 🚀 Quick Start & Local Setup Guide
+## Quick Start & Local Setup Guide
 
 Follow these steps to deploy your sovereign agent locally.
 
@@ -120,7 +120,7 @@ Open `http://localhost:5173` to access the Alluci Sovereign Gateway.
 
 ---
 
-## 🌐 The Sovereign Manifold
+## The Sovereign Manifold
 
 Alluci empowers you to act across your entire digital life from a single, secure interface, ensuring that all actualization occurs within cryptographically isolated vaults:
 
@@ -130,7 +130,7 @@ Alluci empowers you to act across your entire digital life from a single, secure
 
 ---
 
-## 🔌 Multi-Modal Synthesis & API Orchestration
+## Multi-Modal Synthesis & API Orchestration
 
 Alluci coordinates across a secure multi-bridge ecosystem, providing unified access to state-of-the-art tools:
 
@@ -152,14 +152,14 @@ Alluci coordinates across a secure multi-bridge ecosystem, providing unified acc
 
 ---
 
-## 🔐 Security & Trust Protocol
+## Security & Trust Protocol
 
 - **ONE_TOUCH_LOGIN**: FaceID/TouchID verification via biometric handshakes.
 - **E2E_ENCRYPTION**: Mandatory for iMessage, Signal, and WhatsApp bridges.
 - **SHA-256 Audit Trail**: Every session event is hashed using WebCrypto for tamper-proof accountability.
 - **Vault Operations**: `[ ROTATE_KEYS ]` and `[ FLUSH_CACHE ]` for instant cryptographic resets.
 
-## 📄 License
+## License
 
 Alluci Sovereign Agent is released under the **MIT License**. See [LICENSE](LICENSE) for details.
 
