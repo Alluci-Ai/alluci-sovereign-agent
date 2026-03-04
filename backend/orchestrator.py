@@ -30,7 +30,8 @@ from .security.dpk import DiscreteProjectionKernel, PolytopeState
 class ExecutiveOrchestrator:
     def __init__(self, router: ModelRouter, vault: VaultManager, ace: AffectiveEngine, settings: Settings, skill_manager: SkillManager = None):
         self.settings = settings
-        self.logger = logging.getLogger("Orchestrator")
+        self.inbound_history = []
+        self.logger = logging.getLogger("ExecutiveOrchestrator")
         self.vault = vault
         self.skill_manager = skill_manager
         
@@ -66,6 +67,40 @@ class ExecutiveOrchestrator:
             self.heartbeat.stop()
             await self.heartbeat_task
         self.logger.info("Background services stopped.")
+
+    async def handle_inbound_message(self, message: Dict[str, Any]):
+        """
+        Process a message received from a connected channel adapter.
+        Turns the message body into an autonomous objective.
+        """
+        body = message.get("body", "").strip()
+        sender = message.get("from", "unknown")
+        protocol = message.get("protocol", "UNKNOWN")
+
+        if not body:
+            return
+
+        self.logger.info(f"[Orchestrator] Inbound {protocol} message from {sender}: {body[:50]}...")
+        self.inbound_history.append({
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "sender": sender,
+            "protocol": protocol,
+            "body_preview": body[:100] # Store a preview
+        })
+
+        # Sprint 5: Could add policy checking here (e.g. only allow certain users)
+        
+        # Trigger autonomous execution
+        # In a production deployment, we'd add session tracking/context here.
+        try:
+            # We treat the inbound message as a new objective.
+            # Using 'autonomous' mode triggers the full DPK/PPN/Execution cycle.
+            await self.execute_objective(
+                objective=f"Respond to {protocol} message from {sender}: {body}",
+                autonomy="autonomous"
+            )
+        except Exception as e:
+            self.logger.error(f"[Orchestrator] Error handling inbound message: {e}")
 
     async def _build_system_context(self) -> str:
         """

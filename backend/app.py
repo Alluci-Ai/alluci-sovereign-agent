@@ -1,4 +1,5 @@
 
+import os
 import uuid
 import hmac
 import asyncio
@@ -143,7 +144,39 @@ async def lifespan(app: FastAPI):
     # 13. Sprint 3: Exec Approval
     exec_approval = ExecApprovalManager(db_engine, ws_gateway=ws_gw)
 
-    # 14. Background Services
+    # 14. Sprint 2: Channel Adapter Registry
+    vault_root = os.path.expanduser("~/.polytope/vaults")
+    os.makedirs(vault_root, exist_ok=True)
+
+    from .bridges.telegram import TelegramBridge
+    from .bridges.whatsapp import WhatsAppBridge
+    from .bridges.discord import DiscordBridge
+    from .bridges.slack import SlackBridge
+    from .bridges.email import EmailBridge
+
+    channel_registry["telegram"] = TelegramBridge("telegram", vault_root)
+    channel_registry["whatsapp"] = WhatsAppBridge("whatsapp", vault_root)
+    channel_registry["discord"] = DiscordBridge("discord", vault_root)
+    channel_registry["slack"] = SlackBridge("slack", vault_root)
+    channel_registry["email"] = EmailBridge("email", vault_root)
+
+    # Auto-connect channels from vault-stored credentials (non-blocking)
+    for ch_name, adapter in channel_registry.items():
+        try:
+            creds = await vault.retrieve_secret(f"channel_{ch_name}")
+            if creds:
+                connected = await adapter.connect(creds)
+                if connected:
+                    logger.info(f"[ CHANNELS ] {ch_name} auto-connected")
+                else:
+                    logger.warning(f"[ CHANNELS ] {ch_name} credentials found but connection failed")
+        except Exception as e:
+            logger.debug(f"[ CHANNELS ] {ch_name} not configured: {e}")
+
+    # Wire channel registry to cron engine for delivery routing
+    cron_engine.channel_registry = channel_registry
+
+    # 15. Background Services
     await orchestrator.start_background_services()
 
     logger.info("[ POLYTOPE_DAEMON ] All systems nominal. Ready.")
@@ -1156,6 +1189,74 @@ async def toggle_channel(channel_id: str, data: Dict[str, Any] = Body(...)):
     if not enabled and hasattr(adapter, "disconnect"):
         await adapter.disconnect()
     return {"channel": channel_id, "enabled": enabled}
+
+
+@app.post("/api/channels/{channel_id}/connect", dependencies=[Depends(verify_authenticated)])
+async def connect_channel(channel_id: str, data: Dict[str, Any] = Body(...)):
+    """Manually trigger a channel connection with provided credentials."""
+    adapter = channel_registry.get(channel_id)
+    if not adapter:
+        raise HTTPException(status_code=404, detail=f"Channel '{channel_id}' not found")
+    
+    # Store credentials in vault first
+    await vault.store_secret(f"channel_{channel_id}", data)
+    
+    # Attempt connection
+    success = await adapter.connect(data)
+    if not success:
+        raise HTTPException(status_code=400, detail=f"Connection failed: {getattr(adapter, 'last_error', 'Unknown error')}")
+    
+    return {"status": "connected", "channel": channel_id}
+
+
+# ── Webhook Inbound Handlers (Sprint 2 — OpenClaw §2.1–2.2) ──
+
+@app.post("/webhook/telegram/{token}")
+async def telegram_webhook(token: str, update: Dict[str, Any]):
+    """Inbound webhook for Telegram messages."""
+    adapter = channel_registry.get("telegram")
+    if not adapter or not adapter.is_connected or adapter.bot_token != token:
+        return {"ok": False, "error": "unauthorized"}
+
+    parsed = await adapter.process_webhook(update)
+    if parsed and orchestrator:
+        # Trigger autonomous turn if enabled
+        asyncio.create_task(orchestrator.handle_inbound_message(parsed))
+    
+    return {"ok": True}
+
+
+@app.get("/webhook/whatsapp")
+async def whatsapp_verify(
+    mode: str = Query(None, alias="hub.mode"),
+    token: str = Query(None, alias="hub.verify_token"),
+    challenge: str = Query(None, alias="hub.challenge"),
+):
+    """WhatsApp verification endpoint (GET)."""
+    adapter = channel_registry.get("whatsapp")
+    if not adapter:
+        raise HTTPException(status_code=404)
+    
+    res = adapter.verify_webhook(mode, token, challenge)
+    if res:
+        return Response(content=res)
+    raise HTTPException(status_code=403)
+
+
+@app.post("/webhook/whatsapp")
+async def whatsapp_webhook(body: Dict[str, Any]):
+    """WhatsApp inbound payload handler (POST)."""
+    adapter = channel_registry.get("whatsapp")
+    if not adapter or not adapter.is_connected:
+        return {"status": "ignored"}
+
+    parsed_list = adapter.process_webhook_event(body)
+    if parsed_list and orchestrator:
+        for msg in parsed_list:
+            asyncio.create_task(orchestrator.handle_inbound_message(msg))
+            
+    return {"status": "received"}
+
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
