@@ -11,7 +11,7 @@ services:
       - .env
     environment:
       - REDIS_URL=redis://redis:6379/0
-      - DATABASE_URL=postgresql://polytope:sovereign@db:5432/polytope_db
+      - DATABASE_URL=postgresql://polytope:${DB_PASSWORD:-sovereign}@db:5432/polytope_db
     depends_on:
       redis:
         condition: service_healthy
@@ -22,7 +22,7 @@ services:
       - ./TASKS.md:/app/TASKS.md
       - ./HEARTBEAT.md:/app/HEARTBEAT.md
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -32,7 +32,7 @@ services:
   redis:
     image: redis:alpine
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -42,10 +42,10 @@ services:
     image: postgres:15-alpine
     environment:
       - POSTGRES_USER=polytope
-      - POSTGRES_PASSWORD=sovereign
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-sovereign}
       - POSTGRES_DB=polytope_db
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U polytope -d polytope_db"]
+      test: [ "CMD-SHELL", "pg_isready -U polytope -d polytope_db" ]
       interval: 5s
       timeout: 3s
       retries: 5

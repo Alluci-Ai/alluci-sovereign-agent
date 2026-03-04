@@ -85,8 +85,12 @@ class VaultManager:
         if self.vdxf and data:
             vault_aggregate = await self._get_full_vault_state()
             if not await self.vdxf.verify_integrity(vault_aggregate):
-                # In strict mode, we throw. For this implementation we log and continue.
-                pass
+                # Integrity mismatch — vault may have been tampered with externally
+                import logging
+                logging.getLogger("VaultManager").critical(
+                    f"[SECURITY] VDXF integrity verification FAILED for bridge '{bridge_id}'. "
+                    f"Vault data may have been tampered with. Investigate immediately."
+                )
                 
         # Populate cache
         if self.vdxf and data:

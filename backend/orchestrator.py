@@ -68,7 +68,7 @@ class ExecutiveOrchestrator:
             await self.heartbeat_task
         self.logger.info("Background services stopped.")
 
-    def _build_system_context(self) -> str:
+    async def _build_system_context(self) -> str:
         """
         Constructs the cognitive context for the Planner based on the 
         active Soul Manifest (Identity, Cognition) and Verified Skills.
@@ -77,7 +77,7 @@ class ExecutiveOrchestrator:
         
         # 1. Identity & Cognition Layer
         try:
-            manifest = self.vault.retrieve_secret("soul_manifest")
+            manifest = await self.vault.retrieve_secret("soul_manifest")
             if manifest:
                 id_core = manifest.get("identityCore", "You are an autonomous agent.")
                 reasoning = manifest.get("reasoningStyle", "Analytical.")
@@ -221,7 +221,7 @@ class ExecutiveOrchestrator:
         # 4. Planning
         try:
             # Inject Identity & Skills into Planning Context
-            system_context = self._build_system_context()
+            system_context = await self._build_system_context()
             
             tasks = await self.planner.generate_plan(objective, context=system_context)
             
@@ -292,7 +292,8 @@ class ExecutiveOrchestrator:
                     )
                     current_plan = [t.dict() for t in tasks.values()]
                 except Exception as e:
-                    self.logger.error(f"Refinement failed: {e}")
+                    self.logger.error(f"Refinement failed for run {run_id}: {e}")
+                    self._update_run_status(run_id, RunStatus.FAILED, feedback=f"Refinement error: {type(e).__name__}: {e}")
                     break
         
         self._update_run_status(run_id, RunStatus.FAILED, score=critic_score, feedback=feedback)
