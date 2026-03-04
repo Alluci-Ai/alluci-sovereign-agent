@@ -183,7 +183,13 @@ class ModelRouter:
     async def get_response(self, prompt: str, complexity: Literal["LOW", "MEDIUM", "HIGH"] = "MEDIUM") -> str:
         """Get a response with automatic failover across providers."""
         use_strong = complexity == "HIGH"
-        json_mode = "json" in prompt.lower()
+        # Only activate JSON mode when the prompt explicitly requests JSON output,
+        # not just any mention of the word "json" in the content.
+        import re
+        json_mode = bool(re.search(
+            r'\b(return|output|respond\s+with|give\s+me|provide|format\s+as|reply\s+in)\b[^.]*\bjson\b',
+            prompt.lower()
+        ))
         errors = []
 
         # Attempt 1: Gemini
@@ -283,25 +289,31 @@ class ModelRouter:
         """ElevenLabs integration for emotionally resonant voice synthesis."""
         if not self.elevenlabs_api_key:
             raise RuntimeError("ElevenLabs credentials missing.")
-        # Stub: HTTpx request to api.elevenlabs.io
-        self.logger.info(f"Synthesizing speech for {len(text)} chars.")
-        return b"AUDIO_DATA_STUB"
+        # TODO: Implement actual HTTP request to ElevenLabs API
+        raise NotImplementedError(
+            "Speech synthesis is not yet implemented. "
+            "Set ELEVENLABS_API_KEY and implement the ElevenLabs API integration."
+        )
 
     async def generate_image(self, prompt: str) -> str:
         """Midjourney Alpha API integration for manifestation."""
         if not self.midjourney_api_key:
             raise RuntimeError("Midjourney credentials missing.")
-        # Stub: HTTpx request to Midjourney API
-        self.logger.info(f"Manifesting image: {prompt}")
-        return "https://cdn.polytope.local/manifestation_stub.png"
+        # TODO: Implement actual HTTP request to Midjourney API
+        raise NotImplementedError(
+            "Image generation is not yet implemented. "
+            "Set MIDJOURNEY_API_KEY and implement the Midjourney API integration."
+        )
 
     async def generate_video(self, prompt: str, image_url: str = None) -> str:
         """Runway Gen-4.5 / Luma integration for temporal genesis."""
         if not self.runway_api_key:
             raise RuntimeError("Runway credentials missing.")
-        # Stub: HTTpx request to RunwayML API
-        self.logger.info(f"Temporal genesis for: {prompt}")
-        return "https://cdn.polytope.local/temporal_stub.mp4"
+        # TODO: Implement actual HTTP request to RunwayML API
+        raise NotImplementedError(
+            "Video generation is not yet implemented. "
+            "Set RUNWAY_API_KEY and implement the RunwayML API integration."
+        )
 
     async def get_structured_plan(self, objective: str) -> Dict[str, Any]:
         """Specific helper to force a JSON plan from the LLM."""

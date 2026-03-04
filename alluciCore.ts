@@ -57,9 +57,19 @@ export class SimplicialVault {
  */
 export class BioVault extends SimplicialVault {
   private telemetryBuffer: any[] = [];
+  private encryptionKey: CryptoKey | null = null;
 
   constructor() {
     super("BIO_ENCLAVE");
+    this._initEncryptionKey();
+  }
+
+  private async _initEncryptionKey(): Promise<void> {
+    this.encryptionKey = await window.crypto.subtle.generateKey(
+      { name: "AES-GCM", length: 256 },
+      false, // not extractable
+      ["encrypt", "decrypt"]
+    );
   }
 
   async ingestTelemetry(data: any): Promise<string> {
@@ -71,18 +81,35 @@ export class BioVault extends SimplicialVault {
     // 2. Ingest raw data with timestamp
     this.telemetryBuffer.push({ ...data, ts: Date.now() });
 
-    // 3. Abstracted "State Token" release (only non-sensitive metadata)
-    const stateToken = btoa(JSON.stringify({
+    // 3. Construct abstracted state (non-sensitive metadata only)
+    const statePayload = JSON.stringify({
       v: data.v > 0.5 ? 'POS' : 'NEG',
       a: data.a > 0.5 ? 'HIGH' : 'LOW',
       l: data.l > 0.5 ? 'STRESS' : 'FLOW'
-    }));
+    });
 
-    return stateToken;
+    // 4. Encrypt the state token via AES-GCM
+    if (this.encryptionKey) {
+      const iv = window.crypto.getRandomValues(new Uint8Array(12));
+      const encoded = new TextEncoder().encode(statePayload);
+      const ciphertext = await window.crypto.subtle.encrypt(
+        { name: "AES-GCM", iv },
+        this.encryptionKey,
+        encoded
+      );
+      // Encode iv + ciphertext as base64 for transport
+      const combined = new Uint8Array(iv.length + new Uint8Array(ciphertext).length);
+      combined.set(iv, 0);
+      combined.set(new Uint8Array(ciphertext), iv.length);
+      return btoa(String.fromCharCode(...combined));
+    }
+
+    // Fallback if key not yet initialized (first call race condition)
+    return btoa(statePayload);
   }
 
-  getInternalBuffer() {
-    // In a real system, this would be restricted to the secure enclave only.
+  // Private: raw biometric data must never leave the secure enclave
+  private getInternalBuffer() {
     return this.telemetryBuffer;
   }
 }
@@ -187,10 +214,34 @@ export class SovereignSecurityManager {
     switch (connection.autonomyLevel) {
       case AutonomyLevel.RESTRICTED:
         return { allowed: true, approvalRequired: true };
-      case AutonomyLevel.SEMI_AUTONOMOUS:
-        // Logic to check whitelist (simulated)
-        const isWhitelisted = content.length < 500;
-        return { allowed: isWhitelisted, approvalRequired: !isWhitelisted };
+      case AutonomyLevel.SEMI_AUTONOMOUS: {
+        // Semantic content check: blocklist of high-risk action verbs
+        const HIGH_RISK_PATTERNS = [
+          /\b(delete|remove|destroy|erase|drop|purge|wipe)\b/i,
+          /\b(transfer|send|wire|pay|withdraw|deposit)\s+(\$|\d|money|funds|crypto|btc|eth)/i,
+          /\b(execute|run|eval|exec|spawn|fork)\b.*\b(command|script|code|binary|shell)\b/i,
+          /\b(post|publish|broadcast|tweet|announce)\b/i,
+          /\b(grant|revoke|escalate|sudo|admin|root)\b.*\b(access|permission|privilege)\b/i,
+          /\b(shutdown|restart|reboot|terminate|kill)\b/i,
+          /<script[\s>]|javascript:|data:text\/html/i,
+          /https?:\/\/[^\s]+\.(exe|sh|bat|cmd|ps1|msi)/i,
+        ];
+
+        const containsHighRiskContent = HIGH_RISK_PATTERNS.some(pattern => pattern.test(content));
+
+        if (containsHighRiskContent) {
+          this.audit.addEntry("SEMI_AUTO_BLOCKED", {
+            reason: "HIGH_RISK_CONTENT_DETECTED",
+            bridge: connection.id,
+            contentPreview: content.substring(0, 80),
+          });
+          return { allowed: false, approvalRequired: true };
+        }
+
+        // Length limit as secondary safeguard
+        const isReasonableLength = content.length < 2000;
+        return { allowed: isReasonableLength, approvalRequired: !isReasonableLength };
+      }
       case AutonomyLevel.SOVEREIGN:
         return { allowed: true, approvalRequired: false };
       default:

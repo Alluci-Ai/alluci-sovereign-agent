@@ -16,11 +16,11 @@ class Executor:
     """
     Executes a DAG of tasks using real adapters and persists state to DB.
     """
-    def __init__(self, adapter_registry: AdapterRegistry, session_factory, max_concurrent: int = 5):
+    def __init__(self, adapter_registry: AdapterRegistry, session_factory, max_concurrent: int = 5, task_timeout: float = 60.0):
         self.registry = adapter_registry
         self.session_factory = session_factory  # Function that yields a session
         self.semaphore = asyncio.Semaphore(max_concurrent)
-        self.task_timeout = 60.0  # seconds
+        self.task_timeout = task_timeout  # seconds, configurable per adapter/deployment
 
     async def execute_dag(self, run_id: int, tasks: Dict[str, DAGTask]) -> Dict[str, DAGTask]:
         """

@@ -37,7 +37,7 @@ class PPNEmbeddingModule(nn.Module):
     Projects multimodal vectors into a Simplicial Complex and extracts 
     Topological Invariants (Betti Numbers).
     """
-    def __init__(self, input_dim=512, latent_dim=64, max_dimension=4):
+    def __init__(self, input_dim=512, latent_dim=64, max_dimension=4, checkpoint_path: str = None):
         super().__init__()
         self.latent_dim = latent_dim
         self.max_dimension = max_dimension
@@ -63,6 +63,33 @@ class PPNEmbeddingModule(nn.Module):
             nn.ReLU(),
             nn.Linear(32, max_dimension) # Predicts B0, B1, B2, B3
         )
+
+        # Load pre-trained checkpoint or initialize deterministically
+        if checkpoint_path:
+            try:
+                state_dict = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
+                self.load_state_dict(state_dict)
+                import logging
+                logging.getLogger("PPN").info(f"PPN checkpoint loaded from {checkpoint_path}")
+            except Exception as e:
+                import logging
+                logging.getLogger("PPN").warning(f"Failed to load PPN checkpoint: {e}. Using deterministic init.")
+                self._deterministic_init()
+        else:
+            # No checkpoint: use deterministic initialization so the DPK gate
+            # produces reproducible results across restarts.
+            self._deterministic_init()
+
+    def _deterministic_init(self):
+        """Initialize weights deterministically so the security gate is reproducible."""
+        torch.manual_seed(42)
+        for module in self.modules():
+            if isinstance(module, nn.Linear):
+                nn.init.xavier_uniform_(module.weight)
+                if module.bias is not None:
+                    nn.init.zeros_(module.bias)
+        # Set to eval mode by default for inference — prevents dropout/batchnorm variance
+        self.eval()
 
     def compute_persistent_homology(self, point_cloud: np.ndarray) -> torch.Tensor:
         """

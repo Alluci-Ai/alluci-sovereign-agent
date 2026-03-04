@@ -1,6 +1,20 @@
 
-import { createHash } from 'node:crypto';
 import { IdentityManager } from '../kernel/identity';
+
+// Cross-platform SHA-256: works in browser (Web Crypto API) and Node.js
+async function sha256(data: string): Promise<string> {
+  if (typeof globalThis.crypto !== 'undefined' && globalThis.crypto.subtle) {
+    // Browser / Web Crypto API
+    const msgUint8 = new TextEncoder().encode(data);
+    const hashBuffer = await globalThis.crypto.subtle.digest('SHA-256', msgUint8);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  } else {
+    // Node.js fallback
+    const { createHash } = await import('node:crypto');
+    return createHash('sha256').update(data).digest('hex');
+  }
+}
 
 export interface LedgerEntry {
   executionId: string;
@@ -32,10 +46,10 @@ export class AuditLedger {
    */
   async recordEntry(executionId: string, taskId: string, actionPayload: any): Promise<LedgerEntry> {
     const timestamp = new Date().toISOString();
-    
+
     // Canonicalize payload for hashing
     const actionStr = JSON.stringify(actionPayload);
-    const actionHash = createHash('sha256').update(actionStr).digest('hex');
+    const actionHash = await sha256(actionStr);
 
     // The kernel signs the action itself to prove it authorized it
     const signaturePayload = `${executionId}:${taskId}:${timestamp}:${actionHash}`;
@@ -53,12 +67,12 @@ export class AuditLedger {
     // Update the hash chain
     // We hash the canonical JSON of the entry itself to link it
     const entryString = JSON.stringify(entry);
-    this.lastHash = createHash('sha256').update(this.lastHash + entryString).digest('hex');
+    this.lastHash = await sha256(this.lastHash + entryString);
 
     this.chain.push(entry);
-    
+
     // TODO: In Phase 4, flush to disk immediately (append-only file)
-    
+
     return entry;
   }
 
@@ -69,20 +83,20 @@ export class AuditLedger {
   /**
    * Verifies the cryptographic integrity of the entire chain.
    */
-  verifyChain(): boolean {
+  async verifyChain(): Promise<boolean> {
     let prev = "0000000000000000000000000000000000000000000000000000000000000000";
-    
+
     for (const entry of this.chain) {
       if (entry.previousHash !== prev) {
         console.error(`[ AUDIT ]: Broken chain link at task ${entry.taskId}`);
         return false;
       }
-      
+
       // Re-calculate the hash that this entry produces
       const entryString = JSON.stringify(entry);
-      prev = createHash('sha256').update(prev + entryString).digest('hex');
+      prev = await sha256(prev + entryString);
     }
-    
+
     return true;
   }
 }

@@ -2,6 +2,8 @@
 import sys
 import re
 import uuid
+import hmac
+import asyncio
 import contextlib
 import traceback
 import psutil
@@ -20,7 +22,8 @@ from fastapi_limiter import FastAPILimiter
 from fastapi_limiter.depends import RateLimiter
 
 from .config import settings, Settings
-from .database import create_db_and_tables, get_session
+from .database import create_db_and_tables, get_session, engine as db_engine
+from sqlmodel import Session
 from .models import (
     ObjectiveRequest, TelemetryData, SystemStatus, LoginRequest,
     TaskUpdate, TaskItem, SoulPreferences, SoulManifest, AuditEntry
@@ -221,7 +224,7 @@ async def readiness_check():
 @app.post("/auth/login")
 async def login(response: Response, payload: LoginRequest):
     """Sovereign Master Key Authentication."""
-    if payload.key == settings.POLYTOPE_MASTER_KEY:
+    if hmac.compare_digest(payload.key, settings.POLYTOPE_MASTER_KEY):
         token = create_access_token(data={"sub": "sovereign_admin"})
         # Set HttpOnly, Secure, SameSite cookie
         response.set_cookie(
@@ -505,20 +508,24 @@ async def get_audit_ledger():
 
 # --- WebAuthn (Passkeys) Authentication ---
 
+# In-memory challenge store (per-session in production, use Redis)
+_webauthn_challenges: Dict[str, bytes] = {}
+
 @app.get("/auth/webauthn/challenge")
 async def get_webauthn_challenge():
     """Generates a cryptographic challenge for WebAuthn/FIDO2."""
     import secrets
     
     challenge = secrets.token_bytes(32)
-    # Store challenge in memory or session (for now, just return it)
-    # Real implementation would tie this to a session
     b64_challenge = base64.urlsafe_b64encode(challenge).decode().replace("=", "")
+    
+    # Store challenge keyed by the base64 representation for later verification
+    _webauthn_challenges[b64_challenge] = challenge
     
     return {
         "challenge": b64_challenge,
         "timeout": 60000,
-        "rp": {"name": "Alluci Sovereign Agent", "id": "localhost"},
+        "rp": {"name": "Alluci Sovereign Agent", "id": settings.WEBAUTHN_RP_ID if hasattr(settings, 'WEBAUTHN_RP_ID') else "localhost"},
         "user": {
             "id": "ALLUCI_SOVEREIGN_001", 
             "name": "sovereign_admin", 
@@ -529,12 +536,75 @@ async def get_webauthn_challenge():
 
 @app.post("/auth/webauthn/verify")
 async def verify_webauthn_response(payload: Dict[str, Any] = Body(...)):
-    """Verifies the WebAuthn attestation/assertion."""
-    # In a full production implementation, we'd use a library like 'pywebauthn'
-    # For this transition, we'll validate the structural integrity and return SUCCESS
-    # to demonstrate the flow.
-    logger.info(f"WebAuthn verify received for id: {payload.get('id')}")
-    return {"status": "SUCCESS", "token": create_access_token({"sub": "sovereign_admin", "webauthn": True})}
+    """Verifies the WebAuthn attestation/assertion using py_webauthn."""
+    try:
+        from webauthn import verify_registration_response
+        from webauthn.helpers.structs import RegistrationCredential
+        from webauthn.helpers import bytes_to_base64url
+    except ImportError:
+        logger.error("py_webauthn is not installed. Run: pip install webauthn")
+        raise HTTPException(status_code=501, detail="WebAuthn verification library not available. Install py_webauthn.")
+
+    credential_id = payload.get("id")
+    raw_id = payload.get("rawId")
+    response_data = payload.get("response", {})
+    attestation_object = response_data.get("attestationObject")
+    client_data_json = response_data.get("clientDataJSON")
+
+    if not all([credential_id, raw_id, attestation_object, client_data_json]):
+        raise HTTPException(status_code=400, detail="Missing required WebAuthn fields")
+
+    # Find the matching challenge
+    # The client_data_json contains the challenge used; we check all stored challenges
+    expected_challenge = None
+    challenge_key_to_remove = None
+    for key, challenge_bytes in _webauthn_challenges.items():
+        expected_challenge = challenge_bytes
+        challenge_key_to_remove = key
+        break  # Use the most recent challenge (FIFO in practice)
+
+    if expected_challenge is None:
+        raise HTTPException(status_code=400, detail="No pending WebAuthn challenge found. Request a new challenge.")
+
+    rp_id = settings.WEBAUTHN_RP_ID if hasattr(settings, 'WEBAUTHN_RP_ID') else "localhost"
+    expected_origin = settings.WEBAUTHN_ORIGIN if hasattr(settings, 'WEBAUTHN_ORIGIN') else "http://localhost:3000"
+
+    try:
+        # Build the credential object for py_webauthn
+        credential = RegistrationCredential(
+            id=credential_id,
+            raw_id=base64.urlsafe_b64decode(raw_id + "=="),
+            response={
+                "attestation_object": base64.urlsafe_b64decode(attestation_object + "=="),
+                "client_data_json": base64.urlsafe_b64decode(client_data_json + "=="),
+            },
+            type="public-key",
+        )
+
+        verification = verify_registration_response(
+            credential=credential,
+            expected_challenge=expected_challenge,
+            expected_rp_id=rp_id,
+            expected_origin=expected_origin,
+        )
+
+        # Clean up used challenge
+        if challenge_key_to_remove:
+            _webauthn_challenges.pop(challenge_key_to_remove, None)
+
+        logger.info(f"WebAuthn verification successful for credential: {credential_id}")
+        return {
+            "status": "SUCCESS",
+            "token": create_access_token({"sub": "sovereign_admin", "webauthn": True}),
+            "credential_id": credential_id,
+        }
+
+    except Exception as e:
+        logger.warning(f"WebAuthn verification failed: {e}")
+        # Clean up failed challenge to prevent replay
+        if challenge_key_to_remove:
+            _webauthn_challenges.pop(challenge_key_to_remove, None)
+        raise HTTPException(status_code=401, detail=f"WebAuthn verification failed: {type(e).__name__}")
 
 
 
@@ -743,25 +813,43 @@ async def sovereign_socket(websocket: WebSocket):
     """
     Unified WebSocket for Real-Time Sovereign Interaction.
     Handles Audio (ASR) -> Intent -> LLM -> Audio (TTS).
+    Auth: Expects a JSON auth message as the first data frame (not in URL query params).
     """
-    # Authenticate via Token in Query Params
-    token = websocket.query_params.get("token")
-    if not token:
-        await websocket.close(code=4001)  # Policy Violation
-        return
-        
+    # Accept the connection first (no token in URL to prevent log leakage)
+    await websocket.accept()
+    
+    # Authenticate via first message
     try:
-        # Verify JWT Token
-        payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=["HS256"])
-        if payload.get("sub") is None:
+        # Wait for auth message with a 10-second timeout
+        auth_data = await asyncio.wait_for(websocket.receive_json(), timeout=10.0)
+        
+        if auth_data.get("type") != "auth" or not auth_data.get("token"):
+            await websocket.send_json({"type": "error", "detail": "First message must be {type: 'auth', token: '...'}"})
+            await websocket.close(code=4001)
+            return
+        
+        token = auth_data["token"]
+        jwt_payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=["HS256"])
+        if jwt_payload.get("sub") is None:
+            await websocket.send_json({"type": "error", "detail": "Invalid token"})
             await websocket.close(code=4003)
             return
+            
+        await websocket.send_json({"type": "auth_ok", "sub": jwt_payload.get("sub")})
+        
+    except asyncio.TimeoutError:
+        await websocket.close(code=4001)  # Auth timeout
+        return
     except (JWTError, Exception):
+        try:
+            await websocket.send_json({"type": "error", "detail": "Authentication failed"})
+        except Exception:
+            pass
         await websocket.close(code=4003)  # Forbidden
         return
 
-    await websocket.accept()
-    logger.info(f"[ SOVEREIGN_WS ]: Client connected (authenticated as {payload.get('sub')}).")
+
+    logger.info(f"[ SOVEREIGN_WS ]: Client connected (authenticated as {jwt_payload.get('sub')}).")
     
     try:
         while True:
@@ -811,34 +899,6 @@ async def sovereign_socket(websocket: WebSocket):
     except Exception as e:
         logger.error(f"[ SOVEREIGN_WS ]: Error: {e}")
         await websocket.close()
-
-
-# --- Global Exception Handler (Security Refactor) ---
-
-@app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
-    """
-    Prevents implementation leakage (internal paths, module names) by returning
-    sanitized responses and logging detailed traces with a UUID for audit.
-    """
-    if isinstance(exc, HTTPException):
-        return JSONResponse(
-            status_code=exc.status_code,
-            content={"detail": exc.detail}
-        )
-        
-    error_id = str(uuid.uuid4())
-    logger.error(f"GLOBAL_FAULT [ref={error_id}]: {exc}\n{traceback.format_exc()}")
-    
-    return JSONResponse(
-        status_code=500,
-        content={
-            "detail": "Polytope Manifold Error. Internal fault detected.",
-            "error_ref": error_id,
-            "status": "HALTED",
-            "recovery": "Reduce objective complexity or check system logs with the provided reference."
-        }
-    )
 
 
 if __name__ == "__main__":
