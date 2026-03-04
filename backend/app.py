@@ -1900,6 +1900,16 @@ async def revoke_device(device_id: int):
         raise HTTPException(status_code=404, detail="Device not found")
     return {"status": "revoked"}
 
+@app.post("/api/devices/{device_id}/bind", dependencies=[Depends(verify_authenticated)])
+async def bind_device(device_id: int, data: Dict[str, str] = Body(...)):
+    """Rotates binding token for an authorized device mapping explicitly to an agent manifold id."""
+    agent_id = data.get("agent_id", "alluci_node_1")
+    try:
+        new_token = device_manager.rotate_binding_token(device_id, agent_id)
+        return {"status": "bound", "token": new_token, "agent_id": agent_id}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 
 @app.get("/.well-known/nostr.json")
 async def nostr_nip05_verification(name: str = Query(...)):

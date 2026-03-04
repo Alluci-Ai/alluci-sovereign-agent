@@ -6,6 +6,8 @@ import { Menu, Sun, Moon } from 'lucide-react';
 import { SessionSelector } from '../sessions/SessionSelector';
 import { ThinkingLevelToggle } from '../chat/ThinkingLevelToggle';
 import { FocusModeToggle } from '../chat/FocusModeToggle';
+import SessionKeyPill from '../shell/SessionKeyPill';
+import PresenceCountBadge from '../shell/PresenceCountBadge';
 
 interface SystemHeaderProps {
     isConnected: boolean;
@@ -91,6 +93,11 @@ const SystemHeader: React.FC<SystemHeaderProps> = ({
             </div>
 
             <div className="topbar__right">
+                <div className="hidden md:flex items-center gap-2 mr-2 animate-in fade-in duration-300">
+                    <SessionKeyPill />
+                    <PresenceCountBadge />
+                </div>
+
                 <HeartbeatIndicator active={daemonStatus === 'ONLINE'} />
 
                 {/* Theme toggle */}

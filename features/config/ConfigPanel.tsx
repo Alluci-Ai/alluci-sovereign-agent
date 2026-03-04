@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useStore } from '../../store/useStore';
 import { Settings, Save, Code, LayoutList, Eye, EyeOff } from 'lucide-react';
+import GatewayUrlCard from '../shell/GatewayUrlCard';
+import LocaleSelector from '../shell/LocaleSelector';
 
 const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
 
@@ -191,7 +193,15 @@ export const ConfigPanel: React.FC = () => {
                             READING_ENV_SCHEMA...
                         </div>
                     ) : (
-                        <div className="flex-1 overflow-auto">
+                        <div className="flex-1 overflow-auto flex flex-col p-4 gap-6">
+
+                            {mode === 'form' && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in duration-300">
+                                    <GatewayUrlCard />
+                                    <LocaleSelector />
+                                </div>
+                            )}
+
                             {mode === 'form' ? renderFormMode() : (
                                 <textarea
                                     className="w-full h-full min-h-[500px] bg-transparent text-text-primary p-4 text-xs font-mono focus:outline-none resize-none"
