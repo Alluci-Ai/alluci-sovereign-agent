@@ -11,7 +11,7 @@ import {
 export type ActiveView =
     | 'chat' | 'soul' | 'skills' | 'bridges'
     | 'api' | 'tasks' | 'files' | 'audit' | 'canvas'
-    | 'sessions' | 'analytics' | 'scheduling' | 'crons'
+    | 'sessions' | 'analytics' | 'crons'
     | 'agents' | 'config' | 'logs' | 'debug';
 export type Theme = 'light' | 'dark';
 

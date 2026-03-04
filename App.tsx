@@ -55,7 +55,6 @@ import { SessionsPanel } from './features/sessions/SessionsPanel';
 import { AnalyticsPanel } from './features/analytics/AnalyticsPanel';
 import { ConfigPanel } from './features/config/ConfigPanel';
 import { LogPanel } from './features/observability/LogPanel';
-import { SchedulingPanel } from './features/scheduling/SchedulingPanel';
 import { AgentsPanel } from './features/agents/AgentsPanel';
 import { DebugPanel } from './features/debug/DebugPanel';
 import CronPanel from './features/scheduling/CronPanel';
@@ -486,8 +485,6 @@ const App: React.FC = () => {
         return <ConfigPanel />;
       case 'logs':
         return <LogPanel />;
-      case 'scheduling':
-        return <SchedulingPanel />;
       case 'crons':
         return <CronPanel />;
       case 'agents':
