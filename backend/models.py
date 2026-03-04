@@ -64,6 +64,64 @@ class TaskRecord(SQLModel, table=True):
     
     run: Optional[Run] = Relationship(back_populates="tasks")
 
+# --- Usage & Cost Analytics Tables (Sprint 1 — OpenClaw §4) ---
+
+class UsageLog(SQLModel, table=True):
+    """Per-turn token usage log for cost analytics."""
+    __tablename__ = "usage_log"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    session_key: str = Field(index=True)
+    model: str
+    provider: str
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cache_read: int = 0
+    cache_write: int = 0
+    cost: float = 0.0
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), index=True)
+
+class ModelPricing(SQLModel, table=True):
+    """Per-model pricing table ($ per 1M tokens)."""
+    __tablename__ = "model_pricing"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    model_id: str = Field(unique=True, index=True)
+    input_price_per_1m: float = 0.0
+    output_price_per_1m: float = 0.0
+    cache_read_price: float = 0.0
+    cache_write_price: float = 0.0
+
+# --- Cron Engine Tables (Sprint 1 — OpenClaw §3) ---
+
+class CronJob(SQLModel, table=True):
+    """Scheduled job definition with delivery routing."""
+    __tablename__ = "cron_job"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str
+    schedule_type: str  # "interval", "cron", "run_at"
+    schedule_value: str  # minutes (interval), cron expr, or ISO datetime
+    payload: Optional[str] = None  # objective text or task description
+    model_override: Optional[str] = None
+    thinking_level: Optional[str] = None
+    delivery_channel: Optional[str] = None
+    delivery_account: Optional[str] = None
+    delivery_to: Optional[str] = None
+    delivery_mode: Optional[str] = "none"  # "announce-summary", "post-transcript", "none"
+    reset_context: bool = False
+    enabled: bool = True
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    last_run_at: Optional[datetime] = None
+
+class CronRun(SQLModel, table=True):
+    """Run history record for a cron job."""
+    __tablename__ = "cron_run"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    job_id: int = Field(foreign_key="cron_job.id", index=True)
+    started_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    finished_at: Optional[datetime] = None
+    status: str = "pending"  # "ok", "error", "skipped"
+    delivery_status: Optional[str] = None
+    log_text: Optional[str] = None
+
 # --- Engine Memory Models (Runtime) ---
 
 class DAGTask(BaseModel):
