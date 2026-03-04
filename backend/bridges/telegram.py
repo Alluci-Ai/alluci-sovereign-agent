@@ -62,8 +62,9 @@ class TelegramBridge(BridgeAdapter):
                 
                 return {"status": status, "response": data}
         except Exception as e:
+            self.logger.error(f"Telegram send_message failed: {e}")
             self._persist_to_vault("sent", {"chat_id": recipient, "content": content, "status": "exception", "error": str(e)})
-            return {"status": "failed", "error": str(e)}
+            return {"status": "failed", "error": f"Bridge communication error: {type(e).__name__}"}
 
     async def fetch_unread(self, limit: int = 10) -> List[Dict[str, Any]]:
         if not self.is_connected:

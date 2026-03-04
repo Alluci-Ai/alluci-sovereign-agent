@@ -87,7 +87,7 @@ class SlackBridge(BridgeAdapter):
                 else:
                     return {"status": "failed", "error": data.get("error")}
         except Exception as e:
-            # Log failure to vault
+            # Log failure to vault with full detail for diagnostics
             self._persist_to_vault("sent", {
                 "channel": target,
                 "content": content,
@@ -95,7 +95,8 @@ class SlackBridge(BridgeAdapter):
                 "timestamp": timestamp,
                 "error": str(e)
             })
-            return {"status": "failed", "error": str(e)}
+            self.logger.error(f"Slack send_message failed: {e}")
+            return {"status": "failed", "error": f"Bridge communication error: {type(e).__name__}"}
 
     async def fetch_unread(self, limit: int = 10) -> List[Dict[str, Any]]:
         """

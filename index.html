@@ -1,91 +1,63 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>[ POLYTOPE ] Sovereign OS</title>
+    <meta name="description" content="Polytope Sovereign OS — An AI-powered sovereign agent operating system">
+    <title>Polytope — Sovereign OS</title>
+    <link rel="stylesheet" href="/styles/tokens.css">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <link
-        href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Inter:wght@400;700;900&display=swap"
+        href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap"
         rel="stylesheet">
     <script>
         tailwind.config = {
             theme: {
                 extend: {
                     colors: {
-                        manifold: '#FFFFFF',
-                        sovereign: '#000000',
-                        zinc: '#A1A1A1',
-                        tension: '#FF7D00',
-                        agent: '#91D65F',
-                        flux: '#995CC0'
+                        void: 'var(--bg-base)',
+                        deep: 'var(--bg-elevated)',
+                        glass1: 'var(--glass-bg)',
+                        glass2: 'var(--glass-bg-hover)',
+                        manifold: 'var(--bg-base)',
+                        sovereign: 'var(--accent-secondary)',
+                        zinc: 'var(--text-secondary)',
+                        tension: 'var(--accent-warm)',
+                        agent: 'var(--accent)',
+                        flux: 'var(--accent-secondary)'
                     },
                     fontFamily: {
-                        mono: ['"JetBrains Mono"', 'monospace'],
-                        sans: ['Inter', 'sans-serif']
+                        mono: ['var(--font-mono)', '"JetBrains Mono"', 'monospace'],
+                        sans: ['var(--font-body)', 'Inter', 'sans-serif'],
+                        display: ['var(--font-display)', 'Inter', 'sans-serif']
                     }
                 }
             }
         }
     </script>
+    <script>
+        // Initialize theme from localStorage before paint to prevent flash
+        (function() {
+            const theme = localStorage.getItem('alluci_theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', theme);
+        })();
+    </script>
     <style>
-        /* [ POLYTOPE ] PROTOCOL 1.0: THE LATENT SPACE */
         body {
-            background-color: #FFFFFF;
-            /* The Gap Color */
-            color: #000000;
-            font-family: 'JetBrains Mono', monospace;
+            background: var(--bg-base);
+            min-height: 100vh;
+            color: var(--text-primary);
+            font-family: var(--font-body);
             font-variant-ligatures: none;
-            cursor: crosshair;
             margin: 0;
             overflow-x: hidden;
-        }
-
-        /* [ ARCHITECTURAL-VOICE ] - Simulated Baunk */
-        .baunk-style {
-            font-family: 'Inter', sans-serif;
-            letter-spacing: 0.25em;
-            text-transform: uppercase;
-            font-weight: 900;
-        }
-
-        /* [ SIMPLICIAL-RULE ]: 2PX VERTEX GAP */
-        .simplicial-grid {
-            display: grid;
-            padding: 2px;
-            gap: 2px;
-            min-height: 100vh;
-            width: 100vw;
-            background-color: #FFFFFF;
-        }
-
-        .facet {
-            background-color: #FFFFFF;
-            border: 0.5pt solid #000000;
-            position: relative;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-        }
-
-        /* [ KINETIC-MOTION ] */
-        .alce-button {
-            transition: transform 0.1s linear, background-color 0.1s linear;
-            border: 0.5pt solid #000000;
-            padding: 0.5rem 1rem;
-            cursor: pointer;
-        }
-
-        .alce-button:hover {
-            transform: skewX(-15deg);
-            background-color: #000000;
-            color: #FFFFFF;
+            cursor: default;
+            transition: background 0.25s ease, color 0.25s ease;
         }
 
         .input-active:focus {
-            transform: skewX(-2deg);
             outline: none;
         }
 
@@ -93,36 +65,17 @@
             font-variant-ligatures: none;
         }
 
-        /* Hide Scrollbars */
-        .scrollbar-hide::-webkit-scrollbar {
-            display: none;
-        }
-
-        .scrollbar-hide {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-        }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 
         @media (max-width: 768px) {
-            .baunk-style {
-                letter-spacing: 0.15em;
-            }
-        }
-
-        @keyframes loading {
-            0% {
-                transform: translateX(-100%);
-            }
-
-            100% {
-                transform: translateX(100%);
-            }
+            .glass-label { letter-spacing: 0.10em; }
         }
     </style>
     <link rel="stylesheet" href="/index.css">
 </head>
 
-<body class="bg-manifold">
+<body class="bg-void">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
 </body>

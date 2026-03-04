@@ -18,7 +18,7 @@ jobs:
       - name: Install dependencies
         run: npm install
       - name: Lint
-        run: npm run lint || true
+        run: npm run lint
 
   backend:
     runs-on: ubuntu-latest
@@ -34,3 +34,11 @@ jobs:
         run: |
           pip install ruff
           ruff check .
+      - name: Run tests
+        env:
+          POLYTOPE_MASTER_KEY: ${{ secrets.TEST_MASTER_KEY }}
+          JWT_SECRET_KEY: ${{ secrets.TEST_JWT_KEY }}
+          GEMINI_API_KEY: ${{ secrets.TEST_GEMINI_KEY }}
+        run: |
+          cd backend
+          pytest tests/ -v --cov=. --cov-report=xml

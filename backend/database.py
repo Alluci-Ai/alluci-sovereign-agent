@@ -5,9 +5,13 @@ from .config import load_settings
 settings = load_settings()
 
 # Configurable database URL from settings
+connect_args = {}
+if "sqlite" in settings.DATABASE_URL:
+    connect_args["check_same_thread"] = False
+
 engine = create_engine(
     settings.DATABASE_URL,
-    connect_args={"check_same_thread": False},
+    connect_args=connect_args,
     pool_pre_ping=True,
     echo=False,
 )

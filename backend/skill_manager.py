@@ -18,14 +18,14 @@ class SkillManager:
         self.registry_id = "cognitive_registry"
         self.review_queue_id = "skill_review_queue"
 
-    def list_skills(self) -> List[Dict[str, Any]]:
+    async def list_skills(self) -> List[Dict[str, Any]]:
         """Retrieve all active skills from the vault."""
-        data = self.vault.retrieve_secret(self.registry_id)
+        data = await self.vault.retrieve_secret(self.registry_id)
         return data.get("skills", [])
 
-    def get_review_queue(self) -> List[Dict[str, Any]]:
+    async def get_review_queue(self) -> List[Dict[str, Any]]:
         """Retrieve skills pending review."""
-        data = self.vault.retrieve_secret(self.review_queue_id)
+        data = await self.vault.retrieve_secret(self.review_queue_id)
         return data.get("queue", [])
 
     async def import_package(self, package: Dict[str, Any]) -> Dict[str, Any]:
@@ -55,17 +55,17 @@ class SkillManager:
         }
 
         # Store in review queue
-        data = self.vault.retrieve_secret(self.review_queue_id)
+        data = await self.vault.retrieve_secret(self.review_queue_id)
         queue = data.get("queue", [])
         queue.append(annotated_package)
-        self.vault.store_secret(self.review_queue_id, {"queue": queue})
+        await self.vault.store_secret(self.review_queue_id, {"queue": queue})
         
         logger.info(f"Skill {package.get('name')} imported to Review Queue. Risk: {risk_score}")
         return {"status": "queued", "risk_score": risk_score, "notes": critic_notes}
 
-    def promote_from_queue(self, skill_id: str) -> bool:
+    async def promote_from_queue(self, skill_id: str) -> bool:
         """Moves a skill from review queue to active registry."""
-        data = self.vault.retrieve_secret(self.review_queue_id)
+        data = await self.vault.retrieve_secret(self.review_queue_id)
         queue = data.get("queue", [])
         
         target = next((s for s in queue if s.get("id") == skill_id), None)
@@ -74,7 +74,7 @@ class SkillManager:
             
         # Remove from queue
         new_queue = [s for s in queue if s.get("id") != skill_id]
-        self.vault.store_secret(self.review_queue_id, {"queue": new_queue})
+        await self.vault.store_secret(self.review_queue_id, {"queue": new_queue})
         
         # Add to active registry
         # Clean up temporary fields
@@ -82,13 +82,13 @@ class SkillManager:
         if "critic_scan" in target: del target["critic_scan"]
         target["verified"] = True
         
-        self.save_skill(target)
+        await self.save_skill(target)
         logger.info(f"Skill {skill_id} PROMOTED to Active Registry.")
         return True
 
-    def save_skill(self, skill: Dict[str, Any]) -> Dict[str, Any]:
+    async def save_skill(self, skill: Dict[str, Any]) -> Dict[str, Any]:
         """Create or Update a skill manifest."""
-        data = self.vault.retrieve_secret(self.registry_id)
+        data = await self.vault.retrieve_secret(self.registry_id)
         current_skills = data.get("skills", [])
         
         # Check if exists (update) or create
@@ -105,32 +105,32 @@ class SkillManager:
             current_skills.append(skill)
             action = "CREATED"
             
-        self.vault.store_secret(self.registry_id, {"skills": current_skills})
+        await self.vault.store_secret(self.registry_id, {"skills": current_skills})
         logger.info(f"Skill {skill.get('id', 'unknown')} {action} in Simplicial Vault.")
         return skill
 
-    def get_skill(self, skill_id: str) -> Optional[Dict[str, Any]]:
-        skills = self.list_skills()
+    async def get_skill(self, skill_id: str) -> Optional[Dict[str, Any]]:
+        skills = await self.list_skills()
         return next((s for s in skills if s.get("id") == skill_id), None)
 
-    def delete_skill(self, skill_id: str) -> bool:
+    async def delete_skill(self, skill_id: str) -> bool:
         """Remove a skill from the registry."""
-        data = self.vault.retrieve_secret(self.registry_id)
+        data = await self.vault.retrieve_secret(self.registry_id)
         current_skills = data.get("skills", [])
         
         new_skills = [s for s in current_skills if s.get("id") != skill_id]
         if len(new_skills) == len(current_skills):
             return False
             
-        self.vault.store_secret(self.registry_id, {"skills": new_skills})
+        await self.vault.store_secret(self.registry_id, {"skills": new_skills})
         logger.info(f"Skill {skill_id} DELETED from Simplicial Vault.")
         return True
 
-    def merge_skills_for_runtime(self, active_ids: List[str]) -> Dict[str, Any]:
+    async def merge_skills_for_runtime(self, active_ids: List[str]) -> Dict[str, Any]:
         """
         Merges selected skills into a unified cognitive context.
         """
-        all_skills = self.list_skills()
+        all_skills = await self.list_skills()
         active = [s for s in all_skills if s["id"] in active_ids]
         
         merged = {

@@ -44,7 +44,7 @@ class ExecutiveOrchestrator:
         self.ace = ace
         
         # PPN / DPK Initialization
-        self.ppn = PPNEmbeddingModule(input_dim=64, latent_dim=64) # Reduced dims for this context
+        self.ppn = PPNEmbeddingModule(input_dim=384, latent_dim=384) 
         self.dpk = DiscreteProjectionKernel()
         
         # Heartbeat System
@@ -140,11 +140,16 @@ class ExecutiveOrchestrator:
         to verify manifold integrity before planning.
         """
         try:
-            # 1. Embed Objective (Mock embedding for this context, 
-            # ideally use a transformer embedding of 'objective')
-            # Creating a random tensor representing the multimodal input state
-            # Batch size 10 to simulate a cloud of thought vectors
-            input_tensor = torch.randn(10, 64) 
+            # 1. Embed Objective (Lazy load sentence transformer)
+            # In production, we'd use a dedicated embedding service
+            if not hasattr(self, "_embed_model"):
+                from sentence_transformers import SentenceTransformer
+                self._embed_model = SentenceTransformer('all-MiniLM-L6-v2')
+            
+            # Generate real embedding of the objective
+            embedding = self._embed_model.encode(objective, convert_to_tensor=True)
+            # Batch size 10 to simulate a cloud of thought vectors for the PPN
+            input_tensor = embedding.unsqueeze(0).expand(10, -1)
             
             # 2. Get Affective Tension (Psi)
             psi = 0.5
@@ -187,7 +192,23 @@ class ExecutiveOrchestrator:
         is_manifold_stable = self._perform_ppn_check(objective, autonomy)
         if not is_manifold_stable:
              self.logger.critical("🛑 MANIFOLD TEARING DETECTED via PPN/DPK. Execution Halted.")
-             return {"status": "halted", "reason": "Manifold Tearing / Topological Rupture"}
+             return {
+                 "status": "halted",
+                 "reason": "Manifold stability check failed (PPN/DPK)",
+                 "error_code": "MANIFOLD_INTEGRITY_VIOLATION",
+                 "diagnostics": {
+                     "objective_complexity": len(objective),
+                     "autonomy_level": autonomy,
+                     "check": "Polytopological Persistence Network",
+                 },
+                 "recovery": [
+                     "Reduce objective complexity — break it into smaller sub-tasks.",
+                     "Lower the autonomy level to RESTRICTED to enable additional safety gates.",
+                     "Reset the Affective Engine via POST /telemetry with neutral biometrics.",
+                     "Check system health via GET /system/status and resolve any UNSTABLE providers.",
+                     "If the issue persists, rotate vault keys via POST /api/vault/rotate to reset manifold state.",
+                 ],
+             }
 
         # 2. Create DB Run Record
         run_id = self._create_run_record(objective, autonomy)
@@ -215,8 +236,17 @@ class ExecutiveOrchestrator:
             current_plan = [t.dict() for t in ranked_list]
             self._update_run_status(run_id, RunStatus.ACTIVE)
         except Exception as e:
-            self._update_run_status(run_id, RunStatus.FAILED, feedback=str(e))
-            return {"status": "failed", "reason": f"Planning failed: {str(e)}"}
+            self.logger.error(f"Planning failed: {e}")
+            self._update_run_status(run_id, RunStatus.FAILED, feedback="Planning phase error")
+            return {
+                "status": "failed",
+                "reason": "Planning phase failed. The inference provider may be unavailable.",
+                "recovery": [
+                    "Check model provider health via GET /manifold/health.",
+                    "Ensure at least one LLM API key is configured in the API Manifold.",
+                    "Retry the objective — the system uses automatic failover across providers.",
+                ],
+            }
 
         # 5. Sovereign Signing (Phase P6)
         signed_manifest = self.identity.sign_manifest({

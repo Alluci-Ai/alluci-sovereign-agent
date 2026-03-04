@@ -377,8 +377,9 @@ class ModelRouter:
         try:
             response_text = await self.get_response(prompt, complexity="MEDIUM")
             return json.loads(response_text)
-        except:
-            return {"score": 0.5, "feedback": "Critic failed to evaluate."}
+        except Exception as e:
+            self.logger.error(f"Critic failure: {e}")
+            return {"score": 0.0, "feedback": "Critic failed to evaluate results due to an internal error."}
 
     async def check_health(self) -> Dict[str, Any]:
         """Verifies health of all configured model providers with detailed errors."""
@@ -391,7 +392,8 @@ class ModelRouter:
                 await self._gemini_request(test_prompt)
                 results["gemini"] = {"status": "HEALTHY"}
             except Exception as e:
-                results["gemini"] = {"status": "UNSTABLE", "error": str(e)}
+                self.logger.error(f"Gemini health check failed: {e}")
+                results["gemini"] = {"status": "UNSTABLE", "error": type(e).__name__}
         
         # 2. OpenAI / GitHub
         if self.openai_client:
@@ -399,7 +401,8 @@ class ModelRouter:
                 await self._openai_request(test_prompt, use_strong=False)
                 results["openai"] = {"status": "HEALTHY"}
             except Exception as e:
-                results["openai"] = {"status": "UNSTABLE", "error": str(e)}
+                self.logger.error(f"OpenAI health check failed: {e}")
+                results["openai"] = {"status": "UNSTABLE", "error": type(e).__name__}
 
         # 3. Anthropic
         if self.anthropic_client:
@@ -407,7 +410,8 @@ class ModelRouter:
                 await self._anthropic_request(test_prompt, use_strong=False)
                 results["anthropic"] = {"status": "HEALTHY"}
             except Exception as e:
-                results["anthropic"] = {"status": "UNSTABLE", "error": str(e)}
+                self.logger.error(f"Anthropic health check failed: {e}")
+                results["anthropic"] = {"status": "UNSTABLE", "error": type(e).__name__}
 
         # 4. DeepSeek
         if self.deepseek_client:
@@ -420,7 +424,8 @@ class ModelRouter:
                 )
                 results["deepseek"] = {"status": "HEALTHY"}
             except Exception as e:
-                results["deepseek"] = {"status": "UNSTABLE", "error": str(e)}
+                self.logger.error(f"DeepSeek health check failed: {e}")
+                results["deepseek"] = {"status": "UNSTABLE", "error": type(e).__name__}
 
         # 5. Kimi
         if self.nvidia_nim_api_key:
@@ -428,7 +433,8 @@ class ModelRouter:
                 await self._kimi_request(test_prompt, thinking=False)
                 results["kimi"] = {"status": "HEALTHY"}
             except Exception as e:
-                results["kimi"] = {"status": "UNSTABLE", "error": str(e)}
+                self.logger.error(f"Kimi health check failed: {e}")
+                results["kimi"] = {"status": "UNSTABLE", "error": type(e).__name__}
 
         # 6. Groq
         if self.groq_api_key:
@@ -436,7 +442,8 @@ class ModelRouter:
                 await self.get_fast_tactical_response(test_prompt)
                 results["groq"] = {"status": "HEALTHY"}
             except Exception as e:
-                results["groq"] = {"status": "UNSTABLE", "error": str(e)}
+                self.logger.error(f"Groq health check failed: {e}")
+                results["groq"] = {"status": "UNSTABLE", "error": type(e).__name__}
 
         # 7. OpenRouter
         if self.openrouter_client:
@@ -448,6 +455,7 @@ class ModelRouter:
                 )
                 results["openrouter"] = {"status": "HEALTHY"}
             except Exception as e:
-                results["openrouter"] = {"status": "UNSTABLE", "error": str(e)}
+                self.logger.error(f"OpenRouter health check failed: {e}")
+                results["openrouter"] = {"status": "UNSTABLE", "error": type(e).__name__}
 
         return results

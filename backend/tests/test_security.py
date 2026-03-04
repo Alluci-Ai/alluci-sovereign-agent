@@ -20,59 +20,63 @@ class TestVaultManager:
     def _make_vault(self, tmpdir):
         from backend.security.vault import VaultManager
         key = Fernet.generate_key().decode()
-        vault = VaultManager.__new__(VaultManager)
-        vault.fernet = Fernet(key.encode())
-        vault.vault_root = tmpdir
-        return vault
+        with patch('backend.security.vault.settings') as mock_settings:
+            mock_settings.VERUS_AUTH_ENABLED = False
+            return VaultManager(key, vault_root=tmpdir)
 
-    def test_store_and_retrieve(self):
+    @pytest.mark.asyncio
+    async def test_store_and_retrieve(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             vault = self._make_vault(tmpdir)
             data = {"api_key": "sk-test-123", "token": "abc"}
             
-            vault.store_secret("test_bridge", data)
-            retrieved = vault.retrieve_secret("test_bridge")
+            await vault.store_secret("test_bridge", data)
+            retrieved = await vault.retrieve_secret("test_bridge")
             
             assert retrieved == data
             assert retrieved["api_key"] == "sk-test-123"
 
-    def test_retrieve_nonexistent_returns_empty(self):
+    @pytest.mark.asyncio
+    async def test_retrieve_nonexistent_returns_empty(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             vault = self._make_vault(tmpdir)
-            result = vault.retrieve_secret("nonexistent")
+            result = await vault.retrieve_secret("nonexistent")
             assert result == {}
 
-    def test_overwrite_existing_secret(self):
+    @pytest.mark.asyncio
+    async def test_overwrite_existing_secret(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             vault = self._make_vault(tmpdir)
             
-            vault.store_secret("bridge", {"key": "old"})
-            vault.store_secret("bridge", {"key": "new"})
+            await vault.store_secret("bridge", {"key": "old"})
+            await vault.store_secret("bridge", {"key": "new"})
             
-            result = vault.retrieve_secret("bridge")
+            result = await vault.retrieve_secret("bridge")
             assert result["key"] == "new"
 
-    def test_get_active_vaults(self):
+    @pytest.mark.asyncio
+    async def test_get_active_vaults(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             vault = self._make_vault(tmpdir)
             
-            vault.store_secret("bridge_a", {"k": "v"})
-            vault.store_secret("bridge_b", {"k": "v"})
+            await vault.store_secret("bridge_a", {"k": "v"})
+            await vault.store_secret("bridge_b", {"k": "v"})
             
             active = vault.get_active_vaults()
             assert "bridge_a" in active
             assert "bridge_b" in active
 
-    def test_delete_secret(self):
+    @pytest.mark.asyncio
+    async def test_delete_secret(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             vault = self._make_vault(tmpdir)
             
-            vault.store_secret("to_delete", {"secret": "data"})
-            assert vault.retrieve_secret("to_delete") != {}
+            await vault.store_secret("to_delete", {"secret": "data"})
+            assert await vault.retrieve_secret("to_delete") != {}
             
             result = vault.delete_secret("to_delete")
             assert result is True
-            assert vault.retrieve_secret("to_delete") == {}
+            assert await vault.retrieve_secret("to_delete") == {}
 
     def test_delete_nonexistent_returns_false(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -80,10 +84,11 @@ class TestVaultManager:
             result = vault.delete_secret("nope")
             assert result is False
 
-    def test_vault_file_permissions(self):
+    @pytest.mark.asyncio
+    async def test_vault_file_permissions(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             vault = self._make_vault(tmpdir)
-            vault.store_secret("perm_test", {"k": "v"})
+            await vault.store_secret("perm_test", {"k": "v"})
             
             path = os.path.join(tmpdir, "perm_test.vault")
             mode = os.stat(path).st_mode & 0o777

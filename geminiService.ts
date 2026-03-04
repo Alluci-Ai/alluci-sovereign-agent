@@ -59,6 +59,26 @@ export class AlluciGeminiService {
   setConnections(connections: Connection[]) { this.currentConnections = connections; }
   setSkills(skills: SkillManifest[]) { this.currentSkills = skills; }
 
+  /**
+   * Retrieve a session auth token from localStorage.
+   * Returns null if no token is stored.
+   */
+  private getAuthToken(): string | null {
+    try {
+      return localStorage.getItem('alluci_access_token');
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Retrieve the Gemini API key from the environment.
+   * Only available when VITE_GEMINI_API_KEY is set at build time.
+   */
+  private getApiKey(): string | null {
+    return import.meta.env.VITE_GEMINI_API_KEY || null;
+  }
+
   // Added sendVideoFrame to handle streaming image frames to the Live API session
   sendVideoFrame(base64Data: string) {
     this.sessionPromise?.then((session) => {

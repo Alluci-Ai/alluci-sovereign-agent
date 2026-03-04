@@ -107,10 +107,11 @@ class Executor:
                 self._update_task_record(run_id, task.id, status="failed", error=err_msg, end_time=datetime.now(timezone.utc))
                 
             except Exception as e:
-                logger.error(f"Task {task.id} ❌ : {e}")
-                task.result = str(e)
+                logger.error(f"Task {task.id} ❌ : {e}", exc_info=True)
+                safe_error = f"Task failed: {type(e).__name__}"
+                task.result = safe_error
                 task.status = TaskStatus.FAILED
-                self._update_task_record(run_id, task.id, status="failed", error=str(e), end_time=datetime.now(timezone.utc))
+                self._update_task_record(run_id, task.id, status="failed", error=safe_error, end_time=datetime.now(timezone.utc))
             
             return task
 

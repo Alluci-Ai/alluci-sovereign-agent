@@ -1,6 +1,7 @@
 
 import os
 import re
+import fcntl
 from typing import List, Optional
 from datetime import datetime, timedelta
 from .models import TaskItem, TaskUpdate, TaskPriority
@@ -56,13 +57,22 @@ class TaskManager:
         line = f"{box} {prio_tag} {task.description} {date_tag}"
         return re.sub(r'\s+', ' ', line).strip()
 
-    def get_tasks(self, status: str = "all", priority: Optional[str] = None, timeline: Optional[str] = None) -> List[TaskItem]:
+    async def get_tasks(self, status: str = "all", priority: Optional[str] = None, timeline: Optional[str] = None) -> List[TaskItem]:
+        return await asyncio.to_thread(self._get_tasks_sync, status, priority, timeline)
+
+    def _get_tasks_sync(self, status: str = "all", priority: Optional[str] = None, timeline: Optional[str] = None) -> List[TaskItem]:
         if not os.path.exists(self.filepath):
             return []
             
         tasks = []
         with open(self.filepath, 'r') as f:
-            lines = f.readlines()
+            try:
+                # Shared lock for reading
+                fcntl.flock(f, fcntl.LOCK_SH)
+                lines = f.readlines()
+            finally:
+                fcntl.flock(f, fcntl.LOCK_UN)
+
             for i, line in enumerate(lines):
                 parsed = self._parse_line(i, line)
                 if parsed:
@@ -88,14 +98,11 @@ class TaskManager:
                 task_date = datetime.strptime(t.due_date, "%Y-%m-%d").date() if t.due_date else None
                 
                 if timeline == "TODAY":
-                    # Tasks due today or earlier (if active)
                     if not task_date or task_date > today: continue
                 elif timeline == "WEEK":
-                    # Tasks due within the next 7 days
                     next_week = today + timedelta(days=7)
                     if not task_date or task_date > next_week: continue
                 elif timeline == "OVERDUE":
-                    # Active tasks with past due date
                     if t.completed or not task_date or task_date >= today: continue
 
             filtered_tasks.append(t)
@@ -109,64 +116,88 @@ class TaskManager:
         }
 
         def sort_key(t: TaskItem):
-            # Sort by Priority Descending, then Due Date Ascending (earliest first)
             p_score = priority_weights.get(t.priority, 1)
-            # Use specific high string for None dates to push them to end in ascending sort
             d_score = t.due_date if t.due_date else "9999-12-31" 
             return (-p_score, d_score, t.index)
 
         filtered_tasks.sort(key=sort_key)
-        
         return filtered_tasks
 
-    def add_task(self, task: TaskUpdate) -> TaskItem:
+    async def add_task(self, task: TaskUpdate) -> TaskItem:
+        return await asyncio.to_thread(self._add_task_sync, task)
+
+    def _add_task_sync(self, task: TaskUpdate) -> TaskItem:
         line_str = self._construct_line(task)
         
-        # Append to file
-        with open(self.filepath, 'a') as f:
-            # Ensure we start on a new line if file is not empty and doesn't end with newline
-            f.write(f"\n{line_str}")
-            
-        # Return the created item
-        with open(self.filepath, 'r') as f:
-            lines = f.readlines()
-            return self._parse_line(len(lines)-1, lines[-1])
+        with open(self.filepath, 'a+') as f:
+            try:
+                # Exclusive lock for writing
+                fcntl.flock(f, fcntl.LOCK_EX)
+                # Ensure we start on a new line
+                f.seek(0, os.SEEK_END)
+                if f.tell() > 0:
+                    f.seek(f.tell() - 1)
+                    if f.read(1) != '\n':
+                        f.write('\n')
+                f.write(f"{line_str}\n")
+                f.flush()
+                # Determine index (it's the last line now)
+                f.seek(0)
+                lines = f.readlines()
+                return self._parse_line(len(lines)-1, lines[-1])
+            finally:
+                fcntl.flock(f, fcntl.LOCK_UN)
 
-    def update_task(self, index: int, update: TaskUpdate) -> Optional[TaskItem]:
+    async def update_task(self, index: int, update: TaskUpdate) -> Optional[TaskItem]:
+        return await asyncio.to_thread(self._update_task_sync, index, update)
+
+    def _update_task_sync(self, index: int, update: TaskUpdate) -> Optional[TaskItem]:
         if not os.path.exists(self.filepath):
             return None
             
-        with open(self.filepath, 'r') as f:
-            lines = f.readlines()
-            
-        if index < 0 or index >= len(lines):
-            return None
-            
-        # Verify it's a task line
-        if not lines[index].strip().startswith("- ["):
-            raise ValueError("Target line is not a task")
-            
-        new_line = self._construct_line(update)
-        lines[index] = new_line + "\n"
-        
-        with open(self.filepath, 'w') as f:
-            f.writelines(lines)
-            
-        return self._parse_line(index, new_line)
+        with open(self.filepath, 'r+') as f:
+            try:
+                fcntl.flock(f, fcntl.LOCK_EX)
+                lines = f.readlines()
+                
+                if index < 0 or index >= len(lines):
+                    return None
+                    
+                if not lines[index].strip().startswith("- ["):
+                    raise ValueError("Target line is not a task")
+                    
+                new_line = self._construct_line(update)
+                lines[index] = new_line + "\n"
+                
+                f.seek(0)
+                f.truncate()
+                f.writelines(lines)
+                f.flush()
+                return self._parse_line(index, new_line)
+            finally:
+                fcntl.flock(f, fcntl.LOCK_UN)
 
-    def delete_task(self, index: int) -> bool:
+    async def delete_task(self, index: int) -> bool:
+        return await asyncio.to_thread(self._delete_task_sync, index)
+
+    def _delete_task_sync(self, index: int) -> bool:
         if not os.path.exists(self.filepath):
             return False
             
-        with open(self.filepath, 'r') as f:
-            lines = f.readlines()
-            
-        if index < 0 or index >= len(lines):
-            return False
-            
-        del lines[index]
-        
-        with open(self.filepath, 'w') as f:
-            f.writelines(lines)
-            
-        return True
+        with open(self.filepath, 'r+') as f:
+            try:
+                fcntl.flock(f, fcntl.LOCK_EX)
+                lines = f.readlines()
+                
+                if index < 0 or index >= len(lines):
+                    return False
+                    
+                del lines[index]
+                
+                f.seek(0)
+                f.truncate()
+                f.writelines(lines)
+                f.flush()
+                return True
+            finally:
+                fcntl.flock(f, fcntl.LOCK_UN)

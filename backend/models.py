@@ -151,3 +151,12 @@ class SoulManifest(BaseModel):
     logic: List[str] = []
     chainsOfThought: List[str] = []
     bestPractices: List[str] = []
+    
+class AuditEntry(BaseModel):
+    timestamp: str
+    id: str
+    event: str
+    details: Any
+    hash: str
+    prevHash: str
+

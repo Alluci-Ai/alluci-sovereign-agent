@@ -5,12 +5,35 @@ from typing import List, Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import field_validator
 
-# Setup structured logging
-logging.basicConfig(
-    level=logging.INFO, 
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# Minimal fallback logging for module-load-time messages.
+# structlog takes over in the app lifespan via logging_config.configure_logging().
+if not logging.root.handlers:
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
 logger = logging.getLogger("PolytopeConfig")
+
+
+def get_secret(key: str, default: Optional[str] = None) -> Optional[str]:
+    """Retrieves secrets from environment or a cloud Secrets Manager if configured."""
+    # 1. Check direct environment override first
+    v = os.getenv(key)
+    if v: return v
+
+    # 2. Check for AWS/GCP secrets if SECRETS_PROVIDER is set
+    provider = os.getenv("SECRETS_PROVIDER", "").lower()
+    if provider == "aws":
+        try:
+            import boto3
+            client = boto3.client('secretsmanager')
+            # SecretId is expected to be 'alluci/{env}/{key}'
+            resp = client.get_secret_value(SecretId=f"alluci/{os.getenv('APP_ENV', 'dev')}/{key}")
+            return resp.get('SecretString')
+        except Exception as e:
+            logger.warning(f"AWS Secrets Manager failed for {key}: {e}")
+    
+    return default
 
 class Settings(BaseSettings):
     # Deployment Environment
@@ -35,6 +58,17 @@ class Settings(BaseSettings):
     HOST: str = "0.0.0.0"
     PORT: int = 8000
     ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:5173", "http://127.0.0.1:5173"]
+    
+    @field_validator("ALLOWED_ORIGINS")
+    @classmethod
+    def strip_localhost_in_prod(cls, v: List[str], info) -> List[str]:
+        # Access APP_ENV via info.data if we were within a single validator, 
+        # but Settings properties are loaded sequentially.
+        # However, pydantic-settings handles this well. 
+        # We can just check the raw env variable if needed or let it be.
+        if os.getenv("APP_ENV") == "production":
+            return [origin for origin in v if "localhost" not in origin and "127.0.0.1" not in origin]
+        return v
     AUTH_COOKIE_NAME: str = "alluci_daemon_token"
     AUTH_COOKIE_SAMESITE: str = "lax"  # Use 'lax' or 'strict' for local dev
     
@@ -49,7 +83,6 @@ class Settings(BaseSettings):
     VERUS_RPC_USER: str = ""
     VERUS_RPC_PASSWORD: str = ""
     VERUS_AUTH_ENABLED: bool = False
-    VERUS_ID_IDENTITY: str = ""  # The agent's VerusID (e.g., alluci@)
 
     # Rate Limiting
     RATE_LIMIT_PER_MINUTE: int = 60
@@ -60,14 +93,23 @@ class Settings(BaseSettings):
     PIPER_PATH: str = "piper"
     PIPER_MODEL: str = "en_US-amy-medium.onnx"
 
-    # Database
+    # Database & Cache
     DATABASE_URL: str = "sqlite:///polytope_data.db"
+    REDIS_URL: Optional[str] = None # e.g., redis://localhost:6379/0
 
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore"
     )
+
+    @field_validator("DATABASE_URL")
+    @classmethod
+    def enforce_production_db(cls, v: str) -> str:
+        if os.getenv("APP_ENV") == "production" and "sqlite" in v:
+            # Fallback to local postgres if not set
+            return os.getenv("PROD_DATABASE_URL", "postgresql+asyncpg://alluci:password@localhost/polytope")
+        return v
 
     @field_validator("POLYTOPE_MASTER_KEY")
     @classmethod
@@ -100,3 +142,6 @@ def load_settings() -> Settings:
     except Exception as e:
         logger.critical(f"Configuration Load Failed: {e}")
         sys.exit(1)
+
+# Global settings instance for canonical use
+settings = load_settings()
