@@ -2,7 +2,7 @@
 import secrets
 import time
 import logging
-from typing import Dict, Optional, Tuple
+from typing import Dict, Tuple
 from backend.security.verus_rpc import verus_rpc
 
 logger = logging.getLogger("VerusIDAuth")

@@ -1,7 +1,6 @@
 
 import logging
-import json
-from typing import Dict, Any, List
+from typing import Dict, Any
 from .base import Adapter
 from ..bridges.slack import SlackBridge
 from ..bridges.imessage import IMessageBridge

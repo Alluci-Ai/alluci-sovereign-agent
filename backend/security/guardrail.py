@@ -5,7 +5,7 @@ Replaces simple regex sanitization with a reusable, scalable scanning interface.
 """
 import re
 import logging
-from typing import List, Dict, Any, Tuple
+from typing import List, Tuple
 
 logger = logging.getLogger("Guardrails")
 

@@ -1,9 +1,7 @@
 
 import httpx
-import json
-import base64
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 from backend.config import settings
 
 logger = logging.getLogger("VerusRPC")

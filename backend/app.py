@@ -1,6 +1,4 @@
 
-import sys
-import re
 import uuid
 import hmac
 import asyncio
@@ -12,21 +10,20 @@ import base64
 import json
 import redis.asyncio as redis
 from datetime import datetime, timezone
-from typing import Dict, Any, List
+from typing import Dict, Any
 from fastapi import FastAPI, HTTPException, Depends, Query, Body, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from cryptography.fernet import Fernet
 from jose import JWTError, jwt
 from fastapi_limiter import FastAPILimiter
 from fastapi_limiter.depends import RateLimiter
 
-from .config import settings, Settings
-from .database import create_db_and_tables, get_session, engine as db_engine
+from .config import settings
+from .database import create_db_and_tables, engine as db_engine
 from sqlmodel import Session
 from .models import (
     ObjectiveRequest, TelemetryData, SystemStatus, LoginRequest,
-    TaskUpdate, TaskItem, SoulPreferences, SoulManifest, AuditEntry
+    TaskUpdate, SoulPreferences, SoulManifest, AuditEntry
 )
 from .security.vault import VaultManager
 from .security.auth import create_access_token, verify_authenticated
@@ -37,7 +34,6 @@ from .orchestrator import ExecutiveOrchestrator
 from .tasks import TaskManager
 from .skill_manager import SkillManager
 from .security.verusid_auth import verus_auth
-from .security.verus_rpc import verus_rpc
 from .inference.local_bridge import LocalInferenceBridge
 from .logging_config import configure_logging
 from .security.guardrail import scanner
@@ -540,7 +536,6 @@ async def verify_webauthn_response(payload: Dict[str, Any] = Body(...)):
     try:
         from webauthn import verify_registration_response
         from webauthn.helpers.structs import RegistrationCredential
-        from webauthn.helpers import bytes_to_base64url
     except ImportError:
         logger.error("py_webauthn is not installed. Run: pip install webauthn")
         raise HTTPException(status_code=501, detail="WebAuthn verification library not available. Install py_webauthn.")
@@ -581,7 +576,8 @@ async def verify_webauthn_response(payload: Dict[str, Any] = Body(...)):
             type="public-key",
         )
 
-        verification = verify_registration_response(
+        # Removed unused variable 'verification'
+        verify_registration_response(
             credential=credential,
             expected_challenge=expected_challenge,
             expected_rp_id=rp_id,
@@ -639,7 +635,7 @@ async def preview_soul_manifest(manifest: SoulManifest, control_question: str = 
             f"# IDENTITY CORE\n{manifest.identityCore}",
             f"\n# VOICE PROFILE\n{manifest.voiceProfile}",
             f"\n# REASONING STYLE\n{manifest.reasoningStyle}",
-            f"\n# DIRECTIVES\n" + "\n".join(f"- {d}" for d in manifest.directives),
+            "\n# DIRECTIVES\n" + "\n".join(f"- {d}" for d in manifest.directives),
         ]
 
         # Merge active skills
@@ -650,8 +646,8 @@ async def preview_soul_manifest(manifest: SoulManifest, control_question: str = 
                     [s.get("id") for s in active_skills if s.get("verified")]
                 )
                 if merged.get("logic"):
-                    context_parts.append(f"\n# ACTIVE COGNITIVE MODULES\n" +
-                                       "\n".join(f"- {l}" for l in merged["logic"]))
+                    context_parts.append("\n# ACTIVE COGNITIVE MODULES\n" +
+                                       "\n".join(f"- {logic_item}" for logic_item in merged["logic"]))
 
         full_context = "\n".join(context_parts)
 

@@ -1,14 +1,13 @@
 import asyncio
 import logging
-import json
 from datetime import datetime, timezone
-from typing import Dict, Any, Set, Optional
+from typing import Dict, Any, Set
 from tenacity import retry, stop_after_attempt, wait_exponential
 from sqlmodel import Session, select
 
-from ..models import DAGTask, TaskStatus, Run, TaskRecord
+from ..models import DAGTask, TaskStatus, TaskRecord
 from ..adapters.registry import AdapterRegistry
-from .errors import AdapterError, TaskTimeoutError, AdapterNotFoundError
+from .errors import AdapterNotFoundError
 
 logger = logging.getLogger("Engine.Executor")
 

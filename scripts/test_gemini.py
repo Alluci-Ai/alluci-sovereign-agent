@@ -1,6 +1,5 @@
 
 import asyncio
-import os
 import google.generativeai as genai
 from backend.config import load_settings
 

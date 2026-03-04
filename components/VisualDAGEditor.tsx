@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { ExecutionGraph, GraphNode, GraphEdge } from './types';
+import { ExecutionGraph, GraphNode, GraphEdge } from '../types';
 
 interface VisualDAGEditorProps {
   items: string[];
@@ -12,7 +12,7 @@ const VisualDAGEditor: React.FC<VisualDAGEditorProps> = ({ items, graph, onChang
   const containerRef = useRef<HTMLDivElement>(null);
   const [nodes, setNodes] = useState<GraphNode[]>([]);
   const [edges, setEdges] = useState<GraphEdge[]>([]);
-  
+
   const [draggedNode, setDraggedNode] = useState<string | null>(null);
   const [linkingNode, setLinkingNode] = useState<string | null>(null); // Node ID we are dragging a link FROM
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
@@ -21,12 +21,12 @@ const VisualDAGEditor: React.FC<VisualDAGEditorProps> = ({ items, graph, onChang
   useEffect(() => {
     const currentGraphNodes = graph?.nodes || [];
     const currentGraphEdges = graph?.edges || [];
-    
+
     // Create nodes for items that don't exist yet
     const newNodes = items.map((item, index) => {
       const existing = currentGraphNodes.find(n => n.id === item);
       if (existing) return existing;
-      
+
       // Auto-layout new nodes
       return {
         id: item,
@@ -37,46 +37,46 @@ const VisualDAGEditor: React.FC<VisualDAGEditorProps> = ({ items, graph, onChang
 
     // Remove nodes that are no longer in items
     const filteredNodes = newNodes.filter(n => items.includes(n.id));
-    
+
     // Clean edges for removed nodes
-    const filteredEdges = currentGraphEdges.filter(e => 
+    const filteredEdges = currentGraphEdges.filter(e =>
       items.includes(e.source) && items.includes(e.target)
     );
 
     setNodes(filteredNodes);
     setEdges(filteredEdges);
-  }, [items]); 
+  }, [items]);
 
   // DFS Cycle Detection
   const detectCycle = (newEdges: GraphEdge[]) => {
     const adj = new Map<string, string[]>();
     newEdges.forEach(e => {
-        if (!adj.has(e.source)) adj.set(e.source, []);
-        adj.get(e.source)!.push(e.target);
+      if (!adj.has(e.source)) adj.set(e.source, []);
+      adj.get(e.source)!.push(e.target);
     });
-    
+
     const visited = new Set<string>();
     const recStack = new Set<string>();
-    
+
     const isCyclic = (v: string): boolean => {
-        visited.add(v);
-        recStack.add(v);
-        const neighbors = adj.get(v) || [];
-        for (const neighbor of neighbors) {
-            if (!visited.has(neighbor)) {
-                if (isCyclic(neighbor)) return true;
-            } else if (recStack.has(neighbor)) {
-                return true;
-            }
+      visited.add(v);
+      recStack.add(v);
+      const neighbors = adj.get(v) || [];
+      for (const neighbor of neighbors) {
+        if (!visited.has(neighbor)) {
+          if (isCyclic(neighbor)) return true;
+        } else if (recStack.has(neighbor)) {
+          return true;
         }
-        recStack.delete(v);
-        return false;
+      }
+      recStack.delete(v);
+      return false;
     };
-    
+
     for (const node of nodes) {
-        if (!visited.has(node.id)) {
-            if (isCyclic(node.id)) return true;
-        }
+      if (!visited.has(node.id)) {
+        if (isCyclic(node.id)) return true;
+      }
     }
     return false;
   };
@@ -92,8 +92,8 @@ const VisualDAGEditor: React.FC<VisualDAGEditorProps> = ({ items, graph, onChang
 
   // Dedicated handler for connector dots to start linking without Shift
   const handleConnectorMouseDown = (e: React.MouseEvent, nodeId: string) => {
-      e.stopPropagation();
-      setLinkingNode(nodeId);
+    e.stopPropagation();
+    setLinkingNode(nodeId);
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
@@ -115,10 +115,10 @@ const VisualDAGEditor: React.FC<VisualDAGEditorProps> = ({ items, graph, onChang
       if (!exists) {
         const potentialEdges = [...edges, { source: linkingNode, target: targetNodeId }];
         if (!detectCycle(potentialEdges)) {
-            setEdges(potentialEdges);
-            onChange({ nodes, edges: potentialEdges });
+          setEdges(potentialEdges);
+          onChange({ nodes, edges: potentialEdges });
         } else {
-            console.warn("Cycle detected, ignoring edge.");
+          console.warn("Cycle detected, ignoring edge.");
         }
       }
     } else if (draggedNode) {
@@ -137,7 +137,7 @@ const VisualDAGEditor: React.FC<VisualDAGEditorProps> = ({ items, graph, onChang
   };
 
   return (
-    <div 
+    <div
       ref={containerRef}
       className="w-full h-full  relative overflow-hidden select-none"
       onMouseMove={handleMouseMove}
@@ -145,14 +145,14 @@ const VisualDAGEditor: React.FC<VisualDAGEditorProps> = ({ items, graph, onChang
       onMouseLeave={() => { setDraggedNode(null); setLinkingNode(null); }}
     >
       <div className="absolute top-2 left-2 text-[7px] font-mono opacity-40 pointer-events-none z-0">
-        DAG_TOPOLOGY_EDITOR<br/>
-        DRAG from dots to Connect<br/>
-        DRAG node to Move<br/>
+        DAG_TOPOLOGY_EDITOR<br />
+        DRAG from dots to Connect<br />
+        DRAG node to Move<br />
         DOUBLE_CLICK Edge to Delete
       </div>
 
-      <div className="absolute inset-0 opacity-10 pointer-events-none" 
-           style={{ backgroundImage: 'radial-gradient(#000 1px, transparent 1px)', backgroundSize: '20px 20px' }} />
+      <div className="absolute inset-0 opacity-10 pointer-events-none"
+        style={{ backgroundImage: 'radial-gradient(#000 1px, transparent 1px)', backgroundSize: '20px 20px' }} />
 
       <svg className="absolute inset-0 w-full h-full overflow-visible pointer-events-auto">
         <defs>
@@ -166,10 +166,10 @@ const VisualDAGEditor: React.FC<VisualDAGEditorProps> = ({ items, graph, onChang
           const target = nodes.find(n => n.id === edge.target);
           if (!source || !target) return null;
 
-          const sx = source.x + 60; 
-          const sy = source.y + 40; 
-          const tx = target.x + 60; 
-          const ty = target.y;      
+          const sx = source.x + 60;
+          const sy = source.y + 40;
+          const tx = target.x + 60;
+          const ty = target.y;
 
           const d = `M ${sx} ${sy} C ${sx} ${sy + 50}, ${tx} ${ty - 50}, ${tx} ${ty}`;
 
@@ -184,11 +184,11 @@ const VisualDAGEditor: React.FC<VisualDAGEditorProps> = ({ items, graph, onChang
         })}
 
         {linkingNode && (
-          <path 
+          <path
             d={`M ${nodes.find(n => n.id === linkingNode)!.x + 60} ${nodes.find(n => n.id === linkingNode)!.y + 40} L ${mousePos.x} ${mousePos.y}`}
-            fill="none" 
-            stroke="#91D65F" 
-            strokeWidth="1.5" 
+            fill="none"
+            stroke="#91D65F"
+            strokeWidth="1.5"
             strokeDasharray="4"
           />
         )}
@@ -198,8 +198,8 @@ const VisualDAGEditor: React.FC<VisualDAGEditorProps> = ({ items, graph, onChang
         <div
           key={node.id}
           className={`absolute flex flex-col items-center justify-center w-[120px] h-[40px] bg-white border transition-all z-10 group ${linkingNode === node.id ? 'border-agent shadow-[0_0_10px_rgba(145,214,95,0.3)]' : 'border-zinc/30 hover:border-black'}`}
-          style={{ 
-            left: node.x, 
+          style={{
+            left: node.x,
             top: node.y,
             boxShadow: '0 4px 6px rgba(0,0,0,0.02)'
           }}
@@ -207,18 +207,18 @@ const VisualDAGEditor: React.FC<VisualDAGEditorProps> = ({ items, graph, onChang
           onMouseUp={(e) => handleMouseUp(e, node.id)}
         >
           <span className="glass-label text-[8px] truncate max-w-[90%] pointer-events-none select-none">{node.id}</span>
-          
+
           {/* Connector Handle - Bottom (Source) */}
-          <div 
+          <div
             className="absolute -bottom-2 w-4 h-4 rounded-full flex items-center justify-center cursor-crosshair opacity-0 group-hover:opacity-100 transition-opacity"
             onMouseDown={(e) => handleConnectorMouseDown(e, node.id)}
           >
-             <div className="w-2 h-2 bg-black rounded-full hover:bg-agent hover:scale-125 transition-all" />
+            <div className="w-2 h-2 bg-black rounded-full hover:bg-agent hover:scale-125 transition-all" />
           </div>
 
-           {/* Connector Handle - Top (Target) - Visual only, for dropping */}
-           <div className="absolute -top-2 w-4 h-4 rounded-full flex items-center justify-center pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
-             <div className="absolute inset-0 z-0 bg-dots" />
+          {/* Connector Handle - Top (Target) - Visual only, for dropping */}
+          <div className="absolute -top-2 w-4 h-4 rounded-full flex items-center justify-center pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="absolute inset-0 z-0 bg-dots" />
           </div>
         </div>
       ))}

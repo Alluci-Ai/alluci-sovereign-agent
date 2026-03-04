@@ -3,10 +3,9 @@ Unit tests for Security modules: Vault, Auth, DPK.
 """
 import pytest
 import os
-import json
 import tempfile
-from unittest.mock import patch, MagicMock
-from datetime import datetime, timezone, timedelta
+from unittest.mock import patch
+from datetime import timedelta
 from cryptography.fernet import Fernet
 
 

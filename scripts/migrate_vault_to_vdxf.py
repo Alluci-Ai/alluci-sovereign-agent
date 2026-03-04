@@ -1,7 +1,5 @@
 
 import asyncio
-import os
-import json
 import logging
 from backend.security.vault import VaultManager
 from backend.security.vdxf_store import VDXFStore

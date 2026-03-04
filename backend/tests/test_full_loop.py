@@ -1,7 +1,7 @@
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import patch, MagicMock
 from backend.orchestrator import ExecutiveOrchestrator
-from backend.models import TaskStatus, Run, AutonomyLevel
+from backend.models import AutonomyLevel
 
 @pytest.mark.asyncio
 async def test_objective_execute_success(mock_router, temp_db, mock_adapter_registry, mock_settings):

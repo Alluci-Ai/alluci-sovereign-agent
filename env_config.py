@@ -1,7 +1,6 @@
 
 import platform
 import os
-import subprocess
 import sys
 from typing import Dict, Any
 
@@ -15,7 +14,7 @@ class HardwareAbstraction:
     def get_hardware_profile() -> Dict[str, Any]:
         system = platform.system()
         machine = platform.machine()
-        processor = platform.processor()
+        # Removed unused variable 'processor'
         
         profile = {
             "os": system,
@@ -60,7 +59,7 @@ class HardwareAbstraction:
                     with open("/proc/device-tree/model", "r") as f:
                         if "Raspberry Pi" in f.read():
                             is_pi = True
-            except:
+            except Exception:
                 pass
 
             if is_pi:

@@ -4,11 +4,8 @@ Pytest configuration and shared fixtures for the Polytope backend test suite.
 import os
 import sys
 import pytest
-import asyncio
 import tempfile
-import json
-from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime, timezone
+from unittest.mock import AsyncMock, MagicMock
 
 # Ensure backend is importable
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -25,7 +22,7 @@ os.environ["APP_ENV"] = "testing"
 @pytest.fixture
 def temp_db():
     """Provides a temporary SQLite database for testing."""
-    from sqlmodel import create_engine, SQLModel, Session
+    from sqlmodel import create_engine, SQLModel
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
         db_path = f.name
     

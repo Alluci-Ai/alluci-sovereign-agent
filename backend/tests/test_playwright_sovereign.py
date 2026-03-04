@@ -1,5 +1,4 @@
 import pytest
-import asyncio
 from playwright.sync_api import sync_playwright, expect
 
 @pytest.mark.skip(reason="Requires frontend and backend servers to be running.")

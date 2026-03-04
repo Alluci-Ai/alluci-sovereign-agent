@@ -1,7 +1,6 @@
 
 import typer
 import httpx
-import os
 import json
 
 app = typer.Typer(help="Polytope Executive Command Line Interface")
@@ -34,7 +33,7 @@ def doctor():
     try:
         res = httpx.get(f"{DAEMON_URL}/system/status")
         typer.echo(json.dumps(res.json(), indent=2))
-    except:
+    except Exception:
         typer.secho("Daemon is OFFLINE.", fg=typer.colors.RED)
 
 if __name__ == "__main__":

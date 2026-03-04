@@ -77,7 +77,8 @@ class VaultManager:
         # Tier 3: Memory Cache hit? 
         if self.vdxf:
             cached = self.vdxf.get_from_memory(bridge_id)
-            if cached: return cached
+            if cached:
+                return cached
 
         data = await asyncio.to_thread(self._retrieve_secret_sync, bridge_id)
         

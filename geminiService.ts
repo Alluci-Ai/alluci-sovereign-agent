@@ -12,10 +12,10 @@ export interface GroundingSource {
 export interface GeminiCallbacks {
   onAudioOutput: (base64Audio: string) => void;
   onTranscription: (text: string, isUser: boolean) => void;
-  onInterrupted: () => void;
-  onOpen: () => void;
-  onClose: () => void;
-  onError: (error: any) => void;
+  onInterrupted?: () => void;
+  onOpen?: () => void;
+  onClose?: () => void;
+  onError?: (error: any) => void;
   onToolCall?: (fc: any) => void;
   onPermissionRequest?: (req: { id: string, name: string, args: any }) => void;
   onGroundingSources?: (sources: GroundingSource[]) => void;
@@ -88,6 +88,15 @@ export class AlluciGeminiService {
     });
   }
 
+  // Added sendRealtimeInput to handle streaming audio to the Live API session
+  sendRealtimeInput(data: Float32Array) {
+    this.sessionPromise?.then((session) => {
+      session.sendRealtimeInput({
+        media: this.createBlob(data)
+      });
+    });
+  }
+
   /**
    * Get the API key from the backend proxy.
    * NEVER store API keys in the browser — this retrieves a session-scoped key.
@@ -140,7 +149,7 @@ export class AlluciGeminiService {
       model: 'gemini-2.5-flash-native-audio-preview-12-2025',
       callbacks: {
         onopen: async () => {
-          callbacks.onOpen();
+          callbacks.onOpen?.();
           const source = this.inputAudioContext!.createMediaStreamSource(stream);
 
           try {
@@ -173,7 +182,7 @@ export class AlluciGeminiService {
           if (message.serverContent?.inputTranscription) {
             callbacks.onTranscription(message.serverContent.inputTranscription.text, true);
           }
-          if (message.serverContent?.interrupted) callbacks.onInterrupted();
+          if (message.serverContent?.interrupted) callbacks.onInterrupted?.();
 
           if (message.toolCall) {
             for (const fc of message.toolCall.functionCalls) {
@@ -186,8 +195,8 @@ export class AlluciGeminiService {
             }
           }
         },
-        onerror: (e: any) => callbacks.onError(e),
-        onclose: () => callbacks.onClose(),
+        onerror: (e: any) => callbacks.onError?.(e),
+        onclose: () => callbacks.onClose?.(),
       },
       config: {
         responseModalities: [Modality.AUDIO],

@@ -1,7 +1,6 @@
 """
 Unit tests for the TaskManager (TASKS.md CRUD operations).
 """
-import pytest
 import os
 import tempfile
 from backend.tasks import TaskManager

@@ -2,9 +2,8 @@
 import asyncio
 import json
 import logging
-import torch
 from datetime import datetime, timezone
-from typing import Dict, Any, Callable
+from typing import Dict, Any
 from sqlmodel import Session
 
 from .models import TaskStatus, Run, RunStatus
@@ -258,7 +257,6 @@ class ExecutiveOrchestrator:
         self.logger.info(f"📜 Manifest Signed by {signed_manifest['signer']}")
 
         # 6. Execution Loop
-        final_output = ""
         critic_score = 0.0
         
         for attempt in range(self.settings.MAX_AUTONOMY_RETRIES):
@@ -321,8 +319,10 @@ class ExecutiveOrchestrator:
                 run.status = status
                 if status in [RunStatus.COMPLETED, RunStatus.FAILED]:
                     run.completed_at = datetime.now(timezone.utc)
-                if score: run.score = score
-                if feedback: run.feedback = feedback
+                if score:
+                    run.score = score
+                if feedback:
+                    run.feedback = feedback
                 session.add(run)
                 session.commit()
 
