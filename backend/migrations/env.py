@@ -21,9 +21,9 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # --- SQLModel / Application Integration ---
-from sqlmodel import SQLModel
-from backend.config import load_settings
-from backend import models  # noqa: F401  — force models to register with SQLModel metadata
+from sqlmodel import SQLModel  # noqa: E402
+from backend.config import load_settings  # noqa: E402
+from backend import models  # noqa: F401, E402 — force models to register with SQLModel metadata
 
 app_settings = load_settings()
 

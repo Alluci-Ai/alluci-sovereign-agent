@@ -2,7 +2,7 @@
 import torch
 import torch.nn as nn
 import numpy as np
-from typing import Tuple, List
+from typing import Tuple
 
 # Graceful fallback if gudhi is not installed in the environment
 try:

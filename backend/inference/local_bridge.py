@@ -3,10 +3,8 @@ import os
 import asyncio
 import json
 import logging
-import subprocess
-import base64
 import shutil
-from typing import Optional, AsyncGenerator
+from typing import AsyncGenerator
 
 logger = logging.getLogger("LocalBridge")
 
@@ -42,8 +40,10 @@ class LocalInferenceBridge:
         
         logger.info(f"[ BRIDGE_STATUS ]: Arch: {self.machine}, Platform: {self.sysname}")
         logger.info(f"[ BRIDGE_STATUS ]: Whisper: {self.whisper_ready}, Ollama: {self.ollama_ready}, Piper: {self.piper_ready}")
-        if self.has_cuda: logger.info("[ BRIDGE_ACCELERATION ]: CUDA_DETECTED")
-        if self.has_rocm: logger.info("[ BRIDGE_ACCELERATION ]: ROCM_DETECTED")
+        if self.has_cuda:
+            logger.info("[ BRIDGE_ACCELERATION ]: CUDA_DETECTED")
+        if self.has_rocm:
+            logger.info("[ BRIDGE_ACCELERATION ]: ROCM_DETECTED")
 
     def _check_ollama(self) -> bool:
         import socket
@@ -54,7 +54,7 @@ class LocalInferenceBridge:
             s.connect(("localhost", 11434))
             s.close()
             return True
-        except:
+        except Exception:
             return False
         
     async def transcribe_stream(self, audio_data: bytes) -> str:

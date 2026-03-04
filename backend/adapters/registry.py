@@ -1,4 +1,4 @@
-from typing import Dict, Optional, Callable
+from typing import Dict, Optional
 from .base import Adapter
 from .filesystem import FileSystemAdapter
 from .bridge_actualization import BridgeActualizationAdapter

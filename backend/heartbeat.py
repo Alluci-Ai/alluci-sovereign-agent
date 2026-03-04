@@ -5,7 +5,7 @@ import json
 import logging
 import hashlib
 import re
-from datetime import datetime, time, date, timezone
+from datetime import datetime, time, timezone
 from typing import List, Dict, Any, Optional
 from .security.vault import VaultManager
 
@@ -29,7 +29,7 @@ class FileProbe(Probe):
         
         # Simple modification time check first (cheap)
         try:
-            mtime = os.path.getmtime(self.path)
+            # Removed unused variable 'mtime'
             # If it's a file, hash it for accuracy
             if os.path.isfile(self.path):
                 with open(self.path, "rb") as f:
@@ -103,7 +103,7 @@ class HeartbeatDaemon:
             try:
                 with open(self.state_file, 'r') as f:
                     return json.load(f)
-            except:
+            except Exception:
                 pass
         return {}
 
@@ -229,9 +229,9 @@ class HeartbeatDaemon:
         context_parts = ["[HEARTBEAT SYSTEM PULSE — Proactive Autonomous Action]"]
         
         if changes:
-            context_parts.append(f"DETECTED CHANGES:\n" + "\n".join(f"  - {c}" for c in changes))
+            context_parts.append("DETECTED CHANGES:\n" + "\n".join(f"  - {c}" for c in changes))
         
-        context_parts.append(f"STANDING ORDERS:\n" + "\n".join(f"  - {o}" for o in orders))
+        context_parts.append("STANDING ORDERS:\n" + "\n".join(f"  - {o}" for o in orders))
         context_parts.append(
             "INSTRUCTION: Based on the standing orders and detected changes above, "
             "determine if autonomous action is required. If so, execute the most relevant "

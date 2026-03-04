@@ -1,4 +1,3 @@
-import os
 from sqlmodel import create_engine, SQLModel, Session
 from .config import load_settings
 

@@ -2,7 +2,7 @@
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 from enum import Enum
-from pydantic import BaseModel, Field as PydanticField
+from pydantic import BaseModel
 from sqlmodel import SQLModel, Field, Relationship, Column, JSON
 
 # --- Enums ---

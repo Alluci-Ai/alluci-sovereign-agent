@@ -1,5 +1,4 @@
 
-import json
 import logging
 from typing import List, Dict, Any, Set
 from ..models import DAGTask, TaskStatus
@@ -60,7 +59,8 @@ class Planner:
         # 1. Instantiation
         for step in steps:
             t_id = step.get('id')
-            if not t_id: continue
+            if not t_id:
+                continue
             
             tasks[t_id] = DAGTask(
                 id=t_id,
@@ -97,7 +97,8 @@ class Planner:
             
             for neighbor in tasks[node].dependencies:
                 if neighbor not in visited:
-                    if dfs(neighbor): return True
+                    if dfs(neighbor):
+                        return True
                 elif neighbor in stack:
                     return True
             

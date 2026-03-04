@@ -7,7 +7,6 @@ Usage in any module:
     logger = get_logger(__name__)
     logger.info("event_name", key="value")
 """
-import os
 import logging
 import sys
 import structlog

@@ -19,7 +19,8 @@ def get_secret(key: str, default: Optional[str] = None) -> Optional[str]:
     """Retrieves secrets from environment or a cloud Secrets Manager if configured."""
     # 1. Check direct environment override first
     v = os.getenv(key)
-    if v: return v
+    if v:
+        return v
 
     # 2. Check for AWS/GCP secrets if SECRETS_PROVIDER is set
     provider = os.getenv("SECRETS_PROVIDER", "").lower()

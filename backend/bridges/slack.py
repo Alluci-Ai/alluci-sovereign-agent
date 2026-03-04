@@ -145,7 +145,7 @@ class SlackBridge(BridgeAdapter):
                     headers={"Authorization": f"Bearer {self.bot_token}"}
                 )
                 return res.json().get("ok", False)
-        except:
+        except Exception:
             return False
 
     def _persist_to_vault(self, box: str, data: Dict[str, Any]):

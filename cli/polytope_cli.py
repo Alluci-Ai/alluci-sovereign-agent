@@ -1,7 +1,6 @@
 
 import typer
 import httpx
-import os
 
 app = typer.Typer()
 API_URL = "http://localhost:8000"
@@ -26,7 +25,7 @@ def doctor():
     try:
         res = httpx.get(f"{API_URL}/system/status")
         typer.echo(f"Daemon Online: {res.json()}")
-    except:
+    except Exception:
         typer.echo("Daemon OFFLINE. Start with 'python -m backend.main'")
 
 if __name__ == "__main__":

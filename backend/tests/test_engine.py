@@ -3,7 +3,7 @@ Unit tests for the Execution Engine: Planner, Executor, and Critic.
 """
 import pytest
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 from backend.models import DAGTask, TaskStatus
 
 

@@ -5,7 +5,7 @@ import json
 import psutil
 import logging
 import subprocess
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, Any
 from env_config import PLATFORM_PROFILE
 
@@ -53,7 +53,7 @@ class HomeServerGuard:
                     if temp > 75.0:  # Critical threshold for Pi 5
                         self.logger.warning(f"Thermal threshold reached ({temp}C). Throttling execution.")
                         time.sleep(1.0) # Introduce reasoning delay
-            except:
+            except Exception:
                 pass
 
     def _enforce_memory_governance(self):
@@ -82,7 +82,7 @@ class HomeServerGuard:
                 try:
                     os.remove(f_path)
                     self.logger.debug(f"Pruned stale log: {f}")
-                except:
+                except Exception:
                     pass
 
     def _checkpoint_state(self, state: Dict[str, Any]):
@@ -106,6 +106,6 @@ class HomeServerGuard:
                 with open(self.recovery_file, "r") as f:
                     data = json.load(f)
                     return data.get("state", {})
-            except:
+            except Exception:
                 pass
         return {}

@@ -78,8 +78,10 @@ class SkillManager:
         
         # Add to active registry
         # Clean up temporary fields
-        if "import_timestamp" in target: del target["import_timestamp"]
-        if "critic_scan" in target: del target["critic_scan"]
+        if "import_timestamp" in target:
+            del target["import_timestamp"]
+        if "critic_scan" in target:
+            del target["critic_scan"]
         target["verified"] = True
         
         await self.save_skill(target)

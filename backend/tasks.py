@@ -1,6 +1,7 @@
 
 import os
 import re
+import asyncio
 import fcntl
 from typing import List, Optional
 from datetime import datetime, timedelta
@@ -20,9 +21,12 @@ class TaskManager:
         
         # Extract Priority
         priority = TaskPriority.MEDIUM
-        if "[URGENT]" in line: priority = TaskPriority.URGENT
-        elif "[HIGH]" in line: priority = TaskPriority.HIGH
-        elif "[LOW]" in line: priority = TaskPriority.LOW
+        if "[URGENT]" in line:
+            priority = TaskPriority.URGENT
+        elif "[HIGH]" in line:
+            priority = TaskPriority.HIGH
+        elif "[LOW]" in line:
+            priority = TaskPriority.LOW
         
         # Extract Due Date
         due_date = None
@@ -98,12 +102,15 @@ class TaskManager:
                 task_date = datetime.strptime(t.due_date, "%Y-%m-%d").date() if t.due_date else None
                 
                 if timeline == "TODAY":
-                    if not task_date or task_date > today: continue
+                    if not task_date or task_date > today:
+                        continue
                 elif timeline == "WEEK":
                     next_week = today + timedelta(days=7)
-                    if not task_date or task_date > next_week: continue
+                    if not task_date or task_date > next_week:
+                        continue
                 elif timeline == "OVERDUE":
-                    if t.completed or not task_date or task_date >= today: continue
+                    if t.completed or not task_date or task_date >= today:
+                        continue
 
             filtered_tasks.append(t)
 

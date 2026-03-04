@@ -1,10 +1,8 @@
 
-import asyncio
 import numpy as np
 import logging
-import math
 from datetime import datetime, timezone
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Any, Tuple
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger("HarmonicEnhancer")
@@ -76,7 +74,8 @@ class PrimeMapper:
     SMALL_PRIMES = {2, 3, 5, 7, 11}
 
     def is_quasi_prime(self, n: int) -> bool:
-        if n < 2: return False
+        if n < 2:
+            return False
         for p in self.SMALL_PRIMES:
             if n % p == 0:
                 return False
@@ -208,7 +207,7 @@ class HarmonicAssistant:
             # Assign score (dynamically add attribute if possible)
             try:
                 setattr(task, 'priority_score', p)
-            except:
+            except Exception:
                 pass # If dict or immutable
                 
             ranked.append((p, task))

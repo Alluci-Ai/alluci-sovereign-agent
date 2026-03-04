@@ -8,7 +8,7 @@ import email
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from .base import BridgeAdapter
 
 class EmailBridge(BridgeAdapter):
@@ -180,6 +180,6 @@ class EmailBridge(BridgeAdapter):
         try:
              await asyncio.to_thread(self._test_imap_connection)
              return True
-        except:
+        except Exception:
              self.is_connected = False
              return False
