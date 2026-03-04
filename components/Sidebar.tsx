@@ -49,7 +49,6 @@ const NAV_GROUPS: NavGroup[] = [
         items: [
             { id: 'crons', label: 'Crons', icon: CalendarDays },
             { id: 'tasks', label: 'Tasks', icon: CheckSquare },
-            { id: 'scheduling', label: 'Scheduling', icon: Calendar },
         ]
     },
     {
