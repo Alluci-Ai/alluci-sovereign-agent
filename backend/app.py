@@ -37,7 +37,13 @@ from .security.verusid_auth import verus_auth
 from .inference.local_bridge import LocalInferenceBridge
 from .logging_config import configure_logging
 from .security.guardrail import scanner
+from .ws_gateway import JsonRpcGateway
+from .analytics import UsageTracker
+from .cron_engine import CronEngine
+from .log_streamer import log_buffer, log_stream_handler
+from .config_editor import ConfigEditor
 from fastapi import WebSocket, WebSocketDisconnect
+from fastapi.responses import PlainTextResponse
 
 logger = logging.getLogger("PolytopeApp")
 
@@ -52,6 +58,10 @@ task_manager: TaskManager = None
 skill_manager: SkillManager = None
 sovereign_identity: SovereignIdentity = None
 local_inference: LocalInferenceBridge = None
+ws_gw: JsonRpcGateway = None
+usage_tracker: UsageTracker = None
+cron_engine: CronEngine = None
+config_editor: ConfigEditor = None
 
 # --- Input Sanitization ---
 async def sanitize_input(text: str) -> str:
@@ -71,6 +81,7 @@ async def sanitize_input(text: str) -> str:
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
     global vault, router, ace, orchestrator, task_manager, skill_manager, sovereign_identity, local_inference
+    global ws_gw, usage_tracker, cron_engine, config_editor
 
     # Initialize structured logging before any log calls
     configure_logging(app_env=settings.APP_ENV)
@@ -109,7 +120,24 @@ async def lifespan(app: FastAPI):
     # 7. Local Inference Bridge
     local_inference = LocalInferenceBridge(settings)
 
-    # 8. Background Services
+    # 8. Sprint 1: WebSocket Gateway
+    ws_gw = JsonRpcGateway(jwt_secret=settings.JWT_SECRET_KEY)
+    ws_gw.inject_services(vault=vault, router=router, orchestrator=orchestrator)
+
+    # 9. Sprint 1: Usage & Cost Analytics
+    usage_tracker = UsageTracker(db_engine)
+
+    # 10. Sprint 1: Cron Engine
+    cron_engine = CronEngine(db_engine, orchestrator=orchestrator)
+    await cron_engine.start()
+
+    # 11. Sprint 1: Log Streamer
+    log_buffer.install_handler()
+
+    # 12. Sprint 1: Config Editor
+    config_editor = ConfigEditor(settings)
+
+    # 13. Background Services
     await orchestrator.start_background_services()
 
     logger.info("[ POLYTOPE_DAEMON ] All systems nominal. Ready.")
@@ -117,6 +145,7 @@ async def lifespan(app: FastAPI):
     yield
 
     logger.info("[ POLYTOPE_DAEMON ] Shutting down...")
+    await cron_engine.stop()
     await orchestrator.stop_background_services()
 
 
@@ -897,6 +926,200 @@ async def sovereign_socket(websocket: WebSocket):
         await websocket.close()
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# Sprint 1: WebSocket JSON-RPC Admin Gateway (OpenClaw §5.1)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.websocket("/ws/admin")
+async def websocket_admin(websocket: WebSocket):
+    """JSON-RPC 2.0 gateway for real-time admin operations."""
+    await ws_gw.handle_connection(websocket)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Sprint 1: Usage & Cost Analytics API (OpenClaw §4)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/api/usage/sessions", dependencies=[Depends(verify_authenticated)])
+async def get_usage_sessions(
+    start: str = Query(None, description="Start date (YYYY-MM-DD)"),
+    end: str = Query(None, description="End date (YYYY-MM-DD)"),
+    limit: int = Query(1000, ge=1, le=5000),
+):
+    """Date-range session usage aggregation."""
+    from datetime import date as dt_date
+    s = dt_date.fromisoformat(start) if start else None
+    e = dt_date.fromisoformat(end) if end else None
+    return usage_tracker.get_sessions(start=s, end=e, limit=limit)
+
+
+@app.get("/api/usage/daily", dependencies=[Depends(verify_authenticated)])
+async def get_usage_daily(
+    start: str = Query(None),
+    end: str = Query(None),
+):
+    """Per-day cost/token breakdown for chart rendering."""
+    from datetime import date as dt_date
+    s = dt_date.fromisoformat(start) if start else None
+    e = dt_date.fromisoformat(end) if end else None
+    return usage_tracker.get_daily(start=s, end=e)
+
+
+@app.get("/api/usage/sessions/{session_key}/timeseries", dependencies=[Depends(verify_authenticated)])
+async def get_session_timeseries(session_key: str):
+    """Per-turn time series for a selected session."""
+    return usage_tracker.get_session_timeseries(session_key)
+
+
+@app.get("/api/usage/export/sessions.csv", dependencies=[Depends(verify_authenticated)])
+async def export_sessions_csv(start: str = Query(None), end: str = Query(None)):
+    """CSV export of session aggregates."""
+    from datetime import date as dt_date
+    s = dt_date.fromisoformat(start) if start else None
+    e = dt_date.fromisoformat(end) if end else None
+    csv_data = usage_tracker.export_sessions_csv(start=s, end=e)
+    return PlainTextResponse(content=csv_data, media_type="text/csv",
+                             headers={"Content-Disposition": "attachment; filename=sessions.csv"})
+
+
+@app.get("/api/usage/export/daily.csv", dependencies=[Depends(verify_authenticated)])
+async def export_daily_csv(start: str = Query(None), end: str = Query(None)):
+    """CSV export of daily rollup."""
+    from datetime import date as dt_date
+    s = dt_date.fromisoformat(start) if start else None
+    e = dt_date.fromisoformat(end) if end else None
+    csv_data = usage_tracker.export_daily_csv(start=s, end=e)
+    return PlainTextResponse(content=csv_data, media_type="text/csv",
+                             headers={"Content-Disposition": "attachment; filename=daily.csv"})
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Sprint 1: Cron Engine API (OpenClaw §3)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/api/cron/jobs", dependencies=[Depends(verify_authenticated)])
+async def list_cron_jobs():
+    """List all cron jobs."""
+    return cron_engine.list_jobs()
+
+
+@app.get("/api/cron/jobs/{job_id}", dependencies=[Depends(verify_authenticated)])
+async def get_cron_job(job_id: int):
+    """Get a specific cron job."""
+    job = cron_engine.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Cron job not found")
+    return job
+
+
+@app.post("/api/cron/jobs", dependencies=[Depends(verify_authenticated)])
+async def create_cron_job(data: Dict[str, Any] = Body(...)):
+    """Create a new cron job."""
+    required = ["name", "schedule_type", "schedule_value"]
+    for field in required:
+        if field not in data:
+            raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
+    return cron_engine.create_job(data)
+
+
+@app.put("/api/cron/jobs/{job_id}", dependencies=[Depends(verify_authenticated)])
+async def update_cron_job(job_id: int, data: Dict[str, Any] = Body(...)):
+    """Update an existing cron job."""
+    result = cron_engine.update_job(job_id, data)
+    if not result:
+        raise HTTPException(status_code=404, detail="Cron job not found")
+    return result
+
+
+@app.delete("/api/cron/jobs/{job_id}", dependencies=[Depends(verify_authenticated)])
+async def delete_cron_job(job_id: int):
+    """Delete a cron job."""
+    if not cron_engine.delete_job(job_id):
+        raise HTTPException(status_code=404, detail="Cron job not found")
+    return {"status": "deleted"}
+
+
+@app.post("/api/cron/jobs/{job_id}/clone", dependencies=[Depends(verify_authenticated)])
+async def clone_cron_job(job_id: int):
+    """Clone an existing cron job."""
+    result = cron_engine.clone_job(job_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Cron job not found")
+    return result
+
+
+@app.post("/api/cron/jobs/{job_id}/run", dependencies=[Depends(verify_authenticated)])
+async def run_cron_job(job_id: int, mode: str = Query("force")):
+    """Force-run or due-run a cron job."""
+    result = cron_engine.force_run(job_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Cron job not found")
+    return result
+
+
+@app.get("/api/cron/runs", dependencies=[Depends(verify_authenticated)])
+async def get_cron_runs(
+    job_id: int = Query(None),
+    status: str = Query(None),
+    limit: int = Query(50, ge=1, le=500),
+):
+    """Query cron run history with filters."""
+    return cron_engine.get_runs(job_id=job_id, status=status, limit=limit)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Sprint 1: Configuration Editor API (OpenClaw §8)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/api/config", dependencies=[Depends(verify_authenticated)])
+async def get_config():
+    """Return current configuration (sensitive values masked)."""
+    return config_editor.get_config()
+
+
+@app.get("/api/config/schema", dependencies=[Depends(verify_authenticated)])
+async def get_config_schema():
+    """Return JSON Schema for configuration validation."""
+    return config_editor.get_schema()
+
+
+@app.put("/api/config", dependencies=[Depends(verify_authenticated)])
+async def update_config(overrides: Dict[str, Any] = Body(...)):
+    """Validate and hot-apply configuration overrides."""
+    result = config_editor.apply_overrides(overrides)
+    if result["rejected"] and not result["applied"]:
+        raise HTTPException(status_code=400, detail=result)
+    return result
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Sprint 1: Log Streaming API (OpenClaw §9)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.websocket("/api/logs/stream")
+async def websocket_log_stream(websocket: WebSocket):
+    """Real-time JSONL log streaming via WebSocket."""
+    await log_stream_handler.handle(websocket)
+
+
+@app.get("/api/logs/history", dependencies=[Depends(verify_authenticated)])
+async def get_log_history(
+    limit: int = Query(200, ge=1, le=5000),
+    level: str = Query(None),
+):
+    """Return recent log entries from the buffer."""
+    return log_buffer.get_history(limit=limit, level=level)
+
+
+@app.get("/api/logs/export", dependencies=[Depends(verify_authenticated)])
+async def export_logs(level: str = Query(None)):
+    """Export buffered logs as JSONL text."""
+    jsonl = log_buffer.export_jsonl(level=level)
+    return PlainTextResponse(content=jsonl, media_type="application/jsonl",
+                             headers={"Content-Disposition": "attachment; filename=logs.jsonl"})
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host=settings.HOST, port=settings.PORT)
+
