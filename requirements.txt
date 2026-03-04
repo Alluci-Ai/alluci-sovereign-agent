@@ -20,6 +20,15 @@ aiofiles==23.2.1
 torch>=2.0.0
 numpy>=1.24.0
 gudhi>=3.8.0
+sentence-transformers==2.3.1
+# Scalability & Persistence
+redis>=4.6.0,<5.0.0
+fastapi-limiter==0.1.5
+psycopg2-binary==2.9.9
+alembic==1.13.1
+structlog>=24.1.0
+boto3>=1.34.0
+asyncpg>=0.29.0
 
 # Testing
 pytest>=7.4.0

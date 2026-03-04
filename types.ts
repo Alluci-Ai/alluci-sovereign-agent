@@ -1,3 +1,15 @@
+import { GroundingSource, FilePart } from './geminiService';
+
+export interface Message {
+  text: string;
+  isUser: boolean;
+  sources?: GroundingSource[];
+  timestamp: string;
+}
+
+export interface PendingAttachment extends FilePart {
+  name: string;
+}
 
 export enum EmotionalState {
   EXCITED = "excited",
@@ -172,4 +184,24 @@ export interface ApiManifoldKeys {
   music: Record<string, string>;
   image: Record<string, string>;
   video: Record<string, string>;
+}
+
+export interface TaskItem {
+  index: number;
+  description: string;
+  completed: boolean;
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+  due_date: string | null;
+}
+
+export interface ModalState {
+  settings: boolean;
+  drive: boolean;
+  audit: boolean;
+  preferences: boolean;
+  soul: boolean;
+  apiManifold: boolean;
+  taskPanel: boolean;
+  skillWizard: boolean;
+  apiWizard: boolean;
 }

@@ -13,6 +13,12 @@ from datetime import datetime, timezone
 # Ensure backend is importable
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# Set dummy environment variables to pass Pydantic validation during test collection
+os.environ["POLYTOPE_MASTER_KEY"] = "dGVzdC1rZXktZm9yLXVuaXQtdGVzdGluZw=="
+os.environ["JWT_SECRET_KEY"] = "test-jwt-secret-key-for-unit-tests"
+os.environ["GEMINI_API_KEY"] = "test-gemini-key"
+os.environ["APP_ENV"] = "testing"
+
 
 # --- Fixtures: Database ---
 
@@ -91,12 +97,8 @@ def temp_vault():
     key = Fernet.generate_key().decode()
     
     with tempfile.TemporaryDirectory() as tmpdir:
-        with patch.dict(os.environ, {}):
-            from backend.security.vault import VaultManager
-            vault = VaultManager.__new__(VaultManager)
-            vault.fernet = Fernet(key.encode())
-            vault.vault_root = tmpdir
-        yield vault
+        from backend.security.vault import VaultManager
+        yield VaultManager(key, vault_root=tmpdir)
 
 
 # --- Fixtures: Task Manager ---
@@ -131,11 +133,4 @@ def mock_adapter_registry():
     return registry
 
 
-# --- Event loop fixture ---
-
-@pytest.fixture(scope="session")
-def event_loop():
-    """Create an event loop for the test session."""
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
+# --- End of tests ---

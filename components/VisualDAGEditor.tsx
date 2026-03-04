@@ -139,7 +139,7 @@ const VisualDAGEditor: React.FC<VisualDAGEditorProps> = ({ items, graph, onChang
   return (
     <div 
       ref={containerRef}
-      className="w-full h-full bg-zinc/5 relative overflow-hidden select-none"
+      className="w-full h-full  relative overflow-hidden select-none"
       onMouseMove={handleMouseMove}
       onMouseUp={(e) => handleMouseUp(e)}
       onMouseLeave={() => { setDraggedNode(null); setLinkingNode(null); }}
@@ -206,7 +206,7 @@ const VisualDAGEditor: React.FC<VisualDAGEditorProps> = ({ items, graph, onChang
           onMouseDown={(e) => handleMouseDown(e, node.id)}
           onMouseUp={(e) => handleMouseUp(e, node.id)}
         >
-          <span className="baunk-style text-[8px] truncate max-w-[90%] pointer-events-none select-none">{node.id}</span>
+          <span className="glass-label text-[8px] truncate max-w-[90%] pointer-events-none select-none">{node.id}</span>
           
           {/* Connector Handle - Bottom (Source) */}
           <div 
@@ -218,7 +218,7 @@ const VisualDAGEditor: React.FC<VisualDAGEditorProps> = ({ items, graph, onChang
 
            {/* Connector Handle - Top (Target) - Visual only, for dropping */}
            <div className="absolute -top-2 w-4 h-4 rounded-full flex items-center justify-center pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
-             <div className="w-1.5 h-1.5 border border-black rounded-full bg-white" />
+             <div className="absolute inset-0 z-0 bg-dots" />
           </div>
         </div>
       ))}

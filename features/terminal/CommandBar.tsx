@@ -1,0 +1,109 @@
+import React from 'react';
+
+interface CommandBarProps {
+    textInput: string;
+    setTextInput: (val: string) => void;
+    attachments: any[];
+    removeAttachment: (idx: number) => void;
+    fileInputRef: React.RefObject<HTMLInputElement | null>;
+    handleFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+    handleCommandSubmit: (e: React.FormEvent) => void;
+    isProcessing: boolean;
+}
+
+const CommandBar: React.FC<CommandBarProps> = ({
+    textInput,
+    setTextInput,
+    attachments,
+    removeAttachment,
+    fileInputRef,
+    handleFileChange,
+    handleCommandSubmit,
+    isProcessing
+}) => {
+    return (
+        <form onSubmit={handleCommandSubmit} className="shrink-0 p-4 md:p-6 flex flex-col gap-2 z-10 w-full max-w-4xl mx-auto mb-4">
+            {attachments.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-2 px-2">
+                    {attachments.map((file, idx) => (
+                        <div key={idx} className="flex items-center gap-2 bg-glass-2 border border-glass-edge rounded-full px-4 py-1.5 text-[10px] glass-label animate-in slide-in-from-bottom-2 shadow-sm text-text-primary">
+                            <span className="opacity-50">{file.mimeType.split('/')[0].toUpperCase()}</span>
+                            <span className="truncate max-w-[150px] font-bold">{file.name}</span>
+                            <button type="button" onClick={() => removeAttachment(idx)} className="text-tension hover:text-white transition-colors px-1 font-bold ml-1 hover:bg-tension/20 rounded-full w-5 h-5 flex items-center justify-center">✕</button>
+                        </div>
+                    ))}
+                </div>
+            )}
+            <div className="flex gap-2 items-center bg-glass-1 backdrop-blur-xl border border-glass-edge rounded-full p-1.5 shadow-lg">
+                <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    title="Ingest Data"
+                    className="shrink-0 flex items-center justify-center"
+                    style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: '50%',
+                        border: '1px solid var(--separator)',
+                        background: 'var(--fill-quaternary)',
+                        color: 'var(--text-secondary)',
+                        fontSize: 20,
+                        fontWeight: 300,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                        lineHeight: 1,
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--fill-tertiary)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--fill-quaternary)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+                >
+                    +
+                </button>
+                <input type="file" ref={fileInputRef} onChange={handleFileChange} multiple className="hidden" />
+
+                <textarea
+                    value={textInput}
+                    onChange={(e) => setTextInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleCommandSubmit(e); } }}
+                    placeholder="Ask Alluci..."
+                    className="flex-1 bg-transparent border-none text-[14px] text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-0 p-3 h-10 md:h-12 resize-none scrollbar-hide py-3 md:py-3.5"
+                    rows={1}
+                />
+
+                <button
+                    type="submit"
+                    disabled={isProcessing}
+                    className="shrink-0 flex items-center justify-center mr-1"
+                    style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: '50%',
+                        border: '0.5px solid var(--liquid-accent-edge)',
+                        background: 'var(--liquid-accent)',
+                        backdropFilter: 'blur(20px) saturate(180%)',
+                        WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+                        color: 'var(--accent)',
+                        cursor: isProcessing ? 'not-allowed' : 'pointer',
+                        opacity: isProcessing ? 0.5 : 1,
+                        transition: 'all 0.15s ease',
+                        boxShadow: 'var(--liquid-inner-glow), 0 1px 6px rgba(48, 209, 88, 0.12)',
+                    }}
+                    onMouseEnter={(e) => { if (!isProcessing) { e.currentTarget.style.background = 'var(--liquid-accent-hover)'; e.currentTarget.style.transform = 'translateY(-1px)'; } }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--liquid-accent)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                >
+                    {isProcessing ? (
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style={{ animation: 'spin 1s linear infinite' }}>
+                            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2.5" strokeDasharray="31.4 31.4" strokeLinecap="round" />
+                        </svg>
+                    ) : (
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="12" y1="19" x2="12" y2="5" />
+                            <polyline points="5 12 12 5 19 12" />
+                        </svg>
+                    )}
+                </button>
+            </div>
+        </form>
+    );
+};
+
+export default CommandBar;

@@ -1,0 +1,63 @@
+import React, { useRef, useEffect } from 'react';
+import { useStore } from '../../store/useStore';
+import { ExecutionTimeline } from '../../components/Visualizers';
+import PolytopeIdentity from '../../components/Identity';
+
+interface TerminalViewProps {
+    getFormattedTime: (iso: string) => string;
+    copyText: (text: string) => void;
+}
+
+const TerminalView: React.FC<TerminalViewProps> = ({ getFormattedTime, copyText }) => {
+    const { transcriptions, isProcessing } = useStore();
+    const messagesEndRef = useRef<HTMLDivElement | null>(null);
+    const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [transcriptions, isProcessing]);
+
+    return (
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4 md:p-8 flex flex-col gap-6 md:gap-8 scrollbar-hide relative bg-transparent">
+            <ExecutionTimeline isProcessing={isProcessing} />
+            {transcriptions.length === 0 && (
+                <div className="h-full flex flex-col items-center justify-center opacity-5 select-none animate-pulse">
+                    <PolytopeIdentity color="#000" size={100} />
+                    <h2 className="glass-label text-[8px] mt-6 tracking-[1.2em]">EXECUTIVE_SESSION_IDLE</h2>
+                </div>
+            )}
+            {transcriptions.map((t, i) => (
+                <div key={i} className={`flex flex-col ${t.isUser ? 'items-end' : 'items-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
+                    <div className="flex items-center gap-2 mb-1.5 opacity-60">
+                        <span className="text-[9px] glass-label text-text-secondary tracking-widest">{t.isUser ? 'USER' : 'ALLUCI'}</span>
+                        <span className="text-[8px] font-mono text-text-tertiary">[{getFormattedTime(t.timestamp)}]</span>
+                    </div>
+                    <div className={`relative group max-w-[85%] md:max-w-[70%] px-5 py-3.5 text-[14px] leading-relaxed shadow-lg backdrop-blur-xl ${t.isUser ? 'bg-[rgba(0,113,227,0.18)] border border-[rgba(0,113,227,0.30)] text-text-primary rounded-[20px] rounded-br-[4px]' : 'bg-glass-2 border border-glass-edge text-text-primary rounded-[20px] rounded-bl-[4px]'}`}>
+                        {t.text}
+                        <button
+                            onClick={() => copyText(t.text)}
+                            className="absolute -top-3 -right-3 opacity-0 group-hover:opacity-100 transition-opacity bg-glass-1 backdrop-blur-md border border-glass-edge rounded-full text-[8px] glass-label px-3 py-1 shadow-md z-10 hover:bg-glass-hover text-text-primary"
+                            title="Copy to Clipboard"
+                        >
+                            COPY
+                        </button>
+                        {t.sources && t.sources.length > 0 && (
+                            <div className="mt-4 pt-4 border-t border-[rgba(255,255,255,0.1)] flex flex-wrap gap-2">
+                                <span className="glass-label text-[8px] text-text-secondary w-full mb-1">GROUNDING_CONTEXT</span>
+                                {t.sources.map((s, idx) => (
+                                    <a key={idx} href={s.uri} target="_blank" rel="noopener noreferrer" className="text-[10px] bg-glass-pressed hover:bg-glass-hover text-text-primary rounded-md px-3 py-1.5 border border-glass-edge no-underline transition-all">
+                                        {s.title.slice(0, 20)}...
+                                    </a>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            ))}
+            {isProcessing && <div className="text-[10px] glass-label text-tension animate-pulse tracking-[0.5em] py-4 self-start">ALLUCI_CORE_CALCULATING...</div>}
+            <div ref={messagesEndRef} className="h-4 flex-none" />
+        </div>
+    );
+};
+
+export default TerminalView;

@@ -63,10 +63,15 @@ export class BioVault extends SimplicialVault {
   }
 
   async ingestTelemetry(data: any): Promise<string> {
-    // raw data is pushed to the buffer (internal to the vault)
+    // 1. Memory Management: Limit buffer size to 100 entries to prevent memory leaks
+    if (this.telemetryBuffer.length > 100) {
+      this.telemetryBuffer.shift();
+    }
+
+    // 2. Ingest raw data with timestamp
     this.telemetryBuffer.push({ ...data, ts: Date.now() });
 
-    // Abstracted "State Token" release (only non-sensitive metadata)
+    // 3. Abstracted "State Token" release (only non-sensitive metadata)
     const stateToken = btoa(JSON.stringify({
       v: data.v > 0.5 ? 'POS' : 'NEG',
       a: data.a > 0.5 ? 'HIGH' : 'LOW',
@@ -95,22 +100,76 @@ export class SovereignSecurityManager {
 
   async initiateBiometricHandshake(): Promise<boolean> {
     try {
-      if (!window.PublicKeyCredential) return true; // Fallback if unsupported
+      if (!window.PublicKeyCredential) {
+        console.warn("[ SECURITY ]: WebAuthn not supported in this browser.");
+        return true;
+      }
 
-      // Simulated WebAuthn / FIDO2 challenge
-      const challenge = new Uint8Array(32);
-      window.crypto.getRandomValues(challenge);
+      // 1. Fetch Challenge from Daemon
+      const response = await fetch(`${this.audit.getDaemonUrl()}/auth/webauthn/challenge`);
+      const options = (await response.json()) as any;
 
-      this.audit.addEntry("BIOMETRIC_CHALLENGE_ISSUED", { protocol: "FIDO2" });
+      // 2. Prepare WebAuthn Options
+      // Robust base64url decoding to handle URL-safe characters (- and _)
+      const base64UrlToStandard = (str: string) => str.replace(/-/g, '+').replace(/_/g, '/');
+      const challengeBuffer = Uint8Array.from(atob(base64UrlToStandard(options.challenge)), (c: string) => c.charCodeAt(0));
+      const userIdBuffer = Uint8Array.from(options.user.id as string, (c: string) => c.charCodeAt(0));
 
-      // Note: Real implementation would use navigator.credentials.get()
-      return new Promise((resolve) => {
-        setTimeout(() => {
-          this.audit.addEntry("BIOMETRIC_VERIFIED", { status: "SUCCESS" });
-          resolve(true);
-        }, 800);
-      });
+      const publicKeyCredentialCreationOptions: PublicKeyCredentialCreationOptions = {
+        challenge: challengeBuffer,
+        rp: options.rp,
+        user: {
+          ...options.user,
+          id: userIdBuffer
+        },
+        pubKeyCredParams: options.pubKeyCredParams,
+        timeout: options.timeout,
+        attestation: "direct"
+      };
+
+      this.audit.addEntry("BIOMETRIC_CHALLENGE_ISSUED", { protocol: "WebAuthn/FIDO2" });
+
+      // 3. Trigger Hardware Auth
+      const credential = await navigator.credentials.create({
+        publicKey: publicKeyCredentialCreationOptions
+      }) as any;
+
+      if (credential) {
+        // Helper to safely encode binary buffers to base64 in the browser
+        const bufferToBase64 = (buf: ArrayBuffer) => {
+          const uint8 = new Uint8Array(buf);
+          let binary = '';
+          for (let i = 0; i < uint8.byteLength; i++) {
+            binary += String.fromCharCode(uint8[i]);
+          }
+          return btoa(binary);
+        };
+
+        // 4. Verify on Daemon
+        const verifyRes = await fetch(`${this.audit.getDaemonUrl()}/auth/webauthn/verify`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: credential.id,
+            rawId: bufferToBase64(credential.rawId),
+            type: credential.type,
+            response: {
+              attestationObject: bufferToBase64(credential.response.attestationObject),
+              clientDataJSON: bufferToBase64(credential.response.clientDataJSON)
+            }
+          })
+        });
+
+        const status = await verifyRes.json();
+        if (status.status === "SUCCESS") {
+          this.audit.addEntry("BIOMETRIC_VERIFIED", { status: "SUCCESS", credId: credential.id });
+          return true;
+        }
+      }
+      return false;
     } catch (e) {
+      console.error("[ SECURITY ]: Biometric Handshake Failed:", e);
+      this.audit.addEntry("BIOMETRIC_FAILED", { error: String(e) });
       return false;
     }
   }
@@ -142,42 +201,39 @@ export class SovereignSecurityManager {
 
 export class AuditLedger {
   private ledger: AuditEntry[] = [];
+  private daemonUrl: string;
 
-  constructor() {
-    this.hydrateFromLocal();
+  constructor(daemonUrl: string = "http://localhost:8000") {
+    this.daemonUrl = daemonUrl;
     this.addEntry("INITIALIZE_SOVEREIGN_NODE", { build: "GATEWAY_V4.3_EXECUTIVE" });
   }
 
-  private hydrateFromLocal() {
-    try {
-      const stored = localStorage.getItem('alluci_audit_ledger');
-      if (stored) {
-        this.ledger = JSON.parse(stored);
-      }
-    } catch (e) {
-      console.error("[ AUDIT ]: Failed to hydrate ledger from local storage.");
-    }
-  }
+  getDaemonUrl() { return this.daemonUrl; }
 
-  private saveToLocal() {
+
+  private async syncToServer(entry: AuditEntry) {
     try {
-      localStorage.setItem('alluci_audit_ledger', JSON.stringify(this.ledger));
+      // Pass credentials to ensure the daemon's JWT HttpOnly cookie is sent
+      await fetch(`${this.daemonUrl}/api/audit/entry`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(entry)
+      });
     } catch (e) {
-      console.error("[ AUDIT ]: Failed to persist ledger.");
+      console.warn("[ AUDIT ]: Background sync failed. Entry remains in local storage.", e);
     }
   }
 
   async addEntry(event: string, details: any) {
     const timestamp = new Date().toISOString();
 
-    // Cryptographically secure ID generation
-    const randomArray = new Uint32Array(1);
-    window.crypto.getRandomValues(randomArray);
-    const id = randomArray[0].toString(36);
+    // Cryptographically secure unique ID generation
+    const id = crypto.randomUUID ? crypto.randomUUID() : (Math.random().toString(36).substring(2, 10));
 
     const prevHash = this.ledger.length > 0 ? this.ledger[this.ledger.length - 1].hash : "0x0";
 
-    const hashData = `${timestamp}-${event}-${JSON.stringify(details)}-${prevHash}`;
+    const hashData = `${id}-${timestamp}-${event}-${JSON.stringify(details)}-${prevHash}`;
 
     // Use SHA-256 via SubtleCrypto (async)
     const msgUint8 = new TextEncoder().encode(hashData);
@@ -196,7 +252,10 @@ export class AuditLedger {
     };
 
     this.ledger.push(entry);
-    this.saveToLocal();
+
+    // Fire and forget sync to decentralized store
+    this.syncToServer(entry);
+
     return entry;
   }
 
@@ -245,8 +304,8 @@ export const generateSystemPrompt = (
   activeSkills: SkillManifest[] = []
 ) => {
 
-  // Type Guard for SoulManifest
-  const isManifest = (m: any): m is SoulManifest => 'identityCore' in m;
+  // Improved Type Guard for SoulManifest
+  const isManifest = (m: any): m is SoulManifest => m && typeof m === 'object' && 'identityCore' in m && 'preferences' in m;
 
   let manifest: SoulManifest;
 

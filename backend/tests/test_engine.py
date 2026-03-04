@@ -54,12 +54,22 @@ class TestPlanner:
         from backend.engine.planner import Planner
         planner = Planner(mock_router)
 
-        steps = [
+        # Simple cycle: A -> B, B -> A
+        steps_simple = [
             {"id": "step_1", "tool": "a", "description": "A", "dependencies": ["step_2"]},
             {"id": "step_2", "tool": "b", "description": "B", "dependencies": ["step_1"]},
         ]
         with pytest.raises(ValueError, match="Cycle detected"):
-            planner._build_and_validate_dag(steps, "Test")
+            planner._build_and_validate_dag(steps_simple, "Test")
+
+        # More complex cycle: A -> B -> C -> A
+        steps_complex = [
+            {"id": "A", "tool": "x", "dependencies": ["B"]},
+            {"id": "B", "tool": "x", "dependencies": ["C"]},
+            {"id": "C", "tool": "x", "dependencies": ["A"]}
+        ]
+        with pytest.raises(ValueError, match="Cycle detected"):
+            planner._build_and_validate_dag(steps_complex, "Test Complex")
 
     def test_empty_steps_raises(self, mock_router):
         from backend.engine.planner import Planner

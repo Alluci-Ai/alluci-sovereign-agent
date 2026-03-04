@@ -91,7 +91,7 @@ class EmailBridge(BridgeAdapter):
             return {"status": "success", "recipient": recipient, "timestamp": timestamp}
         except Exception as e:
             self.logger.error(f"Failed to send email: {e}")
-            return {"status": "failed", "error": str(e)}
+            return {"status": "failed", "error": f"Bridge communication error: {type(e).__name__}"}
 
     def _send_smtp(self, msg):
         server = smtplib.SMTP(self.smtp_server, self.smtp_port, timeout=30)

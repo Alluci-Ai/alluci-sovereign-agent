@@ -19,8 +19,8 @@ export class AlluciSovereignService {
 
     constructor() { }
 
-    async connect(callbacks: SovereignCallbacks) {
-        this.socket = new WebSocket(this.WS_URL);
+    async connect(callbacks: SovereignCallbacks, token: string) {
+        this.socket = new WebSocket(`${this.WS_URL}?token=${token}`);
 
         this.socket.onopen = () => {
             console.log("[ SOVEREIGN ]: Connected.");
