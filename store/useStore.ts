@@ -8,7 +8,11 @@ import {
     Message
 } from '../types';
 
-export type ActiveView = 'chat' | 'soul' | 'skills' | 'bridges' | 'api' | 'tasks' | 'files' | 'audit' | 'canvas' | 'sessions' | 'analytics' | 'scheduling' | 'agents' | 'config' | 'logs' | 'debug';
+export type ActiveView =
+    | 'chat' | 'soul' | 'skills' | 'bridges'
+    | 'api' | 'tasks' | 'files' | 'audit' | 'canvas'
+    | 'sessions' | 'analytics' | 'scheduling' | 'crons'
+    | 'agents' | 'config' | 'logs' | 'debug';
 export type Theme = 'light' | 'dark';
 
 export interface AppState {
