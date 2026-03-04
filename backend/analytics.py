@@ -191,6 +191,43 @@ class UsageTracker:
             "missing_cost_entries": len(self._missing_cost_models),
         }
 
+    def get_summary(
+        self,
+        start: Optional[date] = None,
+        end: Optional[date] = None,
+    ) -> Dict[str, Any]:
+        """
+        Returns high-level aggregate usage stats.
+        """
+        from .models import UsageLog
+
+        with Session(self.db_engine) as session:
+            stmt = select(UsageLog)
+            if start:
+                stmt = stmt.where(col(UsageLog.timestamp) >= datetime.combine(start, datetime.min.time(), tzinfo=timezone.utc))
+            if end:
+                end_dt = datetime.combine(end + timedelta(days=1), datetime.min.time(), tzinfo=timezone.utc)
+                stmt = stmt.where(col(UsageLog.timestamp) < end_dt)
+            rows = session.exec(stmt).all()
+
+        total_input = 0
+        total_output = 0
+        total_cost = 0.0
+        unique_sessions = set()
+
+        for r in rows:
+            total_input += r.input_tokens
+            total_output += r.output_tokens
+            total_cost += r.cost
+            unique_sessions.add(r.session_key)
+
+        return {
+            "total_input": total_input,
+            "total_output": total_output,
+            "total_cost": round(total_cost, 6),
+            "session_count": len(unique_sessions),
+        }
+
     # ── Daily Rollup ──────────────────────────────────────────────────────
 
     def get_daily(
@@ -263,6 +300,49 @@ class UsageTracker:
                 "cumulative_tokens": cumulative_tokens,
             })
         return series
+
+    # ── Session Log Retrieval ─────────────────────────────────────────────
+
+    def get_session_log(self, session_key: str, role_filter: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Return the conversation/transcript log for a session."""
+        from .models import MessageLog
+
+        with Session(self.db_engine) as session:
+            stmt = select(MessageLog).where(MessageLog.session_key == session_key).order_by(col(MessageLog.timestamp).asc())
+            if role_filter:
+                stmt = stmt.where(MessageLog.role == role_filter)
+            rows = session.exec(stmt).all()
+
+        return [
+            {
+                "id": r.id,
+                "role": r.role,
+                "content": r.content,
+                "tool_name": r.tool_name,
+                "tool_args": r.tool_args,
+                "tool_id": r.tool_id,
+                "timestamp": r.timestamp.isoformat() if r.timestamp else None
+            }
+            for r in rows
+        ]
+
+    def record_message(self, session_key: str, role: str, content: str = None, 
+                       tool_name: str = None, tool_args: str = None, tool_id: str = None,
+                       account_id: str = None):
+        """Persist a message to the session log."""
+        from .models import MessageLog
+        entry = MessageLog(
+            session_key=session_key,
+            role=role,
+            content=content,
+            account_id=account_id,
+            tool_name=tool_name,
+            tool_args=tool_args,
+            tool_id=tool_id
+        )
+        with Session(self.db_engine) as session:
+            session.add(entry)
+            session.commit()
 
     # ── CSV Export ─────────────────────────────────────────────────────────
 

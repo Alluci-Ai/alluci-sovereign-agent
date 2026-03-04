@@ -3,6 +3,9 @@ import { useStore } from '../../store/useStore';
 import PolytopeIdentity from '../../components/Identity';
 import { HeartbeatIndicator } from '../../components/Visualizers';
 import { Menu, Sun, Moon } from 'lucide-react';
+import { SessionSelector } from '../sessions/SessionSelector';
+import { ThinkingLevelToggle } from '../chat/ThinkingLevelToggle';
+import { FocusModeToggle } from '../chat/FocusModeToggle';
 
 interface SystemHeaderProps {
     isConnected: boolean;
@@ -36,11 +39,18 @@ const SystemHeader: React.FC<SystemHeaderProps> = ({
 
     const VIEW_TITLES: Record<string, string> = {
         chat: 'Chat',
+        sessions: 'Sessions',
         soul: 'Soul Preferences',
         skills: 'Skill Manifest',
         bridges: 'Bridge Directory',
+        agents: 'Agents',
+        analytics: 'Usage Analytics',
+        scheduling: 'Scheduling',
         api: 'API Configuration',
+        config: 'Configuration',
         tasks: 'Task Manifold',
+        logs: 'Logs',
+        debug: 'Debug & Diagnostics',
         files: 'File Manifold',
         audit: 'Audit Ledger',
         canvas: 'A2UI Canvas',
@@ -68,8 +78,16 @@ const SystemHeader: React.FC<SystemHeaderProps> = ({
                 </div>
             </div>
 
-            <div className="topbar__center">
+            <div className="topbar__center flex items-center gap-4">
                 <span className="topbar__view-title">{VIEW_TITLES[activeView] || ''}</span>
+                {activeView === 'chat' && (
+                    <div className="hidden md:flex items-center gap-3 ml-4 animate-in fade-in zoom-in duration-300">
+                        <SessionSelector />
+                        <div className="h-4 w-px bg-glass-edge mx-1" />
+                        <ThinkingLevelToggle />
+                        <FocusModeToggle />
+                    </div>
+                )}
             </div>
 
             <div className="topbar__right">

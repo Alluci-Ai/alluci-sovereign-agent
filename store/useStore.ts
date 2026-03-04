@@ -8,7 +8,7 @@ import {
     Message
 } from '../types';
 
-export type ActiveView = 'chat' | 'soul' | 'skills' | 'bridges' | 'api' | 'tasks' | 'files' | 'audit' | 'canvas';
+export type ActiveView = 'chat' | 'soul' | 'skills' | 'bridges' | 'api' | 'tasks' | 'files' | 'audit' | 'canvas' | 'sessions' | 'analytics' | 'scheduling' | 'agents' | 'config' | 'logs' | 'debug';
 export type Theme = 'light' | 'dark';
 
 export interface AppState {
@@ -23,6 +23,12 @@ export interface AppState {
     setIsCameraActive: (val: boolean) => void;
     accessToken: string | null;
     setAccessToken: (val: string | null) => void;
+    needsOnboarding: boolean;
+    setNeedsOnboarding: (val: boolean) => void;
+    updateAvailable: boolean;
+    setUpdateAvailable: (val: boolean) => void;
+    latestVersion: string | null;
+    setLatestVersion: (val: string | null) => void;
 
     // Navigation — single activeView replaces 9 modal booleans
     activeView: ActiveView;
@@ -108,6 +114,33 @@ export interface AppState {
     isProcessing: boolean;
     setTranscriptions: (fn: (prev: Message[]) => Message[]) => void;
     setIsProcessing: (val: boolean) => void;
+
+    // Sprint 3: Exec Approval
+    pendingApproval: {
+        request_id: string;
+        command: string;
+        tool_name: string;
+        context: string;
+    } | null;
+    setPendingApproval: (val: AppState['pendingApproval']) => void;
+
+    // Sprint A: Focus Mode & Abort
+    focusMode: boolean;
+    setFocusMode: (val: boolean) => void;
+    modelFallbackMessage: string | null;
+    setModelFallbackMessage: (val: string | null) => void;
+
+    // Sprint B: Sessions
+    sessions: { key: string; model: string; created: string; messageCount: number; tokens: number; cost: number }[];
+    activeSessionKey: string;
+    setSessions: (val: AppState['sessions']) => void;
+    setActiveSessionKey: (val: string) => void;
+
+    // Sprint H: Presence
+    presenceCount: number;
+    sessionCount: number;
+    setPresenceCount: (val: number) => void;
+    setSessionCount: (val: number) => void;
 }
 
 export const useStore = create<AppState>((set) => ({
@@ -122,6 +155,12 @@ export const useStore = create<AppState>((set) => ({
     setIsCameraActive: (val) => set({ isCameraActive: val }),
     accessToken: null,
     setAccessToken: (val) => set({ accessToken: val }),
+    needsOnboarding: false,
+    setNeedsOnboarding: (val) => set({ needsOnboarding: val }),
+    updateAvailable: false,
+    setUpdateAvailable: (val) => set({ updateAvailable: val }),
+    latestVersion: null,
+    setLatestVersion: (val) => set({ latestVersion: val }),
 
     // Navigation
     activeView: 'chat',
@@ -240,4 +279,26 @@ export const useStore = create<AppState>((set) => ({
     isProcessing: false,
     setTranscriptions: (fn) => set((state) => ({ transcriptions: fn(state.transcriptions) })),
     setIsProcessing: (val) => set({ isProcessing: val }),
+
+    // Sprint 3: Exec Approval
+    pendingApproval: null,
+    setPendingApproval: (val) => set({ pendingApproval: val }),
+
+    // Sprint A: Focus Mode & Abort
+    focusMode: false,
+    setFocusMode: (val) => set({ focusMode: val }),
+    modelFallbackMessage: null,
+    setModelFallbackMessage: (val) => set({ modelFallbackMessage: val }),
+
+    // Sprint B: Sessions
+    sessions: [],
+    activeSessionKey: '',
+    setSessions: (val) => set({ sessions: val }),
+    setActiveSessionKey: (val) => set({ activeSessionKey: val }),
+
+    // Sprint H: Presence
+    presenceCount: 0,
+    sessionCount: 0,
+    setPresenceCount: (val) => set({ presenceCount: val }),
+    setSessionCount: (val) => set({ sessionCount: val }),
 }));

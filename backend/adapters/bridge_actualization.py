@@ -41,8 +41,11 @@ class BridgeActualizationAdapter(Adapter):
         if not bridge_type or not action:
             raise AdapterError("Missing 'bridge' or 'action' in actualization request.")
 
+        # Resolve Account ID if provided in params or args
+        account_id = params.get("account_id") or args.get("account_id")
+
         # 1. Resolve Bridge
-        bridge = await self._get_or_create_bridge(bridge_type)
+        bridge = await self._get_or_create_bridge(bridge_type, account_id=account_id)
         if not bridge:
             raise AdapterError(f"Bridge '{bridge_type}' is not supported or misconfigured.")
 
@@ -70,24 +73,42 @@ class BridgeActualizationAdapter(Adapter):
             self.logger.error(f"Bridge Execution Error ({bridge_type}:{action}): {e}")
             raise AdapterError(f"Bridge Failure: {str(e)}")
 
-    async def _get_or_create_bridge(self, bridge_type: str):
-        if bridge_type in self.bridges:
-            return self.bridges[bridge_type]
+    async def _get_or_create_bridge(self, bridge_type: str, account_id: str = None):
+        cache_key = f"{bridge_type}_{account_id}" if account_id else bridge_type
+        if cache_key in self.bridges:
+            return self.bridges[cache_key]
 
         bridge_class = self.bridge_map.get(bridge_type.lower())
         if not bridge_class:
             return None
 
+        # Resolve credentials if account_id is provided
+        credentials = {"mock": "true"}
+        if account_id:
+            try:
+                from ..models import ChannelAccount
+                from sqlmodel import Session, select
+                # We need the engine, usually injected or available via global
+                from ..database import engine
+                with Session(engine) as session:
+                    stmt = select(ChannelAccount).where(ChannelAccount.account_identifier == account_id)
+                    acc = session.exec(stmt).first()
+                    if acc and acc.credentials:
+                        credentials = acc.credentials
+                        self.logger.info(f"[BridgeActualization] Loaded credentials for {bridge_type} account {account_id}")
+            except Exception as e:
+                self.logger.warning(f"[BridgeActualization] Could not load account {account_id} from DB: {e}")
+
         # Instantiate bridge with isolated vault
-        # In a real sovereign build, we'd retrieve vault credentials here.
-        bridge = bridge_class(bridge_id=bridge_type, vault_root=self.vault_root)
+        # Use account_id in bridge_id to ensure separate vault paths
+        inst_id = f"{bridge_type}_{account_id}" if account_id else bridge_type
+        bridge = bridge_class(bridge_id=inst_id, vault_root=self.vault_root)
         
-        # MOCK CONNECT for now — in a real setup, we'd use vaulted tokens
-        # if not await bridge.connect({"mock": "true"}):
-        #     return None
+        # MOCK CONNECT or real connect if we had vaulted tokens
+        if hasattr(bridge, "connect"):
+            await bridge.connect(credentials)
+        else:
+            bridge.is_connected = True 
         
-        # For the purpose of "Working Properly", we'll simulate connection success
-        bridge.is_connected = True 
-        
-        self.bridges[bridge_type] = bridge
+        self.bridges[cache_key] = bridge
         return bridge

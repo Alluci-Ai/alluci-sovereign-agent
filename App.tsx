@@ -42,6 +42,23 @@ import { useSovereignConnection } from './hooks/useConnection';
 import { useBridges } from './hooks/useBridges';
 import { useInteractions } from './hooks/useInteractions';
 
+// Admin & Sprint 3
+import { adminService } from './adminService';
+import { ExecApprovalModal } from './components/ExecApprovalModal';
+import { OnboardingWizard } from './features/onboarding/OnboardingWizard';
+import { RpcConsole } from './features/system/RpcConsole';
+
+// Sprint A–H New Panels
+import { AbortButton } from './features/chat/AbortButton';
+import { ModelFallbackBanner } from './features/chat/ModelFallbackBanner';
+import { SessionsPanel } from './features/sessions/SessionsPanel';
+import { AnalyticsPanel } from './features/analytics/AnalyticsPanel';
+import { ConfigPanel } from './features/config/ConfigPanel';
+import { LogPanel } from './features/observability/LogPanel';
+import { SchedulingPanel } from './features/scheduling/SchedulingPanel';
+import { AgentsPanel } from './features/agents/AgentsPanel';
+import { DebugPanel } from './features/debug/DebugPanel';
+
 const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
 
 const App: React.FC = () => {
@@ -67,12 +84,52 @@ const App: React.FC = () => {
     enterpriseEvents, setEnterpriseEvents,
     baseManifest, setBaseManifest,
     transcriptions, setTranscriptions,
-    isProcessing, setIsProcessing
+    isProcessing, setIsProcessing,
+    accessToken,
+    pendingApproval,
+    setPendingApproval,
+    focusMode,
+    modelFallbackMessage, setModelFallbackMessage,
+    updateAvailable,
+    latestVersion,
+    needsOnboarding
   } = useStore();
 
   // Core Refs
   const geminiServiceRef = useRef<AlluciGeminiService | null>(null);
   const sovereignServiceRef = useRef<AlluciSovereignService | null>(null);
+
+  // ── Admin WebSocket Connection (Sprint 3) ──────────────────────────────────
+  useEffect(() => {
+    if (accessToken) {
+      adminService.connect(accessToken, {
+        onApprovalRequest: (req) => {
+          console.info("[ ADMIN ]: Exec Approval Required!", req);
+          setPendingApproval(req);
+        },
+        onSystemEvent: (method, params) => {
+          console.log(`[ ADMIN EVENT ]: ${method}`, params);
+          if (method === 'usage.alert') {
+            setActiveNudges(prev => [...prev, { id: `usage_${Date.now()}`, message: `Usage Alert: ${params.reason}` }]);
+          } else if (method === 'model.fallback') {
+            setModelFallbackMessage(`⚠ Primary model unavailable. Using ${params.fallback_model}`);
+          } else if (method === 'compaction.status') {
+            // Append Context Compaction entry 
+            setTranscriptions(prev => [...prev, {
+              text: '',
+              isUser: false,
+              isCompaction: true,
+              tokenCount: params.tokenCount,
+              timestamp: new Date().toISOString()
+            }]);
+          }
+        },
+        onOpen: () => setIsConnected(true),
+        onClose: () => setIsConnected(false)
+      });
+    }
+    return () => adminService.disconnect();
+  }, [accessToken, setPendingApproval, setIsConnected, setActiveNudges]);
   const audioContextRef = useRef<AudioContext | null>(null);
   const nextStartTimeRef = useRef<number>(0);
   const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
@@ -115,6 +172,40 @@ const App: React.FC = () => {
     updateAgent(prev => ({ ...prev, valenceCurvature: clamp01(prev.valenceCurvature + 0.15) }));
   }, [updateAgent]);
 
+  const handleSystemUpdate = useCallback(() => {
+    if (window.confirm(`Initiate daemon update to v${latestVersion}? System will reboot.`)) {
+      adminService.sendRPC('system.update', {});
+    }
+  }, [latestVersion]);
+
+  const [artifactWidth, setArtifactWidth] = useState(parseInt(localStorage.getItem('alluci_artifact_width') || '400'));
+  const [isResizing, setIsResizing] = useState(false);
+
+  const startResizing = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isResizing) return;
+    const handleMouseMove = (e: MouseEvent) => {
+      const newWidth = window.innerWidth - e.clientX;
+      if (newWidth > 320 && newWidth < 800) {
+        setArtifactWidth(newWidth);
+      }
+    };
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      localStorage.setItem('alluci_artifact_width', artifactWidth.toString());
+    };
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing, artifactWidth]);
+
   const { handleConnect } = useSovereignConnection(
     geminiServiceRef,
     sovereignServiceRef,
@@ -141,7 +232,9 @@ const App: React.FC = () => {
     attachments, setAttachments,
     handleCommandSubmit,
     handleFileChange,
-    removeAttachment
+    handlePaste,
+    removeAttachment,
+    abortControllerRef,
   } = useInteractions(geminiServiceRef, isConnected, handleAudioOutput, refreshAuditLog, fileInputRef);
 
   // Ripple effect
@@ -378,25 +471,54 @@ const App: React.FC = () => {
             <LiveCanvas nodes={canvasNodes} />
           </div>
         );
+      case 'sessions':
+        return <SessionsPanel />;
+      case 'analytics':
+        return <AnalyticsPanel />;
+      case 'config':
+        return <ConfigPanel />;
+      case 'logs':
+        return <LogPanel />;
+      case 'scheduling':
+        return <SchedulingPanel />;
+      case 'agents':
+        return <AgentsPanel />;
+      case 'debug':
+        return <DebugPanel />;
       case 'chat':
       default:
         return (
           <>
+            <ModelFallbackBanner />
             <TerminalView
               getFormattedTime={(iso) => new Date(iso).toLocaleTimeString()}
               copyText={copyText}
             />
             <ErrorBoundary>
-              <CommandBar
-                textInput={textInput}
-                setTextInput={setTextInput}
-                attachments={attachments}
-                removeAttachment={removeAttachment}
-                fileInputRef={fileInputRef}
-                handleFileChange={handleFileChange}
-                handleCommandSubmit={handleCommandSubmit}
-                isProcessing={isProcessing}
-              />
+              <div style={{ position: 'relative' }}>
+                <AbortButton
+                  abortControllerRef={abortControllerRef}
+                  onAbort={() => {
+                    setIsProcessing(false);
+                    setTranscriptions(prev => [...prev, {
+                      text: '[ ABORTED ]: Generation stopped by user.',
+                      isUser: false,
+                      timestamp: new Date().toISOString()
+                    }]);
+                  }}
+                />
+                <CommandBar
+                  textInput={textInput}
+                  setTextInput={setTextInput}
+                  attachments={attachments}
+                  handlePaste={handlePaste}
+                  removeAttachment={removeAttachment}
+                  fileInputRef={fileInputRef}
+                  handleFileChange={handleFileChange}
+                  handleCommandSubmit={handleCommandSubmit}
+                  isProcessing={isProcessing}
+                />
+              </div>
             </ErrorBoundary>
           </>
         );
@@ -405,6 +527,27 @@ const App: React.FC = () => {
 
   return (
     <div className="app-shell">
+      {/* ── Sticky Update Banner ─────────────────────────────────────────── */}
+      {updateAvailable && (
+        <div className="absolute top-0 left-0 right-0 z-[3000] bg-indigo-600/90 backdrop-blur-xl border-b border-white/10 p-2 flex items-center justify-center gap-4 text-xs font-semibold animate-slide-down">
+          <span className="flex items-center gap-2">
+            🚀 New version available: <b className="text-white">v{latestVersion}</b>
+          </span>
+          <button
+            onClick={handleSystemUpdate}
+            className="bg-white text-indigo-600 px-3 py-1 rounded-full hover:bg-indigo-50 transition-colors shadow-lg"
+          >
+            Update & Reboot
+          </button>
+        </div>
+      )}
+
+      {/* Onboarding Wizard */}
+      {needsOnboarding && <OnboardingWizard />}
+
+      {/* Sprint 3: Exec Approval Modal */}
+      <ExecApprovalModal />
+
       {/* Auth Portal overlay */}
       {activeAuth && <AuthPortal connection={activeAuth} onComplete={handleAuthComplete} onCancel={() => setActiveAuth(null)} />}
 
@@ -435,29 +578,60 @@ const App: React.FC = () => {
         </ErrorBoundary>
 
         {/* Main content area */}
-        <main className={`app-shell__main ${isSidebarCollapsed ? 'app-shell__main--expanded' : ''}`}>
-          {/* Nudges */}
-          {activeNudges.length > 0 && (
-            <div className="app-shell__nudges">
-              {activeNudges.map(nudge => (
-                <div key={nudge.id} className="app-shell__nudge">
-                  <p>{nudge.message}</p>
-                  <button onClick={() => setActiveNudges(prev => prev.filter(nx => nx.id !== nudge.id))} className="glass-btn text-xs">Resolve</button>
-                </div>
-              ))}
-            </div>
-          )}
+        <main
+          className={`app-shell__main ${isSidebarCollapsed ? 'app-shell__main--expanded' : ''}`}
+          style={{ flexDirection: 'row', display: 'flex' }}
+        >
+          {/* Central Manifold */}
+          <div className="flex-1 flex flex-col h-full relative overflow-hidden">
+            {activeNudges.length > 0 && (
+              <div className="app-shell__nudges">
+                {activeNudges.map(nudge => (
+                  <div key={nudge.id} className="app-shell__nudge">
+                    <p>{nudge.message}</p>
+                    <button onClick={() => setActiveNudges(prev => prev.filter(nx => nx.id !== nudge.id))} className="glass-btn text-xs">Resolve</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <ErrorBoundary>
+              {renderContent()}
+            </ErrorBoundary>
+          </div>
 
-          <ErrorBoundary>
-            {renderContent()}
-          </ErrorBoundary>
+          {/* Resizable Artifact Pane */}
+          {activeView === 'chat' && (
+            <>
+              <div className={`pane-resizer ${isResizing ? 'active' : ''}`} onMouseDown={startResizing} />
+              <aside className="artifact-pane" style={{ width: artifactWidth }}>
+                <div className="artifact-pane__header">
+                  <h3 className="artifact-pane__title">Alluci Artifacts</h3>
+                  <div className="artifact-pane__subtitle">COGNITIVE_OUTPUT_BUFFER</div>
+                </div>
+                <div className="artifact-pane__body">
+                  <div className="p-10 opacity-20 text-center select-none pointer-events-none mt-20">
+                    <div className="mb-4">
+                      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" className="mx-auto">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                        <line x1="9" y1="3" x2="9" y2="21" />
+                      </svg>
+                    </div>
+                    <p className="text-[10px] glass-label tracking-widest">Awaiting Artifact</p>
+                  </div>
+                </div>
+              </aside>
+            </>
+          )}
         </main>
       </div>
 
-      {/* Skill detail overlay */}
+      {/* Overlays & Modals */}
       {selectedSkill && (
         <SkillDetailOverlay skill={selectedSkill} onClose={() => setSelectedSkill(null)} />
       )}
+
+      <RpcConsole />
+      <ExecApprovalModal />
 
       {/* Hidden elements */}
       <canvas ref={canvasRef} width={320} height={240} className="hidden" />

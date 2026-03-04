@@ -185,13 +185,86 @@ class VaultManager:
 
 @contextlib.contextmanager
 def SandboxedExecutionEnv():
-    """Context manager to enforce zero-trust local execution for agents."""
-    # In a full production macOS environment, this would hook into `sandbox-exec`
-    # or Docker, but structurally this acts as the control boundary.
-    # We yield control to the agent, capturing any gross violations.
+    """
+    Context manager to enforce zero-trust local execution for agents.
+    Creates a restricted environment with:
+    - Isolated temporary workspace (chroot-like)
+    - Network access blocked via environment override
+    - Resource limits on memory, CPU time, and file descriptors
+    - Secure cleanup with overwrite on exit
+    """
+    import tempfile
+    import resource
+    import signal as _signal
+
+    sandbox_dir = tempfile.mkdtemp(prefix="polytope_sandbox_")
+    original_cwd = os.getcwd()
+    original_env = os.environ.copy()
+
+    # ── Pre-execution environment lockdown ──────────────────────────
     try:
-        # Pre-execution environment lockdown
-        yield
+        # 1. Restrict filesystem: set CWD to sandbox
+        os.chmod(sandbox_dir, 0o700)
+        os.chdir(sandbox_dir)
+
+        # 2. Block outbound network by poisoning proxy env vars
+        #    (subprocess-level isolation; full network namespace requires root/Docker)
+        os.environ["http_proxy"] = "http://0.0.0.0:0"
+        os.environ["https_proxy"] = "http://0.0.0.0:0"
+        os.environ["no_proxy"] = ""
+        os.environ["POLYTOPE_SANDBOXED"] = "1"
+
+        # 3. Set resource limits (soft limits; hard limits require root)
+        try:
+            # Max 512 MB virtual memory
+            resource.setrlimit(resource.RLIMIT_AS, (512 * 1024 * 1024, resource.RLIM_INFINITY))
+        except (ValueError, resource.error):
+            pass  # Some platforms don't support RLIMIT_AS
+
+        try:
+            # Max 30 seconds CPU time
+            resource.setrlimit(resource.RLIMIT_CPU, (30, 60))
+        except (ValueError, resource.error):
+            pass
+
+        try:
+            # Max 256 open file descriptors
+            soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+            resource.setrlimit(resource.RLIMIT_NOFILE, (min(256, hard), hard))
+        except (ValueError, resource.error):
+            pass
+
+        yield sandbox_dir
+
     finally:
-        # Post-execution environment restoration
-        pass
+        # ── Post-execution environment restoration ──────────────────
+        # 1. Restore CWD
+        try:
+            os.chdir(original_cwd)
+        except OSError:
+            pass
+
+        # 2. Restore environment
+        os.environ.clear()
+        os.environ.update(original_env)
+
+        # 3. Secure cleanup: overwrite sandbox contents before deletion
+        try:
+            for root, dirs, files in os.walk(sandbox_dir, topdown=False):
+                for fname in files:
+                    fpath = os.path.join(root, fname)
+                    try:
+                        size = os.path.getsize(fpath)
+                        with open(fpath, "wb") as f:
+                            f.write(os.urandom(size))
+                        os.remove(fpath)
+                    except OSError:
+                        pass
+                for dname in dirs:
+                    try:
+                        os.rmdir(os.path.join(root, dname))
+                    except OSError:
+                        pass
+            shutil.rmtree(sandbox_dir, ignore_errors=True)
+        except Exception:
+            pass  # Best-effort cleanup

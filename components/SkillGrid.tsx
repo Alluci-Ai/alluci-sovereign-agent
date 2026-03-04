@@ -1,5 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { SkillManifest } from '../types';
+import SkillFilterBar from '../features/skills/SkillFilterBar';
+import SkillGrouping from '../features/skills/SkillGrouping';
+import OneClickInstall from '../features/skills/OneClickInstall';
+import SkillStatusPanel from '../features/skills/SkillStatusPanel';
+import PerSkillKeyInput from '../features/skills/PerSkillKeyInput';
 
 interface SkillGridProps {
     skills: SkillManifest[];
@@ -16,6 +21,24 @@ export const SkillGrid: React.FC<SkillGridProps> = ({
     onDelete,
     onCreate
 }) => {
+    const [searchQuery, setSearchQuery] = useState('');
+    const [statusFilter, setStatusFilter] = useState('all');
+
+    // Filter pipeline natively evaluated synchronously avoiding loops
+    const checkStatus = (skill: SkillManifest) => {
+        if (statusFilter === 'all') return true;
+        if (statusFilter === 'active') return skill.verified;
+        if (statusFilter === 'error') return !skill.verified; // Simplification map
+        return true;
+    };
+
+    const displaySkills = skills.filter(s => {
+        const matchesSearch = s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            s.category.toLowerCase().includes(searchQuery.toLowerCase());
+        return matchesSearch && checkStatus(s);
+    });
+
+    const groupedSkills = SkillGrouping(displaySkills);
     return (
         <div style={{ maxWidth: 960, margin: '0 auto' }}>
             <div style={{
@@ -23,10 +46,26 @@ export const SkillGrid: React.FC<SkillGridProps> = ({
                 marginBottom: 20, paddingBottom: 12,
                 borderBottom: '1px solid var(--separator)',
             }}>
-                <h2 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em' }}>Skills</h2>
-                <button onClick={onCreate} className="glass-btn glass-btn--primary" style={{ fontSize: 12, padding: '6px 16px' }}>
-                    + New Skill
-                </button>
+                <div className="flex flex-col gap-2">
+                    <h2 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em', margin: 0 }}>Cognitive Architectures</h2>
+                    <span className="text-[10px] uppercase font-mono tracking-widest text-text-tertiary">Skill Matrix Dashboard</span>
+                </div>
+
+                <div className="flex items-center gap-4">
+                    <OneClickInstall />
+                    <button onClick={onCreate} className="glass-btn glass-btn--primary" style={{ fontSize: 12, padding: '8px 16px', height: '100%' }}>
+                        + Build Native Skill
+                    </button>
+                </div>
+            </div>
+
+            <div className="mb-6 relative z-10 w-full animate-in fade-in zoom-in-95 duration-200">
+                <SkillFilterBar
+                    searchQuery={searchQuery}
+                    setSearchQuery={setSearchQuery}
+                    statusFilter={statusFilter}
+                    setStatusFilter={setStatusFilter}
+                />
             </div>
 
             {skills.length === 0 && (
@@ -39,101 +78,81 @@ export const SkillGrid: React.FC<SkillGridProps> = ({
                 </div>
             )}
 
-            <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-                gap: 12,
-            }}>
-                {skills.map(skill => (
-                    <div
-                        key={skill.id}
-                        onClick={() => onSelect(skill)}
-                        style={{
-                            background: 'var(--glass-bg)',
-                            border: `1px solid ${skill.verified ? 'var(--glass-edge)' : 'var(--separator)'}`,
-                            borderRadius: 14,
-                            padding: 16,
-                            cursor: 'pointer',
-                            transition: 'all 0.2s ease',
-                            opacity: skill.verified ? 1 : 0.5,
-                            filter: skill.verified ? 'none' : 'grayscale(0.6)',
-                            position: 'relative',
-                            overflow: 'hidden',
-                        }}
-                        onMouseEnter={(e) => {
-                            e.currentTarget.style.borderColor = 'rgba(48,209,88,0.30)';
-                            e.currentTarget.style.boxShadow = 'var(--glass-shadow)';
-                        }}
-                        onMouseLeave={(e) => {
-                            e.currentTarget.style.borderColor = skill.verified ? 'var(--glass-edge)' : 'var(--separator)';
-                            e.currentTarget.style.boxShadow = 'none';
-                        }}
-                    >
-                        {/* Header */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-                            <div>
-                                <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>{skill.name}</p>
-                                <p style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-quaternary)', textTransform: 'uppercase' }}>{skill.category} · {skill.id}</p>
-                            </div>
-                            <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); onDelete(skill.id); }}
-                                    style={{
-                                        background: 'none', border: 'none', cursor: 'pointer',
-                                        color: 'var(--accent-danger)', fontSize: 14, padding: '2px 4px',
-                                        opacity: 0.4, transition: 'opacity 0.15s',
-                                    }}
-                                    onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-                                    onMouseLeave={e => e.currentTarget.style.opacity = '0.4'}
-                                >✕</button>
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); onToggle(skill.id); }}
-                                    className={`glass-btn ${skill.verified ? 'glass-btn--primary' : ''}`}
-                                    style={{ fontSize: 10, padding: '2px 8px', fontWeight: 500 }}
-                                >
-                                    {skill.verified ? 'Active' : 'Off'}
-                                </button>
-                            </div>
-                        </div>
+            <div className="flex flex-col gap-8">
+                {Object.keys(groupedSkills).length === 0 && skills.length > 0 && (
+                    <div className="text-center py-12 text-[11px] font-mono text-text-tertiary">
+                        NO_MATCHING_SIGNATURES_FOUND
+                    </div>
+                )}
 
-                        {/* Description */}
-                        {skill.description && (
-                            <p style={{
-                                fontSize: 12, color: 'var(--text-tertiary)', lineHeight: 1.4,
-                                marginBottom: 10,
-                                display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
-                            }}>{skill.description}</p>
-                        )}
+                {Object.entries(groupedSkills as Record<string, SkillManifest[]>).map(([groupSource, groupArray]) => (
+                    <div key={groupSource} className="flex flex-col gap-4">
+                        <h3 className="glass-label text-[10px] tracking-widest opacity-60 m-0 uppercase flex items-center gap-2 border-b border-glass-edge pb-2">
+                            {groupSource} MATRIX <span className="glass-tag tracking-normal text-[9px] bg-glass-1 shadow-none">{groupArray.length}</span>
+                        </h3>
 
-                        {/* Capabilities */}
-                        <div style={{ marginBottom: 8 }}>
-                            <p style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-quaternary)', textTransform: 'uppercase', marginBottom: 4 }}>Capabilities</p>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                                {(skill.capabilities || []).length > 0 ? (
-                                    skill.capabilities.slice(0, 4).map((cap, ci) => (
-                                        <span key={ci} style={{
-                                            padding: '2px 6px', borderRadius: 4,
-                                            background: 'var(--fill-quaternary)',
-                                            border: '1px solid var(--separator)',
-                                            fontSize: 10, fontFamily: 'var(--font-mono)',
-                                            color: 'var(--text-secondary)',
-                                        }}>{cap}</span>
-                                    ))
-                                ) : (
-                                    <span style={{ fontSize: 10, fontStyle: 'italic', color: 'var(--text-quaternary)' }}>No bindings</span>
-                                )}
-                                {(skill.capabilities || []).length > 4 && (
-                                    <span style={{ fontSize: 10, color: 'var(--text-quaternary)' }}>+{skill.capabilities.length - 4}</span>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Footer */}
                         <div style={{
-                            paddingTop: 8, borderTop: '1px solid var(--separator)',
-                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                            gap: 12,
                         }}>
-                            <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--text-quaternary)' }}>SIG: {skill.signature}</span>
+                            {groupArray.map(skill => (
+                                <div
+                                    key={skill.id}
+                                    onClick={() => onSelect(skill)}
+                                    style={{
+                                        background: 'var(--glass-bg)',
+                                        border: `1px solid ${skill.verified ? 'rgba(48,209,88,0.20)' : 'var(--separator)'}`,
+                                        borderRadius: 14,
+                                        padding: 16,
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s ease',
+                                        opacity: skill.verified ? 1 : 0.5,
+                                        filter: skill.verified ? 'none' : 'grayscale(0.6)',
+                                        position: 'relative',
+                                        overflow: 'hidden',
+                                    }}
+                                    className="hover:shadow-[0_0_20px_rgba(48,209,88,0.05)] hover:border-[rgba(48,209,88,0.3)] transition-all group"
+                                >
+                                    {/* Header */}
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+                                        <div>
+                                            <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>{skill.name}</p>
+                                            <p style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-quaternary)', textTransform: 'uppercase' }}>{skill.category} · {skill.id}</p>
+                                        </div>
+                                        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); onDelete(skill.id); }}
+                                                className="opacity-0 group-hover:opacity-100 transition-opacity bg-transparent border-none text-status-error text-sm p-1 hover:bg-status-error/10 rounded"
+                                            >✕</button>
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); onToggle(skill.id); }}
+                                                className={`glass-btn ${skill.verified ? 'glass-btn--primary bg-status-good/10 text-status-good border-status-good/30' : ''}`}
+                                                style={{ fontSize: 10, padding: '2px 8px', fontWeight: 500 }}
+                                            >
+                                                {skill.verified ? 'Active' : 'Off'}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Description */}
+                                    {skill.description && (
+                                        <p style={{
+                                            fontSize: 12, color: 'var(--text-tertiary)', lineHeight: 1.4,
+                                            marginBottom: 10,
+                                            display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                                        }}>{skill.description}</p>
+                                    )}
+
+                                    {/* Footer */}
+                                    <div style={{
+                                        paddingTop: 8, borderTop: '1px solid var(--separator)',
+                                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                    }}>
+                                        <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--text-quaternary)' }}>SIG: {skill.signature}</span>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 ))}
@@ -175,6 +194,9 @@ export const SkillDetailOverlay: React.FC<SkillDetailOverlayProps> = ({ skill, o
 
                 {/* Content */}
                 <div style={{ flex: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 24 }} className="scrollbar-hide">
+
+                    <SkillStatusPanel skillId={skill.id} />
+
                     <section>
                         <h4 style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', marginBottom: 8 }}>Overview</h4>
                         <p style={{ fontSize: 14, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)', lineHeight: 1.6 }}>{skill.description}</p>
@@ -250,6 +272,15 @@ export const SkillDetailOverlay: React.FC<SkillDetailOverlayProps> = ({ skill, o
                                 </div>
                             ))}
                         </div>
+                    </section>
+
+                    <section className="bg-glass-2 border border-glass-edge p-5 rounded-xl flex flex-col gap-3">
+                        <h4 className="glass-label text-[10px] tracking-widest text-text-tertiary m-0 border-b border-white/5 pb-2">Sensitive Vault Overrides</h4>
+                        <PerSkillKeyInput
+                            skillId={skill.id}
+                            keyName="API_KEY"
+                            description="Bind external 3rd party execution routing API bearer keys explicitly overriding standard system logic mapped."
+                        />
                     </section>
 
                     <footer style={{

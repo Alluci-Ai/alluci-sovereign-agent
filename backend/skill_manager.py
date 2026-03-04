@@ -100,6 +100,12 @@ class SkillManager:
         if "verified" not in skill:
             skill["verified"] = True
         
+        # Initialize monitoring fields
+        if "last_active" not in skill:
+            skill["last_active"] = datetime.now().isoformat()
+        if "error" not in skill:
+            skill["error"] = None
+        
         if existing_idx >= 0:
             current_skills[existing_idx] = skill
             action = "UPDATED"
@@ -132,8 +138,8 @@ class SkillManager:
         """
         Merges selected skills into a unified cognitive context.
         """
-        all_skills = await self.list_skills()
-        active = [s for s in all_skills if s["id"] in active_ids]
+        all_skills = await self.registry_list() # Helper method to retrieve skills
+        active = [s for s in all_skills if s.get("id") in active_ids]
         
         merged = {
             "knowledge": [],
@@ -163,3 +169,115 @@ class SkillManager:
             merged["vectors"]["empathyShift"] += mapping.get("empathyShift", 0)
             
         return merged
+
+    async def registry_list(self) -> List[Dict[str, Any]]:
+        """Internal helper to list skills from registry."""
+        data = await self.vault.retrieve_secret(self.registry_id)
+        return data.get("skills", [])
+
+    async def get_skill_status(self, skill_id: str) -> Dict[str, Any]:
+        """Dependency check, health, and error reporting for a skill."""
+        skill = await self.get_skill(skill_id)
+        if not skill:
+            return {"status": "error", "message": "Skill not found"}
+
+        # Dependency check
+        dependencies = skill.get("dependencies", [])
+        active_skills = await self.list_skills()
+        active_ids = {s.get("id") for s in active_skills}
+        
+        missing = [dep for dep in dependencies if dep not in active_ids]
+        
+        health = "HEALTHY"
+        if missing:
+            health = "DEPENDENCY_MISSING"
+        elif skill.get("error"):
+            health = "UNHEALTHY"
+
+        return {
+            "id": skill_id,
+            "status": health,
+            "dependencies": {
+                "total": len(dependencies),
+                "missing": missing,
+                "satisfied": [d for d in dependencies if d in active_ids]
+            },
+            "last_error": skill.get("error"),
+            "last_active": skill.get("last_active", datetime.now().isoformat())
+        }
+
+    async def store_skill_key(self, skill_id: str, key_name: str, key_value: str):
+        """Securely store a skill-specific secret in the vault."""
+        vault_key = f"skill_secret_{skill_id}"
+        current = await self.vault.retrieve_secret(vault_key)
+        current[key_name] = key_value
+        await self.vault.store_secret(vault_key, current)
+        logger.info(f"Stored secret '{key_name}' for skill {skill_id}")
+
+    async def get_skill_key(self, skill_id: str, key_name: str) -> Optional[str]:
+        """Retrieve a skill-specific secret."""
+        vault_key = f"skill_secret_{skill_id}"
+        current = await self.vault.retrieve_secret(vault_key)
+        return current.get(key_name)
+
+    async def install_remote_package(self, download_url: str) -> Dict[str, Any]:
+        """
+        One-Click Install flow (OpenClaw §5.2).
+        Flow: download → validate → critic scan → review queue
+        If risk score is 0, auto-promote is possible (optional).
+        """
+        import httpx
+
+        MAX_PACKAGE_SIZE = 10 * 1024 * 1024  # 10 MB
+        REQUIRED_FIELDS = {"id", "name", "version"}
+        DOWNLOAD_TIMEOUT = 30.0  # seconds
+
+        logger.info(f"Downloading remote skill package from: {download_url}")
+
+        # 1. Download the package over HTTP
+        try:
+            async with httpx.AsyncClient(timeout=DOWNLOAD_TIMEOUT, follow_redirects=True) as client:
+                response = await client.get(download_url)
+                response.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Skill download failed (HTTP {e.response.status_code}): {download_url}")
+            return {"error": f"Download failed: HTTP {e.response.status_code}", "url": download_url}
+        except httpx.RequestError as e:
+            logger.error(f"Skill download network error: {e}")
+            return {"error": f"Network error: {e}", "url": download_url}
+
+        # 2. Enforce size limit
+        content = response.content
+        if len(content) > MAX_PACKAGE_SIZE:
+            logger.warning(f"Skill package exceeds size limit ({len(content)} > {MAX_PACKAGE_SIZE})")
+            return {"error": f"Package too large ({len(content)} bytes, max {MAX_PACKAGE_SIZE})", "url": download_url}
+
+        # 3. Parse and validate package structure
+        import json as _json
+        try:
+            package = _json.loads(content)
+        except _json.JSONDecodeError as e:
+            logger.error(f"Skill package is not valid JSON: {e}")
+            return {"error": f"Invalid JSON: {e}", "url": download_url}
+
+        if not isinstance(package, dict):
+            return {"error": "Package must be a JSON object", "url": download_url}
+
+        missing_fields = REQUIRED_FIELDS - set(package.keys())
+        if missing_fields:
+            return {"error": f"Missing required fields: {missing_fields}", "url": download_url}
+
+        # 4. Ensure deterministic ID (prevent duplicates from re-download)
+        if "id" not in package or not package["id"]:
+            package["id"] = f"skill_{int(datetime.now().timestamp())}"
+
+        logger.info(f"Package validated: {package.get('name', '?')} v{package.get('version', '?')}")
+
+        # 5. Trigger the existing import flow (critic scan + queue)
+        import_res = await self.import_package(package)
+        return {
+            **import_res,
+            "id": package["id"],
+            "url": download_url,
+            "status": "QUEUED_FOR_REVIEW"
+        }
