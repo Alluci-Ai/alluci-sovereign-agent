@@ -29,7 +29,7 @@ export class ExecutionManifestFactory {
     capabilityScope: string[],
     biometricGate: boolean = false
   ): SignedExecutionManifest {
-    
+
     const now = new Date();
     // Manifests are short-lived by default to prevent replay attacks
     const expires = new Date(now.getTime() + 1000 * 60 * 15); // 15 min expiry
@@ -70,7 +70,7 @@ export class ExecutionManifestFactory {
    */
   validate(signedManifest: SignedExecutionManifest): boolean {
     const { manifest, signature } = signedManifest;
-    
+
     // 1. Validate Expiration
     if (new Date(manifest.expiresAt) < new Date()) {
       console.warn(`[ MANIFEST ]: Expired at ${manifest.expiresAt}`);
@@ -87,7 +87,7 @@ export class ExecutionManifestFactory {
     // 3. Verify Signature against Root Key
     const canonicalString = this.canonicalize(manifest);
     const isValid = this.identity.verifySignature(canonicalString, signature, manifest.rootPublicKey);
-    
+
     if (!isValid) {
       console.error("[ MANIFEST ]: Invalid signature.");
     }
@@ -104,12 +104,17 @@ export class ExecutionManifestFactory {
    * Sorts object keys recursively.
    */
   private canonicalize(obj: any): string {
-    if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) {
+    if (obj === null || typeof obj !== 'object') {
       return JSON.stringify(obj);
+    }
+    if (Array.isArray(obj)) {
+      const parts = obj.map(item => this.canonicalize(item));
+      return `[${parts.join(',')}]`;
     }
     const sortedKeys = Object.keys(obj).sort();
     const parts = sortedKeys.map(key => {
-      return `"${key}":${this.canonicalize(obj[key])}`;
+      const val = obj[key];
+      return `"${key}":${this.canonicalize(val)}`;
     });
     return `{${parts.join(',')}}`;
   }

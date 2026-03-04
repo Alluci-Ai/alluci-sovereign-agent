@@ -71,7 +71,24 @@ export class AuditLedger {
 
     this.chain.push(entry);
 
-    // TODO: In Phase 4, flush to disk immediately (append-only file)
+    // Addressed TODO: Flush to disk (append-only file in Node, localStorage in Browser)
+    try {
+      if (typeof process !== 'undefined' && process.versions && process.versions.node) {
+        const { appendFileSync, existsSync, mkdirSync } = await import('node:fs');
+        const { join } = await import('node:path');
+        const { homedir } = await import('node:os');
+        const auditDir = join(homedir(), '.polytope', 'audit');
+        if (!existsSync(auditDir)) mkdirSync(auditDir, { recursive: true });
+        appendFileSync(join(auditDir, 'ledger.jsonl'), JSON.stringify(entry) + '\n');
+      } else if (typeof globalThis !== 'undefined' && globalThis.localStorage) {
+        const key = 'polytope_audit_ledger';
+        const existing = JSON.parse(globalThis.localStorage.getItem(key) || '[]');
+        existing.push(entry);
+        globalThis.localStorage.setItem(key, JSON.stringify(existing));
+      }
+    } catch (e) {
+      console.warn("[ AUDIT ]: Failed to persist entry to permanent storage:", e);
+    }
 
     return entry;
   }
