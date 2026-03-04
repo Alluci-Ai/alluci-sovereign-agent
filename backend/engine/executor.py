@@ -15,11 +15,14 @@ class Executor:
     """
     Executes a DAG of tasks using real adapters and persists state to DB.
     """
-    def __init__(self, adapter_registry: AdapterRegistry, session_factory, max_concurrent: int = 5, task_timeout: float = 60.0):
+    def __init__(self, adapter_registry: AdapterRegistry, session_factory, 
+                 max_concurrent: int = 5, task_timeout: float = 60.0,
+                 approval_manager=None):
         self.registry = adapter_registry
-        self.session_factory = session_factory  # Function that yields a session
+        self.session_factory = session_factory
         self.semaphore = asyncio.Semaphore(max_concurrent)
-        self.task_timeout = task_timeout  # seconds, configurable per adapter/deployment
+        self.task_timeout = task_timeout
+        self.approval_manager = approval_manager
 
     async def execute_dag(self, run_id: int, tasks: Dict[str, DAGTask]) -> Dict[str, DAGTask]:
         """
@@ -89,7 +92,7 @@ class Executor:
             try:
                 # Execute with Timeout
                 result = await asyncio.wait_for(
-                    self._execute_adapter(task.action, task.args),
+                    self._execute_adapter(task.action, task.args, task.id),
                     timeout=self.task_timeout
                 )
                 
@@ -115,15 +118,27 @@ class Executor:
             return task
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), reraise=True)
-    async def _execute_adapter(self, action: str, args: Dict[str, Any]) -> Any:
+    async def _execute_adapter(self, action: str, args: Dict[str, Any], task_id: str = "") -> Any:
         adapter = self.registry.get(action)
         if not adapter:
-            # No mock fallbacks in production — fail explicitly
-            raise AdapterNotFoundError(
-                f"No adapter registered for action '{action}'. "
-                f"Available adapters: {self.registry.list_tools()}"
-            )
-        
+            raise AdapterNotFoundError(f"No adapter registered for action '{action}'.")
+
+        # Sprint 3: Exec Approval Interceptor
+        if self.approval_manager:
+            sensitive_tools = ["shell", "os_exec", "file_overwrite", "db_write"]
+            command = str(args.get("command", args.get("script", args.get("sql", ""))))
+            
+            # Request approval for sensitive tools
+            if action in sensitive_tools or command:
+                res = await self.approval_manager.request_approval(
+                    command=command or action,
+                    tool_name=action,
+                    context=f"Task ID: {task_id}"
+                )
+                if not res.get("approved"):
+                    logger.warning(f"Task {task_id} DENIED by User (Policy: {res.get('policy')})")
+                    raise PermissionError(f"Execution denied by User: {res.get('policy')}")
+
         return await adapter.execute(args)
 
     # --- Persistence Helpers ---

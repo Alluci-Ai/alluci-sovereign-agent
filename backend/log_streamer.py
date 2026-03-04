@@ -11,8 +11,9 @@ import asyncio
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Optional, Set
+from typing import Optional, Set, Dict, Any
 from collections import deque
+import structlog.contextvars
 from fastapi import WebSocket, WebSocketDisconnect
 
 logger = logging.getLogger("LogStreamer")
@@ -43,6 +44,8 @@ class LogBuffer:
         self._buffer.append(record)
         for q in list(self._subscribers):
             try:
+                # We put a tuple (record, session_key_filter) or just record? 
+                # Better to just push the record and let the subscriber filter.
                 q.put_nowait(record)
             except asyncio.QueueFull:
                 pass  # subscriber is slow, skip
@@ -57,20 +60,24 @@ class LogBuffer:
         """Remove a subscriber queue."""
         self._subscribers.discard(q)
 
-    def get_history(self, limit: int = 200, level: Optional[str] = None) -> list:
-        """Return recent log entries, optionally filtered by level."""
+    def get_history(self, limit: int = 200, level: Optional[str] = None, session_key: Optional[str] = None) -> list:
+        """Return recent log entries, filtered by level and/or session_key."""
         entries = list(self._buffer)
         if level:
             level_upper = level.upper()
             entries = [e for e in entries if e.get("level", "").upper() == level_upper]
+        if session_key:
+            entries = [e for e in entries if e.get("session_key") == session_key]
         return entries[-limit:]
 
-    def export_jsonl(self, level: Optional[str] = None) -> str:
-        """Export all buffered entries as JSONL text."""
+    def export_jsonl(self, level: Optional[str] = None, session_key: Optional[str] = None) -> str:
+        """Export buffered entries as JSONL text."""
         entries = list(self._buffer)
         if level:
             level_upper = level.upper()
             entries = [e for e in entries if e.get("level", "").upper() == level_upper]
+        if session_key:
+            entries = [e for e in entries if e.get("session_key") == session_key]
         return "\n".join(json.dumps(e) for e in entries)
 
 
@@ -83,11 +90,16 @@ class _BufferHandler(logging.Handler):
 
     def emit(self, record: logging.LogRecord):
         try:
+            # Try to grab session_key from structlog contextvars
+            ctx = structlog.contextvars.get_contextvars()
+            session_key = ctx.get("session_key")
+
             entry = {
                 "timestamp": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(),
                 "level": record.levelname,
                 "logger": record.name,
                 "message": self.format(record) if self.formatter else record.getMessage(),
+                "session_key": session_key
             }
             if record.exc_info and record.exc_info[1]:
                 entry["exception"] = str(record.exc_info[1])
@@ -111,34 +123,56 @@ class LogStreamHandler:
         """Full lifecycle for a single log stream WebSocket connection."""
         await websocket.accept()
 
-        # Read initial config message
-        level_filter: Optional[str] = None
-        try:
-            raw = await asyncio.wait_for(websocket.receive_text(), timeout=2.0)
-            config = json.loads(raw)
-            level_filter = config.get("level")
-        except (asyncio.TimeoutError, json.JSONDecodeError):
-            pass  # no config, stream everything
-
-        # Send recent history first
-        history = self.log_buffer.get_history(limit=100, level=level_filter)
-        for entry in history:
-            await websocket.send_text(json.dumps(entry))
-
-        # Subscribe to live entries
+        config = {"level": None, "session_key": None, "auto_follow": True}
         queue = self.log_buffer.subscribe()
+
+        async def receiver():
+            """Loop to handle inbound configuration updates from the client."""
+            nonlocal config
+            try:
+                async for raw in websocket.iter_text():
+                    try:
+                        data = json.loads(raw)
+                        if "level" in data:
+                            config["level"] = data.get("level")
+                        if "session_key" in data:
+                            config["session_key"] = data.get("session_key")
+                        if "auto_follow" in data:
+                            config["auto_follow"] = bool(data["auto_follow"])
+                    except json.JSONDecodeError:
+                        pass
+            except Exception:
+                pass
+
+        recv_task = asyncio.create_task(receiver())
+
         try:
+            # Send initial history based on starting filters
+            history = self.log_buffer.get_history(limit=200, level=config["level"], session_key=config["session_key"])
+            for entry in history:
+                await websocket.send_text(json.dumps(entry))
+
             while True:
                 entry = await queue.get()
-                if level_filter and entry.get("level", "").upper() != level_filter.upper():
+                
+                # Dynamic Filtering
+                if config["level"] and entry.get("level", "").upper() != config["level"].upper():
                     continue
+                if config["session_key"] and entry.get("session_key") != config["session_key"]:
+                    continue
+                
+                if not config["auto_follow"]:
+                    continue
+
                 await websocket.send_text(json.dumps(entry))
+
         except WebSocketDisconnect:
             pass
         except Exception as e:
             logger.debug(f"[LogStreamer] Stream ended: {e}")
         finally:
             self.log_buffer.unsubscribe(queue)
+            recv_task.cancel()
 
 
 # ── Module-level singleton ───────────────────────────────────────────────────

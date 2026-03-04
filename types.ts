@@ -5,6 +5,11 @@ export interface Message {
   isUser: boolean;
   sources?: GroundingSource[];
   timestamp: string;
+  isCompaction?: boolean;
+  /** Number of tokens freed during context compaction (populated by WS event) */
+  tokenCount?: number;
+  /** Name of the model that generated this message */
+  modelName?: string;
 }
 
 export interface PendingAttachment extends FilePart {

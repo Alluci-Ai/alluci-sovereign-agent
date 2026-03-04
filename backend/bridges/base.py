@@ -39,7 +39,12 @@ class BridgeAdapter(ABC):
 
     @abstractmethod
     async def send_message(self, recipient: str, content: str) -> Dict[str, Any]:
-        """Transmit data through the secure bridge tunnel."""
+        """Transmit data through the secure bridge tunnel (Legacy)."""
+        pass
+
+    @abstractmethod
+    async def send(self, recipient: str, content: str, **kwargs) -> Dict[str, Any]:
+        """Canonical data transmission method (OpenClaw §2.3)."""
         pass
 
     @abstractmethod

@@ -8,6 +8,7 @@ interface CommandBarProps {
     fileInputRef: React.RefObject<HTMLInputElement | null>;
     handleFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
     handleCommandSubmit: (e: React.FormEvent) => void;
+    handlePaste: (e: React.ClipboardEvent) => void;
     isProcessing: boolean;
 }
 
@@ -19,6 +20,7 @@ const CommandBar: React.FC<CommandBarProps> = ({
     fileInputRef,
     handleFileChange,
     handleCommandSubmit,
+    handlePaste,
     isProcessing
 }) => {
     return (
@@ -64,14 +66,14 @@ const CommandBar: React.FC<CommandBarProps> = ({
                     value={textInput}
                     onChange={(e) => setTextInput(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleCommandSubmit(e); } }}
-                    placeholder="Ask Alluci..."
+                    onPaste={handlePaste}
+                    placeholder={isProcessing ? "Adding to replay queue..." : "Ask Alluci..."}
                     className="flex-1 bg-transparent border-none text-[14px] text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-0 p-3 h-10 md:h-12 resize-none scrollbar-hide py-3 md:py-3.5"
                     rows={1}
                 />
 
                 <button
                     type="submit"
-                    disabled={isProcessing}
                     className="shrink-0 flex items-center justify-center mr-1"
                     style={{
                         width: 40,
@@ -82,18 +84,20 @@ const CommandBar: React.FC<CommandBarProps> = ({
                         backdropFilter: 'blur(20px) saturate(180%)',
                         WebkitBackdropFilter: 'blur(20px) saturate(180%)',
                         color: 'var(--accent)',
-                        cursor: isProcessing ? 'not-allowed' : 'pointer',
-                        opacity: isProcessing ? 0.5 : 1,
+                        cursor: 'pointer',
                         transition: 'all 0.15s ease',
                         boxShadow: 'var(--liquid-inner-glow), 0 1px 6px rgba(48, 209, 88, 0.12)',
                     }}
-                    onMouseEnter={(e) => { if (!isProcessing) { e.currentTarget.style.background = 'var(--liquid-accent-hover)'; e.currentTarget.style.transform = 'translateY(-1px)'; } }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--liquid-accent-hover)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
                     onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--liquid-accent)'; e.currentTarget.style.transform = 'translateY(0)'; }}
                 >
                     {isProcessing ? (
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style={{ animation: 'spin 1s linear infinite' }}>
-                            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2.5" strokeDasharray="31.4 31.4" strokeLinecap="round" />
-                        </svg>
+                        <div className="flex items-center justify-center w-full h-full relative">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style={{ animation: 'spin 2s linear infinite' }} className="absolute opacity-40">
+                                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2.5" strokeDasharray="31.4 31.4" strokeLinecap="round" />
+                            </svg>
+                            <span className="text-[10px] font-bold">+</span>
+                        </div>
                     ) : (
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                             <line x1="12" y1="19" x2="12" y2="5" />

@@ -1,0 +1,12 @@
+{
+    "name": "ds_sidecar",
+    "version": "1.0.0",
+    "description": "Discord.js Gateway sidecar for Sovereign Polytope Agent",
+    "main": "index.js",
+    "dependencies": {
+        "discord.js": "^14.13.0"
+    },
+    "scripts": {
+        "start": "node index.js"
+    }
+}

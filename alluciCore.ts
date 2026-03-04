@@ -88,24 +88,26 @@ export class BioVault extends SimplicialVault {
       l: data.l > 0.5 ? 'STRESS' : 'FLOW'
     });
 
-    // 4. Encrypt the state token via AES-GCM
-    if (this.encryptionKey) {
-      const iv = window.crypto.getRandomValues(new Uint8Array(12));
-      const encoded = new TextEncoder().encode(statePayload);
-      const ciphertext = await window.crypto.subtle.encrypt(
-        { name: "AES-GCM", iv },
-        this.encryptionKey,
-        encoded
-      );
-      // Encode iv + ciphertext as base64 for transport
-      const combined = new Uint8Array(iv.length + new Uint8Array(ciphertext).length);
-      combined.set(iv, 0);
-      combined.set(new Uint8Array(ciphertext), iv.length);
-      return btoa(String.fromCharCode(...combined));
+    // Ensure encryption key is ready before any telemetry leaves the vault
+    if (!this.encryptionKey) {
+      await this._initEncryptionKey();
+    }
+    // After init, key must be available — if still null, something is critically wrong
+    if (!this.encryptionKey) {
+      throw new Error("[BioVault] CRITICAL: AES-GCM key generation failed. Refusing to emit plaintext telemetry.");
     }
 
-    // Fallback if key not yet initialized (first call race condition)
-    return btoa(statePayload);
+    const iv = window.crypto.getRandomValues(new Uint8Array(12));
+    const encoded = new TextEncoder().encode(statePayload);
+    const ciphertext = await window.crypto.subtle.encrypt(
+      { name: "AES-GCM", iv },
+      this.encryptionKey,
+      encoded
+    );
+    const combined = new Uint8Array(iv.length + new Uint8Array(ciphertext).length);
+    combined.set(iv, 0);
+    combined.set(new Uint8Array(ciphertext), iv.length);
+    return btoa(String.fromCharCode(...combined));
   }
 
   // Private: raw biometric data must never leave the secure enclave

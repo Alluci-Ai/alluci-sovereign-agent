@@ -1,218 +1,185 @@
-"""
-Discord Bot Adapter for the Polytope Sovereign OS.
-
-Provides:
-- Bot token authentication via Discord HTTP API
-- Guild/channel enumeration
-- Message send/receive with embed formatting
-- Slash command support
-- Health reporting for channel dashboard
-
-Reference: OpenClaw Section 2.3
-"""
-
 import httpx
 import os
 import json
+import asyncio
+import logging
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
+from sqlmodel import Session, select
 from .base import BridgeAdapter
-
+from ..database import engine as db_engine
 
 class DiscordBridge(BridgeAdapter):
     """
-    Discord Bot adapter using the HTTP API (no discord.py dependency).
+    Discord Bot adapter using a Node.js sidecar (discord.js) for high-fidelity 
+    Gateway interactions (OpenClaw §2.3).
     """
-
-    API_BASE = "https://discord.com/api/v10"
 
     def __init__(self, bridge_id: str, vault_root: str):
         super().__init__(bridge_id, vault_root)
         self.bot_token: str = ""
-        self.application_id: str = ""
-        self.bot_username: str = ""
-        self.guilds: Dict[str, Dict[str, Any]] = {}
+        self.bot_user: Dict[str, Any] = {}
+        self.guilds: List[Dict[str, Any]] = []
         self.last_activity: Optional[datetime] = None
         self.last_error: Optional[str] = None
         self.enabled: bool = True
-
-    def _headers(self) -> Dict[str, str]:
-        return {
-            "Authorization": f"Bot {self.bot_token}",
-            "Content-Type": "application/json",
-        }
+        self.on_event = None # Callback for orchestrator
+        
+        self._sidecar_process: Optional[asyncio.subprocess.Process] = None
+        self._monitor_task: Optional[asyncio.Task] = None
+        self._pending_rpcs: Dict[str, asyncio.Future] = {}
 
     async def connect(self, credentials: Dict[str, Any]) -> bool:
-        """
-        Validate bot token by calling /users/@me.
-        Fetches guild list on success.
-        """
+        """Spawn the Node.js sidecar and login with bot_token."""
         self.bot_token = credentials.get("bot_token", "")
         if not self.bot_token:
             self.last_error = "Missing bot_token"
             return False
 
-        try:
-            async with httpx.AsyncClient() as client:
-                res = await client.get(f"{self.API_BASE}/users/@me", headers=self._headers())
-                data = res.json()
-
-                if "id" not in data:
-                    self.last_error = data.get("message", "Token validation failed")
-                    return False
-
-                self.application_id = data["id"]
-                self.bot_username = f"{data.get('username', '')}#{data.get('discriminator', '0')}"
-                self.is_connected = True
-                self.last_activity = datetime.now(timezone.utc)
-
-                # Fetch guilds
-                await self._fetch_guilds(client)
-
-                self.logger.info(f"Discord Connected. Bot: {self.bot_username}, Guilds: {len(self.guilds)}")
-                return True
-
-        except Exception as e:
-            self.last_error = str(e)
-            self.logger.error(f"Discord connection failed: {e}")
-            return False
-
-    async def _fetch_guilds(self, client: httpx.AsyncClient):
-        """Fetch all guilds the bot is a member of."""
-        try:
-            res = await client.get(f"{self.API_BASE}/users/@me/guilds", headers=self._headers())
-            guilds = res.json()
-            if isinstance(guilds, list):
-                for g in guilds:
-                    self.guilds[g["id"]] = {
-                        "id": g["id"],
-                        "name": g["name"],
-                        "icon": g.get("icon"),
-                        "channels": [],
-                    }
-                    # Fetch channels for each guild
-                    ch_res = await client.get(
-                        f"{self.API_BASE}/guilds/{g['id']}/channels",
-                        headers=self._headers(),
-                    )
-                    channels = ch_res.json()
-                    if isinstance(channels, list):
-                        self.guilds[g["id"]]["channels"] = [
-                            {"id": c["id"], "name": c["name"], "type": c["type"]}
-                            for c in channels
-                            if c.get("type") == 0  # text channels only
-                        ]
-        except Exception as e:
-            self.logger.warning(f"Failed to fetch guilds: {e}")
-
-    async def send_message(self, recipient: str, content: str) -> Dict[str, Any]:
-        """
-        Send a message to a Discord channel.
-        `recipient` is the channel_id.
-        """
-        if not self.is_connected:
-            return {"status": "failed", "error": "Bridge Disconnected"}
-
-        try:
-            async with httpx.AsyncClient() as client:
-                res = await client.post(
-                    f"{self.API_BASE}/channels/{recipient}/messages",
-                    headers=self._headers(),
-                    json={"content": content},
+        if self._sidecar_process and self._sidecar_process.returncode is None:
+            self.logger.info("Discord Sidecar already running.")
+        else:
+            sidecar_path = os.path.join(os.path.dirname(__file__), "ds_sidecar", "index.js")
+            try:
+                self._sidecar_process = await asyncio.create_subprocess_exec(
+                    "node", sidecar_path, self.bridge_id, self.vault_path,
+                    stdout=asyncio.subprocess.PIPE,
+                    stdin=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
                 )
-                data = res.json()
-                status = "success" if "id" in data else "failed"
+                self._monitor_task = asyncio.create_task(self._monitor_sidecar())
+            except Exception as e:
+                self.last_error = f"Sidecar spawn failed: {e}"
+                return False
 
-                if status == "success":
-                    self.last_activity = datetime.now(timezone.utc)
+        # Send login command
+        await self._send_rpc("login", {"token": self.bot_token})
+        return True
 
-                self._persist_to_vault("sent", {
-                    "channel_id": recipient,
-                    "content": content[:200],
-                    "status": status,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+    async def _monitor_sidecar(self):
+        """Read JSON-RPC events from sidecar stdout."""
+        while self._sidecar_process and self._sidecar_process.stdout:
+            line = await self._sidecar_process.stdout.readline()
+            if not line: break
+            try:
+                payload = json.loads(line.decode().strip())
+                await self._handle_sidecar_event(payload)
+            except Exception as e:
+                self.logger.debug(f"DS Sidecar Non-JSON: {line.decode().strip()} ({e})")
+        
+        # Read stderr for debugging
+        if self._sidecar_process and self._sidecar_process.stderr:
+            err = await self._sidecar_process.stderr.read()
+            if err:
+                self.logger.error(f"DS Sidecar Error: {err.decode()}")
+
+    async def _handle_sidecar_event(self, payload: Dict[str, Any]):
+        method = payload.get("method")
+        params = payload.get("params", {})
+
+        if method == "ready":
+            self.is_connected = True
+            self.bot_user = params.get("user", {})
+            self.guilds = params.get("guilds", [])
+            self.logger.info(f"Discord Sidecar Ready: {self.bot_user.get('tag')}")
+            # Update mappings in DB based on current guilds
+            self._sync_guilds_to_db()
+        elif method == "message":
+            msg = params.get("msg", {})
+            if self.on_event:
+                await self.on_event("message", msg)
+        elif method == "interaction":
+            interaction = params.get("interaction", {})
+            if self.on_event:
+                # Route interactions as objectives
+                await self.on_event("message", {
+                    "from": interaction.get("user_id"),
+                    "from_name": interaction.get("user"),
+                    "body": f"Slash Command: /{interaction.get('command')}",
+                    "protocol": "DISCORD",
+                    "channel_id": interaction.get("channel_id")
                 })
+        elif method == "response":
+            rpc_id = payload.get("id")
+            if rpc_id in self._pending_rpcs:
+                self._pending_rpcs[rpc_id].set_result(params)
 
-                return {"status": status, "response": data}
-        except Exception as e:
-            self.last_error = str(e)
-            self.logger.error(f"Discord send_message failed: {e}")
-            return {"status": "failed", "error": str(e)}
+    def _sync_guilds_to_db(self):
+        """Ensure all joined guilds have a mapping entry."""
+        from ..models import DiscordGuildMapping
+        with Session(db_engine) as session:
+            for g in self.guilds:
+                stmt = select(DiscordGuildMapping).where(DiscordGuildMapping.guild_id == g["id"])
+                existing = session.exec(stmt).first()
+                if not existing:
+                    mapping = DiscordGuildMapping(
+                        guild_id=g["id"],
+                        guild_name=g["name"],
+                        default_channel_id=g["channels"][0]["id"] if g["channels"] else None
+                    )
+                    session.add(mapping)
+            session.commit()
 
-    async def send_embed(self, channel_id: str, title: str, description: str,
-                         color: int = 0x5865F2, fields: list = None) -> Dict[str, Any]:
-        """Send a rich embed message to a Discord channel."""
-        if not self.is_connected:
-            return {"status": "failed", "error": "Bridge Disconnected"}
-
-        embed: Dict[str, Any] = {
-            "title": title,
-            "description": description,
-            "color": color,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
-        if fields:
-            embed["fields"] = fields
-
-        try:
-            async with httpx.AsyncClient() as client:
-                res = await client.post(
-                    f"{self.API_BASE}/channels/{channel_id}/messages",
-                    headers=self._headers(),
-                    json={"embeds": [embed]},
-                )
-                data = res.json()
-                return {"status": "success" if "id" in data else "failed", "response": data}
-        except Exception as e:
-            self.last_error = str(e)
-            return {"status": "failed", "error": str(e)}
-
-    async def fetch_unread(self, limit: int = 10) -> List[Dict[str, Any]]:
-        """Discord bots receive messages via Gateway/webhooks, not polling."""
-        return []
-
-    def process_interaction(self, interaction: Dict[str, Any]) -> Dict[str, Any]:
-        """Process an incoming Discord interaction (slash command, button, etc.)."""
-        self.last_activity = datetime.now(timezone.utc)
-
-        parsed = {
-            "id": interaction.get("id"),
-            "type": interaction.get("type"),
-            "guild_id": interaction.get("guild_id"),
-            "channel_id": interaction.get("channel_id"),
-            "user": interaction.get("member", {}).get("user", {}).get("username"),
-            "protocol": "DISCORD",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
-
-        if interaction.get("type") == 2:  # APPLICATION_COMMAND
-            cmd_data = interaction.get("data", {})
-            parsed["command"] = cmd_data.get("name")
-            parsed["options"] = cmd_data.get("options", [])
-
-        self._persist_to_vault("inbox", parsed)
-        return parsed
-
-    async def register_slash_command(self, guild_id: str, name: str,
-                                     description: str) -> Dict[str, Any]:
-        """Register a slash command for a guild."""
+    async def send(self, recipient: str, content: str, **kwargs) -> Dict[str, Any]:
+        """
+        Send a message. If recipient is a guild_id, it uses the mapped default channel.
+        Supports 'embeds' in kwargs.
+        """
         if not self.is_connected:
             return {"status": "failed", "error": "Not connected"}
 
+        channel_id = recipient
+        # Check if recipient is a guild ID that needs mapping
+        if recipient.startswith("guild_") or len(recipient) == 18 or len(recipient) == 19:
+            # Simple heuristic or lookup
+            from ..models import DiscordGuildMapping
+            with Session(db_engine) as session:
+                mapping = session.exec(select(DiscordGuildMapping).where(DiscordGuildMapping.guild_id == recipient)).first()
+                if mapping and mapping.default_channel_id:
+                    channel_id = mapping.default_channel_id
+
+        rpc_params = {
+            "to": channel_id,
+            "body": content,
+            "embeds": kwargs.get("embeds", [])
+        }
+        
+        return await self._send_rpc("send_message", rpc_params)
+
+    async def send_message(self, recipient: str, content: str) -> Dict[str, Any]:
+        return await self.send(recipient, content)
+
+    async def register_commands(self, guild_id: str, commands: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Register slash commands via sidecar."""
+        return await self._send_rpc("register_commands", {"guild_id": guild_id, "commands": commands})
+
+    async def _send_rpc(self, method: str, params: Dict[str, Any]) -> Any:
+        if not self._sidecar_process or not self._sidecar_process.stdin:
+            return {"status": "failed", "error": "Sidecar inactive"}
+        
+        rpc_id = f"rpc_{int(datetime.now().timestamp() * 1000)}"
+        future = asyncio.get_event_loop().create_future()
+        self._pending_rpcs[rpc_id] = future
+
+        msg = JSON_RPC_Message(id=rpc_id, method=method, params=params)
+        self._sidecar_process.stdin.write((json.dumps(msg) + "\n").encode())
+        await self._sidecar_process.stdin.drain()
+
         try:
-            async with httpx.AsyncClient() as client:
-                res = await client.post(
-                    f"{self.API_BASE}/applications/{self.application_id}/guilds/{guild_id}/commands",
-                    headers=self._headers(),
-                    json={"name": name, "description": description, "type": 1},
-                )
-                data = res.json()
-                return {"status": "success" if "id" in data else "failed", "response": data}
-        except Exception as e:
-            return {"status": "failed", "error": str(e)}
+            return await asyncio.wait_for(future, timeout=10.0)
+        except asyncio.TimeoutError:
+            return {"status": "failed", "error": "RPC Timeout"}
+        finally:
+            self._pending_rpcs.pop(rpc_id, None)
 
     async def validate_integrity(self) -> bool:
         return self.is_connected
+
+    async def disconnect(self):
+        if self._sidecar_process:
+            self._sidecar_process.terminate()
+            await self._sidecar_process.wait()
+        self.is_connected = False
 
     def get_health(self) -> Dict[str, Any]:
         """Return health report for channel dashboard."""
@@ -220,20 +187,15 @@ class DiscordBridge(BridgeAdapter):
             "channel": "discord",
             "connected": self.is_connected,
             "enabled": self.enabled,
-            "bot_username": self.bot_username,
+            "bot_username": self.bot_user.get("tag") or "Connecting...",
             "last_activity": self.last_activity.isoformat() if self.last_activity else None,
             "last_error": self.last_error,
             "guild_count": len(self.guilds),
             "guilds": [
                 {"id": g["id"], "name": g["name"], "channel_count": len(g.get("channels", []))}
-                for g in self.guilds.values()
+                for g in self.guilds
             ],
         }
 
-    def _persist_to_vault(self, box: str, data: Dict[str, Any]):
-        path = os.path.join(self.vault_path, f"{box}.jsonl")
-        try:
-            with open(path, "a") as f:
-                f.write(json.dumps(data) + "\n")
-        except Exception as e:
-            self.logger.error(f"Vault Write Error: {e}")
+def JSON_RPC_Message(id, method, params):
+    return {"jsonrpc": "2.0", "id": id, "method": method, "params": params}

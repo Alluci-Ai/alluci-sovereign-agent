@@ -4,6 +4,7 @@ import json
 import logging
 from datetime import datetime, timezone
 from typing import Dict, Any
+import structlog
 from sqlmodel import Session
 
 from .models import TaskStatus, Run, RunStatus
@@ -28,12 +29,15 @@ from .inference.ppn import PPNEmbeddingModule
 from .security.dpk import DiscreteProjectionKernel, PolytopeState
 
 class ExecutiveOrchestrator:
-    def __init__(self, router: ModelRouter, vault: VaultManager, ace: AffectiveEngine, settings: Settings, skill_manager: SkillManager = None):
+    def __init__(self, router: ModelRouter, vault: VaultManager, ace: AffectiveEngine, 
+                 settings: Settings, skill_manager: SkillManager = None, 
+                 approval_manager=None, analytics=None):
         self.settings = settings
-        self.inbound_history = []
         self.logger = logging.getLogger("ExecutiveOrchestrator")
         self.vault = vault
         self.skill_manager = skill_manager
+        self.approval_manager = approval_manager
+        self.analytics = analytics
         
         # Sub-systems
         self.identity = SovereignIdentity(settings)
@@ -55,7 +59,8 @@ class ExecutiveOrchestrator:
         self.executor = Executor(
             self.adapter_registry, 
             session_factory=lambda: db_engine,
-            max_concurrent=settings.MAX_CONCURRENT_TASKS
+            max_concurrent=settings.MAX_CONCURRENT_TASKS,
+            approval_manager=self.approval_manager
         )
 
     async def start_background_services(self):
@@ -76,31 +81,52 @@ class ExecutiveOrchestrator:
         body = message.get("body", "").strip()
         sender = message.get("from", "unknown")
         protocol = message.get("protocol", "UNKNOWN")
+        account_id = message.get("account_id")
+        session_key = message.get("session_key", f"inbound_{int(datetime.now().timestamp())}")
 
         if not body:
             return
 
-        self.logger.info(f"[Orchestrator] Inbound {protocol} message from {sender}: {body[:50]}...")
-        self.inbound_history.append({
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "sender": sender,
-            "protocol": protocol,
-            "body_preview": body[:100] # Store a preview
-        })
-
-        # Sprint 5: Could add policy checking here (e.g. only allow certain users)
+        self.logger.info(f"[Orchestrator] Inbound {protocol} message from {sender} (Account: {account_id}): {body[:50]}...")
         
-        # Trigger autonomous execution
-        # In a production deployment, we'd add session tracking/context here.
-        try:
-            # We treat the inbound message as a new objective.
-            # Using 'autonomous' mode triggers the full DPK/PPN/Execution cycle.
-            await self.execute_objective(
-                objective=f"Respond to {protocol} message from {sender}: {body}",
-                autonomy="autonomous"
-            )
-        except Exception as e:
-            self.logger.error(f"[Orchestrator] Error handling inbound message: {e}")
+        # 1. Record User Message to Log & Set Context
+        with structlog.contextvars.bound_contextvars(session_key=session_key):
+            if self.analytics:
+                self.analytics.record_message(
+                    session_key=session_key,
+                    role="user",
+                    content=body,
+                    account_id=account_id
+                )
+
+            # Trigger autonomous execution
+            try:
+                # Treats inbound message as a new objective.
+                # Injects account context into the objective for the planner/executor
+                routing_context = f" via {protocol} account {account_id}" if account_id else ""
+                
+                result = await self.execute_objective(
+                    objective=f"Respond to {protocol} message from {sender}: {body}{routing_context}",
+                    autonomy="autonomous"
+                )
+
+                # 2. Record Assistant Response to Log
+                if self.analytics:
+                    self.analytics.record_message(
+                        session_key=session_key,
+                        role="assistant",
+                        content=str(result),
+                        account_id=account_id
+                    )
+
+            except Exception as e:
+                self.logger.error(f"[Orchestrator] Error handling inbound message: {e}")
+                if self.analytics:
+                    self.analytics.record_message(
+                        session_key=session_key,
+                        role="system",
+                        content=f"Error: {e}"
+                    )
 
     async def _build_system_context(self) -> str:
         """
@@ -256,6 +282,27 @@ class ExecutiveOrchestrator:
         try:
             # Inject Identity & Skills into Planning Context
             system_context = await self._build_system_context()
+            
+            # 4a. Context Window Compaction Phase
+            # Estimate token count (rough heuristic: ~4 chars per token)
+            estimated_tokens = len(system_context) // 4
+            # Dynamic context window limit based on settings (default 8000 for safety buffer)
+            context_limit = getattr(self.settings, 'MAX_CONTEXT_TOKENS', 8000)
+            
+            if estimated_tokens > context_limit:
+                self.logger.warning(f"Context manifold ({estimated_tokens} tokens) exceeds boundary ({context_limit}). Compacting...")
+                # Perform conceptual trimming (take the latter half/most recent plus core identity)
+                # In a true RAG system, this would compress via summarization
+                tokens_to_free = estimated_tokens - (context_limit // 2)
+                trim_char_index = tokens_to_free * 4
+                system_context = "...[COMPACTED]...\n" + system_context[trim_char_index:]
+                
+                # Broadcast the compaction event to the frontend
+                if hasattr(self, 'ws_gateway') and self.ws_gateway:
+                    await self.ws_gateway.broadcast_event('compaction.status', {
+                        "tokenCount": tokens_to_free,
+                        "reason": "context_window_overflow"
+                    })
             
             tasks = await self.planner.generate_plan(objective, context=system_context)
             

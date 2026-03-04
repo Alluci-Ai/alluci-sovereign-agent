@@ -1,22 +1,39 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Connection } from '../types';
+import { Settings, ChevronDown, ChevronUp } from 'lucide-react';
+import ChannelHealthDashboard from '../features/channels/ChannelHealthDashboard';
+import ChannelConfigExpansion from '../features/channels/ChannelConfigExpansion';
+import ChannelActionResult from '../features/channels/ChannelActionResult';
+import IMessagePlatformGuard from '../features/channels/iMessagePlatformGuard';
 
 interface BridgeCenterProps {
     groupedConnections: Record<string, Connection[]>;
     startAuthFlow: (conn: Connection) => void;
-    onSocialAction: (id: string, action: string, params: any) => void;
-    onEnterpriseAction: (id: string, action: string, params: any) => void;
-    onPulse: (id: string) => void;
+    onSocialAction: (id: string, action: string, params: any) => Promise<any> | void;
+    onEnterpriseAction: (id: string, action: string, params: any) => Promise<any> | void;
+    onPulse: (id: string) => Promise<any> | void;
 }
 
 export const BridgeCard: React.FC<{
     conn: Connection;
     startAuthFlow: (conn: Connection) => void;
-    onSocialAction: (id: string, action: string, params: any) => void;
-    onEnterpriseAction: (id: string, action: string, params: any) => void;
-    onPulse: (id: string) => void;
+    onSocialAction: (id: string, action: string, params: any) => Promise<any> | void;
+    onEnterpriseAction: (id: string, action: string, params: any) => Promise<any> | void;
+    onPulse: (id: string) => Promise<any> | void;
 }> = ({ conn, startAuthFlow, onSocialAction, onEnterpriseAction, onPulse }) => {
     const isConnected = conn.status === 'CONNECTED';
+    const [configOpen, setConfigOpen] = useState(false);
+    const [actionResult, setActionResult] = useState<any>(null);
+
+    const handleActionWrapper = async (actionFn: () => Promise<any> | void) => {
+        setActionResult({ status: 'pending', message: 'Executing...' });
+        try {
+            const res = await actionFn();
+            setActionResult(res || { status: 'ok', message: 'Dispatched successfully' });
+        } catch (err: any) {
+            setActionResult({ status: 'error', message: err.message || 'Action failed' });
+        }
+    };
 
     return (
         <div style={{
@@ -38,11 +55,15 @@ export const BridgeCard: React.FC<{
                 }} />
             )}
 
+            {conn.id === 'imessage' && <IMessagePlatformGuard />}
+
             {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div>
-                    <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>{conn.name}</p>
-                    <p style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>{conn.type}</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>{conn.name}</p>
+                        <p style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>{conn.type}</p>
+                    </div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
                     <span className={`glass-tag ${isConnected ? 'glass-tag--connected' : 'glass-tag--offline'}`} style={{ fontSize: 10 }}>
@@ -86,17 +107,17 @@ export const BridgeCard: React.FC<{
 
                     {/* Contextual actions — compact */}
                     {conn.id === 'imessage' && (
-                        <button onClick={() => onPulse(conn.id)} className="glass-btn" style={{ fontSize: 10, padding: '3px 8px', flexShrink: 0 }}>
+                        <button onClick={() => handleActionWrapper(() => onPulse(conn.id))} className="glass-btn" style={{ fontSize: 10, padding: '3px 8px', flexShrink: 0 }}>
                             Pulse
                         </button>
                     )}
                     {['tg', 'sg', 'wa', 'dc', 'x', 'fb', 'ig'].includes(conn.id) && (
-                        <button onClick={() => onSocialAction(conn.id, 'SYNC_FEED', {})} className="glass-btn" style={{ fontSize: 10, padding: '3px 8px', flexShrink: 0 }}>
+                        <button onClick={() => handleActionWrapper(() => onSocialAction(conn.id, 'SYNC_FEED', {}))} className="glass-btn" style={{ fontSize: 10, padding: '3px 8px', flexShrink: 0 }}>
                             Sync
                         </button>
                     )}
                     {['sl', 'mt', 'gm', 'gd', 'wechat', 'webchat'].includes(conn.id) && (
-                        <button onClick={() => onEnterpriseAction(conn.id, 'SEARCH_FILES', {})} className="glass-btn" style={{ fontSize: 10, padding: '3px 8px', flexShrink: 0 }}>
+                        <button onClick={() => handleActionWrapper(() => onEnterpriseAction(conn.id, 'SEARCH_FILES', {}))} className="glass-btn" style={{ fontSize: 10, padding: '3px 8px', flexShrink: 0 }}>
                             Search
                         </button>
                     )}
@@ -112,14 +133,35 @@ export const BridgeCard: React.FC<{
                 </div>
             )}
 
+            {actionResult && (
+                <ChannelActionResult
+                    result={actionResult}
+                    onDismiss={() => setActionResult(null)}
+                />
+            )}
+
             {/* Action button — compact */}
-            <button
-                onClick={() => startAuthFlow(conn)}
-                className={`glass-btn ${isConnected ? 'glass-btn--danger' : 'glass-btn--primary'}`}
-                style={{ width: '100%', padding: '7px', fontSize: 12, fontWeight: 500, textAlign: 'center' }}
-            >
-                {isConnected ? 'Disconnect' : 'Connect'}
-            </button>
+            <div style={{ display: 'flex', gap: 8, width: '100%', marginTop: 'auto' }}>
+                <button
+                    onClick={() => startAuthFlow(conn)}
+                    className={`glass-btn ${isConnected ? 'glass-btn--danger' : 'glass-btn--primary'}`}
+                    style={{ flex: 1, padding: '7px', fontSize: 12, fontWeight: 500, textAlign: 'center' }}
+                >
+                    {isConnected ? 'Disconnect' : 'Connect'}
+                </button>
+                <button
+                    onClick={() => setConfigOpen(!configOpen)}
+                    className="glass-btn px-2 text-text-tertiary hover:text-accent flex items-center justify-center transition-colors border border-glass-edge bg-glass-1"
+                >
+                    <Settings size={14} />
+                </button>
+            </div>
+
+            <ChannelConfigExpansion
+                channelId={conn.id}
+                isOpen={configOpen}
+                onClose={() => setConfigOpen(false)}
+            />
         </div>
     );
 };
@@ -133,8 +175,20 @@ const BridgeCenter: React.FC<BridgeCenterProps> = ({
 }) => {
     const formatGroupName = (name: string) => name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 
+    const sortConnections = (conns: Connection[]) => {
+        return [...conns].sort((a, b) => {
+            if (a.status === 'CONNECTED' && b.status !== 'CONNECTED') return -1;
+            if (a.status !== 'CONNECTED' && b.status === 'CONNECTED') return 1;
+            // Both connected: Could sort by last_message_time if property existed, fall back to alphabetical
+            return a.name.localeCompare(b.name);
+        });
+    };
+
     return (
         <div style={{ maxWidth: 960, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 32, paddingBottom: 40 }}>
+
+            <ChannelHealthDashboard />
+
             {(Object.entries(groupedConnections) as [string, Connection[]][]).map(([groupName, groupConns]) => (
                 <div key={groupName}>
                     <h3 style={{
@@ -150,7 +204,7 @@ const BridgeCenter: React.FC<BridgeCenterProps> = ({
                         gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
                         gap: 12,
                     }}>
-                        {groupConns.map(conn => (
+                        {sortConnections(groupConns).map(conn => (
                             <BridgeCard
                                 key={conn.id}
                                 conn={conn}

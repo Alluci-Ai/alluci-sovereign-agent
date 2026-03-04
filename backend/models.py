@@ -92,6 +92,20 @@ class ModelPricing(SQLModel, table=True):
 
 # --- Cron Engine Tables (Sprint 1 — OpenClaw §3) ---
 
+class ChannelAccount(SQLModel, table=True):
+    """
+    Multiple account identities for a single bridge type (e.g. 2 Slack workspaces).
+    OpenClaw §2.3 - Multi-Entity Routing
+    """
+    __tablename__ = "channel_account"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    channel_type: str = Field(index=True) # "slack", "telegram", etc.
+    account_label: str
+    account_identifier: str = Field(unique=True, index=True) # e.g. Team ID or Phone Number
+    credentials: Dict = Field(default={}, sa_column=Column(JSON)) # Encrypted if possible
+    is_active: bool = True
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
 class CronJob(SQLModel, table=True):
     """Scheduled job definition with delivery routing."""
     __tablename__ = "cron_job"
@@ -103,7 +117,7 @@ class CronJob(SQLModel, table=True):
     model_override: Optional[str] = None
     thinking_level: Optional[str] = None
     delivery_channel: Optional[str] = None
-    delivery_account: Optional[str] = None
+    delivery_account_id: Optional[int] = Field(default=None, foreign_key="channel_account.id")
     delivery_to: Optional[str] = None
     delivery_mode: Optional[str] = "none"  # "announce-summary", "post-transcript", "none"
     reset_context: bool = False
@@ -183,8 +197,11 @@ class SystemStatus(BaseModel):
     thermal_status: str
     active_bridges: List[str]
     vault_integrity: bool
-    daemon_version: str = "4.5.1"
+    daemon_version: str = "1.0.0"
     harmonic_status: Optional[str] = "Inactive"
+    security_audit: Optional[Dict[str, Any]] = None
+    update_available: bool = False
+    latest_version: Optional[str] = None
 
 class LoginRequest(BaseModel):
     key: str
@@ -235,6 +252,36 @@ class SoulManifest(BaseModel):
     chainsOfThought: List[str] = []
     bestPractices: List[str] = []
     
+class DiscordGuildMapping(SQLModel, table=True):
+    """Mapping of Discord Guilds to preferred routing channels (OpenClaw §2.3)."""
+    __tablename__ = "discord_guild_mapping"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    guild_id: str = Field(unique=True, index=True)
+    guild_name: Optional[str] = None
+    default_channel_id: Optional[str] = None
+    enabled: bool = True
+
+class MessageLog(SQLModel, table=True):
+    """Full transcript record for sessions (OpenClaw §5.1)."""
+    __tablename__ = "message_log"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    session_key: str = Field(index=True)
+    role: str  # "user", "assistant", "tool", "system"
+    content: Optional[str] = None
+    account_id: Optional[str] = Field(default=None, index=True) # Reference to ChannelAccount identifier
+    tool_name: Optional[str] = None
+    tool_args: Optional[str] = None # JSON string
+    tool_id: Optional[str] = None
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), index=True)
+
+class SessionLogEntry(BaseModel):
+    role: str
+    content: Optional[str] = None
+    tool_name: Optional[str] = None
+    tool_args: Optional[Dict[str, Any]] = None
+    tool_result: Optional[str] = None
+    timestamp: str
+
 class AuditEntry(BaseModel):
     timestamp: str
     id: str
@@ -243,3 +290,32 @@ class AuditEntry(BaseModel):
     hash: str
     prevHash: str
 
+class Device(SQLModel, table=True):
+    """Device identity for node authentication (OpenClaw §4.3)."""
+    __tablename__ = "device"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str
+    public_key: str = Field(unique=True, index=True)
+    fingerprint: str = Field(unique=True, index=True)
+    status: str = Field(default="pending") # "pending", "approved", "revoked"
+    capabilities: Dict = Field(default={}, sa_column=Column(JSON))
+    last_seen: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class DeviceBinding(SQLModel, table=True):
+    """Binding between a device and an agent node/resource."""
+    __tablename__ = "device_binding"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    device_id: int = Field(foreign_key="device.id", index=True)
+    agent_id: str = Field(index=True)
+    token: str = Field(unique=True)
+    expires_at: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+class PresenceBeacon(SQLModel, table=True):
+    """Real-time presence beacon for administrative instances and nodes."""
+    __tablename__ = "presence_beacon"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    client_id: str = Field(unique=True, index=True)
+    subject: str
+    metadata: Dict = Field(default={}, sa_column=Column(JSON))
+    last_seen: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), index=True)

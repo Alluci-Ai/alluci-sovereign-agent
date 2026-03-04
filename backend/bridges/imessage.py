@@ -1,80 +1,153 @@
 import os
 import json
 import subprocess
-from datetime import datetime
-from typing import List, Dict, Any
+import platform
+import logging
+from datetime import datetime, timezone
+from typing import List, Dict, Any, Optional
 from .base import BridgeAdapter
 
 class IMessageBridge(BridgeAdapter):
     """
-    Production stub for Apple iMessage via local SQLite / AppleScript injection
-    or BlueBubbles API. Operates fully isolated on local hardware.
+    Sovereign iMessage Bridge for macOS.
+    Utilizes osascript (AppleScript) for automated messaging and 
+    local SQLite (chat.db) for message retrieval.
+    
+    Reference: OpenClaw Section 2.3 - Native OS Adapters
     """
+
     def __init__(self, bridge_id: str, vault_root: str):
         super().__init__(bridge_id, vault_root)
-        self.mode = "applescript" # or "bluebubbles"
+        self.system = platform.system()
+        self.is_macos = self.system == "Darwin"
+        self.last_error = None
+        
+        if not self.is_macos:
+            self.logger.warning(f"[ IMESSAGE ] Gracefully disabled. Detected platform: {self.system}")
 
     async def connect(self, credentials: Dict[str, Any]) -> bool:
         """
-        Verify local macOS environment for AppleScript execution.
+        Verifies environment readiness for iMessage integration.
+        Requires terminal/app to have 'Full Disk Access' and 'Automation' permissions on macOS.
         """
-        self.mode = credentials.get("mode", "applescript")
-        
-        if self.mode == "applescript":
-             # Verify we are on macOS
-             import platform
-             if platform.system() == "Darwin":
-                  self.is_connected = True
-                  self.logger.info("iMessage Bridge: macOS Local Execution Available")
-                  return True
-             else:
-                  self.logger.error("iMessage Local Applescript requires macOS hardware.")
-                  return False
-        return False
+        if not self.is_macos:
+            self.last_error = "iMessage Bridge requires Apple macOS hardware."
+            return False
+
+        try:
+            # Test osascript accessibility
+            test_cmd = ["osascript", "-e", 'tell application "Messages" to get name']
+            res = subprocess.run(test_cmd, capture_output=True, text=True, timeout=5)
+            
+            if res.returncode == 0:
+                self.is_connected = True
+                self.logger.info("[ IMESSAGE ] Bridge anchored to local Messages.app")
+                return True
+            else:
+                self.last_error = f"AppleScript Permission Denied: {res.stderr.strip()}"
+                self.logger.error(f"[ IMESSAGE ] {self.last_error}")
+                return False
+        except Exception as e:
+            self.last_error = str(e)
+            return False
 
     async def send_message(self, recipient: str, content: str) -> Dict[str, Any]:
-        if not self.is_connected:
-            return {"status": "failed", "error": "Bridge Disconnected"}
+        """Legacy shim for BridgeAdapter compatibility."""
+        return await self.send(recipient, content)
 
-        timestamp = datetime.now().isoformat()
+    async def send(self, recipient: str, content: str, **kwargs) -> Dict[str, Any]:
+        """
+        Injects an iMessage send command via AppleScript.
+        'recipient' can be a phone number or email address.
+        """
+        if not self.is_connected:
+            return {"status": "failed", "error": self.last_error or "Bridge Disconnected"}
+
+        # Sanitize content for AppleScript (escape double quotes)
+        safe_content = content.replace('"', '\\"')
+        
+        # AppleScript for sending iMessage
+        script = f'''
+        tell application "Messages"
+            set targetService to 1st service whose service type = iMessage
+            set targetBuddy to buddy "{recipient}" of targetService
+            send "{safe_content}" to targetBuddy
+        end tell
+        '''
         
         try:
-            if self.mode == "applescript":
-                script = f'''
-                tell application "Messages"
-                    set targetService to 1st service whose service type = iMessage
-                    set targetBuddy to buddy "{recipient}" of targetService
-                    send "{content}" to targetBuddy
-                end tell
-                '''
-                
-                # Sandboxed local execution
-                p = subprocess.run(["osascript", "-e", script], capture_output=True, text=True)
-                
-                status = "success" if p.returncode == 0 else "failed"
-                
-                self._persist_to_vault("sent", {
-                    "recipient": recipient,
-                    "content": content,
-                    "status": status,
-                    "timestamp": timestamp,
-                    "error": p.stderr if status == "failed" else None
-                })
-                
-                return {"status": status, "output": p.stdout}
+            self.logger.debug(f"[ IMESSAGE ] Sending to {recipient}")
+            res = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=10)
             
-            return {"status": "failed", "error": "Unknown connection mode"}
+            status = "success" if res.returncode == 0 else "failed"
+            timestamp = datetime.now(timezone.utc).isoformat()
             
+            self._persist_to_vault("sent_buffer", {
+                "to": recipient,
+                "content": content,
+                "status": status,
+                "timestamp": timestamp,
+                "error": res.stderr.strip() if status == "failed" else None
+            })
+            
+            return {
+                "status": status, 
+                "stdout": res.stdout.strip(), 
+                "stderr": res.stderr.strip()
+            }
         except Exception as e:
-            self.logger.error(f"iMessage send_message failed: {e}")
-            self._persist_to_vault("sent", {"recipient": recipient, "content": content, "status": "exception", "error": str(e)})
-            return {"status": "failed", "error": f"Bridge communication error: {type(e).__name__}"}
+            self.logger.error(f"[ IMESSAGE ] Execution Exception: {e}")
+            return {"status": "failed", "error": str(e)}
 
     async def fetch_unread(self, limit: int = 10) -> List[Dict[str, Any]]:
-        # Usually requires reading ~/Library/Messages/chat.db (requires Full Disk Access on macOS)
-        return []
+        """
+        Attempts to read recent messages from the local chat.db.
+        Requires 'Full Disk Access' for the parent process.
+        """
+        if not self.is_macos: return []
+        
+        db_path = os.path.expanduser("~/Library/Messages/chat.db")
+        if not os.path.exists(db_path):
+            self.logger.debug("[ IMESSAGE ] chat.db not found (likely no FDA permissions)")
+            return []
+
+        # We use sqlite3 via subprocess to pull recent messages
+        # Reference: OpenClaw Section 2.3.2 - Local DB Extraction
+        query = f"""
+        SELECT 
+            message.guid, 
+            handle.id as sender, 
+            message.text, 
+            message.date / 1000000000 + 978307200 as ts
+        FROM message 
+        JOIN handle ON message.handle_id = handle.ROWID 
+        WHERE message.is_from_me = 0 
+        ORDER BY message.date DESC 
+        LIMIT {limit};
+        """
+        
+        try:
+            # Using sqlite3 binary directly for performance and simplicity
+            res = subprocess.run(["sqlite3", db_path, "-json", query], capture_output=True, text=True, timeout=5)
+            if res.returncode == 0 and res.stdout.strip():
+                raw_messages = json.loads(res.stdout)
+                processed = []
+                for msg in raw_messages:
+                    processed.append({
+                        "id": msg.get("guid"),
+                        "from": msg.get("sender"),
+                        "body": msg.get("text"),
+                        "protocol": "IMESSAGE",
+                        "timestamp": datetime.fromtimestamp(msg.get("ts"), tz=timezone.utc).isoformat()
+                    })
+                return processed
+            return []
+        except Exception as e:
+            self.logger.debug(f"[ IMESSAGE ] SQLite read failed (Permissions?): {e}")
+            return []
 
     async def validate_integrity(self) -> bool:
+        if not self.is_macos: return False
         return self.is_connected
 
     def _persist_to_vault(self, box: str, data: Dict[str, Any]):
@@ -83,4 +156,17 @@ class IMessageBridge(BridgeAdapter):
             with open(path, "a") as f:
                 f.write(json.dumps(data) + "\n")
         except Exception as e:
-            self.logger.error(f"Vault Write Error: {e}")
+            self.logger.error(f"[ IMESSAGE ] Vault Write Error: {e}")
+
+    def get_health(self) -> Dict[str, Any]:
+        status_msg = "Operational (macOS Native)" if self.is_connected else "Platform Mismatch / Missing Permissions"
+        if not self.is_macos:
+            status_msg = f"Disabled (Detected: {self.system})"
+            
+        return {
+            "channel": "imessage",
+            "connected": self.is_connected,
+            "platform": self.system,
+            "status_message": status_msg,
+            "last_error": self.last_error
+        }

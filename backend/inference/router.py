@@ -179,6 +179,16 @@ class ModelRouter:
             data = response.json()
             return data["choices"][0]["message"]["content"]
 
+    async def _notify_fallback(self, model_name: str):
+        """Broadcasts a fallback event to connected clients."""
+        if hasattr(self, 'ws_gateway') and self.ws_gateway:
+            try:
+                await self.ws_gateway.broadcast_event('model.fallback', {
+                    "fallback_model": model_name
+                })
+            except Exception as e:
+                self.logger.error(f"Failed to broadcast fallback event: {e}")
+
     async def get_response(self, prompt: str, complexity: Literal["LOW", "MEDIUM", "HIGH"] = "MEDIUM") -> str:
         """Get a response with automatic failover across providers."""
         use_strong = complexity == "HIGH"
@@ -202,6 +212,7 @@ class ModelRouter:
         # Attempt 2: OpenAI
         if self.openai_client:
             try:
+                await self._notify_fallback("OpenAI (GPT-4o)")
                 return await self._openai_request(prompt, use_strong=use_strong, json_mode=json_mode)
             except Exception as e:
                 errors.append(f"OpenAI: {e}")
@@ -210,6 +221,7 @@ class ModelRouter:
         # Attempt 3: Anthropic
         if self.anthropic_client:
             try:
+                await self._notify_fallback("Anthropic (Claude 3.5)")
                 return await self._anthropic_request(prompt, use_strong=use_strong)
             except Exception as e:
                 errors.append(f"Anthropic: {e}")
@@ -218,6 +230,7 @@ class ModelRouter:
         # Attempt 4: DeepSeek
         if self.deepseek_client:
             try:
+                await self._notify_fallback("DeepSeek (R1 / Chat)")
                 # Use DeepSeek-R1 for GitHub Models, deepseek-chat for direct
                 model = "DeepSeek-R1" if "azure" in str(self.deepseek_client.base_url) else "deepseek-chat"
                 response = await self.deepseek_client.chat.completions.create(
@@ -233,6 +246,7 @@ class ModelRouter:
         # Attempt 5: OpenRouter
         if self.openrouter_client:
             try:
+                await self._notify_fallback("OpenRouter (Llama 3.3)")
                 # Using a more standard model for OpenRouter failover to ensure stability
                 model = "meta-llama/llama-3.3-70b-instruct"
                 response = await self.openrouter_client.chat.completions.create(
@@ -248,6 +262,7 @@ class ModelRouter:
         # Attempt 6: Kimi (Failover for reasoning)
         if self.nvidia_nim_api_key:
             try:
+                await self._notify_fallback("Kimi (k2.5)")
                 return await self._kimi_request(prompt, thinking=use_strong)
             except Exception as e:
                 errors.append(f"Kimi: {e}")

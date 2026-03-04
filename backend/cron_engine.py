@@ -202,7 +202,7 @@ class CronEngine:
         logger.info(f"[CronEngine] Job {job.id} completed: {status}")
 
     async def _deliver(self, job, content: str) -> str:
-        """Route job output to the configured channel adapter."""
+        """Route job output to the configured channel adapter (OpenClaw §3.2)."""
         if not job.delivery_channel or not self.channel_registry:
             return "no_channel"
 
@@ -212,12 +212,18 @@ class CronEngine:
 
         try:
             recipient = job.delivery_to or ""
+            # Prepare extra routing context
+            kwargs = {}
+            if job.delivery_account:
+                kwargs["account"] = job.delivery_account
+
             if job.delivery_mode == DeliveryMode.ANNOUNCE_SUMMARY:
                 # Truncate for summary
                 summary = content[:500] + ("..." if len(content) > 500 else "")
-                await adapter.send_message(recipient, f"📋 Cron Job '{job.name}' completed:\n{summary}")
+                await adapter.send(recipient, f"📋 Cron Job '{job.name}' completed:\n{summary}", **kwargs)
             elif job.delivery_mode == DeliveryMode.POST_TRANSCRIPT:
-                await adapter.send_message(recipient, f"📜 Full transcript for '{job.name}':\n{content}")
+                await adapter.send(recipient, f"📜 Full transcript for '{job.name}':\n{content}", **kwargs)
+            
             return "delivered"
         except Exception as e:
             logger.error(f"[CronEngine] Delivery failed for job {job.id}: {e}")

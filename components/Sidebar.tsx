@@ -3,7 +3,8 @@ import { useStore, ActiveView } from '../store/useStore';
 import AffectiveWidget from './AffectiveWidget';
 import {
     MessageSquare, Brain, Zap, Link2, Key,
-    CheckSquare, FolderOpen, Shield, ChevronLeft, ChevronRight
+    CheckSquare, FolderOpen, Shield, ChevronLeft, ChevronRight,
+    LayoutList, BarChart3, Calendar, Bot, Settings, ScrollText, Bug
 } from 'lucide-react';
 
 interface NavItem {
@@ -14,11 +15,18 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
     { id: 'chat', label: 'Chat', icon: MessageSquare },
+    { id: 'sessions', label: 'Sessions', icon: LayoutList },
     { id: 'soul', label: 'Soul', icon: Brain },
     { id: 'skills', label: 'Skills', icon: Zap },
     { id: 'bridges', label: 'Bridges', icon: Link2 },
+    { id: 'agents', label: 'Agents', icon: Bot },
+    { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+    { id: 'scheduling', label: 'Scheduling', icon: Calendar },
     { id: 'api', label: 'API', icon: Key },
+    { id: 'config', label: 'Config', icon: Settings },
     { id: 'tasks', label: 'Tasks', icon: CheckSquare },
+    { id: 'logs', label: 'Logs', icon: ScrollText },
+    { id: 'debug', label: 'Debug', icon: Bug },
     { id: 'files', label: 'Files', icon: FolderOpen },
     { id: 'audit', label: 'Audit', icon: Shield },
 ];
