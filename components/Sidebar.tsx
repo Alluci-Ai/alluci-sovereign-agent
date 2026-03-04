@@ -4,7 +4,7 @@ import AffectiveWidget from './AffectiveWidget';
 import {
     MessageSquare, Brain, Zap, Link2, Key,
     CheckSquare, FolderOpen, Shield, ChevronLeft, ChevronRight,
-    LayoutList, BarChart3, Calendar, Bot, Settings, ScrollText, Bug
+    LayoutList, BarChart3, Calendar, Bot, Settings, ScrollText, Bug, CalendarDays
 } from 'lucide-react';
 
 interface NavItem {
@@ -22,6 +22,7 @@ const NAV_ITEMS: NavItem[] = [
     { id: 'agents', label: 'Agents', icon: Bot },
     { id: 'analytics', label: 'Analytics', icon: BarChart3 },
     { id: 'scheduling', label: 'Scheduling', icon: Calendar },
+    { id: 'crons', label: 'Crons', icon: CalendarDays },
     { id: 'api', label: 'API', icon: Key },
     { id: 'config', label: 'Config', icon: Settings },
     { id: 'tasks', label: 'Tasks', icon: CheckSquare },
@@ -56,7 +57,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 
     return (
         <aside
-            className={`sidebar ${isSidebarCollapsed ? 'sidebar--collapsed' : ''}`}
+            className={`sidebar ${isSidebarCollapsed ? 'sidebar--collapsed' : ''} `}
         >
             {/* Collapse / Expand toggle */}
             <button
@@ -76,7 +77,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                         <button
                             key={item.id}
                             onClick={() => setActiveView(item.id)}
-                            className={`sidebar__item ${isActive ? 'sidebar__item--active' : ''}`}
+                            className={`sidebar__item ${isActive ? 'sidebar__item--active' : ''} `}
                             title={isSidebarCollapsed ? item.label : undefined}
                         >
                             <Icon size={18} strokeWidth={isActive ? 2.2 : 1.6} />

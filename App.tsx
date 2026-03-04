@@ -58,6 +58,8 @@ import { LogPanel } from './features/observability/LogPanel';
 import { SchedulingPanel } from './features/scheduling/SchedulingPanel';
 import { AgentsPanel } from './features/agents/AgentsPanel';
 import { DebugPanel } from './features/debug/DebugPanel';
+import CronPanel from './features/scheduling/CronPanel';
+import { useTranslation } from './features/shell/LocaleSelector';
 
 const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
 
@@ -486,6 +488,8 @@ const App: React.FC = () => {
         return <LogPanel />;
       case 'scheduling':
         return <SchedulingPanel />;
+      case 'crons':
+        return <CronPanel />;
       case 'agents':
         return <AgentsPanel />;
       case 'debug':
