@@ -40,5 +40,5 @@ jobs:
           JWT_SECRET_KEY: ${{ secrets.TEST_JWT_KEY }}
           GEMINI_API_KEY: ${{ secrets.TEST_GEMINI_KEY }}
         run: |
-          cd backend
-          pytest tests/ -v --cov=. --cov-report=xml
+          export PYTHONPATH=$PYTHONPATH:$(pwd)
+          pytest backend/tests/ -v --cov=backend --cov-report=xml
