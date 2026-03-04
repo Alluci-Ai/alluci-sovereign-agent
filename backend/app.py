@@ -20,7 +20,7 @@ from fastapi_limiter.depends import RateLimiter
 
 from .config import settings
 from .database import create_db_and_tables, engine as db_engine
-from sqlmodel import Session
+from sqlmodel import Session, select
 from .models import (
     ObjectiveRequest, TelemetryData, SystemStatus, LoginRequest,
     TaskUpdate, SoulPreferences, SoulManifest, AuditEntry
@@ -42,6 +42,7 @@ from .analytics import UsageTracker
 from .cron_engine import CronEngine
 from .log_streamer import log_buffer, log_stream_handler
 from .config_editor import ConfigEditor
+from .exec_approval import ExecApprovalManager
 from fastapi import WebSocket, WebSocketDisconnect
 from fastapi.responses import PlainTextResponse
 
@@ -62,6 +63,8 @@ ws_gw: JsonRpcGateway = None
 usage_tracker: UsageTracker = None
 cron_engine: CronEngine = None
 config_editor: ConfigEditor = None
+exec_approval: ExecApprovalManager = None
+channel_registry: Dict[str, Any] = {}
 
 # --- Input Sanitization ---
 async def sanitize_input(text: str) -> str:
@@ -81,7 +84,7 @@ async def sanitize_input(text: str) -> str:
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
     global vault, router, ace, orchestrator, task_manager, skill_manager, sovereign_identity, local_inference
-    global ws_gw, usage_tracker, cron_engine, config_editor
+    global ws_gw, usage_tracker, cron_engine, config_editor, exec_approval, channel_registry
 
     # Initialize structured logging before any log calls
     configure_logging(app_env=settings.APP_ENV)
@@ -137,7 +140,10 @@ async def lifespan(app: FastAPI):
     # 12. Sprint 1: Config Editor
     config_editor = ConfigEditor(settings)
 
-    # 13. Background Services
+    # 13. Sprint 3: Exec Approval
+    exec_approval = ExecApprovalManager(db_engine, ws_gateway=ws_gw)
+
+    # 14. Background Services
     await orchestrator.start_background_services()
 
     logger.info("[ POLYTOPE_DAEMON ] All systems nominal. Ready.")
@@ -1119,7 +1125,125 @@ async def export_logs(level: str = Query(None)):
                              headers={"Content-Disposition": "attachment; filename=logs.jsonl"})
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# Sprint 2–4: Channel Health Dashboard & Management (OpenClaw §2.9–2.11)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/api/channels/status", dependencies=[Depends(verify_authenticated)])
+async def get_channel_status():
+    """Aggregate per-adapter health for all channels."""
+    statuses = []
+    for name, adapter in channel_registry.items():
+        if hasattr(adapter, "get_health"):
+            statuses.append(adapter.get_health())
+        else:
+            statuses.append({"channel": name, "connected": getattr(adapter, "is_connected", False)})
+    return {
+        "channels": statuses,
+        "total": len(statuses),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@app.put("/api/channels/{channel_id}/toggle", dependencies=[Depends(verify_authenticated)])
+async def toggle_channel(channel_id: str, data: Dict[str, Any] = Body(...)):
+    """Enable or disable a channel adapter at runtime."""
+    adapter = channel_registry.get(channel_id)
+    if not adapter:
+        raise HTTPException(status_code=404, detail=f"Channel '{channel_id}' not found")
+    enabled = data.get("enabled", True)
+    adapter.enabled = enabled
+    if not enabled and hasattr(adapter, "disconnect"):
+        await adapter.disconnect()
+    return {"channel": channel_id, "enabled": enabled}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Sprint 3: Exec Approval API (OpenClaw §5.6)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.post("/api/exec/allow", dependencies=[Depends(verify_authenticated)])
+async def exec_allow(data: Dict[str, Any] = Body(...)):
+    """Allow an exec approval request."""
+    request_id = data.get("request_id")
+    if not request_id:
+        raise HTTPException(status_code=400, detail="Missing request_id")
+    return exec_approval.handle_allow(
+        request_id=request_id,
+        persist=data.get("persist", False),
+        command=data.get("command", ""),
+        tool_name=data.get("tool_name", ""),
+    )
+
+
+@app.post("/api/exec/deny", dependencies=[Depends(verify_authenticated)])
+async def exec_deny(data: Dict[str, Any] = Body(...)):
+    """Deny an exec approval request."""
+    request_id = data.get("request_id")
+    if not request_id:
+        raise HTTPException(status_code=400, detail="Missing request_id")
+    return exec_approval.handle_deny(
+        request_id=request_id,
+        persist=data.get("persist", False),
+        command=data.get("command", ""),
+        tool_name=data.get("tool_name", ""),
+    )
+
+
+@app.get("/api/exec/policies", dependencies=[Depends(verify_authenticated)])
+async def list_exec_policies():
+    """List all persistent exec approval policies."""
+    return exec_approval.list_policies()
+
+
+@app.delete("/api/exec/policies/{policy_id}", dependencies=[Depends(verify_authenticated)])
+async def delete_exec_policy(policy_id: int):
+    """Delete a persistent exec policy."""
+    if not exec_approval.delete_policy(policy_id):
+        raise HTTPException(status_code=404, detail="Policy not found")
+    return {"status": "deleted"}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Sprint 5: Session Config Overrides (OpenClaw §5.4–5.5)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/api/sessions/{session_key}/config", dependencies=[Depends(verify_authenticated)])
+async def get_session_config(session_key: str):
+    """Get per-session configuration overrides."""
+    from .models import SessionConfig
+    with Session(db_engine) as session:
+        stmt = select(SessionConfig).where(SessionConfig.session_key == session_key)
+        config = session.exec(stmt).first()
+        if not config:
+            return {"session_key": session_key, "overrides": {}}
+        return {
+            "session_key": session_key,
+            "label": config.label,
+            "model_override": config.model_override,
+            "thinking_level": config.thinking_level,
+            "verbose_level": config.verbose_level,
+            "reasoning_level": config.reasoning_level,
+        }
+
+
+@app.put("/api/sessions/{session_key}/config", dependencies=[Depends(verify_authenticated)])
+async def update_session_config(session_key: str, data: Dict[str, Any] = Body(...)):
+    """Update per-session configuration overrides."""
+    from .models import SessionConfig
+    with Session(db_engine) as session:
+        stmt = select(SessionConfig).where(SessionConfig.session_key == session_key)
+        config = session.exec(stmt).first()
+        if not config:
+            config = SessionConfig(session_key=session_key)
+        for key in ["label", "model_override", "thinking_level", "verbose_level", "reasoning_level"]:
+            if key in data:
+                setattr(config, key, data[key])
+        session.add(config)
+        session.commit()
+        return {"status": "updated", "session_key": session_key}
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host=settings.HOST, port=settings.PORT)
-

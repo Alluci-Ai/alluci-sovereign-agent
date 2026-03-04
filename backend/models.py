@@ -122,6 +122,31 @@ class CronRun(SQLModel, table=True):
     delivery_status: Optional[str] = None
     log_text: Optional[str] = None
 
+# --- Exec Approval Policies (Sprint 3 — OpenClaw §5.6) ---
+
+class ExecPolicy(SQLModel, table=True):
+    """Persistent allow/deny policies for tool execution approval."""
+    __tablename__ = "exec_policy"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    tool_name: str = Field(index=True)
+    command_pattern: str  # exact command or "*" for wildcard
+    decision: str  # "allow" or "deny"
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: Optional[datetime] = None
+
+# --- Session Config Overrides (Sprint 5 — OpenClaw §5.4) ---
+
+class SessionConfig(SQLModel, table=True):
+    """Per-session parameter overrides (model, thinking level, etc.)."""
+    __tablename__ = "session_config"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    session_key: str = Field(unique=True, index=True)
+    label: Optional[str] = None
+    model_override: Optional[str] = None
+    thinking_level: Optional[str] = None
+    verbose_level: Optional[str] = None
+    reasoning_level: Optional[str] = None
+
 # --- Engine Memory Models (Runtime) ---
 
 class DAGTask(BaseModel):
