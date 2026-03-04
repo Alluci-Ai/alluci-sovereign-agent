@@ -141,6 +141,10 @@ export interface AppState {
     sessionCount: number;
     setPresenceCount: (val: number) => void;
     setSessionCount: (val: number) => void;
+
+    // Presence Data
+    presence: { instances: number; sessions: number };
+    setPresence: (val: Partial<AppState['presence']>) => void;
 }
 
 export const useStore = create<AppState>((set) => ({
@@ -301,4 +305,7 @@ export const useStore = create<AppState>((set) => ({
     sessionCount: 0,
     setPresenceCount: (val) => set({ presenceCount: val }),
     setSessionCount: (val) => set({ sessionCount: val }),
+
+    presence: { instances: 0, sessions: 0 },
+    setPresence: (val) => set((state) => ({ presence: { ...state.presence, ...val } })),
 }));

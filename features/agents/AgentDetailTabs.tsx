@@ -5,6 +5,7 @@ import WorkspaceEditor from './WorkspaceEditor';
 import ToolProfileEditor from './ToolProfileEditor';
 import ChannelSubscriptions from './ChannelSubscriptions';
 import BulkSkillActions from '../skills/BulkSkillActions';
+import NodeBindingEditor from '../devices/NodeBindingEditor';
 
 const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
 

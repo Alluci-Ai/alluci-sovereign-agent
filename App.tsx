@@ -109,7 +109,12 @@ const App: React.FC = () => {
         },
         onSystemEvent: (method, params) => {
           console.log(`[ ADMIN EVENT ]: ${method}`, params);
-          if (method === 'usage.alert') {
+          if (method === 'system.heartbeat') {
+            useStore.getState().setPresence({
+              instances: params.instances || 0,
+              sessions: params.sessions || 0
+            });
+          } else if (method === 'usage.alert') {
             setActiveNudges(prev => [...prev, { id: `usage_${Date.now()}`, message: `Usage Alert: ${params.reason}` }]);
           } else if (method === 'model.fallback') {
             setModelFallbackMessage(`⚠ Primary model unavailable. Using ${params.fallback_model}`);
