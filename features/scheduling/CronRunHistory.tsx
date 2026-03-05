@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useStore } from '../../store/useStore';
-import { CheckCircle2, XCircle, Clock, Search, ExternalLink } from 'lucide-react';
+import { CheckCircle2, XCircle, Clock, Search, ExternalLink, Hash, Activity } from 'lucide-react';
 
 const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
 
@@ -39,67 +39,108 @@ export const CronRunHistory: React.FC = () => {
     }, [fetchRuns]);
 
     const formatDuration = (start: string, end?: string) => {
-        if (!end) return 'Running...';
+        if (!end) return 'Active';
         const ms = new Date(end).getTime() - new Date(start).getTime();
+        if (ms < 1000) return `${ms}ms`;
         return `${(ms / 1000).toFixed(1)}s`;
     };
 
     if (loading) return (
-        <div className="h-full flex items-center justify-center opacity-50 animate-pulse text-xs font-mono tracking-widest">
-            LOADING_TRACE_HISTORY...
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200 }} className="opacity-40 font-mono text-xs tracking-widest animate-pulse">
+            RETRIEVING_EXECUTION_LOGS...
         </div>
     );
 
     if (runs.length === 0) return (
-        <div className="h-full flex flex-col items-center justify-center opacity-40 text-center gap-3">
-            <Search size={32} />
-            <span className="text-xs font-mono tracking-widest">NO_EXECUTIONS_LOGGED</span>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 300, gap: 16 }} className="opacity-30">
+            <Search size={40} />
+            <span className="text-sm font-medium">No execution history found in the manifold.</span>
         </div>
     );
 
     return (
-        <div className="flex flex-col gap-2">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {runs.map((run) => (
-                <div key={run.id} className="bg-glass-1 border border-glass-edge rounded-lg overflow-hidden animate-in fade-in flex flex-col transition-all">
-
+                <div key={run.id} style={{
+                    background: 'var(--glass-bg)',
+                    border: '1px solid var(--glass-edge)',
+                    borderRadius: 14, overflow: 'hidden',
+                    boxShadow: 'var(--glass-shadow-sm)',
+                    transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+                }}>
                     <button
                         onClick={() => setExpandedId(expandedId === run.id ? null : run.id)}
-                        className={`flex items-center justify-between p-3 text-left transition-colors hover:bg-white/5 ${expandedId === run.id ? 'bg-glass-2 border-b border-glass-edge' : ''}`}
+                        style={{
+                            width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                            padding: '12px 16px', border: 'none', background: 'transparent', cursor: 'pointer',
+                            textAlign: 'left'
+                        }}
+                        className="hover:bg-glass-bg-hover transition-colors"
                     >
-                        <div className="flex items-center gap-3 min-w-0">
-                            {run.status === 'ok' ? (
-                                <CheckCircle2 size={14} className="text-status-good flex-shrink-0" />
-                            ) : (
-                                <XCircle size={14} className="text-status-error flex-shrink-0" />
-                            )}
-                            <div className="flex flex-col min-w-0">
-                                <span className="text-xs font-medium text-text-primary capitalize truncate">Job #{run.job_id} Exection</span>
-                                <span className="text-[10px] font-mono text-text-tertiary">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                            <div style={{
+                                width: 32, height: 32, borderRadius: 10,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                background: run.status === 'ok' ? 'var(--status-good-tint)' : 'var(--status-error-tint)',
+                                color: run.status === 'ok' ? 'var(--status-good)' : 'var(--status-error)'
+                            }}>
+                                {run.status === 'ok' ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>Trace #{run.id}</span>
+                                    <span style={{ fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 500 }} className="flex items-center gap-1">
+                                        <Hash size={10} /> Job {run.job_id}
+                                    </span>
+                                </div>
+                                <span style={{ fontSize: 10, color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)' }}>
                                     {new Date(run.started_at).toLocaleString()}
                                 </span>
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-4 text-[10px] font-mono opacity-80 shrink-0">
-                            <span className="flex items-center gap-1.5"><Clock size={10} className="text-accent" /> {formatDuration(run.started_at, run.finished_at)}</span>
-                            <span className={`px-1.5 py-0.5 rounded border ${run.delivery_status !== 'none' && run.delivery_status !== 'delivered' ? 'text-status-warning border-status-warning/20 bg-status-warning/10' : 'border-white/10 text-text-tertiary bg-white/5'}`}>
-                                {run.delivery_status.substring(0, 10).toUpperCase()}
-                            </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+                                <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.02em', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    <Activity size={10} /> {formatDuration(run.started_at, run.finished_at)}
+                                </span>
+                                <span style={{
+                                    fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 4,
+                                    background: run.delivery_status === 'delivered' ? 'var(--status-good-tint)' : 'var(--fill-quaternary)',
+                                    color: run.delivery_status === 'delivered' ? 'var(--status-good)' : 'var(--text-tertiary)',
+                                    border: '1px solid var(--separator)'
+                                }}>
+                                    {run.delivery_status.toUpperCase()}
+                                </span>
+                            </div>
                         </div>
                     </button>
 
                     {expandedId === run.id && (
-                        <div className="p-3 bg-glass-pressed border-t border-glass-edge text-[11px] font-mono text-text-secondary whitespace-pre-wrap max-h-48 overflow-y-auto custom-scrollbar relative">
-                            {run.log_text || 'No output captured.'}
-                            {run.log_text.length > 50 && (
-                                <button
-                                    className="absolute top-2 right-2 p-1 bg-glass-1 border border-glass-edge rounded opacity-50 hover:opacity-100"
-                                    onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(run.log_text); }}
-                                    title="Copy raw log"
-                                >
-                                    <ExternalLink size={12} />
-                                </button>
-                            )}
+                        <div style={{
+                            padding: 16, background: 'var(--fill-quaternary)',
+                            borderTop: '1px solid var(--separator)', position: 'relative'
+                        }}>
+                            <div style={{
+                                fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)',
+                                whiteSpace: 'pre-wrap', maxHeight: 300, overflowY: 'auto',
+                                lineHeight: 1.6, paddingBottom: 8
+                            }} className="scrollbar-hide">
+                                {run.log_text || '// NO_LOG_DATA_RECORDED'}
+                            </div>
+                            <button
+                                style={{
+                                    position: 'absolute', top: 12, right: 12,
+                                    padding: '6px 10px', background: 'var(--glass-bg)',
+                                    border: '1px solid var(--glass-edge)', borderRadius: 8,
+                                    fontSize: 10, fontWeight: 600, color: 'var(--text-tertiary)',
+                                    display: 'flex', alignItems: 'center', gap: 6
+                                }}
+                                onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(run.log_text); }}
+                                className="hover:bg-glass-bg-hover hover:text-text-primary transition-all"
+                            >
+                                <ExternalLink size={12} /> COPY_RAW
+                            </button>
                         </div>
                     )}
                 </div>

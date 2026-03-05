@@ -40,10 +40,11 @@ class CronEngine:
     orchestrator, and records run history.
     """
 
-    def __init__(self, db_engine, orchestrator=None, channel_registry=None):
+    def __init__(self, db_engine, orchestrator=None, channel_registry=None, task_manager=None):
         self.db_engine = db_engine
         self.orchestrator = orchestrator
         self.channel_registry = channel_registry or {}
+        self.task_manager = task_manager
         self._running = False
         self._tick_task: Optional[asyncio.Task] = None
         self._tick_interval = 60  # seconds
@@ -149,6 +150,18 @@ class CronEngine:
         delivery_status = "none"
 
         try:
+            # --- TASK INTEGRATION ---
+            # Create a Task record so it appears in the Task Manager
+            if self.task_manager:
+                from .models import TaskUpdate, TaskPriority
+                task_desc = f"[CRON] {job.name}: {job.payload or 'Execute scheduled task'}"
+                # Map thinking level or some other attribute to priority if needed, but default to MEDIUM
+                await self.task_manager.add_task(TaskUpdate(
+                    description=task_desc,
+                    completed=False,
+                    priority=TaskPriority.MEDIUM
+                ))
+
             if self.orchestrator:
                 # Build the objective from the job's payload
                 objective = f"[CRON JOB: {job.name}] {job.payload or 'Execute scheduled task'}"

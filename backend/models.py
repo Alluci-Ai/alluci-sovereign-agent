@@ -317,5 +317,5 @@ class PresenceBeacon(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     client_id: str = Field(unique=True, index=True)
     subject: str
-    metadata: Dict = Field(default={}, sa_column=Column(JSON))
+    data_fields: Dict = Field(default={}, sa_column=Column(JSON))
     last_seen: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), index=True)

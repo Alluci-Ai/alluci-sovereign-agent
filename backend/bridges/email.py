@@ -93,6 +93,10 @@ class EmailBridge(BridgeAdapter):
             self.logger.error(f"Failed to send email: {e}")
             return {"status": "failed", "error": f"Bridge communication error: {type(e).__name__}"}
 
+    async def send(self, recipient: str, content: str, **kwargs) -> Dict[str, Any]:
+        """Canonical data transmission method (Email)."""
+        return await self.send_message(recipient, content)
+
     def _send_smtp(self, msg):
         server = smtplib.SMTP(self.smtp_server, self.smtp_port, timeout=30)
         server.starttls()

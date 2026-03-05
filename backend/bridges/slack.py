@@ -204,6 +204,26 @@ class SlackBridge(BridgeAdapter):
             self.logger.error(f"Slack send_message failed: {e}")
             return {"status": "failed", "error": f"Bridge communication error: {type(e).__name__}"}
 
+    async def send(self, recipient: str, content: str, **kwargs) -> Dict[str, Any]:
+        """Canonical data transmission method (Slack)."""
+        return await self.send_message(recipient, content, blocks=kwargs.get("blocks"))
+
+    async def fetch_unread(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """Poll for recent mentions or IMs if events API isn't used."""
+        return []
+
+    async def validate_integrity(self) -> bool:
+        """Verify the Slack token via auth.test."""
+        if not self.bot_token: return False
+        try:
+            async with httpx.AsyncClient() as client:
+                res = await client.post(
+                    f"{self.api_url}/auth.test",
+                    headers={"Authorization": f"Bearer {self.bot_token}"},
+                )
+                return res.json().get("ok", False)
+        except: return False
+
     # ---------------------------------------------------------------------
     # Events API handling
     # ---------------------------------------------------------------------

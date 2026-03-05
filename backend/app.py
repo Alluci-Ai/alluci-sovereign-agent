@@ -10,8 +10,8 @@ import logging
 import base64
 import json
 import redis.asyncio as redis
-from datetime import datetime, timezone
-from typing import Dict, Any
+from datetime import datetime, timezone, date, timedelta
+from typing import Dict, Any, Optional, List
 from fastapi import FastAPI, HTTPException, Depends, Query, Body, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -151,7 +151,7 @@ async def lifespan(app: FastAPI):
                           updater=updater)
 
     # 11. Sprint 1: Cron Engine
-    cron_engine = CronEngine(db_engine, orchestrator=orchestrator)
+    cron_engine = CronEngine(db_engine, orchestrator=orchestrator, task_manager=task_manager)
     await cron_engine.start()
 
     # 12. Sprint 1: Log Streamer
@@ -1137,17 +1137,28 @@ async def websocket_admin(websocket: WebSocket):
 # Sprint 1: Usage & Cost Analytics API (OpenClaw §4)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-@app.get("/api/usage/sessions", dependencies=[Depends(verify_authenticated)])
-async def get_usage_sessions(
-    start: str = Query(None, description="Start date (YYYY-MM-DD)"),
-    end: str = Query(None, description="End date (YYYY-MM-DD)"),
-    limit: int = Query(1000, ge=1, le=5000),
-):
-    """Date-range session usage aggregation."""
-    from datetime import date as dt_date
-    s = dt_date.fromisoformat(start) if start else None
-    e = dt_date.fromisoformat(end) if end else None
-    return usage_tracker.get_sessions(start=s, end=e, limit=limit)
+@app.get("/api/sessions", dependencies=[Depends(verify_authenticated)])
+async def get_sessions(limit: int = Query(100, ge=1, le=500)):
+    """Exhaustive sessions list for the Management Panel."""
+    # We call the usage tracker aggregation which now joins labels and channels
+    return usage_tracker.get_sessions(limit=limit)
+
+
+@app.get("/api/agents", dependencies=[Depends(verify_authenticated)])
+async def get_agents():
+    """ Stub for agent constellation list to prevent frontend errors. """
+    return {
+        "agents": [
+            {
+                "id": "root",
+                "name": "Sovereign Root",
+                "model": "gpt-4o",
+                "status": "READY",
+                "active_skills": 12,
+                "channels": 4
+            }
+        ]
+    }
 
 
 @app.get("/api/usage/daily", dependencies=[Depends(verify_authenticated)])
@@ -1774,7 +1785,7 @@ async def usage_summary(
     """Get high-level usage aggregates."""
     s_date = date.fromisoformat(start) if start else None
     e_date = date.fromisoformat(end) if end else None
-    return analytics.get_summary(start=s_date, end=e_date)
+    return usage_tracker.get_summary(start=s_date, end=e_date)
 
 
 @app.get("/api/usage/sessions", dependencies=[Depends(verify_authenticated)])
@@ -1786,7 +1797,7 @@ async def usage_sessions(
     """Get aggregated session usage statistics."""
     s_date = date.fromisoformat(start) if start else None
     e_date = date.fromisoformat(end) if end else None
-    return analytics.get_sessions(start=s_date, end=e_date, limit=limit)
+    return usage_tracker.get_sessions(start=s_date, end=e_date, limit=limit)
 
 
 @app.get("/api/usage/daily", dependencies=[Depends(verify_authenticated)])
@@ -1797,19 +1808,19 @@ async def usage_daily(
     """Get daily rollup of token usage and costs."""
     s_date = date.fromisoformat(start) if start else None
     e_date = date.fromisoformat(end) if end else None
-    return analytics.get_daily(start=s_date, end=e_date)
+    return usage_tracker.get_daily(start=s_date, end=e_date)
 
 
 @app.get("/api/usage/sessions/{key}/timeseries", dependencies=[Depends(verify_authenticated)])
 async def usage_session_timeseries(key: str):
     """Get per-turn incremental usage for a specific session."""
-    return analytics.get_session_timeseries(key)
+    return usage_tracker.get_session_timeseries(key)
 
 
 @app.get("/api/sessions/{key}/log", dependencies=[Depends(verify_authenticated)])
 async def session_log(key: str, role: Optional[str] = Query(None)):
     """Get full transcript log for a session with optional role filtering."""
-    return analytics.get_session_log(key, role_filter=role)
+    return usage_tracker.get_session_log(key, role_filter=role)
 
 
 @app.get("/api/usage/export/sessions.csv", dependencies=[Depends(verify_authenticated)])
@@ -1817,7 +1828,7 @@ async def export_sessions_csv(start: Optional[str] = Query(None), end: Optional[
     """Export session summary as CSV."""
     s_date = date.fromisoformat(start) if start else None
     e_date = date.fromisoformat(end) if end else None
-    csv_str = analytics.export_sessions_csv(s_date, e_date)
+    csv_str = usage_tracker.export_sessions_csv(s_date, e_date)
     return PlainTextResponse(content=csv_str, media_type="text/csv",
                              headers={"Content-Disposition": "attachment; filename=sessions.csv"})
 
@@ -1827,7 +1838,7 @@ async def export_daily_csv(start: Optional[str] = Query(None), end: Optional[str
     """Export daily rollup as CSV."""
     s_date = date.fromisoformat(start) if start else None
     e_date = date.fromisoformat(end) if end else None
-    csv_str = analytics.export_daily_csv(s_date, e_date)
+    csv_str = usage_tracker.export_daily_csv(s_date, e_date)
     return PlainTextResponse(content=csv_str, media_type="text/csv",
                              headers={"Content-Disposition": "attachment; filename=daily_usage.csv"})
 

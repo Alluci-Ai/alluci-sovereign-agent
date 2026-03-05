@@ -172,6 +172,13 @@ class DiscordBridge(BridgeAdapter):
         finally:
             self._pending_rpcs.pop(rpc_id, None)
 
+    async def fetch_unread(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """
+        Retrieve recent communications for autonomous processing.
+        For Discord, we mostly rely on push events, but this satisfies the adapter interface.
+        """
+        return []
+
     async def validate_integrity(self) -> bool:
         return self.is_connected
 

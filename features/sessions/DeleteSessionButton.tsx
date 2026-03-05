@@ -33,13 +33,14 @@ export const DeleteSessionButton: React.FC<DeleteSessionButtonProps> = ({ sessio
             });
 
             if (res.ok) {
-                const updatedSessions = sessions.filter(s => s.key !== sessionKey);
+                const updatedSessions = sessions.filter(s => (s.session_key || s.key) !== sessionKey);
                 setSessions(updatedSessions);
 
                 // If we deleted the active one, fallback safely
                 if (activeSessionKey === sessionKey) {
                     if (updatedSessions.length > 0) {
-                        setActiveSessionKey(updatedSessions[0].key);
+                        const next = updatedSessions[0];
+                        setActiveSessionKey(next.session_key || next.key);
                     } else {
                         setActiveSessionKey(crypto.randomUUID());
                     }
