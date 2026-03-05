@@ -18,9 +18,13 @@ class VerusRPCClient:
         if settings.VERUS_RPC_USER and settings.VERUS_RPC_PASSWORD:
             self.auth = (settings.VERUS_RPC_USER, settings.VERUS_RPC_PASSWORD)
         
-        self.client = httpx.AsyncClient(
-            timeout=30.0
-        )
+        self._client = None
+
+    @property
+    def client(self) -> httpx.AsyncClient:
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(timeout=30.0)
+        return self._client
 
     async def _call(self, method: str, params: List[Any] = [], use_public: bool = False) -> Any:
         # Determine URL and Auth

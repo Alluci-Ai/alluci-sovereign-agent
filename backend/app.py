@@ -159,6 +159,7 @@ async def lifespan(app: FastAPI):
 
     # 13. Sprint 1: Config Editor
     config_editor = ConfigEditor(settings)
+    logger.info("DEBUG: Passed config_editor")
 
     # 14. Sprint 2: Channel Adapter Registry
     vault_root = os.path.expanduser("~/.polytope/vaults")
@@ -173,6 +174,7 @@ async def lifespan(app: FastAPI):
     from .bridges.google_chat import GoogleChatBridge
     from .bridges.nostr import NostrBridge
     from .bridges.imessage import IMessageBridge
+    logger.info("DEBUG: Passed bridge imports")
 
     async def broadcast_bridge_event(event: str, data: Any):
         await ws_gw.broadcast_event(event, data)
@@ -186,6 +188,7 @@ async def lifespan(app: FastAPI):
     channel_registry["google_chat"] = GoogleChatBridge("google_chat", vault_root)
     channel_registry["nostr"] = NostrBridge("nostr", vault_root)
     channel_registry["imessage"] = IMessageBridge("imessage", vault_root)
+    logger.info("DEBUG: Passed channel_registry instances")
 
     for ch_name, adapter in channel_registry.items():
         if hasattr(adapter, "on_event"):
@@ -193,6 +196,7 @@ async def lifespan(app: FastAPI):
 
     # Auto-connect channels from vault-stored credentials (non-blocking)
     for ch_name, adapter in channel_registry.items():
+        logger.info(f"DEBUG: Processing channel {ch_name}")
         try:
             # Check if channel is enabled (default True)
             enabled_state = await vault.retrieve_secret(f"channel_{ch_name}_enabled")
@@ -211,16 +215,21 @@ async def lifespan(app: FastAPI):
                     logger.warning(f"[ CHANNELS ] {ch_name} credentials found but connection failed")
         except Exception as e:
             logger.debug(f"[ CHANNELS ] {ch_name} connection error during boot: {e}")
+    logger.info("DEBUG: Passed channel auto-connect loop")
 
     # Wire channel registry to cron engine for delivery routing
     cron_engine.channel_registry = channel_registry
 
     # 16. Sprint 4.3: Device Manager
+    logger.info("DEBUG: Before DeviceManager")
     from .device_manager import DeviceManager
     device_manager = DeviceManager(vault_root)
+    logger.info("DEBUG: Passed DeviceManager")
 
     # 15. Background Services
+    logger.info("DEBUG: Before start_background_services")
     await orchestrator.start_background_services()
+    logger.info("DEBUG: After start_background_services")
 
     logger.info("[ POLYTOPE_DAEMON ] All systems nominal. Ready.")
 
