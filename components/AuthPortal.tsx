@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect } from 'react';
-import { QRCodeCanvas } from 'qrcode.react';
+import React, { useState } from 'react';
 import { Connection } from '../types';
+import { VerusIdLogin } from '../features/bridges/VerusIdLogin';
 
 const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
 
@@ -12,36 +12,8 @@ export const AuthPortal: React.FC<{
 }> = ({ connection, onComplete, onCancel }) => {
     const [isLoading, setIsLoading] = useState(false);
     const [isVerifying, setIsVerifying] = useState(false);
-    const [verusChallenge, setVerusChallenge] = useState<any>(null);
-    const [polling, setPolling] = useState(false);
 
     const isVerus = connection.id === 'verus';
-
-    const fetchVerusChallenge = async () => {
-        setIsLoading(true);
-        try {
-            const res = await fetch(`${DAEMON_URL}/auth/verusid/challenge`);
-            if (res.ok) {
-                setVerusChallenge(await res.json());
-                setPolling(true);
-            }
-        } catch (e) { console.error("Verus Challenge Failed", e); }
-        finally { setIsLoading(false); }
-    };
-
-    useEffect(() => {
-        if (isVerus && !verusChallenge) {
-            fetchVerusChallenge();
-        }
-    }, [isVerus]);
-
-    useEffect(() => {
-        if (!polling || !verusChallenge) return;
-        const interval = setInterval(async () => {
-            // Logic to check if challenge is resolved
-        }, 2000);
-        return () => clearInterval(interval);
-    }, [polling, verusChallenge]);
 
     const handleAuth = () => {
         if (isVerus) return; // Managed by QR flow
@@ -67,41 +39,12 @@ export const AuthPortal: React.FC<{
                     <button onClick={onCancel} className="text-secondary hover:text-black transition-colors px-2 py-1">✕</button>
                 </div>
 
-                <div className="flex flex-col gap-6">
+                <div className="flex flex-col gap-6 w-full">
                     {isVerus ? (
-                        <div className="flex flex-col items-center gap-6">
-                            {isLoading ? (
-                                <div className="h-48 flex items-center justify-center animate-pulse text-secondary text-[10px] glass-label">
-                                    [ GENERATING_VDXF_CHALLENGE... ]
-                                </div>
-                            ) : verusChallenge ? (
-                                <>
-                                    <div className="w-full space-y-4">
-                                        <QRCodeCanvas
-                                            value={JSON.stringify(verusChallenge)}
-                                            size={180}
-                                            level="H"
-                                            includeMargin={true}
-                                        />
-                                    </div>
-                                    <div className="text-center">
-                                        <h3 className="text-[10px] font-bold glass-label mb-2">SCAN WITH VERUS MOBILE</h3>
-                                        <p className="text-[9px] opacity-60 font-mono leading-relaxed max-w-[280px]">
-                                            Identity: <span className="text-black font-bold">{verusChallenge.identity_hint || "Self-Sovereign"}</span><br />
-                                            Nonce: <span className="opacity-40">{verusChallenge.nonce.slice(0, 16)}...</span>
-                                        </p>
-                                    </div>
-                                    <div className="w-full flex flex-col gap-2">
-                                        <div className="p-4 border border-zinc/20 bg-zinc/10">
-                                            <div className="h-full bg-sovereign animate-progress-fast" style={{ width: '100%' }} />
-                                        </div>
-                                        <span className="text-[7px] font-mono text-center animate-pulse lowercase">Waiting for blockchain-verifiable signature...</span>
-                                    </div>
-                                </>
-                            ) : (
-                                <div className="text-red-500 text-[10px] glass-label">[ ERROR: DAEMON_UNREACHABLE ]</div>
-                            )}
-                        </div>
+                        <VerusIdLogin
+                            onComplete={(identity) => onComplete(`verus_${identity}`, `https://api.dicebear.com/7.x/identicon/svg?seed=${identity}`)}
+                            onCancel={onCancel}
+                        />
                     ) : (
                         <>
                             {!isVerifying ? (
