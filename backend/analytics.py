@@ -130,14 +130,12 @@ class UsageTracker:
         limit: int = 1000,
     ) -> Dict[str, Any]:
         """
-        Returns per-session aggregates within a date range.
-        OpenClaw Section 4.3
+        Simplified session aggregation to prevent hangs.
         """
         from .models import UsageLog
 
         with Session(self.db_engine) as session:
             stmt = select(UsageLog)
-
             if start:
                 stmt = stmt.where(col(UsageLog.timestamp) >= datetime.combine(start, datetime.min.time(), tzinfo=timezone.utc))
             if end:
@@ -155,13 +153,21 @@ class UsageTracker:
         for r in rows:
             s = sessions.setdefault(r.session_key, {
                 "session_key": r.session_key,
+                "agent": "MAIN",
+                "provider": r.provider,
+                "channel": "System Gateway",
                 "total_input": 0, "total_output": 0, "total_cost": 0.0,
+                "total_cache_read": 0, "total_cache_write": 0,
+                "messages": 0, "tools": 0, "errors": 0, "duration": 0,
                 "turn_count": 0, "models": set(), "first_turn": None, "last_turn": None,
             })
             s["total_input"] += r.input_tokens
             s["total_output"] += r.output_tokens
+            s["total_cache_read"] += r.cache_read
+            s["total_cache_write"] += r.cache_write
             s["total_cost"] += r.cost
             s["turn_count"] += 1
+            s["messages"] += 2 # Rough estimate: 2 messages per usage turn if we don't join with MessageLog
             s["models"].add(r.model)
             ts_str = r.timestamp.isoformat() if r.timestamp else None
             if ts_str:
@@ -169,24 +175,32 @@ class UsageTracker:
                     s["first_turn"] = ts_str
                 if s["last_turn"] is None or ts_str > s["last_turn"]:
                     s["last_turn"] = ts_str
+            
+            # Simple duration estimation (seconds between first and last turn)
+            if s["first_turn"] and s["last_turn"]:
+                try:
+                    t1 = datetime.fromisoformat(s["first_turn"])
+                    t2 = datetime.fromisoformat(s["last_turn"])
+                    s["duration"] = int((t2 - t1).total_seconds())
+                except:
+                    pass
 
-        # Convert sets to lists for serialization
         session_list = []
         for s in sessions.values():
             s["models"] = list(s["models"])
             s["total_cost"] = round(s["total_cost"], 6)
             session_list.append(s)
 
-        totals = {
-            "total_input": sum(s["total_input"] for s in session_list),
-            "total_output": sum(s["total_output"] for s in session_list),
-            "total_cost": round(sum(s["total_cost"] for s in session_list), 6),
-            "session_count": len(session_list),
-        }
-
         return {
             "sessions": session_list,
-            "totals": totals,
+            "totals": {
+                "total_input": sum(s["total_input"] for s in session_list),
+                "total_output": sum(s["total_output"] for s in session_list),
+                "cache_read": sum(s["total_cache_read"] for s in session_list),
+                "cache_write": sum(s["total_cache_write"] for s in session_list),
+                "total_cost": round(sum(s["total_cost"] for s in session_list), 6),
+                "session_count": len(session_list),
+            },
             "limit_reached": limit_reached,
             "missing_cost_entries": len(self._missing_cost_models),
         }
@@ -212,18 +226,24 @@ class UsageTracker:
 
         total_input = 0
         total_output = 0
+        total_cache_read = 0
+        total_cache_write = 0
         total_cost = 0.0
         unique_sessions = set()
 
         for r in rows:
             total_input += r.input_tokens
             total_output += r.output_tokens
+            total_cache_read += r.cache_read
+            total_cache_write += r.cache_write
             total_cost += r.cost
             unique_sessions.add(r.session_key)
 
         return {
             "total_input": total_input,
             "total_output": total_output,
+            "cache_read": total_cache_read,
+            "cache_write": total_cache_write,
             "total_cost": round(total_cost, 6),
             "session_count": len(unique_sessions),
         }
@@ -255,10 +275,13 @@ class UsageTracker:
             day_key = r.timestamp.date().isoformat() if r.timestamp else "unknown"
             d = daily.setdefault(day_key, {
                 "date": day_key, "input_tokens": 0, "output_tokens": 0,
+                "cache_read": 0, "cache_write": 0,
                 "cost": 0.0, "turns": 0,
             })
             d["input_tokens"] += r.input_tokens
             d["output_tokens"] += r.output_tokens
+            d["cache_read"] += r.cache_read
+            d["cache_write"] += r.cache_write
             d["cost"] += r.cost
             d["turns"] += 1
 

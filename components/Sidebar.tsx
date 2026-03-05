@@ -55,6 +55,7 @@ const NAV_GROUPS: NavGroup[] = [
         id: 'monitoring',
         label: 'Monitoring',
         items: [
+            { id: 'analytics', label: 'Usage', icon: BarChart3 },
             { id: 'audit', label: 'Audit', icon: Shield },
             { id: 'logs', label: 'Logs', icon: ScrollText },
             { id: 'debug', label: 'Debug', icon: Bug },

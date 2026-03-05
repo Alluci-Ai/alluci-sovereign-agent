@@ -1,127 +1,140 @@
 import React, { useEffect, useState } from 'react';
 import { useStore } from '../../store/useStore';
-import { Clock, Hash, Coins, ArrowUpDown, Plus } from 'lucide-react';
+import { Plus, LayoutGrid, Settings2, BarChart3 } from 'lucide-react';
 import { SessionOverrides } from './SessionOverrides';
 import { SessionCostDisplay } from './SessionCostDisplay';
-import { DeleteSessionButton } from './DeleteSessionButton';
+import { ActiveSessionsList } from './ActiveSessionsList';
 
 const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
 
 /**
- * SessionsPanel — Dedicated sessions management view.
- * Lists all sessions with token counts, costs, and controls.
+ * SessionsPanel — Refactored Sessions Manifold.
+ * Implements a triple-panel Liquid Glass architecture for high-density session management.
  */
 export const SessionsPanel: React.FC = () => {
-    const { sessions, setSessions, activeSessionKey, setActiveSessionKey, accessToken } = useStore();
-    const [sortField, setSortField] = useState<'created' | 'tokens' | 'cost'>('created');
-    const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+    const { sessions, setSessions, setActiveSessionKey, accessToken } = useStore();
     const [loading, setLoading] = useState(false);
 
     const fetchSessions = async () => {
+        if (loading) return;
         setLoading(true);
+
+        const controller = new AbortController();
+        const tId = setTimeout(() => controller.abort(), 5000); // 5s timeout
+
         try {
             const res = await fetch(`${DAEMON_URL}/api/sessions`, {
                 headers: { 'Authorization': `Bearer ${accessToken}` },
                 credentials: 'include',
+                signal: controller.signal
             });
+            clearTimeout(tId);
+
             if (res.ok) {
                 const data = await res.json();
-                setSessions(data.sessions || []);
+                setSessions(Array.isArray(data.sessions) ? data.sessions : []);
+            } else {
+                // If backend is up but sessions endpoint fails, still clear loading
+                if (sessions.length === 0) setSessions([]);
             }
-        } catch (err) {
-            console.error('[SessionsPanel] Failed to fetch sessions:', err);
+        } catch (err: any) {
+            console.warn('[SessionsPanel] Manifold sync interrupted:', err.message);
+            // PROACTIVE FALLBACK: If we have no sessions and the server is down,
+            // we'll inject a helpful placeholder to break the loading loop.
+            if (sessions.length === 0) {
+                // We keep it empty but set it to [] to trigger "No Footprints Found"
+                setSessions([]);
+            }
         } finally {
             setLoading(false);
         }
     };
 
-    useEffect(() => { fetchSessions(); }, []);
-
-    // (Removed duplicate inline handleDelete function, logic shifted to DeleteSessionButton)
+    useEffect(() => {
+        fetchSessions();
+        const interval = setInterval(() => fetchSessions(), 30000);
+        return () => clearInterval(interval);
+    }, [accessToken]);
 
     const handleNewSession = () => {
         const newKey = crypto.randomUUID();
         setActiveSessionKey(newKey);
-    };
-
-    const sorted = [...sessions].sort((a, b) => {
-        const va = a[sortField] ?? 0;
-        const vb = b[sortField] ?? 0;
-        const cmp = typeof va === 'string' ? va.localeCompare(vb as string) : (va as number) - (vb as number);
-        return sortDir === 'asc' ? cmp : -cmp;
-    });
-
-    const toggleSort = (field: typeof sortField) => {
-        if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
-        else { setSortField(field); setSortDir('desc'); }
+        // Add to local state immediately for UX
+        const stub = {
+            session_key: newKey,
+            agent_name: "New Sovereign Session",
+            channel_type: "internal",
+            total_input: 0,
+            total_output: 0,
+            total_cost: 0,
+            models: ["auto"],
+            thinking_level: "MEDIUM"
+        };
+        setSessions([stub, ...sessions]);
     };
 
     return (
-        <div className="inline-panel-wrapper">
-            <div className="inline-panel">
-                <div className="inline-panel__header">
-                    <h2 className="inline-panel__title">Sessions</h2>
-                    <button onClick={handleNewSession} className="glass-btn" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
-                        <Plus size={14} /> New Session
+        <div className="inline-panel-wrapper overflow-hidden bg-transparent">
+            <div className="max-w-[1600px] mx-auto w-full h-full flex flex-col gap-6 lg:p-6 p-4">
+
+                {/* Header Section */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-glass-edge pb-6">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-accent/10 border border-accent/20 rounded-lg text-accent">
+                            <LayoutGrid size={20} />
+                        </div>
+                        <div className="flex flex-col">
+                            <h2 className="text-xl font-medium tracking-tight text-text-primary">Sessions Manifold</h2>
+                            <p className="text-[10px] opacity-40 font-mono tracking-widest uppercase">Cognitive_Session_Coordinator</p>
+                        </div>
+                    </div>
+
+                    <button
+                        onClick={handleNewSession}
+                        className="glass-btn flex items-center gap-2 group hover:border-accent/50 transition-all font-medium"
+                    >
+                        <Plus size={16} className="text-accent group-hover:scale-125 transition-transform" />
+                        Initialize New Protocol
                     </button>
                 </div>
 
-                <div className="inline-panel__body flex flex-col xl:flex-row gap-6" style={{ overflow: 'auto' }}>
-                    <div className="flex-1">
-                        {loading ? (
-                            <div className="inline-panel__empty"><p>Loading sessions…</p></div>
-                        ) : sessions.length === 0 ? (
-                            <div className="inline-panel__empty">
-                                <p>No sessions yet.</p>
-                                <p className="text-xs opacity-50">Start a conversation to create your first session.</p>
+                {/* Triple Panel Layout */}
+                <div className="flex-1 flex flex-col lg:flex-row gap-6 min-h-0">
+
+                    {/* Left Sidebar (Metrics & Controls) */}
+                    <div className="w-full lg:w-[320px] flex flex-col gap-6 shrink-0 h-full overflow-y-auto pr-2 custom-scrollbar">
+                        <div className="flex flex-col gap-4">
+                            <div className="flex items-center gap-2 opacity-50 px-1">
+                                <BarChart3 size={12} />
+                                <span className="text-[10px] font-bold uppercase tracking-wider">Session Insight</span>
                             </div>
-                        ) : (
-                            <table className="sessions-table">
-                                <thead>
-                                    <tr>
-                                        <th>Session Key</th>
-                                        <th>Model</th>
-                                        <th className="sortable" onClick={() => toggleSort('created')}>
-                                            <Clock size={12} /> Created {sortField === 'created' && <ArrowUpDown size={10} />}
-                                        </th>
-                                        <th><Hash size={12} /> Messages</th>
-                                        <th className="sortable" onClick={() => toggleSort('tokens')}>
-                                            Tokens {sortField === 'tokens' && <ArrowUpDown size={10} />}
-                                        </th>
-                                        <th className="sortable" onClick={() => toggleSort('cost')}>
-                                            <Coins size={12} /> Cost {sortField === 'cost' && <ArrowUpDown size={10} />}
-                                        </th>
-                                        <th></th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {sorted.map(session => (
-                                        <tr
-                                            key={session.key}
-                                            className={activeSessionKey === session.key ? 'sessions-table__row--active' : ''}
-                                            onClick={() => setActiveSessionKey(session.key)}
-                                        >
-                                            <td className="font-mono text-[11px]">{session.key.slice(0, 12)}…</td>
-                                            <td className="text-[11px]">{session.model || '—'}</td>
-                                            <td className="text-[11px]">{new Date(session.created).toLocaleDateString()}</td>
-                                            <td className="text-[11px] text-center">{session.messageCount}</td>
-                                            <td className="text-[11px] text-center">{session.tokens?.toLocaleString() ?? '—'}</td>
-                                            <td className="text-[11px] text-center">${(session.cost ?? 0).toFixed(4)}</td>
-                                            <td>
-                                                <DeleteSessionButton sessionKey={session.key} />
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        )}
+                            <SessionCostDisplay />
+                        </div>
+
+                        <div className="flex flex-col gap-4">
+                            <div className="flex items-center gap-2 opacity-50 px-1">
+                                <Settings2 size={12} />
+                                <span className="text-[10px] font-bold uppercase tracking-wider">Constraint Matrix</span>
+                            </div>
+                            <SessionOverrides />
+                        </div>
+
+                        <div className="mt-auto p-4 bg-glass-pressed rounded-xl border border-glass-edge">
+                            <p className="text-[10px] leading-relaxed text-text-tertiary">
+                                <span className="text-accent font-bold">PRO TIP:</span> Use the thinking depth envelope to balance execution speed versus cognitive precision on a per-session basis.
+                            </p>
+                        </div>
                     </div>
 
-                    {/* Sprint B - Sidebar Analytics/Overrides bounded to activeSessionKey */}
-                    <div className="w-full xl:w-80 flex flex-col gap-4 flex-none">
-                        <SessionCostDisplay />
-                        <SessionOverrides />
+                    {/* Main Content Area (Active Sessions List) */}
+                    <div className="flex-1 min-w-0 h-full">
+                        <ActiveSessionsList
+                            sessions={sessions}
+                            loading={loading}
+                            onRefresh={fetchSessions}
+                        />
                     </div>
+
                 </div>
             </div>
         </div>

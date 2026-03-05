@@ -135,7 +135,7 @@ export interface AppState {
     setModelFallbackMessage: (val: string | null) => void;
 
     // Sprint B: Sessions
-    sessions: { key: string; model: string; created: string; messageCount: number; tokens: number; cost: number }[];
+    sessions: any[];
     activeSessionKey: string;
     setSessions: (val: AppState['sessions']) => void;
     setActiveSessionKey: (val: string) => void;
