@@ -7,7 +7,7 @@ import ChannelActionResult from '../features/channels/ChannelActionResult';
 import IMessagePlatformGuard from '../features/channels/iMessagePlatformGuard';
 
 interface BridgeCenterProps {
-    groupedConnections: Record<string, Connection[]>;
+    connections: Connection[];
     startAuthFlow: (conn: Connection) => void;
     onSocialAction: (id: string, action: string, params: any) => Promise<any> | void;
     onEnterpriseAction: (id: string, action: string, params: any) => Promise<any> | void;
@@ -167,7 +167,7 @@ export const BridgeCard: React.FC<{
 };
 
 const BridgeCenter: React.FC<BridgeCenterProps> = ({
-    groupedConnections,
+    connections = [],
     startAuthFlow,
     onSocialAction,
     onEnterpriseAction,
@@ -176,47 +176,69 @@ const BridgeCenter: React.FC<BridgeCenterProps> = ({
     const formatGroupName = (name: string) => name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 
     const sortConnections = (conns: Connection[]) => {
-        return [...conns].sort((a, b) => {
+        return [...(conns || [])].sort((a, b) => {
             if (a.status === 'CONNECTED' && b.status !== 'CONNECTED') return -1;
             if (a.status !== 'CONNECTED' && b.status === 'CONNECTED') return 1;
-            // Both connected: Could sort by last_message_time if property existed, fall back to alphabetical
-            return a.name.localeCompare(b.name);
+            return (a.name || '').localeCompare(b.name || '');
         });
+    };
+
+    const appleIds = ['icloud', 'imessage', 'iwatch', 'iphone'];
+    const socialIds = ['wa', 'tg', 'dc', 'sg', 'ig', 'fb', 'x'];
+    const enterpriseIds = ['sl', 'mt', 'gm', 'gd', 'webchat', 'wechat'];
+    const verusIds = ['verus'];
+
+    const grouped = {
+        'APPLE_ECOSYSTEM': connections.filter(c => c && appleIds.includes(c.id)),
+        'SOCIAL_MANIFOLD': connections.filter(c => c && socialIds.includes(c.id)),
+        'ENTERPRISE_CORE': connections.filter(c => c && enterpriseIds.includes(c.id)),
+        'VERUS_IDENTITY': connections.filter(c => c && verusIds.includes(c.id)),
+        'OTHER_BRIDGES': connections.filter(c => c && ![...appleIds, ...socialIds, ...enterpriseIds, ...verusIds].includes(c.id))
     };
 
     return (
         <div style={{ maxWidth: 960, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 32, paddingBottom: 40 }}>
-
             <ChannelHealthDashboard />
 
-            {(Object.entries(groupedConnections) as [string, Connection[]][]).map(([groupName, groupConns]) => (
-                <div key={groupName}>
-                    <h3 style={{
-                        fontSize: 13, fontWeight: 600, color: 'var(--text-tertiary)',
-                        textTransform: 'uppercase', letterSpacing: '0.04em',
-                        paddingBottom: 8, marginBottom: 14,
-                        borderBottom: '1px solid var(--separator)',
-                    }}>
-                        {formatGroupName(groupName)}
-                    </h3>
-                    <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
-                        gap: 12,
-                    }}>
-                        {sortConnections(groupConns).map(conn => (
-                            <BridgeCard
-                                key={conn.id}
-                                conn={conn}
-                                startAuthFlow={startAuthFlow}
-                                onSocialAction={onSocialAction}
-                                onEnterpriseAction={onEnterpriseAction}
-                                onPulse={onPulse}
-                            />
-                        ))}
+            {Object.entries(grouped).map(([groupName, groupConns]) => {
+                if (groupConns.length === 0) return null;
+
+                return (
+                    <div key={groupName}>
+                        <h3 style={{
+                            fontSize: 13, fontWeight: 600, color: 'var(--text-tertiary)',
+                            textTransform: 'uppercase', letterSpacing: '0.04em',
+                            paddingBottom: 8, marginBottom: 14,
+                            borderBottom: '1px solid var(--separator)',
+                        }}>
+                            {formatGroupName(groupName)}
+                        </h3>
+                        <div style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+                            gap: 12,
+                        }}>
+                            {sortConnections(groupConns).map(conn => (
+                                <BridgeCard
+                                    key={conn.id}
+                                    conn={conn}
+                                    startAuthFlow={startAuthFlow}
+                                    onSocialAction={onSocialAction}
+                                    onEnterpriseAction={onEnterpriseAction}
+                                    onPulse={onPulse}
+                                />
+                            ))}
+                        </div>
                     </div>
+                );
+            })}
+
+            {connections.length === 0 && (
+                <div style={{ textAlign: 'center', padding: '100px 20px', opacity: 0.5 }}>
+                    <p className="glass-label">NO_CONNECTION_HANDSHAKES_INITIALIZED</p>
+                    <p style={{ fontSize: 10, marginTop: 10 }}>Check integrity of components/constants.tsx</p>
                 </div>
-            ))}
+            )}
         </div>
     );
 };

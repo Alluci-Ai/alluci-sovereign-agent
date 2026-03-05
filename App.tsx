@@ -58,6 +58,8 @@ import { LogPanel } from './features/observability/LogPanel';
 import { AgentsPanel } from './features/agents/AgentsPanel';
 import { DebugPanel } from './features/debug/DebugPanel';
 import CronPanel from './features/scheduling/CronPanel';
+import { WalletPanel } from './features/wallet/WalletPanel';
+import { NodePanel } from './features/wallet/NodePanel';
 import { useTranslation } from './features/shell/LocaleSelector';
 
 const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
@@ -385,15 +387,11 @@ const App: React.FC = () => {
 
   const accentColor = isConnected ? '#91D65F' : '#A1A1A1';
 
-  const groupedConnections = {
-    'APPLE_ECOSYSTEM': connections.filter(c => ['icloud', 'imessage', 'iwatch', 'iphone'].includes(c.id)),
-    'SOCIAL_MANIFOLD': connections.filter(c => ['wa', 'tg', 'dc', 'sg', 'ig', 'fb', 'x'].includes(c.id)),
-    'ENTERPRISE_CORE': connections.filter(c => ['sl', 'mt', 'gm', 'gd', 'webchat', 'wechat'].includes(c.id)),
-    'VERUS_IDENTITY': connections.filter(c => ['verus'].includes(c.id))
-  };
-
   // Render the content area based on activeView
   const renderContent = () => {
+    // Ensure we always have connections to show
+    const currentConnections = connections && connections.length > 0 ? connections : INITIAL_CONNECTIONS;
+
     switch (activeView) {
       case 'soul':
         return (
@@ -424,7 +422,7 @@ const App: React.FC = () => {
         return (
           <div className="inline-panel-wrapper">
             <BridgeCenter
-              groupedConnections={groupedConnections}
+              connections={currentConnections}
               startAuthFlow={startAuthFlow}
               onSocialAction={handleSocialAction}
               onEnterpriseAction={handleEnterpriseAction}
@@ -441,6 +439,12 @@ const App: React.FC = () => {
               apiKeys={apiKeys}
               onSave={saveApiKeysToDaemon}
             />
+          </div>
+        );
+      case 'wallet':
+        return (
+          <div className="inline-panel-wrapper">
+            <WalletPanel />
           </div>
         );
       case 'tasks':
@@ -483,6 +487,8 @@ const App: React.FC = () => {
         return <AnalyticsPanel />;
       case 'config':
         return <ConfigPanel />;
+      case 'node':
+        return <NodePanel />;
       case 'logs':
         return <LogPanel />;
       case 'crons':
