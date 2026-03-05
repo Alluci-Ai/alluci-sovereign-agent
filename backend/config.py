@@ -84,6 +84,13 @@ class Settings(BaseSettings):
     VERUS_RPC_USER: str = ""
     VERUS_RPC_PASSWORD: str = ""
     VERUS_AUTH_ENABLED: bool = False
+    VERUS_WALLET_ENABLED: bool = True
+    VERUS_LITE_MODE: bool = True # Default to Lite Mode
+    VERUS_PUBLIC_RPC_URL: str = "https://api.verus.services"
+    VERUS_NETWORK: str = "mainnet" # mainnet or vrsctest
+    VERUS_STAKING_ADDRESS: Optional[str] = None
+    VERUS_PBAAS_CHAINS: List[str] = ["VRSC", "VRSCTEST"]
+    VERUS_DEFAULT_CURRENCY: str = "VRSC"
 
     # Rate Limiting
     RATE_LIMIT_PER_MINUTE: int = 60

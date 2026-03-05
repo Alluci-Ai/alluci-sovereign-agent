@@ -4,7 +4,7 @@ import AffectiveWidget from './AffectiveWidget';
 import {
     MessageSquare, Brain, Zap, Link2, Key,
     CheckSquare, FolderOpen, Shield, ChevronLeft, ChevronRight, ChevronDown, ChevronUp,
-    LayoutList, BarChart3, Calendar, Bot, Settings, ScrollText, Bug, CalendarDays
+    LayoutList, BarChart3, Calendar, Bot, Settings, ScrollText, Bug, CalendarDays, Wallet, Server
 } from 'lucide-react';
 
 interface NavItem {
@@ -30,6 +30,8 @@ const NAV_GROUPS: NavGroup[] = [
         label: 'Control',
         items: [
             { id: 'config', label: 'Config', icon: Settings },
+            { id: 'wallet', label: 'Wallet', icon: Wallet },
+            { id: 'node', label: 'Node', icon: Server },
             { id: 'bridges', label: 'Bridges', icon: Link2 },
             { id: 'api', label: 'API', icon: Key },
         ]

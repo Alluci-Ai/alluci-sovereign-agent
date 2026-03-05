@@ -319,3 +319,70 @@ class PresenceBeacon(SQLModel, table=True):
     subject: str
     data_fields: Dict = Field(default={}, sa_column=Column(JSON))
     last_seen: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), index=True)
+
+
+# --- Wallet API Schemas (Verus Integration) ---
+
+class WalletSendRequest(BaseModel):
+    """Request to send currency."""
+    to: str
+    amount: float
+    currency: str = "VRSC"
+    memo: str = ""
+
+class WalletConvertRequest(BaseModel):
+    """Request to convert currency via DeFi AMM."""
+    amount: float
+    from_currency: str
+    to_currency: str
+    via: Optional[str] = None  # Routing basket currency
+
+class WalletInvoiceRequest(BaseModel):
+    """Request to create a VerusPay invoice."""
+    amount: float
+    currency: str = "VRSC"
+    memo: str = ""
+    expiry_minutes: int = 60
+
+class WalletMiningStartRequest(BaseModel):
+    """Request to start mining or staking."""
+    mode: str = "mine"  # "mine" or "stake"
+    threads: int = 1
+    chains: List[str] = ["VRSC"]
+
+class WalletBridgeSendRequest(BaseModel):
+    """Request to bridge currency to Ethereum."""
+    amount: float
+    currency: str = "VRSC"
+    eth_address: str
+
+class WalletIdentityUpdateRequest(BaseModel):
+    """Request to update VDXF data on the agent's VerusID."""
+    key: str
+    value: Any
+
+class CurrencyBalance(BaseModel):
+    currency: str
+    amount: float
+    confirmed: bool = True
+
+class WalletDashboard(BaseModel):
+    connected: bool
+    identity: Optional[Dict[str, Any]] = None
+    balances: List[CurrencyBalance]
+    total_vrsc: float
+    unconfirmed: float
+    mining: Optional[Dict[str, Any]] = None
+    recent_transactions: List[Dict[str, Any]]
+    blockchain: Optional[Dict[str, Any]] = None
+    pbaas_chains: List[str]
+    timestamp: str
+
+class WalletNodeStatus(BaseModel):
+    active: bool
+    pid: Optional[int] = None
+    sync: Dict[str, Any]
+    directories: Dict[str, str]
+
+class WalletNodeAction(BaseModel):
+    action: str  # start, stop, restart, provision

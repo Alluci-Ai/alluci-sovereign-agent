@@ -12,7 +12,7 @@ export type ActiveView =
     | 'chat' | 'soul' | 'skills' | 'bridges'
     | 'api' | 'tasks' | 'files' | 'audit' | 'canvas'
     | 'sessions' | 'analytics' | 'crons'
-    | 'agents' | 'config' | 'logs' | 'debug';
+    | 'agents' | 'config' | 'logs' | 'debug' | 'wallet' | 'node';
 export type Theme = 'light' | 'dark';
 
 export interface AppState {
@@ -149,6 +149,12 @@ export interface AppState {
     // Presence Data
     presence: { instances: number; sessions: number };
     setPresence: (val: Partial<AppState['presence']>) => void;
+
+    // Verus Wallet State
+    walletMode: 'lite' | 'sovereign';
+    setWalletMode: (val: 'lite' | 'sovereign') => void;
+    walletStatus: 'synced' | 'syncing' | 'offline';
+    setWalletStatus: (val: 'synced' | 'syncing' | 'offline') => void;
 }
 
 export const useStore = create<AppState>((set) => ({
@@ -312,4 +318,10 @@ export const useStore = create<AppState>((set) => ({
 
     presence: { instances: 0, sessions: 0 },
     setPresence: (val) => set((state) => ({ presence: { ...state.presence, ...val } })),
+
+    // Verus Wallet Initial State
+    walletMode: 'lite',
+    setWalletMode: (val) => set({ walletMode: val }),
+    walletStatus: 'offline',
+    setWalletStatus: (val) => set({ walletStatus: val }),
 }));
