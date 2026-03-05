@@ -1953,6 +1953,185 @@ async def nostr_nip05_verification(name: str = Query(...)):
     raise HTTPException(status_code=404, detail="Identity not found.")
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# Sprint 6: Verus Wallet API & Integration (Phase 1-4)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+from .verus_wallet import wallet_service
+from .security.verus_node import node_manager
+from .models import (
+    WalletSendRequest, WalletConvertRequest, WalletInvoiceRequest,
+    WalletMiningStartRequest, WalletBridgeSendRequest, WalletIdentityUpdateRequest,
+    WalletNodeStatus, WalletNodeAction
+)
+
+@app.get("/api/wallet/dashboard", dependencies=[Depends(verify_authenticated)])
+async def get_wallet_dashboard():
+    """Get the wallet dashboard overview."""
+    return await wallet_service.get_dashboard()
+
+@app.get("/api/wallet/balances", dependencies=[Depends(verify_authenticated)])
+async def get_wallet_balances():
+    """Get all currency balances across all addresses."""
+    return await wallet_service.get_balances()
+
+@app.get("/api/wallet/transactions", dependencies=[Depends(verify_authenticated)])
+async def get_wallet_transactions(limit: int = 50, skip: int = 0):
+    """Get paginated transaction history."""
+    return await wallet_service.get_transactions(count=limit, skip=skip)
+
+@app.get("/api/wallet/transaction/{txid}", dependencies=[Depends(verify_authenticated)])
+async def get_wallet_transaction_detail(txid: str):
+    """Get detailed transaction info."""
+    result = await wallet_service.get_transaction_detail(txid)
+    if not result:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    return result
+
+@app.post("/api/wallet/send", dependencies=[Depends(verify_authenticated)])
+async def wallet_send(req: WalletSendRequest = Body(...)):
+    """Send currency to an address."""
+    result = await wallet_service.send(req.to, req.amount, req.currency, req.memo)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error"))
+    return result
+
+@app.post("/api/wallet/convert", dependencies=[Depends(verify_authenticated)])
+async def wallet_convert(req: WalletConvertRequest = Body(...)):
+    """Convert currency via DeFi AMM."""
+    result = await wallet_service.convert(req.amount, req.from_currency, req.to_currency, req.via)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error"))
+    return result
+
+@app.post("/api/wallet/convert/estimate", dependencies=[Depends(verify_authenticated)])
+async def wallet_convert_estimate(req: WalletConvertRequest = Body(...)):
+    """Get conversion estimate via DeFi AMM."""
+    result = await wallet_service.get_conversion_estimate(req.amount, req.from_currency, req.to_currency)
+    if result.get("error"):
+        raise HTTPException(status_code=400, detail=result.get("error"))
+    return result
+
+@app.get("/api/wallet/address/new", dependencies=[Depends(verify_authenticated)])
+async def get_new_wallet_address():
+    """Generate a new receiving address."""
+    result = await wallet_service.get_receive_address()
+    if not result.get("address"):
+        raise HTTPException(status_code=500, detail="Failed to generate address")
+    return result
+
+@app.post("/api/wallet/invoice", dependencies=[Depends(verify_authenticated)])
+async def create_wallet_invoice(req: WalletInvoiceRequest = Body(...)):
+    """Create a VerusPay invoice with QR code data."""
+    result = await wallet_service.create_invoice(req.amount, req.currency, req.memo, req.expiry_minutes)
+    if not result.get("success"):
+        raise HTTPException(status_code=500, detail=result.get("error"))
+    return result
+
+@app.get("/api/wallet/mining", dependencies=[Depends(verify_authenticated)])
+async def get_wallet_mining_status():
+    """Get current mining/staking status."""
+    return await wallet_service.get_mining_status()
+
+@app.post("/api/wallet/mining/start", dependencies=[Depends(verify_authenticated)])
+async def start_wallet_mining(req: WalletMiningStartRequest = Body(...)):
+    """Start mining or staking."""
+    if req.mode == "stake":
+        result = await wallet_service.start_staking()
+    else:
+        result = await wallet_service.start_mining(req.threads, req.chains)
+    
+    if not result.get("success"):
+        raise HTTPException(status_code=500, detail=result.get("error"))
+    return result
+
+@app.post("/api/wallet/mining/stop", dependencies=[Depends(verify_authenticated)])
+async def stop_wallet_mining():
+    """Stop all mining and staking."""
+    result = await wallet_service.stop_mining()
+    if not result.get("success"):
+        raise HTTPException(status_code=500, detail=result.get("error"))
+    return result
+
+@app.get("/api/wallet/currencies", dependencies=[Depends(verify_authenticated)])
+async def get_wallet_currencies():
+    """List available DeFi currencies and liquidity pools."""
+    return await wallet_service.get_currencies()
+
+@app.post("/api/wallet/bridge/send", dependencies=[Depends(verify_authenticated)])
+async def wallet_bridge_send(req: WalletBridgeSendRequest = Body(...)):
+    """Bridge currency to Ethereum."""
+    result = await wallet_service.bridge_to_eth(req.amount, req.currency, req.eth_address)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error"))
+    return result
+
+@app.get("/api/wallet/bridge/status", dependencies=[Depends(verify_authenticated)])
+async def get_wallet_bridge_status():
+    """Get status of the Ethereum bridge."""
+    return await wallet_service.get_bridge_status()
+
+@app.get("/api/wallet/identity", dependencies=[Depends(verify_authenticated)])
+async def get_wallet_identity():
+    """Get the agent's VerusID identity info."""
+    result = await wallet_service.get_identity_info()
+    if result.get("error"):
+        raise HTTPException(status_code=404, detail=result.get("error"))
+    return result
+
+@app.put("/api/wallet/identity", dependencies=[Depends(verify_authenticated)])
+async def update_wallet_identity(req: WalletIdentityUpdateRequest = Body(...)):
+    """Update VDXF multi-map data on the agent's identity."""
+    result = await wallet_service.update_identity_data(req.key, req.value)
+    if not result.get("success"):
+        raise HTTPException(status_code=500, detail=result.get("error"))
+    return result
+
+
+@app.get("/api/wallet/node/status", response_model=WalletNodeStatus, dependencies=[Depends(verify_authenticated)])
+async def get_wallet_node_status():
+    """Get the status of the local verusd node."""
+    return node_manager.get_status()
+
+@app.post("/api/wallet/node/action", dependencies=[Depends(verify_authenticated)])
+async def wallet_node_action(req: WalletNodeAction = Body(...)):
+    """Control the local verusd node (start, stop, etc.)."""
+    try:
+        if req.action == "start":
+            await node_manager.start()
+        elif req.action == "stop":
+            await node_manager.stop()
+        elif req.action == "provision":
+            await node_manager.provision_binary()
+        elif req.action == "restart":
+            await node_manager.stop()
+            await node_manager.start()
+        else:
+            raise HTTPException(status_code=400, detail=f"Invalid action: {req.action}")
+        return {"success": True, "action": req.action}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/wallet/login/request", dependencies=[Depends(verify_authenticated)])
+async def get_verusid_login_request(redirect_uri: str = Query(...)):
+    """
+    Generates a formal VerusID LoginConsentRequest JSON and Deeplink.
+    """
+    signing_id = settings.VERUS_ID_IDENTITY 
+    return await verus_auth.get_verusid_login_request(signing_id, redirect_uri)
+
+@app.post("/api/wallet/login/verify")
+async def verify_verusid_login(data: Dict[str, Any] = Body(...)):
+    """
+    Webhook/Endpoint for verifying a scanned LoginConsentResponse.
+    """
+    success = await verus_auth.verify_login_response(data)
+    if not success:
+        raise HTTPException(status_code=401, detail="VerusID Signature Verification Failed")
+    
+    return {"status": "success", "identity": data.get("signing_id")}
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host=settings.HOST, port=settings.PORT)
