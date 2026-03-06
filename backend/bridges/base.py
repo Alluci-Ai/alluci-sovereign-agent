@@ -57,6 +57,39 @@ class BridgeAdapter(ABC):
         """Verify the E2E encryption and connection status."""
         pass
 
+    async def _get_valid_token(self, creds: Dict[str, Any], token_url: str, client_id: str, client_secret: str) -> Dict[str, Any]:
+        """
+        Helper for OAuth2 bridges to check expiration and refresh the access token if needed.
+        Returns the updated credentials dictionary.
+        """
+        import time
+        import httpx
+        expires_at = creds.get("expires_at", 0)
+        # If no expires_at or not expired yet (with 60s buffer), return as is
+        if not expires_at or time.time() < expires_at - 60:
+            return creds
+
+        refresh_token = creds.get("refresh_token")
+        if not refresh_token:
+            self.logger.error("Token expired and no refresh_token available.")
+            raise ValueError("OAuth Token expired, no refresh token.")
+
+        self.logger.info("Access token expired, refreshing...")
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(token_url, data={
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "refresh_token": refresh_token,
+                "grant_type": "refresh_token"
+            })
+            resp.raise_for_status()
+            data = resp.json()
+            creds["access_token"] = data["access_token"]
+            if "refresh_token" in data:
+                creds["refresh_token"] = data["refresh_token"]
+            creds["expires_at"] = time.time() + data.get("expires_in", 3600)
+            return creds
+
     async def disconnect(self):
         """Graceful teardown of the connection."""
         self.is_connected = False

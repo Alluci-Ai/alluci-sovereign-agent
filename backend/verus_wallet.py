@@ -25,6 +25,14 @@ class VerusWalletService:
         self.rpc = verus_rpc
         self.identity = settings.VERUS_ID_IDENTITY  # e.g., "Alluci@"
 
+    def set_identity(self, identity: str):
+        """Sets the active VerusID for the wallet service."""
+        # Normalize identity (append @ if missing for VerusID names)
+        if identity and not identity.endswith("@") and not identity.startswith("i"):
+             identity += "@"
+        self.identity = identity
+        logger.info(f"[Wallet] Active Identity set to: {identity}")
+
     # ── Dashboard ─────────────────────────────────────────────────────────
 
     async def get_dashboard(self) -> WalletDashboard:
@@ -161,8 +169,34 @@ class VerusWalletService:
             ]
         except Exception as e:
             logger.warning(f"[Wallet] Transaction list failed: {e}")
+            dashboard_data["recent_transactions"] = []
 
-        return WalletDashboard(**dashboard_data)
+        try:
+             # Ensure mining is never None for the model
+             if dashboard_data["mining"] is None:
+                 dashboard_data["mining"] = {
+                    "generating": False,
+                    "staking": False,
+                    "hashrate": 0,
+                    "local_hashrate": 0,
+                    "difficulty": 0,
+                    "blocks": 0
+                 }
+             
+             # Final validation check before returning
+             return WalletDashboard(**dashboard_data)
+        except Exception as e:
+             logger.error(f"[Wallet] Final dashboard assembly failed: {e}")
+             # Return a minimal valid dashboard instead of crashing
+             return WalletDashboard(
+                 connected=dashboard_data.get("connected", False),
+                 total_vrsc=dashboard_data.get("total_vrsc", 0.0),
+                 unconfirmed=dashboard_data.get("unconfirmed", 0.0),
+                 balances=[],
+                 recent_transactions=[],
+                 pbaas_chains=settings.VERUS_PBAAS_CHAINS,
+                 timestamp=datetime.now(timezone.utc).isoformat()
+             )
 
     # ── Balances ──────────────────────────────────────────────────────────
 

@@ -1,0 +1,129 @@
+import os
+import json
+from typing import Dict, Any, List
+from .base import BridgeAdapter
+from ..oauth_config import OAUTH_CONFIGS
+
+class GDriveBridge(BridgeAdapter):
+    """
+    Sovereign Google Drive Bridge.
+    Supports drive.file scope for reading/writing agent-specific files.
+    """
+    def __init__(self, bridge_id: str, vault_root: str):
+        super().__init__(bridge_id, vault_root)
+        self.access_token = None
+        self.refresh_token = None
+        self.email_address = None
+
+    async def handle_oauth_callback(self, code: str, state: str = None) -> bool:
+        """Exchanges authorization code for tokens and saves to vault."""
+        import httpx
+        config = OAUTH_CONFIGS.get(self.bridge_id)
+        if not config:
+            return False
+
+        redirect_uri = f"{os.getenv('DAEMON_PUBLIC_URL', 'http://localhost:8000').rstrip('/')}/api/oauth/{self.bridge_id}/callback"
+        
+        async with httpx.AsyncClient() as client:
+            res = await client.post(config["token_url"], data={
+                "client_id": config["client_id"],
+                "client_secret": config["client_secret"],
+                "code": code,
+                "grant_type": "authorization_code",
+                "redirect_uri": redirect_uri
+            })
+            
+            if res.status_code != 200:
+                self.logger.error(f"GDrive OAuth Exchange Failed: {res.text}")
+                return False
+                
+            data = res.json()
+            creds = {
+                "access_token": data.get("access_token"),
+                "refresh_token": data.get("refresh_token"),
+            }
+            # Optional: save to vault and connect
+            try:
+                with open(os.path.join(self.vault_root, f"{self.bridge_id}_config.json"), "w") as f:
+                    json.dump(creds, f)
+            except Exception:
+                pass
+
+            return await self.connect(creds)
+
+    async def connect(self, credentials: Dict[str, Any]) -> bool:
+        self.access_token = credentials.get("access_token")
+        self.refresh_token = credentials.get("refresh_token")
+        if not self.access_token:
+            return False
+
+        import httpx
+        async with httpx.AsyncClient() as client:
+            res = await client.get(
+                "https://www.googleapis.com/oauth2/v3/userinfo",
+                headers={"Authorization": f"Bearer {self.access_token}"}
+            )
+            if res.status_code == 200:
+                self.email_address = res.json().get("email")
+                self.is_connected = True
+                self.logger.info(f"GDrive API session established for {self.email_address}.")
+                return True
+                
+        return False
+
+    async def send(self, recipient: str, content: str, **kwargs) -> Dict[str, Any]:
+        """GDrive doesn't 'send' messages, but might upload a text snippet to a file."""
+        if not self.is_connected or not self.access_token:
+            return {"status": "failed", "error": "Not connected"}
+            
+        import httpx
+        # We can implement a simple text upload to a new document
+        metadata = {
+            "name": f"Agent Message to {recipient}.txt",
+            "mimeType": "text/plain"
+        }
+        boundary = "gd_bridge_boundary"
+        body = (
+            f"--{boundary}\r\n"
+            "Content-Type: application/json; charset=UTF-8\r\n\r\n"
+            f"{json.dumps(metadata)}\r\n"
+            f"--{boundary}\r\n"
+            "Content-Type: text/plain\r\n\r\n"
+            f"{content}\r\n"
+            f"--{boundary}--"
+        )
+        
+        async with httpx.AsyncClient() as client:
+            res = await client.post(
+                "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
+                headers={
+                    "Authorization": f"Bearer {self.access_token}",
+                    "Content-Type": f"multipart/related; boundary={boundary}"
+                },
+                content=body
+            )
+            if res.status_code == 200:
+                return {"status": "success", "fileId": res.json().get("id")}
+            return {"status": "failed", "error": res.text}
+
+    async def send_message(self, recipient: str, content: str) -> Dict[str, Any]:
+        return await self.send(recipient, content)
+
+    async def fetch_unread(self, limit: int = 10) -> List[Dict[str, Any]]:
+        # Map fetch_unread to "List recent files"
+        if not self.is_connected:
+            return []
+            
+        import httpx
+        async with httpx.AsyncClient() as client:
+            res = await client.get(
+                "https://www.googleapis.com/drive/v3/files",
+                headers={"Authorization": f"Bearer {self.access_token}"},
+                params={"pageSize": limit, "orderBy": "createdTime desc"}
+            )
+            if res.status_code == 200:
+                return [{"fileId": f["id"], "name": f["name"], "sender": self.email_address} for f in res.json().get("files", [])]
+        return []
+
+    async def validate_integrity(self) -> bool:
+        return self.is_connected

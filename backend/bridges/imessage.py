@@ -25,31 +25,51 @@ class IMessageBridge(BridgeAdapter):
         if not self.is_macos:
             self.logger.warning(f"[ IMESSAGE ] Gracefully disabled. Detected platform: {self.system}")
 
-    async def connect(self, credentials: Dict[str, Any]) -> bool:
+    async def check_permission(self) -> Dict[str, Any]:
+        """Probes macOS for the three required permissions."""
+        if not self.is_macos:
+            return {"error": "macOS required"}
+            
+        chat_db = os.path.expanduser('~/Library/Messages/chat.db')
+        fda = os.access(chat_db, os.R_OK)
+        
+        try:
+            res = subprocess.run(['osascript', '-e', 'tell application "Messages" to return name'], capture_output=True, text=True, timeout=3)
+            auto_msg = (res.returncode == 0)
+        except Exception:
+            auto_msg = False
+            
+        try:
+            res = subprocess.run(['osascript', '-e', 'tell application "Contacts" to return name'], capture_output=True, text=True, timeout=3)
+            contacts = (res.returncode == 0)
+        except Exception:
+            contacts = False
+
+        return {
+            "full_disk_access": fda,
+            "automation_messages": auto_msg,
+            "contacts": contacts,
+            "all_granted": fda and auto_msg and contacts
+        }
+
+    async def connect(self, credentials: Dict[str, Any] = None) -> bool:
         """
         Verifies environment readiness for iMessage integration.
-        Requires terminal/app to have 'Full Disk Access' and 'Automation' permissions on macOS.
+        Requires terminal/app to have 'Full Disk Access', 'Automation', and 'Contacts' permissions on macOS.
         """
         if not self.is_macos:
             self.last_error = "iMessage Bridge requires Apple macOS hardware."
             return False
 
-        try:
-            # Test osascript accessibility
-            test_cmd = ["osascript", "-e", 'tell application "Messages" to get name']
-            res = subprocess.run(test_cmd, capture_output=True, text=True, timeout=5)
+        perms = await self.check_permission()
+        if dict(perms).get("all_granted"):
+            self.is_connected = True
+            self.logger.info("[ IMESSAGE ] Bridge anchored to local Messages.app")
+            return True
             
-            if res.returncode == 0:
-                self.is_connected = True
-                self.logger.info("[ IMESSAGE ] Bridge anchored to local Messages.app")
-                return True
-            else:
-                self.last_error = f"AppleScript Permission Denied: {res.stderr.strip()}"
-                self.logger.error(f"[ IMESSAGE ] {self.last_error}")
-                return False
-        except Exception as e:
-            self.last_error = str(e)
-            return False
+        self.last_error = "Missing required permissions. Check Privacy & Security settings."
+        self.logger.error(f"[ IMESSAGE ] {self.last_error}")
+        return False
 
     async def send_message(self, recipient: str, content: str) -> Dict[str, Any]:
         """Legacy shim for BridgeAdapter compatibility."""

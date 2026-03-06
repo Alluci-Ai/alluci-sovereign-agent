@@ -373,13 +373,22 @@ const App: React.FC = () => {
     setActiveAuth(null);
   };
 
-  const startAuthFlow = async (conn: Connection) => {
+  const disconnectBridge = async (id: string) => {
+    await fetch(`${DAEMON_URL}/api/channels/${id}/toggle`, {
+      method: 'PUT',
+      headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: false })
+    });
+    setConnections(prev => prev.map(c =>
+      c.id === id ? { ...c, status: 'DISCONNECTED', accountAlias: undefined, profileImg: undefined } : c
+    ));
+  };
+
+  const startAuthFlow = (conn: Connection) => {
     if (conn.status === 'CONNECTED') {
-      setConnections(prev => prev.map(c => c.id === conn.id ? { ...c, status: 'DISCONNECTED', accountAlias: undefined, profileImg: undefined } : c));
+      disconnectBridge(conn.id);
       return;
     }
-    const initialized = await bridgeManagerRef.current.initializeBridge(conn);
-    if (!initialized) return;
     setActiveAuth(conn);
   };
 

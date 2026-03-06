@@ -79,7 +79,7 @@ export const ChannelConfigExpansion: React.FC<ConfigExpansionProps> = ({ channel
                 <div className="flex flex-col gap-3">
 
                     {/* Common Token Input */}
-                    {['tg', 'dc', 'sl'].includes(channelId) && (
+                    {['tg'].includes(channelId) && (
                         <div className="flex flex-col gap-1">
                             <label className="text-[10px] text-text-tertiary font-mono">Channel Token / Secret</label>
                             <input

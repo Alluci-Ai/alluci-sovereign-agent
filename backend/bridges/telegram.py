@@ -45,7 +45,12 @@ class TelegramBridge(BridgeAdapter):
         Validates the token and optionally sets up a webhook.
         """
         self.bot_token = credentials.get("bot_token", "")
-        self.webhook_url = credentials.get("webhook_url")
+        
+        public_url = os.getenv("DAEMON_PUBLIC_URL")
+        if public_url:
+            self.webhook_url = f"{public_url.rstrip('/')}/api/webhook/telegram/{self.bot_token[:8]}"
+        else:
+            self.webhook_url = credentials.get("webhook_url")
         self.last_error = None
 
         try:

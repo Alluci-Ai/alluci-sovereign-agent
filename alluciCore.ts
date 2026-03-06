@@ -127,7 +127,14 @@ export class SovereignSecurityManager {
     this.audit = audit;
   }
 
-  async initiateBiometricHandshake(): Promise<boolean> {
+  async initiateBiometricHandshake(
+    context: 'APP_LOGIN' | 'BRIDGE_CONNECT' = 'APP_LOGIN'
+  ): Promise<boolean> {
+    if (context === 'BRIDGE_CONNECT') {
+      throw new Error(
+        '[SECURITY] initiateBiometricHandshake must never be called for bridge credential auth.'
+      );
+    }
     try {
       if (!window.PublicKeyCredential) {
         console.warn("[ SECURITY ]: WebAuthn not supported in this browser.");

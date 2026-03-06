@@ -38,19 +38,36 @@ export const VerusIdLogin: React.FC<VerusIdLoginProps> = ({ onComplete, onCancel
         fetchLoginRequest();
     }, []);
 
-    // Simulated polling for status (usually would be WebSockets or a real ping)
+    // Real polling for status
     useEffect(() => {
-        if (status !== 'pending') return;
+        if (status !== 'pending' || !loginData) return;
+
+        // The challenge_id is inside the VDXF request object
+        const challengeId = loginData.request?.challenge?.challenge_id;
+        if (!challengeId) return;
 
         const interval = setInterval(async () => {
-            // In specialized sovereign mode, the mobile app or vault might ping back
-            // or we might poll a "did I get a response yet?" endpoint.
-            // For now, we wait for the user to scan and the system to update.
-            // (Real implementation would use a challenge_id tied to a session)
-        }, 5000);
+            try {
+                const res = await fetch(`${DAEMON_URL}/api/wallet/login/status/${challengeId}`);
+                if (!res.ok) return;
+
+                const data = await res.json();
+                if (data.status === 'SUCCESS') {
+                    setStatus('success');
+                    clearInterval(interval);
+
+                    // Delay calling onComplete to show success state
+                    setTimeout(() => {
+                        onComplete(data.identity);
+                    }, 1500);
+                }
+            } catch (err) {
+                console.error("Status polling failed:", err);
+            }
+        }, 3000);
 
         return () => clearInterval(interval);
-    }, [status]);
+    }, [status, loginData, onComplete]);
 
     const handleDeeplink = () => {
         if (loginData?.deeplink) {
@@ -87,10 +104,17 @@ export const VerusIdLogin: React.FC<VerusIdLoginProps> = ({ onComplete, onCancel
                     )}
 
                     {status === 'error' && (
-                        <div className="flex flex-col items-center justify-center h-64 gap-4 text-center">
-                            <AlertCircle className="w-10 h-10 text-red-400 opacity-50" />
-                            <p className="text-[11px] text-red-500 font-mono">{error}</p>
-                            <button onClick={fetchLoginRequest} className="glass-btn text-[10px] mt-2">Retry</button>
+                        <div className="flex flex-col items-center justify-center min-h-[256px] gap-4 text-center px-4">
+                            <AlertCircle className="w-10 h-10 text-red-500 opacity-80" />
+                            <div className="space-y-2">
+                                <p className="text-[11px] text-red-400 font-bold uppercase tracking-wider">Configuration Error</p>
+                                <p className="text-[10px] text-white/60 leading-relaxed font-mono">
+                                    {error?.includes("CONFIGURATION_ERROR")
+                                        ? "Private Key (WIF) is missing from .env. Please configure your VerusID authority to enable SSID login."
+                                        : error}
+                                </p>
+                            </div>
+                            <button onClick={fetchLoginRequest} className="glass-btn text-[10px] mt-4 py-2 px-6">Retry Connection</button>
                         </div>
                     )}
 

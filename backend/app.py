@@ -23,6 +23,8 @@ from fastapi.staticfiles import StaticFiles # Added for future static use if nee
 from .config import settings
 from .database import create_db_and_tables, engine as db_engine
 from sqlmodel import Session, select, delete
+import urllib.parse
+from .oauth_config import OAUTH_CONFIGS
 from .models import (
     ObjectiveRequest, TelemetryData, SystemStatus, LoginRequest,
     TaskUpdate, SoulPreferences, SoulManifest, AuditEntry
@@ -380,7 +382,7 @@ async def verusid_callback(response: Response, payload: Dict[str, str] = Body(..
     if not all([identity, signature, challenge_id]):
         raise HTTPException(status_code=400, detail="Missing identity, signature, or challenge_id")
     
-    is_valid = await verus_auth.verify_login_response(identity, signature, challenge_id)
+    is_valid = await verus_auth.verify_login_response({"identity": identity, "signature": signature, "challenge_id": challenge_id})
     if is_valid:
         token = create_access_token(data={"sub": identity, "vauth": True})
         response.set_cookie(
@@ -394,6 +396,19 @@ async def verusid_callback(response: Response, payload: Dict[str, str] = Body(..
         return {"access_token": token, "token_type": "bearer", "identity": identity}
     
     raise HTTPException(status_code=401, detail="VerusID signature verification failed")
+
+
+# --- Wallet-specific VerusID Linking (SSID) ---
+
+@app.get("/api/wallet/login/status/{challenge_id}")
+async def get_wallet_login_status(challenge_id: str):
+    """Polls for the result of a specific login challenge."""
+    result = await verus_auth.get_login_status(challenge_id)
+    if result:
+        # Load the authenticated identity into the wallet service
+        wallet_service.set_identity(result["identity"])
+        return {"status": "SUCCESS", "identity": result["identity"], "decision": result["decision"]}
+    return {"status": "PENDING"}
 
 
 # --- System Status ---
@@ -2122,12 +2137,12 @@ async def wallet_node_action(req: WalletNodeAction = Body(...)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/wallet/login/request", dependencies=[Depends(verify_authenticated)])
+@app.get("/api/wallet/login/request")
 async def get_verusid_login_request(redirect_uri: str = Query(...)):
     """
     Generates a formal VerusID LoginConsentRequest JSON and Deeplink.
     """
-    signing_id = settings.VERUS_ID_IDENTITY 
+    signing_id = settings.VERUS_ID_IDENTITY or "Sovereign Agent"
     return await verus_auth.get_verusid_login_request(signing_id, redirect_uri)
 
 @app.post("/api/wallet/login/verify")
@@ -2139,7 +2154,97 @@ async def verify_verusid_login(data: Dict[str, Any] = Body(...)):
     if not success:
         raise HTTPException(status_code=401, detail="VerusID Signature Verification Failed")
     
-    return {"status": "success", "identity": data.get("signing_id")}
+    return {"status": "SUCCESS", "identity": data.get("signing_id")}
+
+# --- Bridge Authentication Overhaul Routes ---
+
+@app.get("/api/oauth/{bridge_id}/authorize")
+async def oauth_authorize(bridge_id: str):
+    """Initiates the OAuth 2.0 flow for a given bridge by generating the redirect URL."""
+    config = OAUTH_CONFIGS.get(bridge_id)
+    if not config:
+        raise HTTPException(status_code=404, detail="OAuth config not found")
+        
+    redirect_uri = f"{os.getenv('DAEMON_PUBLIC_URL', 'http://localhost:8000').rstrip('/')}/api/oauth/{bridge_id}/callback"
+    
+    params = {
+        "client_id": config["client_id"],
+        "redirect_uri": redirect_uri,
+        "response_type": "code",
+        "scope": " ".join(config["scopes"]),
+    }
+    # Google offline access
+    if bridge_id in ['gm', 'gd']:
+        params["access_type"] = "offline"
+        params["prompt"] = "consent"
+        
+    auth_url = f"{config['authorize_url']}?{urllib.parse.urlencode(params)}"
+    return {"authorize_url": auth_url}
+
+@app.get("/api/oauth/{bridge_id}/callback")
+async def oauth_callback(bridge_id: str, code: str = Query(None), state: str = Query(None)):
+    """Generic OAuth callback endpoint for all OAuth-based bridges."""
+    if bridge_id not in channel_registry:
+        from fastapi.responses import HTMLResponse
+        return HTMLResponse("<script>window.opener.postMessage({ type: 'OAUTH_COMPLETE', bridgeId: '" + bridge_id + "', error: 'Bridge not found' }, '*'); window.close();</script>")
+    adapter = channel_registry[bridge_id]
+    if hasattr(adapter, "handle_oauth_callback"):
+        result = await adapter.handle_oauth_callback(code, state)
+        # Assuming the adapter handles saving creds internally and we just want to close the popup
+        from fastapi.responses import HTMLResponse
+        return HTMLResponse("<script>window.opener.postMessage({ type: 'OAUTH_COMPLETE', bridgeId: '" + bridge_id + "', success: true }, '*'); window.close();</script>")
+    
+    from fastapi.responses import HTMLResponse
+    return HTMLResponse("<script>window.opener.postMessage({ type: 'OAUTH_COMPLETE', bridgeId: '" + bridge_id + "', error: 'OAuth not implemented' }, '*'); window.close();</script>")
+
+@app.get("/api/channels/wechat/qr-init")
+async def wechat_qr_init():
+    adapter = channel_registry.get("wechat")
+    if hasattr(adapter, "init_qr"):
+        return await adapter.init_qr()
+    raise HTTPException(status_code=501, detail="WeChat QR flow not implemented")
+
+@app.get("/api/oauth/wechat/callback")
+async def wechat_callback(code: str = Query(None)):
+    adapter = channel_registry.get("wechat")
+    if hasattr(adapter, "handle_oauth_callback"):
+        return await adapter.handle_oauth_callback(code)
+    raise HTTPException(status_code=501, detail="WeChat auth not implemented")
+
+@app.post("/api/channels/webchat/session/{id}/capture")
+async def webchat_session_capture(id: str, data: Dict[str, Any] = Body(...)):
+    adapter = channel_registry.get("webchat")
+    if hasattr(adapter, "capture_session"):
+        return await adapter.capture_session(id, data)
+    raise HTTPException(status_code=501, detail="WebChat capture not implemented")
+
+@app.get("/api/channels/webchat/screenshot/{id}")
+async def webchat_screenshot(id: str):
+    adapter = channel_registry.get("webchat")
+    if hasattr(adapter, "get_screenshot"):
+        return await adapter.get_screenshot(id)
+    raise HTTPException(status_code=501, detail="WebChat screenshot not implemented")
+
+@app.post("/api/channels/icloud/2fa")
+async def icloud_2fa(data: Dict[str, str] = Body(...)):
+    adapter = channel_registry.get("icloud")
+    if hasattr(adapter, "submit_2fa"):
+        return await adapter.submit_2fa(data.get("code"))
+    raise HTTPException(status_code=501, detail="iCloud 2FA not implemented")
+
+@app.post("/api/channels/imessage/permission")
+async def imessage_permission():
+    adapter = channel_registry.get("imessage")
+    if hasattr(adapter, "check_permission"):
+        return await adapter.check_permission()
+    raise HTTPException(status_code=501, detail="iMessage permissions not implemented")
+
+@app.post("/api/channels/iwatch/pair")
+async def iwatch_pair(data: Dict[str, str] = Body(...)):
+    adapter = channel_registry.get("iwatch")
+    if hasattr(adapter, "submit_pairing_code"):
+        return await adapter.submit_pairing_code(data.get("code"))
+    raise HTTPException(status_code=501, detail="iWatch pairing not implemented")
 
 if __name__ == "__main__":
     import uvicorn

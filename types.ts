@@ -79,6 +79,9 @@ export interface SkillManifest {
   // [ DYNAMIC_BINDING ]
   personalityMapping: SkillPersonalityImpact;
 
+  // [ EXECUTION_INSTRUCTIONS ]
+  instructions?: string; // Markdown instructions for the cognitive module
+
   // [ METADATA_&_SECURITY ]
   signature: string;
   publicKey: string;
