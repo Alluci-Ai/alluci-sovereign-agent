@@ -1,0 +1,41 @@
+import { LOGIN_CONSENT_PROVISIONING_RESPONSE_VDXF_KEY, VerusIDSignatureInterface } from "../../";
+import { ProvisioningDecision, ProvisioningDecisionInterface } from "./ProvisioningDecision";
+import { Response } from "../Response";
+
+export interface ProvisioningResponseInterface {
+  system_id: string;
+  signing_id: string;
+  signature?: VerusIDSignatureInterface;
+  decision: ProvisioningDecisionInterface;
+}
+
+export class ProvisioningResponse extends Response {
+  constructor(
+    response: ProvisioningResponseInterface = {
+      system_id: "",
+      signing_id: "",
+      decision: new ProvisioningDecision(),
+    }
+  ) {
+    super(
+      {
+        system_id: response.system_id,
+        signing_id: response.signing_id,
+        signature: response.signature,
+        decision: response.decision,
+      },
+      LOGIN_CONSENT_PROVISIONING_RESPONSE_VDXF_KEY.vdxfid
+    );
+
+    this.decision = new ProvisioningDecision(response.decision);
+  }
+
+  fromDataBuffer(buffer: Buffer, offset?: number): number {
+    let _offset = super.fromDataBuffer(buffer, offset);
+
+    this.decision = new ProvisioningDecision();
+    _offset = this.decision.fromBuffer(buffer, _offset);
+
+    return _offset;
+  }
+}

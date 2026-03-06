@@ -1,0 +1,19 @@
+import { registerOrdinals } from '../../../constants/ordinals/register'
+
+export * from './DataDescriptorOrdinalVDXFObject'
+export * from './IdentityUpdateRequestOrdinalVDXFObject'
+export * from './IdentityUpdateResponseOrdinalVDXFObject'
+export * from './OrdinalVDXFObject'
+export * from './OrdinalVDXFObjectOrdinalMap'
+export * from './SerializableEntityOrdinalVDXFObject'
+export * from './VerusPayInvoiceDetailsOrdinalVDXFObject'
+export * from './AuthenticationRequestOrdinalVDXFObject'
+export * from './AuthenticationResponseOrdinalVDXFObject'
+export * from './AppEncryptionRequestOrdinalVDXFObject'
+export * from './AppEncryptionResponseOrdinalVDXFObject'
+export * from './ProvisionIdentityDetailsOrdinalVDXFObject'
+export * from './DataResponseOrdinalVDXFObject'
+export * from './UserDataRequestOrdinalVDXFObject'
+export * from './DataPacketRequestOrdinalVDXFObject'
+
+registerOrdinals();

@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": ".",
+    "typeRoots": [
+      "./node_modules/@types",
+      "../../node_modules/@types"
+    ],
+    "declaration": false,
+    "declarationMap": false,
+    "allowJs": true
+  },
+  "include": [
+    "src/**/*",
+    "package.json"
+  ]
+}
