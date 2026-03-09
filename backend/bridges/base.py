@@ -92,13 +92,12 @@ class BridgeAdapter(ABC):
         
         @self.resilient_request
         async def perform_refresh():
-            async with httpx.AsyncClient() as client:
-                return await client.post(token_url, data={
-                    "client_id": client_id,
-                    "client_secret": client_secret,
-                    "refresh_token": refresh_token,
-                    "grant_type": "refresh_token"
-                })
+            return await self.client.post(token_url, data={
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "refresh_token": refresh_token,
+                "grant_type": "refresh_token"
+            })
 
         resp = await perform_refresh()
         resp.raise_for_status()

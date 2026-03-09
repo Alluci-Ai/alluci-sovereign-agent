@@ -19,6 +19,10 @@ class OAuthHandler:
         self.vault = vault
         self.client = httpx.AsyncClient(timeout=30.0)
 
+    async def close(self):
+        """Clean up resources."""
+        await self.client.aclose()
+
     @staticmethod
     def generate_pkce_pair():
         """Generates code_verifier and code_challenge for PKCE."""

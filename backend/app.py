@@ -69,7 +69,9 @@ usage_tracker: UsageTracker = None
 cron_engine: CronEngine = None
 config_editor: ConfigEditor = None
 exec_approval: ExecApprovalManager = None
-device_manager: Any = None # To be initialized as DeviceManager
+device_manager: Any = None
+redis_client: Optional[redis.Redis] = None
+audit_lock = asyncio.Lock()
 channel_registry: Dict[str, Any] = {}
 
 # --- Input Sanitization ---
@@ -83,6 +85,22 @@ async def sanitize_input(text: str) -> str:
     # Strip null bytes and excessive whitespace
     text = text.replace("\x00", "").strip()
     return text
+
+
+# --- Sovereign Auditing Helper ---
+async def log_system_event(event: str, details: str, status: str = "INFO"):
+    """Internal helper to record immutable system events in the anchored audit ledger."""
+    try:
+        entry = AuditEntry(
+            id=str(uuid.uuid4()),
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            event=event,
+            details=details,
+            status=status
+        )
+        await sync_audit_entry(entry)
+    except Exception as e:
+        logger.error(f"Failed to log system event {event}: {e}")
 
 
 # --- Lifespan & Production Initialization ---
@@ -99,8 +117,8 @@ async def lifespan(app: FastAPI):
     
     # Initialize Production Rate Limiter (Redis)
     try:
-        r = redis.from_url(settings.REDIS_URL, encoding="utf-8")
-        await FastAPILimiter.init(r)
+        redis_client = redis.from_url(settings.REDIS_URL, encoding="utf-8")
+        await FastAPILimiter.init(redis_client)
         logger.info(f"[ CACHE ]: Redis distributed rate limiter initialized on {settings.REDIS_URL}")
     except Exception as e:
         logger.error(f"[ CACHE ]: Redis initialization failed. Rate limiting will NOT be active: {e}")
@@ -213,10 +231,13 @@ async def lifespan(app: FastAPI):
                 connected = await adapter.connect(creds)
                 if connected:
                     logger.info(f"[ CHANNELS ] {ch_name} auto-connected")
+                    await log_system_event("BRIDGE_CONNECT", f"Successfully auto-connected channel: {ch_name}", "SUCCESS")
                 else:
                     logger.warning(f"[ CHANNELS ] {ch_name} credentials found but connection failed")
+                    await log_system_event("BRIDGE_CONNECT", f"Auto-connect failed for channel: {ch_name}", "WARNING")
         except Exception as e:
             logger.debug(f"[ CHANNELS ] {ch_name} connection error during boot: {e}")
+            await log_system_event("BRIDGE_CONNECT", f"Critical error during boot connect for {ch_name}: {str(e)}", "ERROR")
     logger.info("DEBUG: Passed channel auto-connect loop")
 
     # Wire channel registry to cron engine for delivery routing
@@ -238,8 +259,25 @@ async def lifespan(app: FastAPI):
     yield
 
     logger.info("[ POLYTOPE_DAEMON ] Shutting down...")
-    await cron_engine.stop()
-    await orchestrator.stop_background_services()
+    
+    # 1. Stop background engines
+    if cron_engine: await cron_engine.stop()
+    if orchestrator: await orchestrator.stop_background_services()
+    if updater: await updater.stop()
+    
+    # 2. Gracefully close all bridge connections
+    close_tasks = []
+    for ch_name, adapter in channel_registry.items():
+        if hasattr(adapter, "disconnect"):
+            close_tasks.append(adapter.disconnect())
+    if close_tasks:
+        await asyncio.gather(*close_tasks, return_exceptions=True)
+    
+    # 3. Shutdown Redis
+    if redis_client:
+        await redis_client.close()
+        
+    logger.info("[ POLYTOPE_DAEMON ] Shutdown complete.")
 
 
 app = FastAPI(title="Polytope Executive Daemon", version="1.0.0", lifespan=lifespan)
@@ -333,6 +371,17 @@ async def readiness_check():
     except Exception as e:
         logger.error(f"[ HEALTH ]: Database integrity check failed: {e}")
         raise HTTPException(status_code=503, detail="Database unresponsive")
+
+    # Check Redis Connectivity
+    if redis_client:
+        try:
+            await redis_client.ping()
+            checks["redis"] = "stable"
+        except Exception as e:
+            logger.error(f"[ HEALTH ]: Redis ping failed: {e}")
+            checks["redis"] = "failing"
+    else:
+        checks["redis"] = "inactive"
 
     return {"status": "ready", "checks": checks}
 
@@ -506,8 +555,10 @@ async def rotate_vault_keys(payload: Dict[str, str] = Body(...)):
     
     success = await vault.rotate_keys(new_key)
     if not success:
+        await log_system_event("VAULT_ROTATE", "Failed to rotate vault keys.", "ERROR")
         raise HTTPException(status_code=500, detail="Vault key rotation failed")
     
+    await log_system_event("VAULT_ROTATE", "All Active Vaults Cryptographically Rotated", "SUCCESS")
     # In production, we'd also update the env/settings persisting the MASTER_KEY
     return {"status": "success", "message": "All Active Vaults Cryptographically Rotated"}
 
@@ -733,31 +784,29 @@ async def sync_audit_entry(entry: AuditEntry):
     Synchronizes a client-side audit entry with the server-side VDXF store.
     Provides a permanent, decentralized audit trail when VerusID is enabled.
     """
-    try:
-        # 1. Store in the secure vault (Tier 2/3)
-        # We append to a special "audit_ledger" secret
-        current_ledger = await vault.retrieve_secret("audit_ledger") or []
-        current_ledger.append(entry.model_dump())
-        
-        # Keep only last 1000 entries in the local vault to prevent bloat
-        if len(current_ledger) > 1000:
-            current_ledger = current_ledger[-1000:]
+    async with audit_lock:
+        try:
+            # 1. Store in the secure vault (Tier 2/3)
+            current_ledger = await vault.retrieve_secret("audit_ledger") or []
+            current_ledger.append(entry.model_dump())
             
-        await vault.store_secret("audit_ledger", current_ledger)
-        
-        # 2. If VerusID is enabled, anchor the new ledger state
-        if settings.VERUS_AUTH_ENABLED and settings.VERUS_ID_IDENTITY:
-            from .security.vdxf_store import VDXFStore
-            store = VDXFStore(settings.VERUS_ID_IDENTITY)
+            # Keep only last 1000 entries in the local vault
+            if len(current_ledger) > 1000:
+                current_ledger = current_ledger[-1000:]
+                
+            await vault.store_secret("audit_ledger", current_ledger)
             
-            # Anchor the hash of the entire ledger to the blockchain
-            ledger_json = json.dumps(current_ledger)
-            await store.anchor_vault_hash(ledger_json)
-            
-        return {"status": "SUCCESS", "synced_id": entry.id}
-    except Exception as e:
-        logger.error(f"Audit sync failed: {e}")
-        raise HTTPException(status_code=500, detail="Failed to sync audit ledger.")
+            # 2. Anchor to Verus Blockchain if enabled
+            if settings.VERUS_AUTH_ENABLED and settings.VERUS_ID_IDENTITY:
+                from .security.vdxf_store import VDXFStore
+                store = VDXFStore(settings.VERUS_ID_IDENTITY)
+                ledger_json = json.dumps(current_ledger)
+                await store.anchor_vault_hash(ledger_json)
+                
+            return {"status": "SUCCESS", "synced_id": entry.id}
+        except Exception as e:
+            logger.error(f"Audit sync failed: {e}")
+            raise HTTPException(status_code=500, detail="Failed to sync audit ledger.")
 
 @app.get("/api/audit/ledger", dependencies=[Depends(verify_authenticated)])
 async def get_audit_ledger():

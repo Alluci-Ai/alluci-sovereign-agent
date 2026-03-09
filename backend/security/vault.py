@@ -295,13 +295,32 @@ class VaultManager:
         return False
 
     async def rotate_keys(self, new_master_key: str) -> bool:
+        """
+        Deep rotation of all cryptographic material:
+        1. Generates new RSA keypair.
+        2. Re-encrypts all symmetric root vaults.
+        3. Re-encrypts all hybrid connection secrets with the new RSA key.
+        4. Updates identity.pem with the new master key protection.
+        """
         return await asyncio.to_thread(self._rotate_keys_sync, new_master_key)
 
     def _rotate_keys_sync(self, new_master_key: str) -> bool:
         try:
+            # 1. Prepare new materials
+            from cryptography.hazmat.primitives.asymmetric import rsa
+            from cryptography.hazmat.backends import default_backend
+            from cryptography.hazmat.primitives import serialization
+
             new_fernet = Fernet(new_master_key.encode() if isinstance(new_master_key, str) else new_master_key)
+            new_private_key = rsa.generate_private_key(
+                public_exponent=65537,
+                key_size=4096,
+                backend=default_backend()
+            )
+            new_public_key = new_private_key.public_key()
+
+            # 2. Rotate Root Symmetric Vaults
             vaults = [f for f in os.listdir(self.vault_root) if f.endswith(".vault")]
-            
             for vault_file in vaults:
                 path = os.path.join(self.vault_root, vault_file)
                 with open(path, "rb") as f:
@@ -309,15 +328,73 @@ class VaultManager:
                 encrypted = new_fernet.encrypt(decrypted)
                 
                 tmp_path = path + ".tmp"
-                with open(tmp_path, "wb") as f:
-                    f.write(encrypted)
+                with open(tmp_path, "wb") as f: f.write(encrypted)
                 os.replace(tmp_path, path)
-                os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)
-            
+                os.chmod(path, stat.S_IRUSR | stat.S_IWUSR) # Ensure permissions are set
+
+            # 3. Rotate Hybrid Connection Secrets (connections/**/*)
+            conn_root = os.path.join(self.vault_root, "connections")
+            if os.path.exists(conn_root):
+                for root, dirs, files in os.walk(conn_root):
+                    for fname in files:
+                        if fname.endswith(".vault"):
+                            fpath = os.path.join(root, fname)
+                            rel_path = os.path.relpath(fpath, self.vault_root)
+                            
+                            # Decrypt with OLD RSA
+                            data = self._retrieve_secret_by_path_sync(rel_path)
+                            if data:
+                                # Re-encrypt with NEW RSA/Fernet
+                                # We need a transient helper or temporary state update
+                                self._store_secret_by_path_helper_sync(fpath, data, new_public_key)
+                                os.chmod(fpath, stat.S_IRUSR | stat.S_IWUSR) # Ensure permissions are set
+
+            # 4. Save New RSA Identity
+            key_path = os.path.join(self.vault_root, "identity.pem")
+            pem = new_private_key.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.PKCS8,
+                encryption_algorithm=serialization.BestAvailableEncryption(
+                    new_master_key.encode() if isinstance(new_master_key, str) else new_master_key
+                )
+            )
+            with open(key_path, "wb") as f: f.write(pem)
+            os.chmod(key_path, stat.S_IRUSR | stat.S_IWUSR) # Ensure permissions are set
+
+            # 5. Commit to memory
+            self.master_key = new_master_key
             self.fernet = new_fernet
+            self.private_key = new_private_key
+            self.public_key = new_public_key
+            
             return True
-        except Exception:
+        except Exception as e:
+            import logging
+            logging.getLogger("VaultManager").error(f"Critical Failure during Key Rotation: {e}")
             return False
+
+    def _store_secret_by_path_helper_sync(self, absolute_path: str, data: Dict[str, Any], pub_key):
+        """Internal helper for rotation without modifying global state."""
+        import struct
+        session_key = Fernet.generate_key()
+        f = Fernet(session_key)
+        raw_data = json.dumps(data)
+        encrypted_data = f.encrypt(raw_data.encode())
+        encrypted_key = pub_key.encrypt(
+            session_key,
+            padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
+        )
+        payload = struct.pack(">I", len(encrypted_key)) + encrypted_key + encrypted_data
+        with open(absolute_path, "wb") as f_out: f_out.write(payload)
+
+    def export_identity_pem(self) -> str:
+        """Exports the current RSA private key in PEM format for recovery/backup."""
+        from cryptography.hazmat.primitives import serialization
+        return self.private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption()
+        ).decode()
 
     async def flush_cache(self) -> bool:
         return await asyncio.to_thread(self._flush_cache_sync)
