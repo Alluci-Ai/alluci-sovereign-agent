@@ -118,7 +118,7 @@ class HeartbeatDaemon:
         else:  # Crosses midnight
             return now >= self.quiet_hours_start or now <= self.quiet_hours_end
 
-    def _parse_standing_orders(self) -> List[str]:
+    async def _parse_standing_orders(self) -> List[str]:
         """
         Retrieves standing orders from the Soul Manifest (Identity Layer).
         Fallback to HEARTBEAT.md if manifest entry is missing.
@@ -127,7 +127,7 @@ class HeartbeatDaemon:
         
         # 1. Try Soul Manifest (Production Path)
         try:
-            manifest_data = self.vault.retrieve_secret("soul_manifest")
+            manifest_data = await self.vault.retrieve_secret("soul_manifest")
             if manifest_data and "heartbeat" in manifest_data:
                 raw_orders = manifest_data["heartbeat"]
                 for line in raw_orders.split('\n'):
@@ -180,7 +180,7 @@ class HeartbeatDaemon:
         self.logger.info("[PULSE] Initiating system check...")
 
         # 2. Read Orders
-        orders = self._parse_standing_orders()
+        orders = await self._parse_standing_orders()
         if not orders:
             self.logger.info("[PULSE] No standing orders found in Soul Manifest.")
             return
