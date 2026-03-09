@@ -41,8 +41,7 @@ export const AgentDetailTabs: React.FC<AgentDetailProps> = ({ agentId, onBack })
     const handleSaveOverview = async () => {
         setSaving(true);
         try {
-            // Mapping save into generic PUT/POST loops over agent object ideally
-            // Simulation of complete logic per openclaw spec:
+            // Simulation of complete logic per Sovereign Spec:
             await new Promise(r => setTimeout(r, 500));
         } finally {
             setSaving(false);

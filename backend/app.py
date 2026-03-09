@@ -574,6 +574,71 @@ async def save_vault_keys(new_keys: Dict[str, Any] = Body(...)):
 
 
 
+
+# --- Bridge Actualization & Auth Router ---
+
+@app.get("/api/bridge/auth/challenge/{bridge_id}", dependencies=[Depends(verify_authenticated)])
+async def get_bridge_auth_challenge(bridge_id: str):
+    """Generates a QR Sync challenge for a specific bridge/account."""
+    if not orchestrator:
+        raise HTTPException(status_code=503, detail="Orchestrator not ready")
+    
+    adapter = orchestrator.adapter_registry.get("bridge_actualization")
+    if not adapter:
+        raise HTTPException(status_code=501, detail="Bridge actualization adapter not loaded")
+        
+    result = await adapter.handle_auth(bridge_id, "challenge", "default", {})
+    return result
+
+@app.post("/api/bridge/auth/handle", dependencies=[Depends(verify_authenticated)])
+async def handle_bridge_auth(payload: Dict[str, Any] = Body(...)):
+    """
+    Unified endpoint for the UI AuthPortal.
+    Handles OAuth codes, QR Sync completions, and Token insertions.
+    """
+    if not orchestrator:
+        raise HTTPException(status_code=503, detail="Orchestrator not ready")
+        
+    bridge_id = payload.get("bridge_id")
+    auth_type = payload.get("auth_type")
+    account_id = payload.get("account_id", "default")
+    params = payload.get("params", {})
+    
+    if not bridge_id or not auth_type:
+        raise HTTPException(status_code=400, detail="Missing bridge_id or auth_type")
+        
+    adapter = orchestrator.adapter_registry.get("bridge_actualization")
+    if not adapter:
+        raise HTTPException(status_code=501, detail="Bridge actualization adapter not loaded")
+        
+    try:
+        result = await adapter.handle_auth(bridge_id, auth_type, account_id, params)
+        return result
+    except Exception as e:
+        logger.error(f"Bridge Auth handling failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/bridge/tunnel/status", dependencies=[Depends(verify_authenticated)])
+async def get_tunnel_status():
+    """Returns the current status of the Secure Tunnel."""
+    adapter = orchestrator.adapter_registry.get("bridge_actualization")
+    if not adapter: raise HTTPException(status_code=501, detail="Adapter not loaded")
+    return await adapter.handle_auth("system", "tunnel", "default", {"action": "status"})
+
+@app.post("/api/bridge/tunnel/start", dependencies=[Depends(verify_authenticated)])
+async def start_tunnel(payload: Dict[str, Any] = Body(...)):
+    """Starts the Secure Tunnel reverse proxy."""
+    adapter = orchestrator.adapter_registry.get("bridge_actualization")
+    if not adapter: raise HTTPException(status_code=501, detail="Adapter not loaded")
+    return await adapter.handle_auth("system", "tunnel", "default", {"action": "start", "relay_url": payload.get("relay_url")})
+
+@app.post("/api/bridge/tunnel/stop", dependencies=[Depends(verify_authenticated)])
+async def stop_tunnel():
+    """Stops the Secure Tunnel reverse proxy."""
+    adapter = orchestrator.adapter_registry.get("bridge_actualization")
+    if not adapter: raise HTTPException(status_code=501, detail="Adapter not loaded")
+    return await adapter.handle_auth("system", "tunnel", "default", {"action": "stop"})
+
 # --- Objective Execution ---
 
 @app.post("/objective/execute", dependencies=[Depends(verify_authenticated), Depends(RateLimiter(times=settings.RATE_LIMIT_PER_MINUTE, seconds=60))])
@@ -1148,7 +1213,7 @@ async def sovereign_socket(websocket: WebSocket):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Sprint 1: WebSocket JSON-RPC Admin Gateway (OpenClaw §5.1)
+# Sprint 1: WebSocket JSON-RPC Admin Gateway (Sovereign Spec §5.1)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @app.websocket("/ws/admin")
@@ -1158,7 +1223,7 @@ async def websocket_admin(websocket: WebSocket):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Sprint 1: Usage & Cost Analytics API (OpenClaw §4)
+# Sprint 1: Usage & Cost Analytics API (Sovereign Spec §4)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @app.get("/api/sessions", dependencies=[Depends(verify_authenticated)])
@@ -1226,7 +1291,7 @@ async def export_daily_csv(start: str = Query(None), end: str = Query(None)):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Sprint 1: Cron Engine API (OpenClaw §3)
+# Sprint 1: Cron Engine API (Sovereign Spec §3)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @app.get("/api/cron/jobs", dependencies=[Depends(verify_authenticated)])
@@ -1300,7 +1365,7 @@ async def get_cron_runs(
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Sprint 1: Configuration Editor API (OpenClaw §8)
+# Sprint 1: Configuration Editor API (Sovereign Spec §8)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @app.get("/api/config", dependencies=[Depends(verify_authenticated)])
@@ -1376,7 +1441,7 @@ async def verify_whatsapp(
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Sprint 1: Log Streaming API (OpenClaw §9)
+# Sprint 1: Log Streaming API (Sovereign Spec §9)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @app.websocket("/api/logs/stream")
@@ -1628,7 +1693,7 @@ async def connect_channel(channel_id: str, data: Dict[str, Any] = Body(...)):
     return {"status": "connected", "channel": channel_id}
 
 
-# ── Webhook Inbound Handlers (Sprint 2 — OpenClaw §2.1–2.2) ──
+# ── Webhook Inbound Handlers (Sprint 2 — Sovereign Spec §2.1–2.2) ──
 
 @app.post("/webhook/telegram/{token}")
 async def telegram_webhook(token: str, update: Dict[str, Any]):
@@ -1692,7 +1757,7 @@ async def google_chat_webhook(payload: Dict[str, Any]):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Sprint 3: Exec Approval API (OpenClaw §5.6)
+# Sprint 3: Exec Approval API (Sovereign Spec §5.6)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @app.post("/api/exec/allow", dependencies=[Depends(verify_authenticated)])
@@ -1738,7 +1803,7 @@ async def delete_exec_policy(policy_id: int):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Sprint 5: Session Config Overrides (OpenClaw §5.4–5.5)
+# Sprint 5: Session Config Overrides (Sovereign Spec §5.4–5.5)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @app.get("/api/sessions/{session_key}/config", dependencies=[Depends(verify_authenticated)])
@@ -1798,7 +1863,7 @@ async def patch_session_config(session_key: str, data: Dict[str, Any] = Body(...
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Sprint 3: Usage Analytics API (OpenClaw §4)
+# Sprint 3: Usage Analytics API (Sovereign Spec §4)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @app.get("/api/usage/summary", dependencies=[Depends(verify_authenticated)])

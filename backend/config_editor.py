@@ -4,7 +4,7 @@ Schema-Driven Configuration Editor for the Polytope Sovereign OS.
 Serves the current configuration as a JSON Schema, accepts validated
 updates via API, and hot-applies changes without restart.
 
-Reference: OpenClaw Sections 8.1–8.3
+Reference: Sovereign Spec Sections 8.1–8.3
 """
 
 import json

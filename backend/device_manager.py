@@ -17,7 +17,7 @@ logger = logging.getLogger("DeviceManager")
 
 class DeviceManager:
     """
-    Manages joined device identities, pairing, and node capability reporting (OpenClaw §4.3).
+    Manages joined device identities, pairing, and node capability reporting (Sovereign Spec §4.3).
     Provides Ed25519 identity verification and high-fidelity hardware introspection.
     """
 

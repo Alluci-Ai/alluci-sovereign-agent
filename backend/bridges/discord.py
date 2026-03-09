@@ -6,7 +6,7 @@ import logging
 class DiscordBridge(BridgeAdapter):
     """
     Sovereign Discord Bridge.
-    Pure Python implementation using discord.py, removing Node.js ds_sidecar dependency.
+    Pure Python implementation using discord.py.
     """
     def __init__(self, bridge_id: str, vault_root: str):
         super().__init__(bridge_id, vault_root)
@@ -21,7 +21,7 @@ class DiscordBridge(BridgeAdapter):
             self.logger.error("discord.py missing. Run: pip install discord.py")
             return False
 
-        self.bot_token = credentials.get("bot_token")
+        self.bot_token = credentials.get("bot_token") or credentials.get("access_token")
         if not self.bot_token:
             self.logger.error("Missing bot_token in credentials")
             return False
@@ -35,36 +35,65 @@ class DiscordBridge(BridgeAdapter):
             self.is_connected = True
             self.logger.info(f"Discord connected as {self.client.user}")
 
-        @self.client.event
-        async def on_message(message):
-            if message.author == self.client.user:
-                return
-            # Pass to orchestrator in production
-
+        # Start the client in the background
         self.task = asyncio.create_task(self.client.start(self.bot_token))
-        return True
+        
+        # Wait a bit for connection
+        for _ in range(10):
+            if self.is_connected: break
+            await asyncio.sleep(1)
+            
+        return self.is_connected
 
     async def send(self, recipient: str, content: str, **kwargs) -> Dict[str, Any]:
         if not self.is_connected or not self.client:
             return {"status": "failed", "error": "Not connected"}
             
         try:
-            channel = self.client.get_channel(int(recipient))
-            if not channel:
-                return {"status": "failed", "error": "Channel not found"}
-            await channel.send(content)
+            # 1. Try fetching as a channel
+            target = self.client.get_channel(int(recipient))
+            
+            # 2. Try fetching as a user (for DMs)
+            if not target:
+                target = await self.client.fetch_user(int(recipient))
+                
+            if not target:
+                return {"status": "failed", "error": f"Target {recipient} not found"}
+                
+            await target.send(content)
             return {"status": "success"}
         except Exception as e:
+            self.logger.error(f"Discord send failed: {e}")
             return {"status": "failed", "error": str(e)}
 
     async def send_message(self, recipient: str, content: str) -> Dict[str, Any]:
         return await self.send(recipient, content)
 
     async def fetch_unread(self, limit: int = 10) -> List[Dict[str, Any]]:
-        return []
+        """Fetch recent history from default/last channels."""
+        if not self.is_connected or not self.client:
+            return []
+            
+        messages = []
+        # In a real bot, we'd look at channels we have permission for
+        for guild in self.client.guilds:
+            for channel in guild.text_channels:
+                try:
+                    async for msg in channel.history(limit=limit):
+                        messages.append({
+                            "id": str(msg.id),
+                            "from": str(msg.author),
+                            "body": msg.content,
+                            "channel": channel.name,
+                            "guild": guild.name,
+                            "timestamp": msg.created_at.isoformat()
+                        })
+                except:
+                    continue
+        return messages[:limit]
 
     async def validate_integrity(self) -> bool:
-        return self.is_connected
+        return self.is_connected and not self.client.is_closed()
 
     async def disconnect(self):
         if self.client:

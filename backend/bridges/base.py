@@ -1,8 +1,10 @@
-
-from abc import ABC, abstractmethod
-from typing import List, Dict, Any
 import os
 import logging
+import asyncio
+import httpx
+from typing import List, Dict, Any, Callable
+from abc import ABC, abstractmethod
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 class BridgeAdapter(ABC):
     """
@@ -14,12 +16,25 @@ class BridgeAdapter(ABC):
         self.logger = logging.getLogger(f"Bridge_{bridge_id.upper()}")
         
         # Simplicial Vault Path: ~/.polytope/vaults/{bridge_id}
-        # This directory is the ONLY place this bridge is allowed to write state.
         self.vault_path = os.path.join(vault_root, bridge_id)
         self._enforce_vault_isolation()
         
         self.is_connected = False
         self.session: Any = None
+        self.client = httpx.AsyncClient(timeout=30.0)
+
+    @staticmethod
+    def resilient_request(func: Callable):
+        """
+        Decorator to wrap bridge network requests with production-grade resilience.
+        Retries on connection errors and transient 5xx responses with exponential backoff.
+        """
+        return retry(
+            stop=stop_after_attempt(5),
+            wait=wait_exponential(multiplier=1, min=2, max=10),
+            retry=retry_if_exception_type((httpx.RequestError, httpx.HTTPProtocolError)),
+            reraise=True
+        )(func)
 
     def _enforce_vault_isolation(self):
         """
@@ -44,7 +59,7 @@ class BridgeAdapter(ABC):
 
     @abstractmethod
     async def send(self, recipient: str, content: str, **kwargs) -> Dict[str, Any]:
-        """Canonical data transmission method (OpenClaw §2.3)."""
+        """Canonical data transmission method (Sovereign Spec §2.3)."""
         pass
 
     @abstractmethod
@@ -61,11 +76,10 @@ class BridgeAdapter(ABC):
         """
         Helper for OAuth2 bridges to check expiration and refresh the access token if needed.
         Returns the updated credentials dictionary.
+        Uses resilient_request internally.
         """
         import time
-        import httpx
         expires_at = creds.get("expires_at", 0)
-        # If no expires_at or not expired yet (with 60s buffer), return as is
         if not expires_at or time.time() < expires_at - 60:
             return creds
 
@@ -75,22 +89,29 @@ class BridgeAdapter(ABC):
             raise ValueError("OAuth Token expired, no refresh token.")
 
         self.logger.info("Access token expired, refreshing...")
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(token_url, data={
-                "client_id": client_id,
-                "client_secret": client_secret,
-                "refresh_token": refresh_token,
-                "grant_type": "refresh_token"
-            })
-            resp.raise_for_status()
-            data = resp.json()
-            creds["access_token"] = data["access_token"]
-            if "refresh_token" in data:
-                creds["refresh_token"] = data["refresh_token"]
-            creds["expires_at"] = time.time() + data.get("expires_in", 3600)
-            return creds
+        
+        @self.resilient_request
+        async def perform_refresh():
+            async with httpx.AsyncClient() as client:
+                return await client.post(token_url, data={
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "refresh_token": refresh_token,
+                    "grant_type": "refresh_token"
+                })
+
+        resp = await perform_refresh()
+        resp.raise_for_status()
+        data = resp.json()
+        creds["access_token"] = data["access_token"]
+        if "refresh_token" in data:
+            creds["refresh_token"] = data["refresh_token"]
+        creds["expires_at"] = time.time() + data.get("expires_in", 3600)
+        return creds
 
     async def disconnect(self):
         """Graceful teardown of the connection."""
+        if self.client:
+            await self.client.aclose()
         self.is_connected = False
         self.session = None

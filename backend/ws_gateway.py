@@ -6,7 +6,7 @@ Provides a persistent WebSocket connection for:
 - JSON-RPC 2.0 method dispatch (system.status, system.health, system.presence, etc.)
 - Hello handshake with JWT authentication
 
-Reference: OpenClaw Section 5.1
+Reference: Sovereign Spec Section 5.1
 """
 
 import asyncio
@@ -224,7 +224,7 @@ class JsonRpcGateway:
             )
             return
 
-        # Heartbeat shortcut — Section 5.1 OpenClaw
+        # Heartbeat shortcut — Section 5.1 Sovereign Spec
         if method == "heartbeat":
             # Record persistent presence beacon
             db_engine = self._service_refs.get("db_engine")

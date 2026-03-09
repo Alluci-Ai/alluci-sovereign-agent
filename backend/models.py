@@ -64,7 +64,7 @@ class TaskRecord(SQLModel, table=True):
     
     run: Optional[Run] = Relationship(back_populates="tasks")
 
-# --- Usage & Cost Analytics Tables (Sprint 1 — OpenClaw §4) ---
+# --- Usage & Cost Analytics Tables (Sprint 1 — Sovereign Spec §4) ---
 
 class UsageLog(SQLModel, table=True):
     """Per-turn token usage log for cost analytics."""
@@ -90,12 +90,12 @@ class ModelPricing(SQLModel, table=True):
     cache_read_price: float = 0.0
     cache_write_price: float = 0.0
 
-# --- Cron Engine Tables (Sprint 1 — OpenClaw §3) ---
+# --- Cron Engine Tables (Sprint 1 — Sovereign Spec §3) ---
 
 class ChannelAccount(SQLModel, table=True):
     """
     Multiple account identities for a single bridge type (e.g. 2 Slack workspaces).
-    OpenClaw §2.3 - Multi-Entity Routing
+    Sovereign Spec §2.3 - Multi-Entity Routing
     """
     __tablename__ = "channel_account"
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -136,7 +136,7 @@ class CronRun(SQLModel, table=True):
     delivery_status: Optional[str] = None
     log_text: Optional[str] = None
 
-# --- Exec Approval Policies (Sprint 3 — OpenClaw §5.6) ---
+# --- Exec Approval Policies (Sprint 3 — Sovereign Spec §5.6) ---
 
 class ExecPolicy(SQLModel, table=True):
     """Persistent allow/deny policies for tool execution approval."""
@@ -148,7 +148,7 @@ class ExecPolicy(SQLModel, table=True):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: Optional[datetime] = None
 
-# --- Session Config Overrides (Sprint 5 — OpenClaw §5.4) ---
+# --- Session Config Overrides (Sprint 5 — Sovereign Spec §5.4) ---
 
 class SessionConfig(SQLModel, table=True):
     """Per-session parameter overrides (model, thinking level, etc.)."""
@@ -253,7 +253,7 @@ class SoulManifest(BaseModel):
     bestPractices: List[str] = []
     
 class DiscordGuildMapping(SQLModel, table=True):
-    """Mapping of Discord Guilds to preferred routing channels (OpenClaw §2.3)."""
+    """Mapping of Discord Guilds to preferred routing channels (Sovereign Spec §2.3)."""
     __tablename__ = "discord_guild_mapping"
     id: Optional[int] = Field(default=None, primary_key=True)
     guild_id: str = Field(unique=True, index=True)
@@ -262,7 +262,7 @@ class DiscordGuildMapping(SQLModel, table=True):
     enabled: bool = True
 
 class MessageLog(SQLModel, table=True):
-    """Full transcript record for sessions (OpenClaw §5.1)."""
+    """Full transcript record for sessions (Sovereign Spec §5.1)."""
     __tablename__ = "message_log"
     id: Optional[int] = Field(default=None, primary_key=True)
     session_key: str = Field(index=True)
@@ -291,7 +291,7 @@ class AuditEntry(BaseModel):
     prevHash: str
 
 class Device(SQLModel, table=True):
-    """Device identity for node authentication (OpenClaw §4.3)."""
+    """Device identity for node authentication (Sovereign Spec §4.3)."""
     __tablename__ = "device"
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str

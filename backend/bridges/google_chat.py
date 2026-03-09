@@ -12,7 +12,7 @@ class GoogleChatBridge(BridgeAdapter):
     Sovereign Google Chat Bridge using Service Account Credentials.
     Implements messaging and webhook event handling for Google Chat Spaces.
     
-    Reference: OpenClaw Section 2.3 - Cloud Manifold Adapters
+    Reference: Sovereign Spec Section 2.3 - Cloud Manifold Adapters
     """
 
     def __init__(self, bridge_id: str, vault_root: str):

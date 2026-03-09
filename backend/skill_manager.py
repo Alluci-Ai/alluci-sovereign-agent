@@ -222,7 +222,7 @@ class SkillManager:
 
     async def install_remote_package(self, download_url: str) -> Dict[str, Any]:
         """
-        One-Click Install flow (OpenClaw §5.2).
+        One-Click Install flow (Sovereign Spec §5.2).
         Flow: download → validate → critic scan → review queue
         If risk score is 0, auto-promote is possible (optional).
         """

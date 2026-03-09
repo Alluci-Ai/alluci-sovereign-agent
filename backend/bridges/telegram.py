@@ -8,7 +8,7 @@ Provides:
 - Per-account last-seen tracking
 - Health reporting for channel dashboard
 
-Reference: OpenClaw Section 2.2
+Reference: Sovereign Spec Section 2.2
 """
 
 import httpx
@@ -39,6 +39,7 @@ class TelegramBridge(BridgeAdapter):
         self.enabled: bool = True
         self._load_accounts()
 
+    @BridgeAdapter.resilient_request
     async def connect(self, credentials: Dict[str, Any]) -> bool:
         """
         Connects to Telegram via Bot Token.
@@ -53,58 +54,50 @@ class TelegramBridge(BridgeAdapter):
             self.webhook_url = credentials.get("webhook_url")
         self.last_error = None
 
-        try:
-            async with httpx.AsyncClient() as client:
-                # 1. Bot Token Validation (OpenClaw §2.2)
-                res = await client.get(f"{self.api_url}{self.bot_token}/getMe")
-                data = res.json()
-                if not data.get("ok"):
-                    self.last_error = data.get("description", "Token validation failed")
-                    self.logger.error(f"Telegram Auth Failed: {self.last_error}")
-                    return False
-
-                self.is_connected = True
-                self.bot_username = data["result"].get("username", "unknown")
-                self.last_activity = datetime.now(timezone.utc)
-                self.logger.info(f"Telegram Connected. Bot: @{self.bot_username}")
-
-                # 2. Auto-register Webhook (OpenClaw §2.2)
-                if self.webhook_url:
-                    await self._register_webhook(client)
-                else:
-                    # Clean up old webhooks if we're now in polling mode
-                    try:
-                        await client.get(f"{self.api_url}{self.bot_token}/deleteWebhook")
-                        self.logger.info("Telegram: Webhook cleared, entering long-polling mode.")
-                    except: pass
-
-                return True
-        except Exception as e:
-            self.last_error = str(e)
-            self.logger.error(f"Telegram connection failed: {e}")
+        # 1. Bot Token Validation (Sovereign Spec §2.2)
+        res = await self.client.get(f"{self.api_url}{self.bot_token}/getMe")
+        data = res.json()
+        if not data.get("ok"):
+            self.last_error = data.get("description", "Token validation failed")
+            self.logger.error(f"Telegram Auth Failed: {self.last_error}")
             return False
 
-    async def _register_webhook(self, client: httpx.AsyncClient):
+        self.is_connected = True
+        self.bot_username = data["result"].get("username", "unknown")
+        self.last_activity = datetime.now(timezone.utc)
+        self.logger.info(f"Telegram Connected. Bot: @{self.bot_username}")
+
+        # 2. Auto-register Webhook (Sovereign Spec §2.2)
+        if self.webhook_url:
+            await self._register_webhook()
+        else:
+            # Clean up old webhooks if we're now in polling mode
+            try:
+                await self.client.get(f"{self.api_url}{self.bot_token}/deleteWebhook")
+                self.logger.info("Telegram: Webhook cleared, entering long-polling mode.")
+            except: pass
+
+        return True
+
+    @BridgeAdapter.resilient_request
+    async def _register_webhook(self):
         """Register or update the webhook URL with Telegram."""
-        try:
-            res = await client.post(
-                f"{self.api_url}{self.bot_token}/setWebhook",
-                json={"url": self.webhook_url, "drop_pending_updates": False}
-            )
-            data = res.json()
-            if data.get("ok"):
-                self.logger.info(f"Telegram webhook registered: {self.webhook_url}")
-            else:
-                self.last_error = f"Webhook registration failed: {data.get('description')}"
-                self.logger.warning(self.last_error)
-        except Exception as e:
-            self.last_error = f"Webhook registration error: {e}"
-            self.logger.error(self.last_error)
+        res = await self.client.post(
+            f"{self.api_url}{self.bot_token}/setWebhook",
+            json={"url": self.webhook_url, "drop_pending_updates": False}
+        )
+        data = res.json()
+        if data.get("ok"):
+            self.logger.info(f"Telegram webhook registered: {self.webhook_url}")
+        else:
+            self.last_error = f"Webhook registration failed: {data.get('description')}"
+            self.logger.warning(self.last_error)
 
     async def send_message(self, recipient: str, content: str) -> Dict[str, Any]:
         """Transmit text message via Telegram."""
         return await self.send(recipient, content)
 
+    @BridgeAdapter.resilient_request
     async def send(self, recipient: str, content: str, **kwargs) -> Dict[str, Any]:
         """Sovereign send method (Telegram)."""
         if not self.is_connected or not self.bot_token:
@@ -118,51 +111,59 @@ class TelegramBridge(BridgeAdapter):
             "parse_mode": "Markdown",
         }
         
-        # Merge extra kwargs (OpenClaw §2.3)
+        # Merge extra kwargs (Sovereign Spec §2.3)
         payload.update(kwargs)
 
-        try:
-            async with httpx.AsyncClient() as client:
-                resp = await client.post(url, json=payload)
-                res = resp.json()
-                if not res.get("ok"):
-                    self.last_error = f"API Error: {res.get('description')}"
-                    return {"status": "failed", "error": self.last_error}
-                
-                return {"status": "success", "id": res["result"]["message_id"]}
-        except Exception as e:
-            self.last_error = str(e)
-            return {"status": "failed", "error": str(e)}
+        resp = await self.client.post(url, json=payload)
+        res = resp.json()
+        if not res.get("ok"):
+            self.last_error = f"API Error: {res.get('description')}"
+            return {"status": "failed", "error": self.last_error}
+        
+        return {"status": "success", "id": res["result"]["message_id"]}
 
+    @BridgeAdapter.resilient_request
     async def fetch_unread(self, limit: int = 10) -> List[Dict[str, Any]]:
         """Fetch unread updates in long-polling mode."""
         if not self.is_connected or self.webhook_url:
             return []
 
-        try:
-            async with httpx.AsyncClient(timeout=35.0) as client:
-                res = await client.post(
-                    f"{self.api_url}{self.bot_token}/getUpdates",
-                    json={"limit": limit, "offset": self._update_offset, "timeout": 30}
-                )
-                data = res.json()
-                if not data.get("ok"): return []
+        res = await self.client.post(
+            f"{self.api_url}{self.bot_token}/getUpdates",
+            json={"limit": limit, "offset": self._update_offset, "timeout": 30},
+            timeout=35.0
+        )
+        data = res.json()
+        if not data.get("ok"): return []
 
-                messages = []
-                for item in data.get("result", []):
-                    self._update_offset = item["update_id"] + 1
-                    msg = item.get("message") or item.get("edited_message")
-                    if msg:
-                        parsed = self._parse_inbound(msg)
-                        messages.append(parsed)
-                        self._track_account(msg)
-                
-                if messages:
-                    self.last_activity = datetime.now(timezone.utc)
-                return messages
-        except Exception as e:
-            self.last_error = str(e)
-            return []
+        messages = []
+        for item in data.get("result", []):
+            self._update_offset = item["update_id"] + 1
+            msg = item.get("message") or item.get("edited_message")
+            if msg:
+                parsed = self._parse_inbound(msg)
+                messages.append(parsed)
+                self._track_account(msg)
+        
+        if messages:
+            self.last_activity = datetime.now(timezone.utc)
+        return messages
+
+    async def validate_integrity(self) -> bool:
+        """Verify the connection by fetching bot details."""
+        if not self.bot_token: return False
+        try:
+            res = await self.client.get(f"{self.api_url}{self.bot_token}/getMe")
+            return res.json().get("ok", False)
+        except: return False
+
+    async def disconnect(self):
+        """Clean up webhook and shutdown."""
+        if self.is_connected and self.webhook_url:
+            try:
+                await self.client.get(f"{self.api_url}{self.bot_token}/deleteWebhook")
+            except: pass
+        await super().disconnect()
 
     def _parse_inbound(self, msg: Dict[str, Any]) -> Dict[str, Any]:
         """Inbound message parsing: text, photo, document, voice, sticker."""
@@ -220,23 +221,6 @@ class TelegramBridge(BridgeAdapter):
         parsed = self._parse_inbound(msg)
         self._track_account(msg)
         return parsed
-
-    async def validate_integrity(self) -> bool:
-        """Verify the connection by fetching bot details."""
-        try:
-            async with httpx.AsyncClient() as client:
-                res = await client.get(f"{self.api_url}{self.bot_token}/getMe")
-                return res.json().get("ok", False)
-        except: return False
-
-    async def disconnect(self):
-        """Clean up webhook and shutdown."""
-        if self.is_connected and self.webhook_url:
-            async with httpx.AsyncClient() as client:
-                try:
-                    await client.get(f"{self.api_url}{self.bot_token}/deleteWebhook")
-                except: pass
-        await super().disconnect()
 
     def get_health(self) -> Dict[str, Any]:
         """Health reporting (connection state, last activity, error)."""

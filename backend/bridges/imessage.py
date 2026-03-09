@@ -13,7 +13,7 @@ class IMessageBridge(BridgeAdapter):
     Utilizes osascript (AppleScript) for automated messaging and 
     local SQLite (chat.db) for message retrieval.
     
-    Reference: OpenClaw Section 2.3 - Native OS Adapters
+    Reference: Sovereign Spec Section 2.3 - Native OS Adapters
     """
 
     def __init__(self, bridge_id: str, vault_root: str):
@@ -132,7 +132,7 @@ class IMessageBridge(BridgeAdapter):
             return []
 
         # We use sqlite3 via subprocess to pull recent messages
-        # Reference: OpenClaw Section 2.3.2 - Local DB Extraction
+        # Reference: Sovereign Spec Section 2.3.2 - Local DB Extraction
         query = f"""
         SELECT 
             message.guid, 

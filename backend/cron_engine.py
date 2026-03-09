@@ -9,7 +9,7 @@ Provides three schedule types:
 Each job supports per-invocation model overrides, delivery routing
 to channel adapters, and a run history log.
 
-Reference: OpenClaw Sections 3.1–3.8
+Reference: Sovereign Spec Sections 3.1–3.8
 """
 
 import asyncio
@@ -215,7 +215,7 @@ class CronEngine:
         logger.info(f"[CronEngine] Job {job.id} completed: {status}")
 
     async def _deliver(self, job, content: str) -> str:
-        """Route job output to the configured channel adapter (OpenClaw §3.2)."""
+        """Route job output to the configured channel adapter (Sovereign Spec §3.2)."""
         if not job.delivery_channel or not self.channel_registry:
             return "no_channel"
 

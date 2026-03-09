@@ -4,7 +4,7 @@ Usage & Cost Analytics Tracker for the Polytope Sovereign OS.
 Tracks per-turn token usage, per-model cost calculations, and provides
 aggregation APIs for date-range queries, daily rollups, and CSV export.
 
-Reference: OpenClaw Sections 4.1–4.9
+Reference: Sovereign Spec Sections 4.1–4.9
 """
 
 import csv
@@ -257,7 +257,7 @@ class UsageTracker:
     ) -> List[Dict[str, Any]]:
         """
         Returns per-day token/cost breakdown for chart rendering.
-        OpenClaw Section 4.4
+        Sovereign Spec Section 4.4
         """
         from .models import UsageLog
 
@@ -295,7 +295,7 @@ class UsageTracker:
     def get_session_timeseries(self, session_key: str) -> List[Dict[str, Any]]:
         """
         Per-turn time series for a selected session.
-        OpenClaw Section 4.5
+        Sovereign Spec Section 4.5
         """
         from .models import UsageLog
 
@@ -370,7 +370,7 @@ class UsageTracker:
     # ── CSV Export ─────────────────────────────────────────────────────────
 
     def export_sessions_csv(self, start: Optional[date] = None, end: Optional[date] = None) -> str:
-        """CSV export of session aggregates. OpenClaw Section 4.7"""
+        """CSV export of session aggregates. Sovereign Spec Section 4.7"""
         data = self.get_sessions(start, end)
         output = io.StringIO()
         writer = csv.DictWriter(output, fieldnames=[
@@ -384,7 +384,7 @@ class UsageTracker:
         return output.getvalue()
 
     def export_daily_csv(self, start: Optional[date] = None, end: Optional[date] = None) -> str:
-        """CSV export of daily rollup. OpenClaw Section 4.7"""
+        """CSV export of daily rollup. Sovereign Spec Section 4.7"""
         data = self.get_daily(start, end)
         output = io.StringIO()
         writer = csv.DictWriter(output, fieldnames=["date", "input_tokens", "output_tokens", "cost", "turns"])

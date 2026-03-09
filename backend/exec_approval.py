@@ -6,7 +6,7 @@ approval flow pushed via WebSocket:
   - exec.approval event → user sees Deny / Allow Once / Allow Always
   - Persistent allow/deny policies stored in DB
 
-Reference: OpenClaw Section 5.6
+Reference: Sovereign Spec Section 5.6
 """
 
 import asyncio

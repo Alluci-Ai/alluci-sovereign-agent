@@ -6,21 +6,59 @@ import shutil
 import asyncio
 import contextlib
 from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import rsa, padding
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.backends import default_backend
 from typing import Dict, Any, Set, Optional
 from backend.security.vdxf_store import VDXFStore
 
 class VaultManager:
     def __init__(self, master_key: str, vault_root: Optional[str] = None):
         from ..config import settings
-        # In production, master_key would be derived from user biometric/password
-        self.fernet = Fernet(master_key.encode() if isinstance(master_key, str) else master_key)
+        self.master_key = master_key
         self.vault_root = vault_root or os.path.expanduser("~/.polytope/vaults")
         self._ensure_vault_root_sync()
+        
+        # Load or generate RSA keypair for asymmetric operations
+        self.private_key, self.public_key = self._get_rsa_keys()
+        
+        # Legacy symmetric Fernet for simple local state (non-asymmetric)
+        self.fernet = Fernet(master_key.encode() if isinstance(master_key, str) else master_key)
         
         # Tier 1 & 3: VDXF Store (Integrity Anchoring)
         self.vdxf = None
         if settings.VERUS_AUTH_ENABLED and settings.VERUS_ID_IDENTITY:
             self.vdxf = VDXFStore(settings.VERUS_ID_IDENTITY)
+
+    def _get_rsa_keys(self):
+        """Retrieves or generates RSA keys protected by the master key."""
+        key_path = os.path.join(self.vault_root, "identity.pem")
+        if os.path.exists(key_path):
+            with open(key_path, "rb") as f:
+                private_key = serialization.load_pem_private_key(
+                    f.read(),
+                    password=self.master_key.encode() if isinstance(self.master_key, str) else self.master_key,
+                    backend=default_backend()
+                )
+        else:
+            private_key = rsa.generate_private_key(
+                public_exponent=65537,
+                key_size=4096,
+                backend=default_backend()
+            )
+            pem = private_key.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.PKCS8,
+                encryption_algorithm=serialization.BestAvailableEncryption(
+                    self.master_key.encode() if isinstance(self.master_key, str) else self.master_key
+                )
+            )
+            with open(key_path, "wb") as f:
+                f.write(pem)
+            os.chmod(key_path, stat.S_IRUSR | stat.S_IWUSR)
+
+        return private_key, private_key.public_key()
 
     def _ensure_vault_root_sync(self):
         """Sync version of ensure vault root."""
@@ -108,6 +146,122 @@ class VaultManager:
             secret_data = f.read()
             decrypted = self.fernet.decrypt(secret_data)
             return json.loads(decrypted.decode())
+
+    # --- Connection-Specific Secrets (OAuth, Tokens, etc.) ---
+
+    async def store_connection_secret(self, bridge_id: str, account_id: str, data: Dict[str, Any]):
+        """Securely stores bridge-specific credentials (tokens, client_ids) in a dedicated hierarchy."""
+        rel_path = f"connections/{bridge_id}/{account_id}.vault"
+        await asyncio.to_thread(self._store_secret_by_path_sync, rel_path, data)
+        
+        # Anchoring (if enabled)
+        if self.vdxf:
+            anchor_key = f"conn:{bridge_id}:{account_id}"
+            self.vdxf.set_memory(anchor_key, data)
+            vault_aggregate = await self._get_full_vault_state()
+            await self.vdxf.anchor_vault_hash(vault_aggregate)
+
+    async def retrieve_connection_secret(self, bridge_id: str, account_id: str) -> Dict[str, Any]:
+        """Retrieves and decrypts bridge credentials."""
+        # Check cache if VDXF enabled
+        if self.vdxf:
+            anchor_key = f"conn:{bridge_id}:{account_id}"
+            cached = self.vdxf.get_from_memory(anchor_key)
+            if cached:
+                return cached
+
+        rel_path = f"connections/{bridge_id}/{account_id}.vault"
+        data = await asyncio.to_thread(self._retrieve_secret_by_path_sync, rel_path)
+        
+        # Populate cache
+        if self.vdxf and data:
+            anchor_key = f"conn:{bridge_id}:{account_id}"
+            self.vdxf.set_memory(anchor_key, data)
+            
+        return data or {}
+
+    async def delete_connection_secret(self, bridge_id: str, account_id: str) -> bool:
+        rel_path = f"connections/{bridge_id}/{account_id}.vault"
+        return await asyncio.to_thread(self._delete_secret_by_path_sync, rel_path)
+
+    # --- Low-level Path-based Helpers ---
+
+    def _store_secret_by_path_sync(self, rel_path: str, data: Dict[str, Any]):
+        path = os.path.join(self.vault_root, rel_path)
+        os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
+        
+        # 1. Generate a random AES key for this specific secret
+        session_key = Fernet.generate_key()
+        f = Fernet(session_key)
+        
+        # 2. Encrypt the data with the session key
+        raw_data = json.dumps(data)
+        encrypted_data = f.encrypt(raw_data.encode())
+        
+        # 3. Encrypt the session key with the RSA Public Key
+        encrypted_key = self.public_key.encrypt(
+            session_key,
+            padding.OAEP(
+                mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                algorithm=hashes.SHA256(),
+                label=None
+            )
+        )
+        
+        # 4. Pack together: [len_key (4 bytes)][encrypted_key][encrypted_data]
+        import struct
+        final_payload = struct.pack(">I", len(encrypted_key)) + encrypted_key + encrypted_data
+        
+        tmp_path = path + ".tmp"
+        with open(tmp_path, "wb") as f:
+            f.write(final_payload)
+        os.replace(tmp_path, path)
+        os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)
+
+    def _retrieve_secret_by_path_sync(self, rel_path: str) -> Optional[Dict[str, Any]]:
+        path = os.path.join(self.vault_root, rel_path)
+        if not os.path.exists(path):
+            return None
+        
+        with open(path, "rb") as f:
+            payload = f.read()
+            if len(payload) < 4:
+                return None
+                
+            try:
+                import struct
+                key_len = struct.unpack(">I", payload[:4])[0]
+                encrypted_key = payload[4:4+key_len]
+                encrypted_data = payload[4+key_len:]
+                
+                # Decrypt the session key with RSA Private Key
+                session_key = self.private_key.decrypt(
+                    encrypted_key,
+                    padding.OAEP(
+                        mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                        algorithm=hashes.SHA256(),
+                        label=None
+                    )
+                )
+                
+                # Decrypt the data with the session key
+                f = Fernet(session_key)
+                decrypted = f.decrypt(encrypted_data)
+                return json.loads(decrypted.decode())
+            except Exception as e:
+                import logging
+                logging.getLogger("VaultManager").error(f"Hybrid decryption failed for {rel_path}: {e}")
+                return None
+
+    def _delete_secret_by_path_sync(self, rel_path: str) -> bool:
+        path = os.path.join(self.vault_root, rel_path)
+        if os.path.exists(path):
+            # Secure overwrite before delete
+            with open(path, "wb") as f:
+                f.write(os.urandom(os.path.getsize(path)))
+            os.remove(path)
+            return True
+        return False
 
     async def update_vault_status(self, bridge_id: str, status: str):
         await asyncio.to_thread(self._update_vault_status_sync, bridge_id, status)

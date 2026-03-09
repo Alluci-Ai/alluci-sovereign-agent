@@ -4,7 +4,7 @@ JSONL Log Streamer for the Polytope Sovereign OS.
 Provides WebSocket-based real-time log streaming with level filtering,
 auto-follow mode, and log file export.
 
-Reference: OpenClaw Sections 9.1–9.4
+Reference: Sovereign Spec Sections 9.1–9.4
 """
 
 import asyncio
