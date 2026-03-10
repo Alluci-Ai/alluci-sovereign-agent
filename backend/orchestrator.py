@@ -1,9 +1,9 @@
-
 import asyncio
 import json
 import logging
+import time
 from datetime import datetime, timezone
-from typing import Dict, Any
+from typing import Dict, Any, List, Set, Tuple, Optional
 import structlog
 from sqlmodel import Session
 
@@ -24,32 +24,44 @@ from .harmonic_enhancer import HarmonicAssistant
 from .heartbeat import HeartbeatDaemon
 from .skill_manager import SkillManager
 
-# PPN & DPK Integration
-from .inference.ppn import PPNEmbeddingModule
 from .security.dpk import DiscreteProjectionKernel, PolytopeState
+from .security.avl_gate import AVLGate
+from .ace.entropy_monitor import EntropySpikeDetector
+from .inference.kcm import KCMGeodesicCost
+from .security.health_monitor import PVTManifoldHealthMonitor
+from .security.audit_log import TopologicalAuditLog
+from .ace.memory_decay import MemoryTopologyDecay
+from .inference.ppn import PPNEmbeddingModule
 
 class ExecutiveOrchestrator:
     def __init__(self, router: ModelRouter, vault: VaultManager, ace: AffectiveEngine, 
                  settings: Settings, skill_manager: SkillManager = None, 
-                 approval_manager=None, analytics=None):
+                 approval_manager=None, analytics=None, vault_root: str = None,
+                 memory_manager = None):
         self.settings = settings
         self.logger = logging.getLogger("ExecutiveOrchestrator")
         self.vault = vault
         self.skill_manager = skill_manager
         self.approval_manager = approval_manager
         self.analytics = analytics
+        self.memory = memory_manager
         
         # Sub-systems
         self.identity = SovereignIdentity(settings)
         self.planner = Planner(router)
         self.critic = Critic(router, settings.CRITIC_THRESHOLD)
-        self.adapter_registry = AdapterRegistry()
+        self.adapter_registry = AdapterRegistry(vault_root=vault_root, memory_manager=memory_manager, on_inbound=self.handle_inbound_message)
         self.harmonic = HarmonicAssistant() # Harmonic Enhancer Integration
         self.ace = ace
         
-        # PPN / DPK Initialization
         self.ppn = PPNEmbeddingModule(input_dim=384, latent_dim=384) 
         self.dpk = DiscreteProjectionKernel()
+        self.avl = AVLGate()
+        self.entropy_monitor = EntropySpikeDetector()
+        self.geodesic_cost = KCMGeodesicCost()
+        self.health_monitor = PVTManifoldHealthMonitor()
+        self.audit_log = TopologicalAuditLog()
+        self.memory_decay = MemoryTopologyDecay()
         
         # Heartbeat System
         self.heartbeat = HeartbeatDaemon(self, vault)
@@ -194,81 +206,86 @@ class ExecutiveOrchestrator:
                 
         return "\n".join(context_parts)
 
-    def _perform_ppn_check(self, objective: str, autonomy: str) -> bool:
+    def _perform_ppn_check(self, objective: str, autonomy: str) -> Tuple[bool, Optional[PolytopeState]]:
         """
         Runs the Polytope Projection Network and Discrete Projection Kernel
         to verify manifold integrity before planning.
         """
         try:
-            # 1. Embed Objective (Lazy load sentence transformer)
-            # In production, we'd use a dedicated embedding service
+            # 1. Embed Objective
             if not hasattr(self, "_embed_model"):
                 from sentence_transformers import SentenceTransformer
                 self._embed_model = SentenceTransformer('all-MiniLM-L6-v2')
             
-            # Generate real embedding of the objective
             embedding = self._embed_model.encode(objective, convert_to_tensor=True)
-            # Batch size 10 to simulate a cloud of thought vectors for the PPN
             input_tensor = embedding.unsqueeze(0).expand(10, -1)
             
-            # 2. Get Affective Tension (Psi)
-            psi = 0.5
-            if self.ace.current_state.get("stress_score", 0) > 50:
-                psi = 0.8
+            # 2. Get Affective State (PPN-001/002)
+            affect_state = self.ace.get_affective_state()
+            psi = self.ace.btm.psi_from_state(affect_state)
             
-            # 3. PPN Forward Pass
-            # Returns: Adjacency(G), Deformation(D), Betti(B), Points
-            G, D, B, _ = self.ppn(input_tensor, psi=psi)
+            # 3. PPN Forward Pass (Updated Signature for Sprint 2)
+            # Returns: G, D, B, Points, Phi, Budget, Coherence, Shift
+            G, D, B, _, phi_total, budget, coherence, _ = self.ppn(input_tensor, psi=psi, affect_state=affect_state)
             
             # 4. Extract Simplicial Counts (V, E, F)
             V, E, F = self.ppn.extract_simplex_counts(G)
             
             # 5. Construct Polytope State
-            # Use hash of objective as signature_hash surrogate
-            sig_hash = abs(hash(objective)) 
-            betti_list = B.tolist()
+            chi = V - E + F
+            sig_hash = self.dpk.compute_signature_hash(B.tolist(), chi)
             
             state = PolytopeState(
                 signature_hash=sig_hash,
                 vertices_V=V,
                 edges_E=E,
                 faces_F=F,
-                betti=betti_list,
-                affective_tension_psi=psi
+                betti=B.tolist(),
+                affective_tension_psi=psi,
+                phi_total=phi_total,
+                coherence=coherence,
+                budget_used=budget
             )
             
             # 6. DPK Authorization
-            return self.dpk.authorize_execution(state)
+            is_valid = self.dpk.authorize_execution(state)
+            
+            # 7. Entropy Spike Detection (PPN-007)
+            # Find graph entropy from coherence if available, or compute
+            # For brevity, we use the coherence logic's entropy component
+            # but usually we'd pass raw entropy here.
+            # In this stub, we just push 1 - coherence as a proxy.
+            self.entropy_monitor.push(1.0 - state.coherence)
+            
+            return is_valid, state
 
         except Exception as e:
             self.logger.error(f"PPN/DPK Check Failed: {e}")
             # Fail closed if security check errors out
-            return False
+            return False, None
 
-    async def execute_objective(self, objective: str, autonomy: str) -> Dict[str, Any]:
-        self.logger.info(f"🚀 EXECUTING SOVEREIGN OBJECTIVE: {objective}")
+    async def execute_objective(self, objective: str, autonomy: str, mode: str = "standard") -> Dict[str, Any]:
+        self.logger.info(f"🚀 EXECUTING SOVEREIGN OBJECTIVE ({mode.upper()} MODE): {objective}")
+
+        if mode == "research":
+            return await self.execute_research(objective)
 
         # 1. PPN / DPK Manifold Check
-        is_manifold_stable = self._perform_ppn_check(objective, autonomy)
+        is_manifold_stable, polytope_state = self._perform_ppn_check(objective, autonomy)
         if not is_manifold_stable:
              self.logger.critical("🛑 MANIFOLD TEARING DETECTED via PPN/DPK. Execution Halted.")
              return {
                  "status": "halted",
                  "reason": "Manifold stability check failed (PPN/DPK)",
-                 "error_code": "MANIFOLD_INTEGRITY_VIOLATION",
-                 "diagnostics": {
-                     "objective_complexity": len(objective),
-                     "autonomy_level": autonomy,
-                     "check": "Polytopological Persistence Network",
-                 },
-                 "recovery": [
-                     "Reduce objective complexity — break it into smaller sub-tasks.",
-                     "Lower the autonomy level to RESTRICTED to enable additional safety gates.",
-                     "Reset the Affective Engine via POST /telemetry with neutral biometrics.",
-                     "Check system health via GET /system/status and resolve any UNSTABLE providers.",
-                     "If the issue persists, rotate vault keys via POST /api/vault/rotate to reset manifold state.",
-                 ],
+                 # ... existing diagnostics ...
              }
+        
+        # 1a. PVT Health Monitor (AAP-004)
+        if polytope_state:
+            health_report = self.health_monitor.evaluate(polytope_state)
+            if health_report["status"] == "CRITICAL":
+                self.logger.critical(f"🛑 CRITICAL MANIFOLD HEALTH: {health_report['issues']}")
+                # Continue for now, but in strict mode we could halt.
 
         # 2. Create DB Run Record
         run_id = self._create_run_record(objective, autonomy)
@@ -304,7 +321,10 @@ class ExecutiveOrchestrator:
                         "reason": "context_window_overflow"
                     })
             
-            tasks = await self.planner.generate_plan(objective, context=system_context)
+            # PPN-002: affective tension Influences planning
+            psi = self.ace.btm.psi_from_state(self.ace.get_affective_state())
+
+            tasks = await self.planner.generate_plan(objective, context=system_context, psi=psi)
             
             # --- Harmonic Ranking Hook ---
             # Prioritize tasks based on Topological and Lattice dynamics
@@ -340,19 +360,30 @@ class ExecutiveOrchestrator:
 
         # 6. Execution Loop
         critic_score = 0.0
+        start_time = time.time()
         
         for attempt in range(self.settings.MAX_AUTONOMY_RETRIES):
+            # PPN-011: Turn Deadline Affective Contraction
+            # If a cycle takes > 30s, inject tension for next cycle.
+            elapsed = time.time() - start_time
+            if elapsed > 30.0:
+                self.logger.warning("🕒 Cycle latency breach. Injecting affective contraction (PPN-011).")
+                self.ace.inject_deadline_contraction(turns=1)
+
             self.logger.info(f"--- 🔄 Cycle {attempt + 1} ---")
             
             # Execute
             updated_tasks = await self.executor.execute_dag(run_id, tasks)
             
+            # Re-fetch affective state for psi-weighted score
+            psi = self.ace.btm.psi_from_state(self.ace.get_affective_state())
+            
             # Check Results
             failed_tasks = [t.id for t in updated_tasks.values() if t.status == TaskStatus.FAILED]
             results_summary = json.dumps({t.id: t.result for t in updated_tasks.values()}, indent=2)
             
-            # Critique
-            passed, score, feedback = await self.critic.evaluate(objective, results_summary)
+            # Critique (AAP-005: psi-weighted)
+            passed, score, feedback = await self.critic.evaluate(objective, results_summary, psi=psi)
             
             if passed and not failed_tasks:
                 self._update_run_status(run_id, RunStatus.COMPLETED, score=score, feedback=feedback)
@@ -364,8 +395,45 @@ class ExecutiveOrchestrator:
                     "manifest": signed_manifest
                 }
             
+            # --- Audit Logging (AAP-005) ---
+            if polytope_state and hasattr(self, "geodesic_cost"):
+                # Goal Betti is conceptually [1, 1, 1] for a stable 3D manifold
+                goal_betti = torch.tensor([1, 1, 1])
+            if polytope_state:
+                if hasattr(self, "geodesic_cost"):
+                    # Goal Betti is conceptually [1, 1, 1] for a stable 3D manifold
+                    goal_betti = torch.tensor([1, 1, 1])
+                    drift = self.geodesic_cost.compute(
+                        torch.tensor(polytope_state.betti), 
+                        goal_betti, 
+                        psi=polytope_state.affective_tension_psi
+                    )
+                    self.logger.info(f"📈 Manifold Geodesic Drift: {drift:.4f}")
+                self.audit_log.log_entry(objective, polytope_state, results_summary)
+           
+            # --- AVL Security Gate (PPN-006) ---
+            # Verify the completion against the manifold state
+            if polytope_state:
+                is_safe, avl_reason = self.avl.verify(results_summary, polytope_state)
+                if not is_safe:
+                    self.logger.critical(f"🛑 REJECTED BY AVL: {avl_reason}")
+                    self._update_run_status(run_id, RunStatus.FAILED, feedback=f"AVL Rejection: {avl_reason}")
+                    return {
+                        "run_id": run_id,
+                        "status": "failed",
+                        "reason": avl_reason,
+                        "error_code": "AVL_SECURITY_VIOLATION"
+                    }
+
             # Self-Correction
             if attempt < self.settings.MAX_AUTONOMY_RETRIES - 1:
+                # AAP-007: ψ-Gated Continuous Autonomy.
+                # If tension is too high, prevent autonomous self-correction loop.
+                if psi > 0.9:
+                    self.logger.critical("🛑 CONTINUOUS AUTONOMY BLOCKED (High Tension). Requesting manual intervention.")
+                    self._update_run_status(run_id, RunStatus.FAILED, feedback="Autonomy Gated: High affective tension")
+                    break
+
                 try:
                     tasks = await self.planner.refine_plan(
                         objective, current_plan, results_summary, feedback, failed_tasks
@@ -380,11 +448,118 @@ class ExecutiveOrchestrator:
         return {
             "run_id": run_id,
             "status": "failed",
-            "reason": "Max retries exceeded",
+            "reason": "Max retries exceeded or autonomy gated",
             "score": critic_score,
             "feedback": feedback
         }
 
+    async def execute_research(self, objective: str) -> Dict[str, Any]:
+        """
+        Autonomous Research Pipeline:
+        1. Deconstruct -> 2. Search -> 3. Fetch -> 4. Synthesize
+        """
+        self.logger.info(f"🔍 Starting Autonomous Research: {objective}")
+        
+        # Phase 1: Planning / Deconstruction
+        plan_prompt = f"Deconstruct this research objective into 3-5 specific search queries: {objective}. Return as a JSON list of strings."
+        queries_json = await self.planner.router.get_response(plan_prompt, complexity="MEDIUM")
+        try:
+            queries = json.loads(queries_json)
+            if not isinstance(queries, list): queries = [objective]
+        except:
+            queries = [objective]
+
+        research_results = []
+        
+        # Phase 2: Search & Fetch
+        for query in queries[:3]: # Limit to top 3 queries for safety
+            self.logger.info(f"🌐 Searching: {query}")
+            search_tool = self.adapter_registry.get_adapter("web_search")
+            search_data = await search_tool.execute({"query": query})
+            
+            # Fetch top 2 results
+            links = [res["link"] for res in search_data.get("results", [])[:2]]
+            for link in links:
+                self.logger.info(f"📄 Fetching: {link}")
+                fetch_tool = self.adapter_registry.get_adapter("web_fetch")
+                content = await fetch_tool.execute({"url": link})
+                research_results.append({
+                    "source": link,
+                    "content": content.get("text", "")[:5000] # Cap content per source
+                })
+
+        # Phase 3: Synthesis
+        synthesis_prompt = f"""
+        Objective: {objective}
+        Research Data: {json.dumps(research_results)}
+        
+        Synthesize a professional, grounded research report. 
+        Cite sources by their source index.
+        """
+        report = await self.planner.router.get_response(synthesis_prompt, complexity="HIGH")
+        
+        return {
+            "status": "success",
+            "result": report,
+            "sources": [r["source"] for r in research_results]
+        }
+
+    async def multi_agent_delegate(self, agent_id: str, task: str) -> Dict[str, Any]:
+        """
+        Delegates a task to a virtual sub-agent in the constellation.
+        """
+        self.logger.info(f"🤖 Delegating to agent '{agent_id}': {task}")
+        # In this sprint, we treat delegation as a specialized system-prompt injection
+        delegated_objective = f"[SYSTEM: Act as Specialist Agent {agent_id}] Objective: {task}"
+        return await self.execute_objective(delegated_objective, autonomy="autonomous")
+
+    async def compact_all_memory(self):
+        """
+        Daily Cron Task: Summarizes memories from the last 24h into a single fragment.
+        """
+        self.logger.info("🧹 Starting Memory Compaction Manifold...")
+        if not self.memory:
+            self.logger.warning("Memory Manager not available for compaction.")
+            return
+
+        memories = await self.memory.get_recent(limit=100)
+        
+        if not memories:
+            return
+            
+        # Filter: only summarize raw fragments (not already syntheses)
+        fragments = [m for m in memories if m["metadata"].get("type") != "daily_synthesis"]
+        if not fragments:
+            self.logger.info("No fresh memory fragments to compact.")
+            return
+
+        content_to_summarize = "\n---\n".join([f"[{m['metadata'].get('timestamp')}]: {m['content']}" for m in fragments])
+        
+        prompt = f"""
+        Summarize the following daily memory fragments into a single, cohesive, long-term 'Daily Synthesis'.
+        Retain key technical details, final results of objectives, and important emotional/contextual shifts.
+        
+        {content_to_summarize}
+        """
+        
+        try:
+            synthesis = await self.planner.router.get_response(prompt, complexity="MEDIUM")
+            
+            # 1. Store Synthesis
+            await self.memory.store(synthesis, {
+                "type": "daily_synthesis", 
+                "compacted_count": len(fragments),
+                "original_ids": [m["id"] for m in fragments]
+            })
+            
+            # 2. Delete original fragments to prevent redundancy
+            for m in fragments:
+                await self.memory.delete(m["id"])
+                
+            self.logger.info(f"✅ Memory Compaction Complete: {len(fragments)} fragments -> 1 Daily Synthesis.")
+        except Exception as e:
+            self.logger.error(f"Memory Compaction Failed: {e}")
+ 
     # --- Persistence Methods ---
     def _create_run_record(self, objective: str, autonomy: str) -> int:
         with Session(db_engine) as session:

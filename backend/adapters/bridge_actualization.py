@@ -1,6 +1,6 @@
 
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Callable
 from .base import Adapter
 from ..bridges.slack import SlackBridge
 from ..bridges.imessage import IMessageBridge
@@ -34,13 +34,14 @@ class BridgeActualizationAdapter(Adapter):
     name = "bridge_actualization"
     description = "Execute tasks across Social, Enterprise, and Cloud manifolds (Slack, iMessage, Gmail, etc.)"
 
-    def __init__(self, vault_root: str = None):
+    def __init__(self, vault_root: str = None, on_inbound: Callable = None):
         from ..config import settings
         self.vault_manager = VaultManager(settings.POLYTOPE_MASTER_KEY, vault_root)
         self.oauth_handler = OAuthHandler(self.vault_manager)
         self.qr_handler = QRSyncHandler(self.vault_manager)
         self.tunnel_handler = TunnelHandler()
         self.logger = logging.getLogger("BridgeActualization")
+        self.on_inbound = on_inbound
         self.bridges: Dict[str, Any] = {}
         self._init_bridges()
 
@@ -107,6 +108,11 @@ class BridgeActualizationAdapter(Adapter):
                     return await bridge.upload_file(params.get("path"), params.get("content"))
                 return {"status": "success", "msg": f"File vaulted to {bridge_type}"}
 
+            elif action == "get_health":
+                if hasattr(bridge, "get_health"):
+                    return bridge.get_health()
+                return {"bridge_id": f"{bridge_type}_{account_id}", "is_connected": bridge.is_connected}
+
             else:
                 # Direct method call fallback
                 method = getattr(bridge, action, None)
@@ -151,17 +157,11 @@ class BridgeActualizationAdapter(Adapter):
         """Exchanges an OAuth code for tokens using the generic OAuthHandler."""
         from ..oauth_config import OAUTH_CONFIGS
         
-        # Bridge ID to OAUTH_CONFIGS mapping
-        id_map = {
-            "slack": "sl", "discord": "dc", "instagram": "ig", "facebook": "fb",
-            "x": "x", "twitter": "x", "msteams": "mt", "gmail": "gm", "gdrive": "gd"
-        }
-        
-        config_key = id_map.get(bridge_id.lower())
-        if not config_key or config_key not in OAUTH_CONFIGS:
+        # Check if OAuth is configured for this bridge
+        if bridge_id.lower() not in OAUTH_CONFIGS:
             raise AdapterError(f"OAuth not configured for bridge: {bridge_id}")
             
-        config = OAUTH_CONFIGS[config_key]
+        config = OAUTH_CONFIGS[bridge_id.lower()]
         
         return await self.oauth_handler.exchange_code(
             bridge_id=bridge_id,
@@ -248,7 +248,7 @@ class BridgeActualizationAdapter(Adapter):
         # Instantiate bridge with account-isolated vault path
         # Note: The bridge itself might manage its own sub-files (logs, etc.)
         bridge = bridge_class(bridge_id=f"{bridge_type}_{account_id}", vault_root=self.vault_manager.vault_root)
-        
+        bridge.on_inbound = self.on_inbound
         if hasattr(bridge, "connect"):
             await bridge.connect(credentials)
         else:

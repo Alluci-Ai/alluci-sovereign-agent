@@ -34,3 +34,12 @@ class IPhoneBridge(BridgeAdapter):
 
     async def validate_integrity(self) -> bool:
         return self.is_connected
+
+    def get_health(self) -> Dict[str, Any]:
+        health = super().get_health()
+        if self.is_connected:
+            health.update({
+                "discovery_mode": "mDNS",
+                "service": "_alluci-iphone._tcp.local"
+            })
+        return health

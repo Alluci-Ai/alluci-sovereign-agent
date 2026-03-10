@@ -1,8 +1,9 @@
 import os
+import json
 import logging
 import asyncio
 import httpx
-from typing import List, Dict, Any, Callable
+from typing import List, Dict, Any, Callable, Optional
 from abc import ABC, abstractmethod
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
@@ -22,6 +23,9 @@ class BridgeAdapter(ABC):
         self.is_connected = False
         self.session: Any = None
         self.client = httpx.AsyncClient(timeout=30.0)
+        self.on_inbound: Optional[Callable] = None
+        self.last_activity: Optional[str] = None
+        self.last_error: Optional[str] = None
 
     @staticmethod
     def resilient_request(func: Callable):
@@ -32,7 +36,7 @@ class BridgeAdapter(ABC):
         return retry(
             stop=stop_after_attempt(5),
             wait=wait_exponential(multiplier=1, min=2, max=10),
-            retry=retry_if_exception_type((httpx.RequestError, httpx.HTTPProtocolError)),
+            retry=retry_if_exception_type((httpx.RequestError, httpx.ProtocolError)),
             reraise=True
         )(func)
 
@@ -71,6 +75,42 @@ class BridgeAdapter(ABC):
     async def validate_integrity(self) -> bool:
         """Verify the E2E encryption and connection status."""
         pass
+
+    async def _dispatch_inbound(self, message: Dict[str, Any]):
+        """
+        Dispatches an inbound message to the orchestrator pipeline.
+        Standardizes the message format before routing.
+        """
+        if not self.on_inbound:
+            self.logger.warning(f"Inbound message dropped — No orchestrator pipeline registered for {self.bridge_id}.")
+            return
+
+        # Ensure essential fields exist
+        if "protocol" not in message: message["protocol"] = self.bridge_id.split('_')[0].upper()
+        if "timestamp" not in message: import time; message["timestamp"] = int(time.time())
+        
+        self.last_activity = str(message.get("timestamp"))
+        
+        try:
+            if asyncio.iscoroutinefunction(self.on_inbound):
+                await self.on_inbound(message)
+            else:
+                self.on_inbound(message)
+        except Exception as e:
+            self.logger.error(f"Failed to dispatch inbound message: {e}")
+            self.last_error = str(e)
+
+    def get_health(self) -> Dict[str, Any]:
+        """
+        Returns a standardised health report for this bridge.
+        """
+        return {
+            "bridge_id": self.bridge_id,
+            "is_connected": self.is_connected,
+            "last_activity": self.last_activity,
+            "last_error": self.last_error,
+            "protocol": self.bridge_id.split('_')[0].upper()
+        }
 
     async def _get_valid_token(self, creds: Dict[str, Any], token_url: str, client_id: str, client_secret: str) -> Dict[str, Any]:
         """

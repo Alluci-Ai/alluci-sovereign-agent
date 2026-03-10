@@ -32,7 +32,21 @@ SUNO_AVAILABLE = True
 MIDJOURNEY_AVAILABLE = True
 RUNWAY_AVAILABLE = True
 KIMI_AVAILABLE = True
+TOGETHER_AVAILABLE = True
+COHERE_AVAILABLE = True
+BOTO3_AVAILABLE = True
 
+try:
+    import cohere
+    COHERE_AVAILABLE = True
+except ImportError:
+    COHERE_AVAILABLE = False
+
+try:
+    import boto3
+    BOTO3_AVAILABLE = True
+except ImportError:
+    BOTO3_AVAILABLE = False
 
 class ModelRouter:
     """
@@ -111,6 +125,41 @@ class ModelRouter:
             )
             self.logger.info("OpenRouter client initialized (failover 4).")
 
+        # Failover 5: LM Studio (Local OpenAI-Compatible)
+        self.lm_studio_client = None
+        if OPENAI_AVAILABLE and getattr(settings, "LM_STUDIO_URL", None):
+            self.lm_studio_client = openai.AsyncOpenAI(
+                api_key="lm-studio", # Dummy key
+                base_url=settings.LM_STUDIO_URL
+            )
+            self.logger.info("LM Studio client initialized (failover 5).")
+
+        # Failover 6: Together AI
+        self.together_client = None
+        if OPENAI_AVAILABLE and getattr(settings, "TOGETHER_API_KEY", None):
+            self.together_client = openai.AsyncOpenAI(
+                api_key=settings.TOGETHER_API_KEY,
+                base_url="https://api.together.xyz/v1"
+            )
+            self.logger.info("Together AI client initialized (failover 6).")
+
+        # Failover 7: Cohere
+        self.cohere_client = None
+        if COHERE_AVAILABLE and getattr(settings, "COHERE_API_KEY", None):
+            self.cohere_client = cohere.AsyncClient(api_key=settings.COHERE_API_KEY)
+            self.logger.info("Cohere client initialized (failover 7).")
+
+        # Failover 8: AWS Bedrock
+        self.bedrock_runtime = None
+        if BOTO3_AVAILABLE and getattr(settings, "AWS_ACCESS_KEY_ID", None):
+            self.bedrock_runtime = boto3.client(
+                service_name='bedrock-runtime',
+                region_name=getattr(settings, "AWS_REGION", "us-east-1"),
+                aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+                aws_secret_access_key=getattr(settings, "AWS_SECRET_ACCESS_KEY", None)
+            )
+            self.logger.info("AWS Bedrock runtime initialized (failover 8).")
+
     async def _gemini_request(self, prompt: str, use_pro: bool = False, json_mode: bool = False) -> str:
         """Primary inference via Gemini."""
         model = self.gemini_pro if use_pro else self.gemini_flash
@@ -179,6 +228,41 @@ class ModelRouter:
             data = response.json()
             return data["choices"][0]["message"]["content"]
 
+    async def _cohere_request(self, prompt: str, use_strong: bool = False) -> str:
+        """Failover 7: Cohere."""
+        if not self.cohere_client:
+            raise RuntimeError("Cohere not configured")
+        
+        model = "command-r-plus" if use_strong else "command-r"
+        response = await self.cohere_client.chat(
+            model=model,
+            message=prompt,
+            max_tokens=4096
+        )
+        return response.text
+
+    async def _bedrock_request(self, prompt: str, use_strong: bool = False) -> str:
+        """Failover 8: AWS Bedrock."""
+        if not self.bedrock_runtime:
+            raise RuntimeError("AWS Bedrock not configured")
+        
+        # Using Anthropic Claude 3 Sonnet/Haiku via Bedrock
+        model_id = "anthropic.claude-3-sonnet-20240229-v1:0" if use_strong else "anthropic.claude-3-haiku-20240307-v1:0"
+        body = json.dumps({
+            "anthropic_version": "bedrock-2023-05-31",
+            "max_tokens": 4096,
+            "messages": [{"role": "user", "content": prompt}]
+        })
+        
+        response = await self.bedrock_runtime.invoke_model(
+            body=body,
+            modelId=model_id,
+            accept="application/json",
+            contentType="application/json"
+        )
+        response_body = json.loads(response.get('body').read())
+        return response_body['content'][0]['text']
+
     async def _notify_fallback(self, model_name: str):
         """Broadcasts a fallback event to connected clients."""
         if hasattr(self, 'ws_gateway') and self.ws_gateway:
@@ -189,10 +273,14 @@ class ModelRouter:
             except Exception as e:
                 self.logger.error(f"Failed to broadcast fallback event: {e}")
 
-    async def get_response(self, prompt: str, complexity: Literal["LOW", "MEDIUM", "HIGH"] = "MEDIUM") -> str:
+    async def get_response(self, prompt: str, complexity: Literal["LOW", "MEDIUM", "HIGH"] = "MEDIUM", psi: float = 0.0) -> str:
         """Get a response with automatic failover across providers."""
-        use_strong = complexity == "HIGH"
-        # Only activate JSON mode when the prompt explicitly requests JSON output,
+        # AAP-002: ψ-Modulated Model Routing.
+        # High Tension (ψ > 0.8) triggers automatic routing to "Strong" models
+        # to ensure manifold stability.
+        use_strong = (complexity == "HIGH") or (psi > 0.8)
+        
+        # Only activate JSON mode when the prompt explicitly requests JSON output
         # not just any mention of the word "json" in the content.
         import re
         json_mode = bool(re.search(
@@ -259,7 +347,54 @@ class ModelRouter:
                 errors.append(f"OpenRouter: {e}")
                 self.logger.warning(f"OpenRouter failed: {e}")
 
-        # Attempt 6: Kimi (Failover for reasoning)
+        # Attempt 6: LM Studio
+        if self.lm_studio_client:
+            try:
+                await self._notify_fallback("LM Studio (Local)")
+                response = await self.lm_studio_client.chat.completions.create(
+                    model="model-identifier", # LM Studio usually uses whatever is loaded
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=2048
+                )
+                return response.choices[0].message.content
+            except Exception as e:
+                errors.append(f"LM Studio: {e}")
+                self.logger.warning(f"LM Studio failed: {e}")
+
+        # Attempt 7: Together AI
+        if self.together_client:
+            try:
+                await self._notify_fallback("Together (Llama-3-70B)")
+                model = "meta-llama/Llama-3-70b-chat-hf"
+                response = await self.together_client.chat.completions.create(
+                    model=model,
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=4096
+                )
+                return response.choices[0].message.content
+            except Exception as e:
+                errors.append(f"Together: {e}")
+                self.logger.warning(f"Together failed: {e}")
+
+        # Attempt 8: Cohere
+        if self.cohere_client:
+            try:
+                await self._notify_fallback("Cohere (Command R+)")
+                return await self._cohere_request(prompt, use_strong=use_strong)
+            except Exception as e:
+                errors.append(f"Cohere: {e}")
+                self.logger.warning(f"Cohere failed: {e}")
+
+        # Attempt 9: AWS Bedrock
+        if self.bedrock_runtime:
+            try:
+                await self._notify_fallback("AWS Bedrock (Claude 3)")
+                return await self._bedrock_request(prompt, use_strong=use_strong)
+            except Exception as e:
+                errors.append(f"AWS Bedrock: {e}")
+                self.logger.warning(f"AWS Bedrock failed: {e}")
+
+        # Attempt 10: Kimi (Failover for reasoning)
         if self.nvidia_nim_api_key:
             try:
                 await self._notify_fallback("Kimi (k2.5)")

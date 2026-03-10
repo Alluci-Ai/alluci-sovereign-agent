@@ -9,8 +9,7 @@ export const useInteractions = (
     refreshAuditLog: () => void,
     fileInputRef: React.RefObject<HTMLInputElement | null>
 ) => {
-    const { setTranscriptions, isProcessing, setIsProcessing } = useStore();
-    const [textInput, setTextInput] = useState("");
+    const { setTranscriptions, isProcessing, setIsProcessing, textInput, setTextInput } = useStore();
     const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
     const messageQueue = useRef<{ text: string, attachments: PendingAttachment[] }[]>([]);
 

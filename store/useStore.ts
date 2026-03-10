@@ -9,7 +9,7 @@ import {
 } from '../types';
 
 export type ActiveView =
-    | 'chat' | 'soul' | 'skills' | 'bridges'
+    | 'chat' | 'soul' | 'skills' | 'bridges' | 'memory'
     | 'api' | 'tasks' | 'files' | 'audit' | 'canvas'
     | 'sessions' | 'analytics' | 'crons'
     | 'agents' | 'config' | 'logs' | 'debug' | 'wallet' | 'node';
@@ -118,6 +118,12 @@ export interface AppState {
     isProcessing: boolean;
     setTranscriptions: (fn: (prev: Message[]) => Message[]) => void;
     setIsProcessing: (val: boolean) => void;
+    isVoiceRecording: boolean;
+    setIsVoiceRecording: (val: boolean) => void;
+    voiceTranscription: string | null;
+    setVoiceTranscription: (val: string | null) => void;
+    textInput: string;
+    setTextInput: (val: string | ((prev: string) => string)) => void;
 
     // Sprint 3: Exec Approval
     pendingApproval: {
@@ -293,6 +299,14 @@ export const useStore = create<AppState>((set) => ({
     isProcessing: false,
     setTranscriptions: (fn) => set((state) => ({ transcriptions: fn(state.transcriptions) })),
     setIsProcessing: (val) => set({ isProcessing: val }),
+    isVoiceRecording: false,
+    setIsVoiceRecording: (val) => set({ isVoiceRecording: val }),
+    voiceTranscription: null,
+    setVoiceTranscription: (val) => set({ voiceTranscription: val }),
+    textInput: "",
+    setTextInput: (val) => set((state) => ({
+        textInput: typeof val === 'function' ? val(state.textInput) : val
+    })),
 
     // Sprint 3: Exec Approval
     pendingApproval: null,

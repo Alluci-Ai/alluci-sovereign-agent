@@ -1,4 +1,5 @@
-
+import yaml
+import os
 import logging
 from typing import List, Dict, Any, Optional
 from datetime import datetime
@@ -7,21 +8,36 @@ from .security.vault import VaultManager
 logger = logging.getLogger("SkillManager")
 
 class SkillManager:
-    """
-    Manages the lifecycle, persistence, and retrieval of Cognitive Modules (Skills).
-    Uses the Simplicial Vault for encrypted storage of skill manifests.
-    Includes Review Queue for imported skills.
-    """
-    def __init__(self, vault: VaultManager):
+    def __init__(self, vault: VaultManager, skills_dir: Optional[str] = None):
         self.vault = vault
-        # We use a dedicated identifier for the skill registry vault
+        self.skills_dir = skills_dir or os.path.expanduser("~/.polytope/skills")
+        if not os.path.exists(self.skills_dir):
+            os.makedirs(self.skills_dir, mode=0o700, exist_ok=True)
+            
         self.registry_id = "cognitive_registry"
         self.review_queue_id = "skill_review_queue"
 
     async def list_skills(self) -> List[Dict[str, Any]]:
-        """Retrieve all active skills from the vault."""
+        """Retrieve all active skills from both the vault and the local disk (P1-012)."""
+        # 1. Load from Vault
         data = await self.vault.retrieve_secret(self.registry_id)
-        return data.get("skills", [])
+        vault_skills = data.get("skills", [])
+        
+        # 2. Load from Disk
+        disk_skills = []
+        try:
+            for filename in os.listdir(self.skills_dir):
+                if filename.endswith((".yaml", ".yml")):
+                    with open(os.path.join(self.skills_dir, filename), "r") as f:
+                        skill_data = yaml.safe_load(f)
+                        if skill_data and "id" in skill_data:
+                            skill_data["source"] = "disk"
+                            skill_data["verified"] = True
+                            disk_skills.append(skill_data)
+        except Exception as e:
+            logger.error(f"Failed to load skills from disk: {e}")
+            
+        return vault_skills + disk_skills
 
     async def get_review_queue(self) -> List[Dict[str, Any]]:
         """Retrieve skills pending review."""

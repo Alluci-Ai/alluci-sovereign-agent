@@ -13,7 +13,7 @@ class Critic:
         self.router = router
         self.threshold = threshold
 
-    async def evaluate(self, objective: str, results: str) -> Tuple[bool, float, str]:
+    async def evaluate(self, objective: str, results: str, psi: float = 0.0) -> Tuple[bool, float, str]:
         """
         Returns (passed, score, feedback)
         """
@@ -22,10 +22,13 @@ class Critic:
             score = float(evaluation.get("score", 0.0))
             feedback = evaluation.get("feedback", "No feedback provided.")
             
-            passed = score >= self.threshold
+            # AAP-005: Critic ψ-Weighted Score.
+            # High tension (psi) increases the threshold for success.
+            dynamic_threshold = self.threshold + (0.15 * psi)
+            passed = score >= dynamic_threshold
             
             log_icon = "🟢" if passed else "🔴"
-            logger.info(f"{log_icon} Critic Score: {score} | Feedback: {feedback[:100]}...")
+            logger.info(f"{log_icon} Critic Score: {score} (Thresh: {dynamic_threshold:.2f}) | Psi: {psi:.2f}")
             
             return passed, score, feedback
         except Exception as e:

@@ -1,7 +1,7 @@
 import asyncio
+import logging
 from typing import Dict, Any, List
 from .base import BridgeAdapter
-import logging
 
 class DiscordBridge(BridgeAdapter):
     """
@@ -35,11 +35,27 @@ class DiscordBridge(BridgeAdapter):
             self.is_connected = True
             self.logger.info(f"Discord connected as {self.client.user}")
 
+        @self.client.event
+        async def on_message(message):
+            if message.author == self.client.user:
+                return
+            
+            # Standardization into the unified inbound pipeline
+            await self._dispatch_inbound({
+                "from": str(message.author),
+                "body": message.content,
+                "channel_id": str(message.channel.id),
+                "channel_name": getattr(message.channel, 'name', 'DM'),
+                "guild": str(getattr(message.channel, 'guild', 'DM')),
+                "timestamp": message.created_at.isoformat(),
+                "attachments": [a.url for a in message.attachments]
+            })
+
         # Start the client in the background
         self.task = asyncio.create_task(self.client.start(self.bot_token))
         
-        # Wait a bit for connection
-        for _ in range(10):
+        # Wait for connection
+        for _ in range(15):
             if self.is_connected: break
             await asyncio.sleep(1)
             
@@ -51,18 +67,26 @@ class DiscordBridge(BridgeAdapter):
             
         try:
             # 1. Try fetching as a channel
-            target = self.client.get_channel(int(recipient))
+            try:
+                target = self.client.get_channel(int(recipient))
+            except (ValueError, TypeError):
+                target = None
             
             # 2. Try fetching as a user (for DMs)
             if not target:
-                target = await self.client.fetch_user(int(recipient))
+                try:
+                    target = await self.client.fetch_user(int(recipient))
+                except (ValueError, TypeError):
+                    target = None
                 
             if not target:
                 return {"status": "failed", "error": f"Target {recipient} not found"}
                 
-            await target.send(content)
-            return {"status": "success"}
+            msg = await target.send(content)
+            self.last_activity = str(int(asyncio.get_event_loop().time()))
+            return {"status": "success", "id": str(msg.id)}
         except Exception as e:
+            self.last_error = str(e)
             self.logger.error(f"Discord send failed: {e}")
             return {"status": "failed", "error": str(e)}
 
@@ -70,12 +94,11 @@ class DiscordBridge(BridgeAdapter):
         return await self.send(recipient, content)
 
     async def fetch_unread(self, limit: int = 10) -> List[Dict[str, Any]]:
-        """Fetch recent history from default/last channels."""
+        """Fetch recent history if polling is required (though events are preferred)."""
         if not self.is_connected or not self.client:
             return []
             
         messages = []
-        # In a real bot, we'd look at channels we have permission for
         for guild in self.client.guilds:
             for channel in guild.text_channels:
                 try:
@@ -94,6 +117,17 @@ class DiscordBridge(BridgeAdapter):
 
     async def validate_integrity(self) -> bool:
         return self.is_connected and not self.client.is_closed()
+
+    def get_health(self) -> Dict[str, Any]:
+        """Enhanced Discord health reporting."""
+        health = super().get_health()
+        if self.client and self.is_connected:
+            health.update({
+                "latency_ms": int(self.client.latency * 1000) if self.client.latency else 0,
+                "guild_count": len(self.client.guilds),
+                "user": str(self.client.user)
+            })
+        return health
 
     async def disconnect(self):
         if self.client:

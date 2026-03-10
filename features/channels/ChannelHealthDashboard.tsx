@@ -16,7 +16,23 @@ export const ChannelHealthDashboard: React.FC = () => {
                     credentials: 'include'
                 });
                 if (res.ok) {
-                    setHealthData(await res.json());
+                    const data = await res.json();
+                    setHealthData(data);
+
+                    // Sync to global store
+                    if (data.channels) {
+                        const { setConnections } = useStore.getState();
+                        setConnections(prev => prev.map(conn => {
+                            const health = data.channels.find((c: any) => c.channel === conn.id);
+                            if (health) {
+                                return {
+                                    ...conn,
+                                    status: health.connected ? 'CONNECTED' : 'DISCONNECTED'
+                                };
+                            }
+                            return conn;
+                        }));
+                    }
                 }
             } catch (err) {
                 console.error('[ChannelHealthDashboard] Failed to fetch channel status:', err);

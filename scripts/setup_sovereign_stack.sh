@@ -30,13 +30,16 @@ if [ ! -d "$WHISPER_DIR" ]; then
     cd "$WHISPER_DIR"
     
     if [[ "$OS" == "Darwin" ]]; then
-        # Mac usually has Accelerate/Metal enabled by default
-        make
+        echo "[ INFO ]: macOS detected. Enabling Metal GPU inference for Whisper..."
+        WHISPER_METAL=1 make
     elif [[ "$OS" == "Linux" ]]; then
         # Check for CUDA
         if command -v nvidia-smi &> /dev/null; then
             echo "[ INFO ]: CUDA detected. Enabling GPU offload..."
             GGML_CUDA=1 make
+        elif command -v rocminfo &> /dev/null; then
+            echo "[ INFO ]: ROCm detected. Enabling AMD GPU offload..."
+            GGML_HIPBLAS=1 make
         else
             make
         fi
@@ -44,10 +47,18 @@ if [ ! -d "$WHISPER_DIR" ]; then
     
     # Download models based on ARCH
     if [[ "$ARCH" == "aarch64" || "$ARCH" == "arm"* ]]; then
-        echo "[ INFO ]: Low-power architecture detected. Downloading 'tiny' model..."
+        if [[ "$OS" == "Darwin" ]]; then
+            echo "[ INFO ]: Apple Silicon detected. Transcribing with 'small' model (Metal optimized)..."
+            bash ./models/download-ggml-model.sh small.en
+        else
+            echo "[ INFO ]: ARM Linux (RPi) detected. Downloading 'tiny' model..."
+            bash ./models/download-ggml-model.sh tiny.en
+        fi
+    elif [[ "$ARCH" == "x86_64" && "$OS" == "Darwin" ]]; then
+        echo "[ INFO ]: Intel Mac detected. Downloading 'tiny' model for CPU efficiency..."
         bash ./models/download-ggml-model.sh tiny.en
     else
-        echo "[ INFO ]: Standard architecture detected. Downloading 'small' model..."
+        echo "[ INFO ]: Standard x86_64 (Linux/Windows) detected. Downloading 'small' model..."
         bash ./models/download-ggml-model.sh small.en
     fi
     cd -

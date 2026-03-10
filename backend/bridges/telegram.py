@@ -76,6 +76,8 @@ class TelegramBridge(BridgeAdapter):
                 await self.client.get(f"{self.api_url}{self.bot_token}/deleteWebhook")
                 self.logger.info("Telegram: Webhook cleared, entering long-polling mode.")
             except: pass
+            # Start background long-polling loop
+            asyncio.create_task(self._poll_loop())
 
         return True
 
@@ -103,7 +105,7 @@ class TelegramBridge(BridgeAdapter):
         if not self.is_connected or not self.bot_token:
             return {"ok": False, "error": "Bot not connected"}
         
-        self.last_activity = datetime.now(timezone.utc)
+        self.last_activity = datetime.now(timezone.utc).isoformat()
         url = f"{self.api_url}{self.bot_token}/sendMessage"
         payload = {
             "chat_id": recipient,
@@ -146,8 +148,20 @@ class TelegramBridge(BridgeAdapter):
                 self._track_account(msg)
         
         if messages:
-            self.last_activity = datetime.now(timezone.utc)
+            self.last_activity = datetime.now(timezone.utc).isoformat()
         return messages
+
+    async def _poll_loop(self):
+        """Background loop for Telegram long-polling."""
+        while self.is_connected and not self.webhook_url:
+            try:
+                messages = await self.fetch_unread(limit=20)
+                for msg in messages:
+                    await self._dispatch_inbound(msg)
+            except Exception as e:
+                self.logger.error(f"Telegram poll error: {e}")
+                await asyncio.sleep(10)
+            await asyncio.sleep(1)
 
     async def validate_integrity(self) -> bool:
         """Verify the connection by fetching bot details."""
@@ -210,30 +224,27 @@ class TelegramBridge(BridgeAdapter):
             "last_name": sender.get("last_name"),
             "last_seen": datetime.now(timezone.utc).isoformat()
         }
-        self.last_activity = datetime.now(timezone.utc)
+        self.last_activity = datetime.now(timezone.utc).isoformat()
         self._save_accounts()
 
-    def process_webhook(self, update: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    async def process_webhook(self, update: Dict[str, Any]):
         """Entry point for incoming webhook updates."""
         msg = update.get("message") or update.get("edited_message")
-        if not msg: return None
+        if not msg: return
         
         parsed = self._parse_inbound(msg)
         self._track_account(msg)
-        return parsed
+        await self._dispatch_inbound(parsed)
 
     def get_health(self) -> Dict[str, Any]:
-        """Health reporting (connection state, last activity, error)."""
-        return {
-            "channel": "telegram",
-            "connected": self.is_connected,
+        """Health reporting (standardized + telegram specific)."""
+        health = super().get_health()
+        health.update({
             "bot_username": self.bot_username,
-            "last_activity": self.last_activity.isoformat() if self.last_activity else None,
-            "last_error": self.last_error,
             "account_count": len(self.accounts),
             "webhook_active": bool(self.webhook_url),
-            "accounts": list(self.accounts.values())
-        }
+        })
+        return health
 
     def _load_accounts(self):
         path = os.path.join(self.vault_path, "accounts.json")

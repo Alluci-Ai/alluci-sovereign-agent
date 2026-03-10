@@ -47,3 +47,12 @@ class ICloudBridge(BridgeAdapter):
 
     async def validate_integrity(self) -> bool:
         return self.is_connected
+
+    def get_health(self) -> Dict[str, Any]:
+        health = super().get_health()
+        if self.is_connected:
+            health.update({
+                "apple_id": self.session.get("apple_id"),
+                "status_message": "Operational"
+            })
+        return health

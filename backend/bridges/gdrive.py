@@ -1,8 +1,9 @@
 import os
 import json
 import httpx
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from .base import BridgeAdapter
+from datetime import datetime, timezone
 
 class GDriveBridge(BridgeAdapter):
     """
@@ -13,6 +14,7 @@ class GDriveBridge(BridgeAdapter):
         super().__init__(bridge_id, vault_root)
         self.version = "v3"
         self.base_url = f"https://www.googleapis.com/drive/{self.version}"
+        self.email_address: Optional[str] = None
 
     async def connect(self, credentials: Dict[str, Any]) -> bool:
         self.credentials = credentials
@@ -86,6 +88,7 @@ class GDriveBridge(BridgeAdapter):
                 content=body
             )
             if res.status_code == 200:
+                self.last_activity = datetime.now(timezone.utc).isoformat()
                 return {"status": "success", "fileId": res.json().get("id")}
             return {"status": "failed", "error": res.text}
 
@@ -110,3 +113,13 @@ class GDriveBridge(BridgeAdapter):
 
     async def validate_integrity(self) -> bool:
         return self.is_connected
+
+    def get_health(self) -> Dict[str, Any]:
+        """Health reporting for GDrive."""
+        health = super().get_health()
+        if self.is_connected:
+            health.update({
+                "email": self.email_address,
+                "scope": "drive.file"
+            })
+        return health

@@ -2,9 +2,11 @@ import os
 import json
 import base64
 import httpx
+import asyncio
 from email.message import EmailMessage
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from .base import BridgeAdapter
+from datetime import datetime, timezone
 
 class GmailBridge(BridgeAdapter):
     """
@@ -13,6 +15,8 @@ class GmailBridge(BridgeAdapter):
     """
     def __init__(self, bridge_id: str, vault_root: str):
         super().__init__(bridge_id, vault_root)
+        self.email_address: Optional[str] = None
+        self._poll_task: Optional[asyncio.Task] = None
 
     async def connect(self, credentials: Dict[str, Any]) -> bool:
         self.credentials = credentials
@@ -29,10 +33,14 @@ class GmailBridge(BridgeAdapter):
                 self.email_address = res.json().get("email")
                 self.is_connected = True
                 self.logger.info(f"Gmail API session established for {self.email_address}.")
+                # Start background polling
+                if not self._poll_task:
+                    self._poll_task = asyncio.create_task(self._poll_loop())
                 return True
             elif res.status_code == 401 and credentials.get("refresh_token"):
-                # Refresh logic is handled via _ensure_auth in send/fetch
-                self.is_connected = True # Assume temporary connection for retry
+                self.is_connected = True 
+                if not self._poll_task:
+                    self._poll_task = asyncio.create_task(self._poll_loop())
                 return True
                 
         return False
@@ -76,6 +84,7 @@ class GmailBridge(BridgeAdapter):
                 json={"raw": raw_msg}
             )
             if res.status_code == 200:
+                self.last_activity = datetime.now(timezone.utc).isoformat()
                 return {"status": "success", "id": res.json().get("id")}
             return {"status": "failed", "error": res.text}
 
@@ -110,11 +119,18 @@ class GmailBridge(BridgeAdapter):
                     snippet = data.get("snippet", "")
                     headers = data.get("payload", {}).get("headers", [])
                     sender = next((h["value"] for h in headers if h["name"] == "From"), "Unknown")
-                    messages.append({
+                    timestamp_ms = int(data.get("internalDate", 0))
+                    
+                    parsed = {
                         "id": m["id"],
-                        "sender": sender,
-                        "snippet": snippet
-                    })
+                        "from": sender,
+                        "body": snippet,
+                        "timestamp": datetime.fromtimestamp(timestamp_ms/1000, timezone.utc).isoformat(),
+                        "protocol": "GMAIL",
+                        "account_id": self.email_address
+                    }
+                    messages.append(parsed)
+                    
                     # Mark read
                     await client.post(
                         f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{m['id']}/modify",
@@ -123,5 +139,35 @@ class GmailBridge(BridgeAdapter):
                     )
         return messages
 
+    async def _poll_loop(self):
+        """Autonomous polling loop for new emails."""
+        while self.is_connected:
+            try:
+                unread = await self.fetch_unread(limit=5)
+                for msg in unread:
+                    await self._dispatch_inbound(msg)
+                
+                if unread:
+                    self.last_activity = datetime.now(timezone.utc).isoformat()
+            except Exception as e:
+                self.logger.error(f"Gmail poll error: {e}")
+            
+            await asyncio.sleep(60) # Poll every minute
+
     async def validate_integrity(self) -> bool:
         return self.is_connected
+
+    def get_health(self) -> Dict[str, Any]:
+        """Health reporting for Gmail."""
+        health = super().get_health()
+        if self.is_connected:
+            health.update({
+                "email": self.email_address,
+                "polling": True
+            })
+        return health
+
+    async def disconnect(self):
+        if self._poll_task:
+            self._poll_task.cancel()
+        await super().disconnect()

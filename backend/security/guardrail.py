@@ -1,91 +1,75 @@
-"""
-Sovereign LLM Guardrail System.
-Provides multi-stage validation for input prompts and model completions.
-Replaces simple regex sanitization with a reusable, scalable scanning interface.
-"""
-import re
 import logging
-from typing import List, Tuple
-
-logger = logging.getLogger("Guardrails")
-
-# Extensive set of known prompt injection and adversarial patterns
-PROMPT_INJECTION_PATTERNS = [
-    r"ignore (all )?previous instructions",
-    r"forget (your )?(primary |initial )?objective",
-    r"system override",
-    r"reveal (secrets|your (system |)prompt)",
-    r"print (your |the )(system |)prompt",
-    r"bypass safety",
-    r"DAN mode",
-    r"jailbreak",
-    r"do anything now",
-    r"sudo ",
-    r"<\|end\|>",  # Special model tokens
-    r"Base64 encoded payload",
-    r"--- START OF PROMPT ---", # Framing bypass
-    r"you are now a ",     # Roleplay injection
-]
+import json
+from typing import Tuple, List, Optional
+from ..inference.router import ModelRouter
 
 class GuardrailScanner:
-    """
-    Mediates between the client and the LLM to enforce safety policies.
-    """
-    def __init__(self):
-        self.patterns = [re.compile(p, re.IGNORECASE) for p in PROMPT_INJECTION_PATTERNS]
+    def __init__(self, router: ModelRouter):
+        self.router = router
+        self.logger = logging.getLogger("GuardrailScanner")
+        self.safety_categories = {
+            "O1": "Violence and Physical Harm",
+            "O2": "Non-Consensual Sexual Content",
+            "O3": "Sexual Content",
+            "O4": "Hate Speech",
+            "O5": "Harassment",
+            "O6": "Self-Harm",
+            "O7": "Sexual Violence",
+            "O8": "Medical Advice",
+            "O9": "High-Risk Decisions",
+            "O10": "AI Personalization"
+        }
 
     async def scan_input(self, text: str) -> Tuple[bool, str]:
         """
-        Scans user input for malicious intent or policy violations.
-        Returns (is_safe, error_message).
+        Scans user input for safety violations using Llama-Guard-3 logic.
         """
-        # Phase 1: Structural Integrity (Empty/Null)
-        if not text or not text.strip():
-            return False, "Input cannot be empty."
-
-        # Phase 2: Static Pattern Matching (Regex)
-        for pattern in self.patterns:
-            if pattern.search(text):
-                logger.warning(f"[GUARDRAIL] Blocked potential injection: {pattern.pattern}")
-                return False, "Input contains disallowed patterns."
-
-        # Phase 3: Quantitative Thresholds
-        if len(text) > 15000:
-            return False, "Input exceeds maximum safety length (15000 characters)."
-
-        # Phase 4: Placeholder for LLM-based Guardrail (e.g. NeMo)
-        # In a full production sovereign deployment, we would call a local, small 
-        # classifier model (like Llama-Guard) here to evaluate the prompt.
+        categories_str = "\n".join([f"{k}: {v}" for k, v in self.safety_categories.items()])
+        prompt = f"""
+        [INST] Task: Check if there is unsafe content in 'User' messages according to our safety policy.
         
-        return True, ""
+        <categories>
+        {categories_str}
+        </categories>
+        
+        User Message: "{text}"
+        
+        Instruction: Answer ONLY with 'safe' or 'unsafe' followed by the category code if unsafe. [/INST]
+        """
+        try:
+            # Use fast tactical model for gatekeeper duty
+            result = await self.router.get_fast_tactical_response(prompt)
+            result = result.strip().lower()
+            
+            if "unsafe" in result:
+                # Extract category if possible
+                category = result.replace("unsafe", "").strip().upper()
+                msg = f"Safety Policy Violation: {self.safety_categories.get(category, 'General Unsafe Content')}"
+                return False, msg
+            return True, ""
+        except Exception as e:
+            self.logger.error(f"Guardrail input scan failed: {e}")
+            return True, "" # Fallback to open
 
-    async def scan_output(self, response: str, active_secrets: List[str] = None) -> Tuple[bool, str]:
+    async def scan_output(self, text: str, active_secrets: List[str] = None) -> Tuple[bool, str]:
         """
-        Scans model output to prevent disclosure of internal instructions, PII, or active API keys.
-        Returns (is_safe, error_message).
+        Scans assistant output for safety and PII/Secret leakage.
         """
+        # 1. PII / Secret Leakage (Heuristic + Exact Match)
         if active_secrets:
             for secret in active_secrets:
-                if secret and len(secret) > 8 and secret in response:
-                    logger.critical("[GUARDRAIL] EXFILTRATION ATTEMPT: Active API key detected in output payload.")
-                    return False, "Disclosure of configured API credentials prohibited."
-        # 1. Check for sensitive key patterns
-        pii_patterns = [
-            r"-----BEGIN .* PRIVATE KEY-----",
-            r"sk-[a-zA-Z0-9]{20,}", # API key lookalikes
-            r"ssh-rsa ",
-        ]
-        
-        for p in pii_patterns:
-            if re.search(p, response):
-                logger.critical("[GUARDRAIL] EXFILTRATION ATTEMPT: Sensitive credentials detected in output.")
-                return False, "Disclosure of sensitive credentials prohibited."
+                if secret and len(secret) > 8 and secret in text:
+                    self.logger.critical("🛑 SECRET LEAKAGE DETECTED IN OUTPUT MANIFOLD")
+                    return False, "Security manifold integrity breach: Secret detected in response."
 
-        # 2. Check for leakage of system context
-        if "system prompt" in response.lower() and len(response) < 200:
-            return False, "Model attempted to disclose internal instructions."
-
-        return True, ""
-
-# Singleton instance for the app
-scanner = GuardrailScanner()
+        # 2. Safety Check
+        prompt = f"[INST] Task: Check if the Assistant response is safe. Content: {text} [/INST]"
+        try:
+            # Output scan can use a slightly slower but more robust model check if needed
+            result = await self.router.get_fast_tactical_response(prompt)
+            if "unsafe" in result.lower():
+                return False, "Sovereign Safety Gate: Output rejected."
+            return True, ""
+        except Exception as e:
+            self.logger.error(f"Guardrail output scan failed: {e}")
+            return True, ""

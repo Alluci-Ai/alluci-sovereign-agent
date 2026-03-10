@@ -33,7 +33,7 @@ class OAuthHandler:
     @retry(
         stop=stop_after_attempt(5),
         wait=wait_exponential(multiplier=1, min=2, max=10),
-        retry=retry_if_exception_type((httpx.RequestError, httpx.HTTPProtocolError)),
+        retry=retry_if_exception_type((httpx.RequestError, httpx.ProtocolError)),
         reraise=True
     )
     async def exchange_code(self, 
@@ -82,7 +82,7 @@ class OAuthHandler:
     @retry(
         stop=stop_after_attempt(5),
         wait=wait_exponential(multiplier=1, min=2, max=10),
-        retry=retry_if_exception_type((httpx.RequestError, httpx.HTTPProtocolError)),
+        retry=retry_if_exception_type((httpx.RequestError, httpx.ProtocolError)),
         reraise=True
     )
     async def refresh_token(self, 

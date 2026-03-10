@@ -109,12 +109,40 @@ class NostrBridge(BridgeAdapter):
         mention_filter = Filter().pubkey(self.keys.public_key()).kind(Kind(1))
         
         await self.client.subscribe([dm_filter, mention_filter])
-        
         self.logger.info("[ NOSTR ] Subscription active for DMs and Mentions.")
-        
-        # In a real impl, we'd loop through client.handle_notifications()
-        # For this adapter, we assume the client manages internal state.
-        # We periodically poll or use a callback mechanism if available in the sdk bindings.
+
+        # Real implementation of notification handler
+        async for notification in self.client.notifications():
+            try:
+                if notification.is_event():
+                    event = notification.as_event()
+                    if event.kind() == Kind(4):
+                        # Decrypt and dispatch DM
+                        decrypted = await self.client.decrypt_nip04(event.author(), event.content())
+                        normalized = {
+                            "id": event.id().to_hex(),
+                            "from": event.author().to_bech32(),
+                            "body": decrypted,
+                            "protocol": "NOSTR",
+                            "kind": 4,
+                            "timestamp": datetime.fromtimestamp(event.created_at().as_secs(), timezone.utc).isoformat()
+                        }
+                        await self._dispatch_inbound(normalized)
+                    elif event.kind() == Kind(1):
+                        # Dispatch mention
+                        normalized = {
+                            "id": event.id().to_hex(),
+                            "from": event.author().to_bech32(),
+                            "body": event.content(),
+                            "protocol": "NOSTR",
+                            "kind": 1,
+                            "timestamp": datetime.fromtimestamp(event.created_at().as_secs(), timezone.utc).isoformat()
+                        }
+                        await self._dispatch_inbound(normalized)
+                    
+                    self.last_activity = datetime.now(timezone.utc).isoformat()
+            except Exception as e:
+                self.logger.error(f"[ NOSTR ] Notification processing error: {e}")
 
     async def send_message(self, recipient: str, content: str) -> Dict[str, Any]:
         """Legacy shim for BridgeAdapter compatibility. Defaults to public note."""
@@ -230,10 +258,10 @@ class NostrBridge(BridgeAdapter):
             self.logger.error(f"[ NOSTR ] Vault Write Error: {e}")
 
     def get_health(self) -> Dict[str, Any]:
-        return {
-            "channel": "nostr",
-            "connected": self.is_connected,
+        health = super().get_health()
+        health.update({
             "npub": self.npub,
             "relay_count": len(self.relays),
             "identity_anchored": self.nsec is not None
-        }
+        })
+        return health

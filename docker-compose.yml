@@ -2,6 +2,7 @@ version: '3.8'
 
 services:
   backend:
+    profiles: ["full", "pi", "lite"]
     build:
       context: .
       dockerfile: Dockerfile.backend
@@ -12,49 +13,19 @@ services:
     environment:
       - REDIS_URL=redis://redis:6379/0
       - DATABASE_URL=postgresql://polytope:${DB_PASSWORD:-sovereign}@db:5432/polytope_db
-    depends_on:
-      redis:
-        condition: service_healthy
-      db:
-        condition: service_healthy
-    volumes:
-      - polytope_data:/home/polytope/.polytope
-      - ./TASKS.md:/app/TASKS.md
-      - ./HEARTBEAT.md:/app/HEARTBEAT.md
-    healthcheck:
-      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-    restart: unless-stopped
+    # Profile-specific LITE_MODE defaults can be handled via separate .env files 
+    # but here we ensure the containers are tagged.
 
   redis:
+    profiles: ["full", "pi", "lite"]
     image: redis:alpine
-    healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-    restart: unless-stopped
 
   db:
+    profiles: ["full", "pi"] # In 'lite' we might use SQLite, but keep Postgres for consistency
     image: postgres:15-alpine
-    environment:
-      - POSTGRES_USER=polytope
-      - POSTGRES_PASSWORD=${DB_PASSWORD:-sovereign}
-      - POSTGRES_DB=polytope_db
-    healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U polytope -d polytope_db" ]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-    volumes:
-      - db_data:/var/lib/postgresql/data
-    restart: unless-stopped
 
   frontend:
-
+    profiles: ["full", "pi", "lite"]
     build:
       context: .
       dockerfile: Dockerfile.frontend

@@ -65,11 +65,31 @@ class IMessageBridge(BridgeAdapter):
         if dict(perms).get("all_granted"):
             self.is_connected = True
             self.logger.info("[ IMESSAGE ] Bridge anchored to local Messages.app")
+            # Start background polling
+            asyncio.create_task(self._poll_loop())
             return True
             
         self.last_error = "Missing required permissions. Check Privacy & Security settings."
         self.logger.error(f"[ IMESSAGE ] {self.last_error}")
         return False
+
+    async def _poll_loop(self):
+        """Periodically polls chat.db for new messages."""
+        last_guid = None
+        while self.is_connected:
+            try:
+                unread = await self.fetch_unread(limit=5)
+                for msg in unread:
+                    if msg['id'] != last_guid:
+                        await self._dispatch_inbound(msg)
+                        last_guid = msg['id']
+                
+                if unread:
+                    self.last_activity = datetime.now(timezone.utc).isoformat()
+            except Exception as e:
+                self.logger.error(f"[ IMESSAGE ] Poll error: {e}")
+            
+            await asyncio.sleep(30) # Poll every 30 seconds
 
     async def send_message(self, recipient: str, content: str) -> Dict[str, Any]:
         """Legacy shim for BridgeAdapter compatibility."""
@@ -179,14 +199,15 @@ class IMessageBridge(BridgeAdapter):
             self.logger.error(f"[ IMESSAGE ] Vault Write Error: {e}")
 
     def get_health(self) -> Dict[str, Any]:
+        health = super().get_health()
         status_msg = "Operational (macOS Native)" if self.is_connected else "Platform Mismatch / Missing Permissions"
         if not self.is_macos:
             status_msg = f"Disabled (Detected: {self.system})"
             
-        return {
-            "channel": "imessage",
-            "connected": self.is_connected,
+        health.update({
             "platform": self.system,
             "status_message": status_msg,
-            "last_error": self.last_error
-        }
+            "last_error": self.last_error,
+            "macos_native": self.is_macos
+        })
+        return health

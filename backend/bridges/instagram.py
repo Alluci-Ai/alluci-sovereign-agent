@@ -1,6 +1,7 @@
 import httpx
 import os
 import json
+import asyncio
 from typing import Dict, Any, List
 from .base import BridgeAdapter
 
@@ -8,12 +9,12 @@ class InstagramBridge(BridgeAdapter):
     """
     Sovereign Instagram Bridge.
     Uses Graph API for Business/Creator (DMs).
-    Ref: https://developers.facebook.com/docs/messenger-platform/instagram
     """
     def __init__(self, bridge_id: str, vault_root: str):
         super().__init__(bridge_id, vault_root)
-        self.version = "v18.0"
+        self.version = "v20.0"
         self.base_url = f"https://graph.facebook.com/{self.version}"
+        self.credentials = {}
 
     async def connect(self, credentials: Dict[str, Any]) -> bool:
         self.credentials = credentials
@@ -21,46 +22,23 @@ class InstagramBridge(BridgeAdapter):
         if not token:
             return False
             
-        async with httpx.AsyncClient() as client:
-            # Verify token via me/accounts (needs instagram_manage_messages scope)
-            res = await client.get(
-                f"{self.base_url}/me",
-                params={"access_token": token}
-            )
-            if res.status_code == 200:
-                self.is_connected = True
-                self.logger.info(f"Instagram session established for account {self.bridge_id}")
-                return True
-            elif res.status_code == 401 and credentials.get("refresh_token"):
-                self.is_connected = True
-                return True
+        try:
+            async with httpx.AsyncClient() as client:
+                res = await client.get(f"{self.base_url}/me", params={"access_token": token})
+                if res.status_code == 200:
+                    self.is_connected = True
+                    self.logger.info(f"Instagram session established for {self.bridge_id}")
+                    return True
+        except Exception as e:
+            self.logger.error(f"Instagram connection failed: {e}")
+            
         return False
 
-    async def _ensure_auth(self):
-        """Standardizes token refresh for Meta/Instagram."""
-        client_id = self.credentials.get("client_id") or os.getenv("FACEBOOK_CLIENT_ID")
-        client_secret = self.credentials.get("client_secret") or os.getenv("FACEBOOK_CLIENT_SECRET")
-        
-        if not client_id or not self.credentials.get("refresh_token"):
-            return
-            
-        try:
-            token_url = f"https://graph.facebook.com/{self.version}/oauth/access_token"
-            self.credentials = await self._get_valid_token(
-                self.credentials, 
-                token_url,
-                client_id,
-                client_secret
-            )
-        except Exception as e:
-            self.logger.error(f"Failed to refresh Instagram token: {e}")
-
     async def send(self, recipient: str, content: str, **kwargs) -> Dict[str, Any]:
-        await self._ensure_auth()
-        token = self.credentials.get("access_token")
-        if not self.is_connected or not token:
+        if not self.is_connected:
             return {"status": "failed", "error": "Not connected"}
             
+        token = self.credentials.get("access_token")
         payload = {
             "recipient": {"id": recipient},
             "message": {"text": content}
@@ -69,32 +47,61 @@ class InstagramBridge(BridgeAdapter):
         async with httpx.AsyncClient() as client:
             res = await client.post(
                 f"{self.base_url}/me/messages",
-                headers={"Authorization": f"Bearer {token}"},
+                params={"access_token": token},
                 json=payload
             )
             if res.status_code == 200:
+                self.last_activity = str(int(asyncio.get_event_loop().time()))
                 return {"status": "success", "id": res.json().get("message_id")}
+            
+            self.last_error = res.text
             return {"status": "failed", "error": res.text}
 
     async def send_message(self, recipient: str, content: str) -> Dict[str, Any]:
         return await self.send(recipient, content)
 
     async def fetch_unread(self, limit: int = 10) -> List[Dict[str, Any]]:
-        await self._ensure_auth()
+        """Fetch conversations. Requires webhooks for real-time messages."""
         token = self.credentials.get("access_token")
-        if not self.is_connected or not token:
-            return []
-            
         async with httpx.AsyncClient() as client:
             res = await client.get(
                 f"{self.base_url}/me/conversations",
                 params={"access_token": token, "limit": limit}
             )
             if res.status_code == 200:
-                conversations = res.json().get("data", [])
-                # Further expansion would fetch messages per conversation
-                return [{"id": c["id"], "sender": "Instagram User"} for c in conversations]
+                return res.json().get("data", [])
         return []
+
+    async def process_webhook(self, data: Dict[str, Any]):
+        """Standardized entry point for Instagram webhooks."""
+        try:
+            for entry in data.get("entry", []):
+                for messaging_event in entry.get("messaging", []):
+                    if messaging_event.get("message"):
+                        sender_id = messaging_event["sender"]["id"]
+                        message_data = messaging_event["message"]
+                        body = message_data.get("text", "[Instagram Media]")
+                        
+                        await self._dispatch_inbound({
+                            "from": sender_id,
+                            "body": body,
+                            "timestamp": messaging_event.get("timestamp"),
+                            "id": message_data.get("mid"),
+                            "account_id": entry.get("id"),
+                            "raw": messaging_event
+                        })
+        except Exception as e:
+            self.logger.error(f"Instagram webhook parse failed: {e}")
 
     async def validate_integrity(self) -> bool:
         return self.is_connected
+
+    def get_health(self) -> Dict[str, Any]:
+        """Health reporting for Instagram."""
+        health = super().get_health()
+        if self.is_connected:
+            health.update({
+                "api_version": self.version,
+                "verified": True
+            })
+        return health

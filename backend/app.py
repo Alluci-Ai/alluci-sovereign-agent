@@ -12,7 +12,7 @@ import json
 import redis.asyncio as redis
 from datetime import datetime, timezone, date, timedelta
 from typing import Dict, Any, Optional, List
-from fastapi import FastAPI, HTTPException, Depends, Query, Body, Request, Response
+from fastapi import FastAPI, HTTPException, Depends, Query, Body, Request, Response, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from jose import JWTError, jwt
@@ -39,15 +39,22 @@ from .tasks import TaskManager
 from .skill_manager import SkillManager
 from .security.verusid_auth import verus_auth
 from .inference.local_bridge import LocalInferenceBridge
+from .memory.manager import MemoryManager
 from .logging_config import configure_logging
-from .security.guardrail import scanner
+from .security.guardrail import GuardrailScanner
 from .ws_gateway import JsonRpcGateway
 from .analytics import UsageTracker
 from .cron_engine import CronEngine
 from .log_streamer import log_buffer, log_stream_handler
 from .config_editor import ConfigEditor
 from .exec_approval import ExecApprovalManager
+from .platform.macos import MacOSPlatform
+from .platform.linux import LinuxPlatform
+from .platform.windows import WindowsPlatform
 from .updater import updater
+from .metrics import metrics
+from .goals.engine import goal_engine
+from .sop.engine import sop_engine
 from fastapi import WebSocket, WebSocketDisconnect
 from fastapi.responses import PlainTextResponse
 
@@ -70,6 +77,7 @@ cron_engine: CronEngine = None
 config_editor: ConfigEditor = None
 exec_approval: ExecApprovalManager = None
 device_manager: Any = None
+memory: MemoryManager = None
 redis_client: Optional[redis.Redis] = None
 audit_lock = asyncio.Lock()
 channel_registry: Dict[str, Any] = {}
@@ -108,20 +116,23 @@ async def log_system_event(event: str, details: str, status: str = "INFO"):
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
     global vault, router, ace, orchestrator, task_manager, skill_manager, sovereign_identity, local_inference
-    global ws_gw, usage_tracker, cron_engine, config_editor, exec_approval, channel_registry
-
+    global ws_gw, usage_tracker, cron_engine, config_editor, exec_approval, memory, channel_registry, scanner
+ 
     # Initialize structured logging before any log calls
     configure_logging(app_env=settings.APP_ENV)
 
     logger.info("[ POLYTOPE_DAEMON ] Booting up...")
     
     # Initialize Production Rate Limiter (Redis)
-    try:
-        redis_client = redis.from_url(settings.REDIS_URL, encoding="utf-8")
-        await FastAPILimiter.init(redis_client)
-        logger.info(f"[ CACHE ]: Redis distributed rate limiter initialized on {settings.REDIS_URL}")
-    except Exception as e:
-        logger.error(f"[ CACHE ]: Redis initialization failed. Rate limiting will NOT be active: {e}")
+    if settings.REDIS_URL:
+        try:
+            redis_client = redis.from_url(settings.REDIS_URL, encoding="utf-8")
+            await FastAPILimiter.init(redis_client)
+            logger.info(f"[ CACHE ]: Redis distributed rate limiter initialized on {settings.REDIS_URL}")
+        except Exception as e:
+            logger.error(f"[ CACHE ]: Redis initialization failed. Rate limiting will NOT be active: {e}")
+    else:
+        logger.warning("[ CACHE ]: REDIS_URL not set. Running in sovereign mode without distributed rate limiting.")
 
     create_db_and_tables()
 
@@ -132,19 +143,31 @@ async def lifespan(app: FastAPI):
     # 2. Inference Layer
     router = ModelRouter(settings)
 
+    # 2a. Guardrail Scanner
+    from .security.guardrail import GuardrailScanner
+    scanner = GuardrailScanner(router)
+ 
     # 3. Affective Engine
     ace = AffectiveEngine()
 
     # 4. Skill Manager
     skill_manager = SkillManager(vault)
 
-    # 5. Sprint 1: Usage & Cost Analytics
+    # 5. Persistent Memory
+    memory = MemoryManager()
+
+    # 6. Usage & Cost Analytics
     usage_tracker = UsageTracker(db_engine)
 
-    # 6. Executive Orchestrator (Sovereign Core)
-    orchestrator = ExecutiveOrchestrator(router, vault, ace, settings, skill_manager, analytics=usage_tracker)
+    # 7. Executive Orchestrator (Sovereign Core)
+    orchestrator = ExecutiveOrchestrator(
+        router, vault, ace, settings, 
+        skill_manager=skill_manager, 
+        analytics=usage_tracker,
+        memory_manager=memory
+    )
 
-    # 7. Task Manager
+    # 8. Task Manager
     task_manager = TaskManager()
 
     # 8. Local Inference Bridge
@@ -213,6 +236,8 @@ async def lifespan(app: FastAPI):
     for ch_name, adapter in channel_registry.items():
         if hasattr(adapter, "on_event"):
             adapter.on_event = broadcast_bridge_event
+        if hasattr(adapter, "on_inbound"):
+            adapter.on_inbound = orchestrator.handle_inbound_message
 
     # Auto-connect channels from vault-stored credentials (non-blocking)
     for ch_name, adapter in channel_registry.items():
@@ -281,6 +306,62 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Polytope Executive Daemon", version="1.0.0", lifespan=lifespan)
+
+# --- Metrics Middleware ---
+@app.middleware("http")
+async def record_metrics(request: Request, call_next):
+    import time
+    start_time = time.time()
+    try:
+        response = await call_next(request)
+        latency = time.time() - start_time
+        metrics.record_request(latency, response.status_code)
+        return response
+    except Exception as e:
+        latency = time.time() - start_time
+        metrics.record_request(latency, 500)
+        raise e
+
+@app.get("/metrics", response_class=PlainTextResponse)
+async def get_metrics():
+    return metrics.get_metrics_text()
+
+@app.post("/api/voice/transcribe", dependencies=[Depends(verify_authenticated)])
+async def voice_transcribe(file: UploadFile = File(...)):
+    """Transcribe audio using local Whisper.cpp bridge (P1-007)."""
+    if not local_inference:
+        raise HTTPException(status_code=503, detail="Local inference not initialized")
+    audio_data = await file.read()
+    text = await local_inference.transcribe(audio_data)
+    return {"text": text}
+
+@app.get("/api/voice/synthesise", dependencies=[Depends(verify_authenticated)])
+async def voice_synthesise(text: str = Query(...)):
+    """Synthesise text to speech using local Piper bridge (P1-007)."""
+    if not local_inference:
+        raise HTTPException(status_code=503, detail="Local inference not initialized")
+    audio_bytes = await local_inference.synthesise(text)
+    return Response(content=audio_bytes, media_type="audio/wav")
+
+@app.post("/api/telemetry", dependencies=[Depends(verify_authenticated)])
+async def post_telemetry(data: TelemetryData):
+    """Ingests biometric telemetry from companion devices (P4-003)."""
+    if not ace:
+        raise HTTPException(status_code=503, detail="Affective Engine not initialized")
+    
+    # Process the data through ACE
+    flow_result = ace.process_telemetry(data)
+    
+    # Return the updated state
+    return {
+        "status": "SUCCESS",
+        "flow_state": flow_result,
+        "current_metrics": {
+            "stress_score": ace.current_state["stress_score"],
+            "vitality": ace.current_state["physical_vitality"],
+            "mode": ace.current_state["flow_mode"]
+        }
+    }
 
 # CORS Policy — explicit methods and headers, not wildcards
 app.add_middleware(
@@ -462,6 +543,21 @@ async def get_wallet_login_status(challenge_id: str):
 
 # --- System Status ---
 
+@app.post("/api/system/service/install", dependencies=[Depends(verify_authenticated)])
+async def install_system_service():
+    """Installs the Alluci daemon as a background service on the host OS."""
+    import platform
+    if platform.system() == "Darwin":
+        svc = MacOSPlatform()
+        return svc.install_service()
+    elif platform.system() == "Linux":
+        svc = LinuxPlatform()
+        return svc.install_service()
+    elif platform.system() == "Windows":
+        svc = WindowsPlatform()
+        return svc.install_service()
+    return {"status": "error", "message": f"Service installation not yet supported on {platform.system()}"}
+
 @app.get("/api/system/health", dependencies=[Depends(verify_authenticated)])
 async def get_system_health():
     """Runs diagnostic checks across primary modules for the Health dashboard."""
@@ -478,16 +574,29 @@ async def get_system_health():
     vault_status = "healthy" if vault else "warning"
 
     # 3. Model Router
-    router_status = "warning"  # Static fallback warning per spec example or real logic
+    router_status = "unhealthy"
+    if router and router.router and any(p.client for p in router.router.providers.values()):
+        router_status = "healthy"
+    elif router:
+        router_status = "warning" # No providers configured
     
-    # 4. Cron Engine Tasks
+    # 4. Local Inference
+    local_inference_status = "healthy" if local_inference else "unhealthy"
+
+    # 5. Bridges
+    active_bridges = list(vault.get_active_vaults()) if vault else []
+    
+    # 6. Cron Engine Tasks
     cron_status = "healthy" if task_manager else "unhealthy"
 
     return {
         "database": db_status,
         "vault": vault_status,
         "model_router": router_status,
-        "cron_engine": cron_status
+        "local_inference": local_inference_status,
+        "bridges": len(active_bridges),
+        "cron_engine": cron_status,
+        "uptime": time.time() - metrics.start_time
     }
 
 @app.get("/status", dependencies=[Depends(verify_authenticated)])
@@ -699,8 +808,7 @@ async def execute_objective(req: ObjectiveRequest):
         sanitized_objective = await sanitize_input(req.objective)
         
         # 2. Execute via orchestrator
-        result = await orchestrator.execute_objective(sanitized_objective, req.autonomy_level)
-        
+        result = await orchestrator.execute_objective(sanitized_objective, req.autonomy_level, mode=req.mode)
         # 3. Scan Output (for PII/Secret leakage)
         # We scan the serialized result string
         vault_keys = await vault.retrieve_secret("alluci_api_keys") or {}
@@ -733,6 +841,21 @@ async def execute_objective(req: ObjectiveRequest):
 @app.post("/telemetry", dependencies=[Depends(verify_authenticated)])
 async def ingest_telemetry(data: TelemetryData):
     result = ace.process_telemetry(data)
+    
+    # P1-002: Cognitive Pipeline — Store affective state in memory
+    if memory:
+        try:
+            await memory.store(
+                content=f"Affective State: {result.get('mode')} - {result.get('reason')}",
+                metadata={
+                    "type": "ace_state",
+                    "valence": data.valence,
+                    "arousal": data.arousal,
+                    "focus": data.focus
+                }
+            )
+        except Exception as e:
+            logger.warning(f"Failed to store ACE state in memory: {e}")
 
     # Forward to orchestrator's harmonic enhancer if it exists
     try:
@@ -751,6 +874,31 @@ async def ingest_telemetry(data: TelemetryData):
         "status": "ok",
         "mode": result.get("mode"),
         "reason": result.get("reason")
+    }
+
+# --- Manifold Sovereignty (Sprint 4) ---
+
+@app.post("/api/manifold/patch", dependencies=[Depends(verify_authenticated)])
+async def patch_manifold(payload: Dict[str, Any] = Body(...)):
+    """
+    AAP-008: Manifold Patch Endpoint.
+    Allows manual intervention to 'stitch' a torn manifold.
+    Resets Lipschitz budgets and clears entropy spikes.
+    """
+    if not orchestrator:
+        raise HTTPException(status_code=503, detail="Orchestrator not ready")
+        
+    orchestrator.ppn.stabilizer.reset_budget()
+    orchestrator.entropy_monitor.history.clear()
+    
+    await log_system_event("MANIFOLD_PATCH", "Manual manifold patch applied. Stability restored.", "SUCCESS")
+    
+    return {
+        "status": "SUCCESS",
+        "message": "Manifold patched. Safety gates reset.",
+        "diagnostics": {
+            "psi": orchestrator.ace.btm.psi_from_state(orchestrator.ace.get_affective_state())
+        }
     }
 
 
@@ -834,7 +982,7 @@ async def get_webauthn_challenge():
     return {
         "challenge": b64_challenge,
         "timeout": 60000,
-        "rp": {"name": "Alluci Sovereign Agent", "id": settings.WEBAUTHN_RP_ID if hasattr(settings, 'WEBAUTHN_RP_ID') else "localhost"},
+        "rp": {"name": "Alluci Sovereign Agent", "id": settings.WEBAUTHN_RP_ID if hasattr(settings, 'WEBABAUTHN_RP_ID') else "localhost"},
         "user": {
             "id": "ALLUCI_SOVEREIGN_001", 
             "name": "sovereign_admin", 
@@ -1154,6 +1302,13 @@ async def ingest_iwatch_biometrics(data: TelemetryData):
         # Process through ACE
         flow_update = ace.process_telemetry(data)
         
+        # P1-002: Cognitive Pipeline
+        if memory:
+            await memory.store(
+                content=f"iWatch Biometrics: {flow_update.get('mode')} - {flow_update.get('reason')}",
+                metadata={"type": "iwatch_biometrics", "source": "apple_watch"}
+            )
+        
         # Log to vault conceptually
         logger.info(f"[ IWATCH_BRIDGE ]: Biometrics ingested. Flow Status: {flow_update['mode']}")
         
@@ -1165,6 +1320,66 @@ async def ingest_iwatch_biometrics(data: TelemetryData):
     except Exception as e:
         logger.error(f"iWatch bridge ingestion error: {e}")
         raise HTTPException(status_code=500, detail="Biometric ingestion failed.")
+
+# --- Persistent Memory Manifold ---
+
+@app.get("/api/memory/search", dependencies=[Depends(verify_authenticated)])
+async def memory_search(q: str = Query(...), limit: int = 5):
+    """Semantic search across the sovereign memory manifold (P1-001)."""
+    if not memory: 
+        return []
+    return await memory.search(q, limit)
+
+@app.post("/api/memory/store", dependencies=[Depends(verify_authenticated)])
+async def memory_store(content: str = Body(...), metadata: Optional[Dict[str, Any]] = Body(None)):
+    """Manually store a fragment in the memory manifold."""
+    if not memory:
+        raise HTTPException(status_code=503, detail="Memory manager not initialized")
+    mid = await memory.store(content, metadata)
+    return {"id": mid, "status": "stored"}
+
+@app.get("/api/memory", dependencies=[Depends(verify_authenticated)])
+async def list_memory(limit: int = Query(50)):
+    return memory_manager.collection.get(limit=limit)
+
+@app.get("/api/memory/search", dependencies=[Depends(verify_authenticated)])
+async def search_memory(q: str = Query(...)):
+    return await memory_manager.recall(q, top_k=10)
+
+@app.get("/api/memory/stats", dependencies=[Depends(verify_authenticated)])
+async def get_memory_stats():
+    return {
+        "count": memory_manager.collection.count(),
+        "name": memory_manager.collection.name,
+        "metadata": memory_manager.collection.metadata
+    }
+
+@app.post("/api/memory/ingest", dependencies=[Depends(verify_authenticated)])
+async def ingest_document(file_path: str = Body(...)):
+    adapter = orchestrator.adapter_registry.get("doc_ingest")
+    if not adapter:
+        raise HTTPException(status_code=501, detail="Document ingestion tool not available")
+    return await adapter.execute(file_path)
+
+@app.delete("/api/memory/{entry_id}", dependencies=[Depends(verify_authenticated)])
+async def forget_memory(entry_id: str):
+    await memory_manager.forget(entry_id)
+    return {"deleted": entry_id}
+
+# --- Cognitive Goals & SOPs ---
+
+@app.get("/api/goals", dependencies=[Depends(verify_authenticated)])
+async def list_goals():
+    return goal_engine.get_active_goals()
+
+@app.post("/api/goals", dependencies=[Depends(verify_authenticated)])
+async def create_goal(title: str = Body(...), description: str = Body(...)):
+    gid = goal_engine.create_goal(title, description)
+    return {"id": gid, "status": "active"}
+
+@app.get("/api/sops", dependencies=[Depends(verify_authenticated)])
+async def list_sops():
+    return sop_engine.list_sops()
 
 # --- Sovereign Unified Streaming WebSocket ---
 
@@ -1219,8 +1434,8 @@ async def sovereign_socket(websocket: WebSocket):
             if "bytes" in data:
                 # Binary Step: Automatic Speech Recognition (ASR)
                 audio_chunk = data["bytes"]
-                transcript = await local_inference.transcribe_stream(audio_chunk)
-                
+                transcript = await local_inference.transcribe(audio_chunk)
+               
                 if transcript:
                     await websocket.send_json({"type": "transcript", "text": transcript})
                     
@@ -1287,16 +1502,26 @@ async def get_agents():
     """ Stub for agent constellation list to prevent frontend errors. """
     return {
         "agents": [
-            {
-                "id": "root",
-                "name": "Sovereign Root",
-                "model": "gpt-4o",
-                "status": "READY",
-                "active_skills": 12,
-                "channels": 4
-            }
+            { "id": "root", "name": "Sovereign Root", "model": "gpt-4o", "status": "READY", "active_skills": 12, "channels": 4 },
+            { "id": "researcher", "name": "Deep Researcher", "model": "gemini-1.5-pro", "status": "IDLE", "active_skills": 4, "channels": 0 },
+            { "id": "coder", "name": "Polyglot Coder", "model": "gpt-4o", "status": "IDLE", "active_skills": 8, "channels": 0 }
         ]
     }
+
+@app.post("/api/agents/delegate", dependencies=[Depends(verify_authenticated)])
+async def delegate_to_agent(agent_id: str = Body(...), task: str = Body(...)):
+    """Delegates a task to a virtual agent in the constellation."""
+    return await orchestrator.multi_agent_delegate(agent_id, task)
+
+@app.get("/api/sessions/{session_key}/resume", dependencies=[Depends(verify_authenticated)])
+async def resume_session(session_key: str, limit: int = 20):
+    """Fetches the last N messages to reconstruct the orchestrator context."""
+    from sqlmodel import select
+    from .models import MessageLog
+    with Session(db_engine) as session:
+        statement = select(MessageLog).where(MessageLog.session_key == session_key).order_by(MessageLog.timestamp.desc()).limit(limit)
+        results = session.exec(statement).all()
+        return [r.dict() for r in reversed(results)]
 
 
 @app.get("/api/usage/daily", dependencies=[Depends(verify_authenticated)])
@@ -1593,9 +1818,72 @@ async def toggle_channel(channel_id: str, data: Dict[str, Any] = Body(...)):
         if creds:
             success = await adapter.connect(creds)
             if success:
-                logger.info(f"[ CHANNELS ] {channel_id} hot-reloaded successfully.")
+                adapter.is_connected = True
+                logger.info(f"[ CHANNELS ] {channel_id} hot-auth successful.")
 
-    return {"channel": channel_id, "enabled": enabled}
+    return {"status": "success", "channel": channel_id, "enabled": enabled}
+
+
+@app.post("/api/channels/{channel_id}/send", dependencies=[Depends(verify_authenticated)])
+async def send_channel_message(channel_id: str, data: Dict[str, Any] = Body(...)):
+    adapter = channel_registry.get(channel_id)
+    if not adapter or not adapter.is_connected:
+        raise HTTPException(status_code=503, detail=f"Channel {channel_id} not connected")
+    result = await adapter.send(data["recipient"], data["content"])
+    return result
+
+
+@app.post("/api/channels/{channel_id}/upload", dependencies=[Depends(verify_authenticated)])
+async def upload_channel_file(channel_id: str, data: Dict[str, Any] = Body(...)):
+    adapter = channel_registry.get(channel_id)
+    if not adapter or not adapter.is_connected:
+        raise HTTPException(status_code=503, detail=f"Channel {channel_id} not connected")
+    if hasattr(adapter, "upload"):
+        result = await adapter.upload(data["file_data"], data["file_name"])
+        return result
+    raise HTTPException(status_code=501, detail=f"Upload not implemented for {channel_id}")
+
+
+@app.get("/api/channels/{channel_id}/health", dependencies=[Depends(verify_authenticated)])
+async def get_channel_health(channel_id: str):
+    adapter = channel_registry.get(channel_id)
+    if not adapter:
+        raise HTTPException(status_code=404)
+    if hasattr(adapter, "get_health"):
+        return adapter.get_health()
+    return {"channel": channel_id, "is_connected": getattr(adapter, "is_connected", False)}
+
+
+@app.get("/api/channels/{channel_id}/unread", dependencies=[Depends(verify_authenticated)])
+async def get_unread_messages(channel_id: str, limit: int = 10):
+    adapter = channel_registry.get(channel_id)
+    if not adapter or not adapter.is_connected:
+        raise HTTPException(status_code=503, detail=f"Channel {channel_id} not connected")
+    if hasattr(adapter, "fetch_unread"):
+        return await adapter.fetch_unread(limit=limit)
+    return []
+
+
+@app.post("/api/channels/{channel_id}/social", dependencies=[Depends(verify_authenticated)])
+async def execute_social_task(channel_id: str, data: Dict[str, Any] = Body(...)):
+    adapter = channel_registry.get(channel_id)
+    if not adapter or not adapter.is_connected:
+        raise HTTPException(status_code=503, detail=f"Channel {channel_id} not connected")
+    if hasattr(adapter, "execute_task"):
+        return await adapter.execute_task(data["type"], data["payload"])
+    if data["type"] == "SEND_MESSAGE":
+        return await adapter.send(data["payload"]["recipient"], data["payload"]["content"])
+    raise HTTPException(status_code=501, detail=f"Social task {data['type']} not implemented for {channel_id}")
+
+
+@app.post("/api/channels/{channel_id}/enterprise", dependencies=[Depends(verify_authenticated)])
+async def execute_enterprise_task(channel_id: str, data: Dict[str, Any] = Body(...)):
+    adapter = channel_registry.get(channel_id)
+    if not adapter or not adapter.is_connected:
+        raise HTTPException(status_code=503, detail=f"Channel {channel_id} not connected")
+    if hasattr(adapter, "execute_task"):
+        return await adapter.execute_task(data["type"], data["payload"])
+    raise HTTPException(status_code=501, detail=f"Enterprise task {data['type']} not implemented for {channel_id}")
 
 
 @app.get("/api/channels", dependencies=[Depends(verify_authenticated)])

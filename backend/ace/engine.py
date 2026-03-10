@@ -1,6 +1,8 @@
 
 from ..models import TelemetryData
-from typing import Dict, Any
+from typing import Dict, Any, Optional
+from .affect_kernel import AffectKernel, AffectiveState
+from .btm_mapper import BTMMapper
 
 class AffectiveEngine:
     """
@@ -8,6 +10,12 @@ class AffectiveEngine:
     via the Flow Assistance Framework.
     """
     def __init__(self):
+        self.kernel = AffectKernel()
+        self.btm = BTMMapper()
+        self._affective_state = AffectiveState()
+        self._deadline_override_turns = 0
+        self._deadline_override_tension = 1024.0
+        
         self.current_state = {
             "physical_vitality": 1.0,         # Based on HR/HRV
             "affective_valence": "neutral",   # Emotional state
@@ -19,31 +27,24 @@ class AffectiveEngine:
 
     def process_telemetry(self, data: TelemetryData) -> Dict[str, Any]:
         """Ingests raw telemetry and outputs an abstracted Flow state."""
+        # Update AffectiveState using BTMMapper (PPN-002)
+        self._affective_state = self.btm.map(data)
         
-        # 1. Physical Vitality (Stress)
-        if data.hr and data.hrv:
-            # Simple heuristic: high HR and low HRV indicates stress
-            # Normalized against respiratory rate if available
-            rr_factor = (data.respiratory_rate / 15.0) if data.respiratory_rate else 1.0
-            stress = (data.hr / data.hrv) * 10 * rr_factor
-            self.current_state["stress_score"] = stress
-            self.current_state["physical_vitality"] = max(0.0, 1.0 - (stress / 100))
+        # Backward compatibility for current_state
+        stress = (self._affective_state.tension / 1024.0) * 100.0
+        self.current_state["stress_score"] = stress
+        self.current_state["physical_vitality"] = max(0.0, 1.0 - (stress / 100.0))
         
-        # 2. Affective Valence (Emotion)
-        if data.valence is not None:
-            # If sleep efficiency is low, bias valence toward lower values (fatigue/irritability)
-            sleep_bias = (data.sleep_efficiency - 0.8) if data.sleep_efficiency else 0.0
-            adjusted_valence = data.valence + sleep_bias
-            if adjusted_valence > 0.7:
-                self.current_state["affective_valence"] = "expansive"
-            elif adjusted_valence < 0.3:
-                self.current_state["affective_valence"] = "contracted"
-            else:
-                self.current_state["affective_valence"] = "neutral"
+        # Map valence/arousal for legacy modes
+        if self._affective_state.valence > 700:
+            self.current_state["affective_valence"] = "expansive"
+        elif self._affective_state.valence < 300:
+            self.current_state["affective_valence"] = "contracted"
+        else:
+            self.current_state["affective_valence"] = "neutral"
 
         # 3. Cognitive State (Mental Load)
         if data.focus is not None:
-            # High recovery (sleep > 0.9) increases focus capacity
             recovery_boost = 0.1 if (data.sleep_efficiency and data.sleep_efficiency > 0.9) else 0.0
             adjusted_focus = data.focus + recovery_boost
             
@@ -54,8 +55,28 @@ class AffectiveEngine:
             else:
                 self.current_state["mental_load"] = "nominal"
 
-        # 4. Flow Assistance Framework (Determine active state)
         return self._evaluate_flow_state()
+
+    def get_affective_state(self) -> AffectiveState:
+        """
+        Returns the current affective state, applying any active overrides.
+        Source: PPN §DDS — get_affective_state()
+        """
+        state = self._affective_state
+        if self._deadline_override_turns > 0:
+            # Inject deadline contraction (PPN-011)
+            state = AffectiveState(
+                valence=state.valence,
+                arousal=state.arousal,
+                tension=max(state.tension, self._deadline_override_tension)
+            )
+            self._deadline_override_turns -= 1
+        return state
+
+    def inject_deadline_contraction(self, turns: int = 3):
+        """Trigger κ contraction on turn deadline breach."""
+        self._deadline_override_turns = turns
+        self._deadline_override_tension = 1024.0
 
     def _evaluate_flow_state(self) -> Dict[str, Any]:
         """Evaluates combined markers to determine the overarching Flow mode."""

@@ -60,6 +60,7 @@ import { DebugPanel } from './features/debug/DebugPanel';
 import CronPanel from './features/scheduling/CronPanel';
 import { WalletPanel } from './features/wallet/WalletPanel';
 import { NodePanel } from './features/wallet/NodePanel';
+import { MemoryPanel } from './features/memory/MemoryPanel';
 import { useTranslation } from './features/shell/LocaleSelector';
 
 const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
@@ -101,6 +102,12 @@ const App: React.FC = () => {
   // Core Refs
   const geminiServiceRef = useRef<AlluciGeminiService | null>(null);
   const sovereignServiceRef = useRef<AlluciSovereignService | null>(null);
+
+  useEffect(() => {
+    if (bridgeManagerRef.current) {
+      bridgeManagerRef.current.setAccessToken(accessToken);
+    }
+  }, [accessToken]);
 
   // ── Admin WebSocket Connection (Sprint 3) ──────────────────────────────────
   useEffect(() => {
@@ -454,6 +461,12 @@ const App: React.FC = () => {
         return (
           <div className="inline-panel-wrapper">
             <WalletPanel />
+          </div>
+        );
+      case 'memory':
+        return (
+          <div className="inline-panel-wrapper">
+            <MemoryPanel onClose={() => setActiveView('chat')} />
           </div>
         );
       case 'tasks':

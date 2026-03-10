@@ -179,6 +179,7 @@ class DAGTask(BaseModel):
 class ObjectiveRequest(BaseModel):
     objective: str
     autonomy_level: str = "SEMI_AUTONOMOUS"
+    mode: str = "standard"  # "standard" or "research"
 
 class TelemetryData(BaseModel):
     hr: Optional[int] = None
@@ -205,6 +206,22 @@ class SystemStatus(BaseModel):
 
 class LoginRequest(BaseModel):
     key: str
+
+class AffectiveState(BaseModel):
+    valence: float = 512.0   # 0=pessimistic, 512=neutral, 1024=optimistic
+    arousal: float = 0.0     # 0=calm, 1024=maximum arousal
+    tension: float = 0.0     # 0=relaxed, 1024=maximum contraction
+
+class PolytopeState(BaseModel):
+    signature_hash: int
+    vertices_V: int
+    edges_E: int
+    faces_F: int
+    betti: List[float]
+    affective_tension_psi: float
+    phi_total: int = 0
+    coherence: float = 0.0
+    budget_used: float = 0.0
 
 class TaskItem(BaseModel):
     index: int

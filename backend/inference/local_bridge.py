@@ -47,17 +47,18 @@ class LocalInferenceBridge:
 
     def _check_ollama(self) -> bool:
         import socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
             # Simple socket check for Ollama API
-            s = socket.socket(socket.socket(socket.AF_INET, socket.SOCK_STREAM))
             s.settimeout(1)
             s.connect(("localhost", 11434))
-            s.close()
             return True
         except Exception:
             return False
+        finally:
+            s.close()
         
-    async def transcribe_stream(self, audio_data: bytes) -> str:
+    async def transcribe(self, audio_data: bytes) -> str:
         """
         Transcribes a chunk of audio using whisper.cpp.
         In a full implementation, this would pipe to a long-running whisper process.
@@ -90,17 +91,29 @@ class LocalInferenceBridge:
             logger.error(f"Whisper ASR Error: {e}")
             return ""
 
-    async def chat_ollama(self, prompt: str, model: str = "mistral:7b-instruct-v0.3-q4_K_M") -> AsyncGenerator[str, None]:
+    async def chat_ollama(self, prompt: str, model: str = None) -> AsyncGenerator[str, None]:
         """
-        Streams responses from local Ollama instance.
+        Streams responses from local Ollama instance with RAM-aware model selection.
         """
         import httpx
         url = f"{self.ollama_url}/api/chat"
+        
+        # RAM-aware model selection
+        ram_mb = getattr(self.settings, "TOTAL_RAM_MB", 4096)
+        is_lite = getattr(self.settings, "LITE_MODE", False)
+        
+        if model is None:
+            if is_lite or ram_mb < 2000:
+                model = "tinyllama:1.1b"
+            elif ram_mb < 8000:
+                model = "phi3:mini"
+            else:
+                model = "mistral:7b-instruct-v0.3-q4_K_M"
+        
         # Dynamic Tuning
         num_ctx = 2048
-        if self.is_raspberry_pi:
-            num_ctx = 512 # Reduce context for RPi
-            model = "phi3:mini" if model.startswith("mistral") else model # Suggest lighter model
+        if is_lite or ram_mb < 2000:
+            num_ctx = 512 # Reduce context for RPi / Lite
             
         payload = {
             "model": model,
@@ -125,7 +138,7 @@ class LocalInferenceBridge:
                         if data.get("done"):
                             break
 
-    async def speak_piper(self, text: str) -> bytes:
+    async def synthesise(self, text: str) -> bytes:
         """
         Synthesizes speech using Piper TTS.
         """

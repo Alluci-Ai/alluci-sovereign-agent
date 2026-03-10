@@ -2,7 +2,8 @@
 import torch
 import torch.nn as nn
 import numpy as np
-from typing import Tuple
+from typing import Tuple, Optional, List
+from ..ace.affect_kernel import AffectiveState
 
 # Graceful fallback if gudhi is not installed in the environment
 try:
@@ -41,6 +42,8 @@ class PPNEmbeddingModule(nn.Module):
         super().__init__()
         self.latent_dim = latent_dim
         self.max_dimension = max_dimension
+        self._prev_D_t: Optional[torch.Tensor] = None
+        self._prev_betti: Optional[torch.Tensor] = None
         
         # Phase A: Continuous Mapping (Encoder)
         self.manifold_projector = nn.Sequential(
@@ -118,18 +121,15 @@ class PPNEmbeddingModule(nn.Module):
             
         return torch.tensor(padded_betti, dtype=torch.float32)
 
-    def forward(self, x: torch.Tensor, psi: float = 0.5) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    def forward(self, x: torch.Tensor, psi: float = 0.5, affect_state: Optional[AffectiveState] = None) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, int, float, float, bool]:
         """
         Forward Pass.
-        Args:
-            x: Multimodal Input Tensor [Batch, Input_Dim]
-            psi: Affective Tension (0.0 to 1.0)
         Returns:
-            G: Adjacency Matrix (Simplicial 1-skeleton)
-            D_t: Deformation Vector (Stabilized)
-            B: Betti Numbers (Topological Signature)
-            Points: Final configuration points
+            G, D_t, B, Points, phi_total, budget_used, coherence, topic_shift
         """
+        if affect_state is None:
+            affect_state = AffectiveState()
+
         # 1. Project to Latent Manifold
         latent_points = self.manifold_projector(x)
         
@@ -160,7 +160,90 @@ class PPNEmbeddingModule(nn.Module):
             pc_np = final_config.detach().cpu().numpy()
             B_pred = self.compute_persistent_homology(pc_np)
 
-        return G, D_t, B_pred, final_config
+        # 6. Apply fixed-point normalization (PPN §TableManager)
+        D_t = self.normalize_to_fixed_point(D_t)
+
+        # 7. Compute Φ_total affective-invariant index (PPN-003)
+        betti_list = B_pred.tolist() if isinstance(B_pred, torch.Tensor) else list(B_pred)
+        phi_total = self.compute_phi_total(betti_list, affect_state)
+
+        # 8. ALCE Budget Tracking (PPN-005)
+        L_max = 1.0 / (1.0 + 10.0 * psi)
+        if self._prev_D_t is not None and D_t.shape == self._prev_D_t.shape:
+            grad_norm = float(torch.norm(D_t - self._prev_D_t).item())
+            budget_used = grad_norm / max(L_max, 1e-6)
+        else:
+            budget_used = 0.0
+        self._prev_D_t = D_t.detach().clone()
+
+        # 9. Coherence Score (AAP-001)
+        B_curr = B_pred if isinstance(B_pred, torch.Tensor) else torch.tensor(B_pred)
+        coherence = self.compute_coherence(G, B_curr, self._prev_betti)
+        self._prev_betti = B_curr.detach().clone()
+
+        # 10. Placeholder for topic_shift (Sprint 3)
+        topic_shift = False
+
+        return G, D_t, B_pred, final_config, phi_total, budget_used, coherence, topic_shift
+
+    @staticmethod
+    def normalize_to_fixed_point(t: torch.Tensor, scale: int = 1024) -> torch.Tensor:
+        """
+        Fixed-Point Normalization.
+        Source: PPN §TableManager — normalize(continuous_val, scale_factor=1024.0)
+        """
+        scaled = t * float(scale)
+        clamped = torch.clamp(scaled, -32767.0, 32767.0)
+        rounded = torch.round(clamped)
+        return rounded / float(scale)
+
+    def compute_phi_total(self, betti: List[float], state: AffectiveState) -> int:
+        """
+        Φ_total = Φ(I) + Φ(D_t)
+        Source: PPN §DPK — 'Affective-Invariant Index'
+        """
+        # Φ(I): base address from quantized Betti vector
+        betti_key = tuple(round(b) for b in betti[:4])
+        phi_I = hash(betti_key) % 65536
+
+        # Φ(D_t): affective offset
+        valence_offset = int((state.valence - 512.0) * 0.25)
+        arousal_offset = int(state.arousal * 0.125)
+        phi_D = valence_offset + arousal_offset
+
+        return (phi_I + phi_D) % 65536
+
+    def compute_coherence(self, G: torch.Tensor, B_current: torch.Tensor, B_prev: Optional[torch.Tensor]) -> float:
+        """
+        Coh(P_t) = (1 - Δβ_norm) × (1 - H_G_norm)
+        Source: AAP §Coherence Score
+        """
+        # A. Δβ_norm: Betti number stability
+        if B_prev is not None:
+            delta_b = float(torch.sum(torch.abs(B_current.float() - B_prev.float())).item())
+            max_shift = 4.0 * 2.0  # 4 Betti numbers × max 2-unit shift
+            delta_b_norm = min(1.0, delta_b / max_shift)
+        else:
+            delta_b_norm = 0.0
+
+        # B. H_G_norm: normalized graph entropy
+        V = G.shape[0]
+        if V <= 1:
+            h_norm = 0.0
+        else:
+            degrees = G.sum(dim=1).float()
+            total = degrees.sum().item()
+            if total < 1e-9:
+                h_norm = 0.0
+            else:
+                probs = degrees / total
+                probs = probs[probs > 0]
+                h_raw = -float((probs * torch.log2(probs)).sum().item())
+                h_max = np.log2(V)
+                h_norm = h_raw / h_max if h_max > 0 else 0.0
+
+        coherence = (1.0 - delta_b_norm) * (1.0 - h_norm)
+        return max(0.0, min(1.0, coherence))
 
     def extract_simplex_counts(self, G: torch.Tensor) -> Tuple[int, int, int]:
         """

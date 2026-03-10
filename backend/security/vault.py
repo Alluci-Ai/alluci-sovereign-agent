@@ -5,7 +5,8 @@ import stat
 import shutil
 import asyncio
 import contextlib
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, InvalidToken
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
@@ -16,7 +17,10 @@ from backend.security.vdxf_store import VDXFStore
 class VaultManager:
     def __init__(self, master_key: str, vault_root: Optional[str] = None):
         from ..config import settings
-        self.master_key = master_key
+        
+        # P4-004: macOS Keychain Integration
+        self.master_key = self._ensure_keychain_sync(master_key)
+        
         self.vault_root = vault_root or os.path.expanduser("~/.polytope/vaults")
         self._ensure_vault_root_sync()
         
@@ -25,6 +29,12 @@ class VaultManager:
         
         # Legacy symmetric Fernet for simple local state (non-asymmetric)
         self.fernet = Fernet(master_key.encode() if isinstance(master_key, str) else master_key)
+        
+        # New AES-256-GCM for hardened storage (P1-004)
+        import hashlib
+        self.aes_key = hashlib.sha256(master_key.encode() if isinstance(master_key, str) else master_key).digest()
+        self.aes_gcm = AESGCM(self.aes_key)
+        self.VAULT_V2_PREFIX = b"\x01"
         
         # Tier 1 & 3: VDXF Store (Integrity Anchoring)
         self.vdxf = None
@@ -70,6 +80,42 @@ class VaultManager:
             except OSError:
                 pass
 
+    def _ensure_keychain_sync(self, provided_key: str) -> str:
+        """
+        Attempts to retrieve master key from OS keychain.
+        If provided_key is valid and not in keychain, migrates it.
+        """
+        import platform
+        system = platform.system()
+        service_name = "alluci-sovereign"
+        username = "master-key"
+        
+        try:
+            import keyring
+            # Attempt retrieval
+            keychain_key = keyring.get_password(service_name, username)
+            
+            if keychain_key:
+                import logging
+                logging.getLogger("VaultManager").info("Master key retrieved from OS Keychain.")
+                return keychain_key
+            
+            # If not in keychain but we have a valid provided key, migrate
+            if provided_key and "PLACEHOLDER" not in provided_key:
+                import logging
+                logging.getLogger("VaultManager").info(f"Migrating master key to {system} Keychain...")
+                keyring.set_password(service_name, username, provided_key)
+                return provided_key
+                
+        except ImportError:
+            import logging
+            logging.getLogger("VaultManager").warning("keyring library not found. Falling back to environment.")
+        except Exception as e:
+            import logging
+            logging.getLogger("VaultManager").error(f"Keychain sync failed: {e}")
+            
+        return provided_key
+
     def get_active_vaults(self) -> Set[str]:
         try:
             return {f.split(".")[0] for f in os.listdir(self.vault_root) if f.endswith(".vault")}
@@ -88,8 +134,10 @@ class VaultManager:
             await self.vdxf.anchor_vault_hash(vault_aggregate)
 
     def _store_secret_sync(self, bridge_id: str, data: Dict[str, Any]):
-        raw_data = json.dumps(data)
-        encrypted = self.fernet.encrypt(raw_data.encode())
+        raw_data = json.dumps(data).encode()
+        nonce = os.urandom(12)
+        # AES-GCM: prefix + nonce + ciphertext (includes tag at the end in cryptography's AESGCM)
+        encrypted = self.VAULT_V2_PREFIX + nonce + self.aes_gcm.encrypt(nonce, raw_data, None)
         path = os.path.join(self.vault_root, f"{bridge_id}.vault")
         
         tmp_path = path + ".tmp"
@@ -144,8 +192,31 @@ class VaultManager:
         
         with open(path, "rb") as f:
             secret_data = f.read()
-            decrypted = self.fernet.decrypt(secret_data)
-            return json.loads(decrypted.decode())
+            if not secret_data: return None
+
+            # 1. Try V2 (AES-GCM)
+            if secret_data.startswith(self.VAULT_V2_PREFIX):
+                try:
+                    nonce = secret_data[1:13]
+                    ciphertext = secret_data[13:]
+                    decrypted = self.aes_gcm.decrypt(nonce, ciphertext, None)
+                    return json.loads(decrypted.decode())
+                except Exception as e:
+                    import logging
+                    logging.getLogger("VaultManager").error(f"AES-GCM decryption failed for {bridge_id}: {e}")
+                    return None
+
+            # 2. Try V1 Fallback (Fernet)
+            try:
+                decrypted = self.fernet.decrypt(secret_data)
+                data = json.loads(decrypted.decode())
+                # 3. Lazy Migration to V2
+                import logging
+                logging.getLogger("VaultManager").info(f"Migrating {bridge_id} to AES-256-GCM...")
+                self._store_secret_sync(bridge_id, data)
+                return data
+            except (InvalidToken, Exception):
+                return None
 
     # --- Connection-Specific Secrets (OAuth, Tokens, etc.) ---
 
@@ -190,13 +261,14 @@ class VaultManager:
         path = os.path.join(self.vault_root, rel_path)
         os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
         
-        # 1. Generate a random AES key for this specific secret
-        session_key = Fernet.generate_key()
-        f = Fernet(session_key)
+        # 1. Generate a random 256-bit key for this specific secret
+        session_key = os.urandom(32)
+        aes_gcm = AESGCM(session_key)
+        nonce = os.urandom(12)
         
         # 2. Encrypt the data with the session key
-        raw_data = json.dumps(data)
-        encrypted_data = f.encrypt(raw_data.encode())
+        raw_data = json.dumps(data).encode()
+        encrypted_data = aes_gcm.encrypt(nonce, raw_data, None)
         
         # 3. Encrypt the session key with the RSA Public Key
         encrypted_key = self.public_key.encrypt(
@@ -208,9 +280,9 @@ class VaultManager:
             )
         )
         
-        # 4. Pack together: [len_key (4 bytes)][encrypted_key][encrypted_data]
+        # 4. Pack together: [VERSION(1)][len_key(4)][encrypted_key][nonce(12)][encrypted_data]
         import struct
-        final_payload = struct.pack(">I", len(encrypted_key)) + encrypted_key + encrypted_data
+        final_payload = b"\x02" + struct.pack(">I", len(encrypted_key)) + encrypted_key + nonce + encrypted_data
         
         tmp_path = path + ".tmp"
         with open(tmp_path, "wb") as f:
@@ -225,32 +297,54 @@ class VaultManager:
         
         with open(path, "rb") as f:
             payload = f.read()
-            if len(payload) < 4:
-                return None
-                
+            if not payload: return None
+            
+            # --- New AES-GCM V2 Hybrid Flow ---
+            if payload.startswith(b"\x02"):
+                try:
+                    import struct
+                    key_len = struct.unpack(">I", payload[1:5])[0]
+                    encrypted_key = payload[5:5+key_len]
+                    nonce = payload[5+key_len : 5+key_len+12]
+                    encrypted_data = payload[5+key_len+12:]
+                    
+                    # Decrypt key
+                    session_key = self.private_key.decrypt(
+                        encrypted_key,
+                        padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
+                    )
+                    
+                    # Decrypt data
+                    aes_gcm = AESGCM(session_key)
+                    decrypted = aes_gcm.decrypt(nonce, encrypted_data, None)
+                    return json.loads(decrypted.decode())
+                except Exception as e:
+                    import logging
+                    logging.getLogger("VaultManager").error(f"V2 hybrid decryption failed for {rel_path}: {e}")
+                    return None
+
+            # --- Legacy Fernet V1 Hybrid Fallback ---
             try:
                 import struct
                 key_len = struct.unpack(">I", payload[:4])[0]
                 encrypted_key = payload[4:4+key_len]
                 encrypted_data = payload[4+key_len:]
                 
-                # Decrypt the session key with RSA Private Key
                 session_key = self.private_key.decrypt(
                     encrypted_key,
-                    padding.OAEP(
-                        mgf=padding.MGF1(algorithm=hashes.SHA256()),
-                        algorithm=hashes.SHA256(),
-                        label=None
-                    )
+                    padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
                 )
                 
-                # Decrypt the data with the session key
                 f = Fernet(session_key)
                 decrypted = f.decrypt(encrypted_data)
-                return json.loads(decrypted.decode())
+                data = json.loads(decrypted.decode())
+                
+                # Lazy migration to hybrid V2
+                self._store_secret_by_path_sync(rel_path, data)
+                return data
             except Exception as e:
                 import logging
-                logging.getLogger("VaultManager").error(f"Hybrid decryption failed for {rel_path}: {e}")
+                logging.getLogger("VaultManager").error(f"V1 hybrid fallback failed for {rel_path}: {e}")
                 return None
 
     def _delete_secret_by_path_sync(self, rel_path: str) -> bool:
@@ -376,15 +470,19 @@ class VaultManager:
     def _store_secret_by_path_helper_sync(self, absolute_path: str, data: Dict[str, Any], pub_key):
         """Internal helper for rotation without modifying global state."""
         import struct
-        session_key = Fernet.generate_key()
-        f = Fernet(session_key)
-        raw_data = json.dumps(data)
-        encrypted_data = f.encrypt(raw_data.encode())
+        session_key = os.urandom(32)
+        aes_gcm = AESGCM(session_key)
+        nonce = os.urandom(12)
+        
+        raw_data = json.dumps(data).encode()
+        encrypted_data = aes_gcm.encrypt(nonce, raw_data, None)
+        
         encrypted_key = pub_key.encrypt(
             session_key,
             padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
         )
-        payload = struct.pack(">I", len(encrypted_key)) + encrypted_key + encrypted_data
+        
+        payload = b"\x02" + struct.pack(">I", len(encrypted_key)) + encrypted_key + nonce + encrypted_data
         with open(absolute_path, "wb") as f_out: f_out.write(payload)
 
     def export_identity_pem(self) -> str:

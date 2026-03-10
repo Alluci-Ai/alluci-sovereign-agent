@@ -1,4 +1,6 @@
 import React from 'react';
+import { useVoice } from '../../hooks/useVoice';
+import { useStore } from '../../store/useStore';
 
 interface CommandBarProps {
     textInput: string;
@@ -23,6 +25,9 @@ const CommandBar: React.FC<CommandBarProps> = ({
     handlePaste,
     isProcessing
 }) => {
+    const { startRecording, stopRecording } = useVoice();
+    const isVoiceRecording = useStore(state => state.isVoiceRecording);
+
     return (
         <form onSubmit={handleCommandSubmit} className="shrink-0 p-4 md:p-6 flex flex-col gap-2 z-10 w-full max-w-4xl mx-auto mb-4">
             {attachments.length > 0 && (
@@ -61,6 +66,33 @@ const CommandBar: React.FC<CommandBarProps> = ({
                     +
                 </button>
                 <input type="file" ref={fileInputRef} onChange={handleFileChange} multiple className="hidden" />
+
+                <button
+                    type="button"
+                    onMouseDown={startRecording}
+                    onMouseUp={stopRecording}
+                    onMouseLeave={stopRecording}
+                    onTouchStart={(e) => { e.preventDefault(); startRecording(); }}
+                    onTouchEnd={(e) => { e.preventDefault(); stopRecording(); }}
+                    title="Hold to Speak"
+                    className={`shrink-0 flex items-center justify-center transition-all duration-200 ml-1 ${isVoiceRecording ? 'scale-110 shadow-[0_0_15px_rgba(255,125,0,0.4)]' : ''}`}
+                    style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: '50%',
+                        border: isVoiceRecording ? '1.5px solid var(--tension)' : '1px solid var(--separator)',
+                        background: isVoiceRecording ? 'rgba(255,125,0,0.1)' : 'var(--fill-quaternary)',
+                        color: isVoiceRecording ? 'var(--tension)' : 'var(--text-secondary)',
+                        cursor: 'pointer',
+                    }}
+                >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                        <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                        <line x1="12" y1="19" x2="12" y2="23" />
+                        <line x1="8" y1="23" x2="16" y2="23" />
+                    </svg>
+                </button>
 
                 <textarea
                     value={textInput}

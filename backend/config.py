@@ -36,6 +36,25 @@ def get_secret(key: str, default: Optional[str] = None) -> Optional[str]:
     
     return default
 
+def get_system_ram_mb() -> int:
+    """Detects total system RAM in MB. Fallback to 4GB if detection fails."""
+    try:
+        import psutil
+        return int(psutil.virtual_memory().total / (1024 * 1024))
+    except ImportError:
+        # Fallback to /proc/meminfo on Linux if psutil is missing
+        if os.path.exists("/proc/meminfo"):
+            try:
+                with open("/proc/meminfo", "r") as f:
+                    for line in f:
+                        if "MemTotal" in line:
+                            return int(line.split()[1]) // 1024
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return 4096 # Assume 4GB if unsure
+
 class Settings(BaseSettings):
     # Deployment Environment
     APP_ENV: str = "development"  # development, production, local_sovereign
@@ -47,13 +66,35 @@ class Settings(BaseSettings):
     VERUS_ID_PRIVATE_KEY: Optional[str] = None
     
     # Model Providers
-    GEMINI_API_KEY: str
+    GEMINI_API_KEY: Optional[str] = None
     OPENAI_API_KEY: Optional[str] = None
     ANTHROPIC_API_KEY: Optional[str] = None
     NVIDIA_NIM_API_KEY: Optional[str] = None
     GROQ_API_KEY: Optional[str] = None
     DEEPSEEK_API_KEY: Optional[str] = None
     OPENROUTER_API_KEY: Optional[str] = None
+    LM_STUDIO_URL: str = "http://localhost:1234/v1"
+    TOGETHER_API_KEY: Optional[str] = None
+    COHERE_API_KEY: Optional[str] = None
+    AWS_ACCESS_KEY_ID: Optional[str] = None
+    AWS_SECRET_ACCESS_KEY: Optional[str] = None
+    AWS_REGION: str = "us-east-1"
+    
+    # OAuth Client Credentials (PPN/AAP)
+    GOOGLE_CLIENT_ID: Optional[str] = None
+    GOOGLE_CLIENT_SECRET: Optional[str] = None
+    SLACK_CLIENT_ID: Optional[str] = None
+    SLACK_CLIENT_SECRET: Optional[str] = None
+    DISCORD_CLIENT_ID: Optional[str] = None
+    DISCORD_CLIENT_SECRET: Optional[str] = None
+    INSTAGRAM_CLIENT_ID: Optional[str] = None
+    INSTAGRAM_CLIENT_SECRET: Optional[str] = None
+    FACEBOOK_CLIENT_ID: Optional[str] = None
+    FACEBOOK_CLIENT_SECRET: Optional[str] = None
+    TWITTER_CLIENT_ID: Optional[str] = None
+    TWITTER_CLIENT_SECRET: Optional[str] = None
+    MSTEAMS_CLIENT_ID: Optional[str] = None
+    MSTEAMS_CLIENT_SECRET: Optional[str] = None
     
     # Network
     HOST: str = "0.0.0.0"
@@ -104,6 +145,28 @@ class Settings(BaseSettings):
     # Database & Cache
     DATABASE_URL: str = "sqlite:///polytope_data.db"
     REDIS_URL: Optional[str] = None # e.g., redis://localhost:6379/0
+    # Hardware Characteristics (P4-020)
+    TOTAL_RAM_MB: int = get_system_ram_mb()
+    LITE_MODE: bool = False
+    
+    @property
+    def is_pi(self) -> bool:
+        import platform
+        return "arm" in platform.machine().lower() or "aarch64" in platform.machine().lower()
+
+    @field_validator("LITE_MODE", mode="before")
+    @classmethod
+    def auto_detect_lite_mode(cls, v, info):
+        # Explicit override takes precedence
+        if v is not None and isinstance(v, bool):
+            return v
+        
+        # Auto-detect based on RAM (< 2.5GB)
+        ram = get_system_ram_mb()
+        if ram < 2500:
+            logger.info(f"Low memory detected ({ram}MB). Enabling LITE_MODE.")
+            return True
+        return False
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -138,10 +201,9 @@ class Settings(BaseSettings):
 
     @field_validator("GEMINI_API_KEY")
     @classmethod
-    def validate_api_key(cls, v: str) -> str:
+    def validate_api_key(cls, v: Optional[str]) -> Optional[str]:
         if not v or "PLACEHOLDER" in v:
-            logger.critical("🚨 FATAL: GEMINI_API_KEY is required for the Inference Engine.")
-            sys.exit(1)
+            logger.warning("⚠️ WARNING: GEMINI_API_KEY is not set. Cloud Inference Engine will be disabled.")
         return v
 
 def load_settings() -> Settings:
