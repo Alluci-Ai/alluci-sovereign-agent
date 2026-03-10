@@ -3,6 +3,7 @@ import { Connection } from '../../../types';
 import { SharedModalShell } from './SharedModalShell';
 import { activateBridge, saveBridgeCredentials } from '../../../lib/bridgeAuth';
 import { useStore } from '../../../store/useStore';
+import { adminService } from '../../../adminService';
 
 export const TokenModal: React.FC<{
     connection: Connection;
@@ -29,11 +30,20 @@ export const TokenModal: React.FC<{
     const [signalPhone, setSignalPhone] = useState("");
 
     useEffect(() => {
-        if (bridgeId === 'sg' && signalTab === 'LINK') {
-            // Simulate fetching QR
-            setSignalQr("tsdevice:/?uuid=mock&pub_key=mock");
-        }
-    }, [bridgeId, signalTab]);
+        const handleEvent = (method: string, params: any) => {
+            if (method === 'bridge.status' && params.bridge_id === bridgeId) {
+                if (params.status === 'CONNECTED') {
+                    onComplete(JSON.stringify({ status: 'connected_via_ws' }), "");
+                } else if (params.status === '2FA_REQUIRED' && bridgeId === 'icloud') {
+                    setRequires2FA(true);
+                } else if (params.status === 'QR_READY' && bridgeId === 'sg') {
+                    setSignalQr(params.qr_url);
+                }
+            }
+        };
+        adminService.addListener(handleEvent);
+        return () => adminService.removeListener(handleEvent);
+    }, [bridgeId, onComplete]);
 
     const handleSubmit = async () => {
         setIsLoading(true);
@@ -51,12 +61,7 @@ export const TokenModal: React.FC<{
                 } else {
                     if (!appleId || !appPassword) throw new Error("Apple ID and Password required.");
                     creds = { apple_id: appleId, app_specific_password: appPassword };
-                    // Simulate 2FA challenge response
-                    if (appleId.includes('2fa')) {
-                        setRequires2FA(true);
-                        setIsLoading(false);
-                        return;
-                    }
+                    // Real connection logic will trigger 2FA event if needed
                 }
             } else if (bridgeId === 'sg') {
                 if (signalTab === 'REGISTER') {

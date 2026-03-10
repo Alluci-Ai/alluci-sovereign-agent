@@ -326,14 +326,32 @@ const SkillBuilderWizard: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const handleSave = async () => {
     setIsSaving(true);
 
-    // Finalize object
-    const payload = {
-      ...manifest,
-      signature: `sig_${Date.now().toString(36)}`, // Client-side stub, backend should handle real signing
-      publicKey: "pub_local_client"
-    };
-
     try {
+      // 1. Get real cryptographic signature from the backend
+      const signRes = await fetch(`${DAEMON_URL}/api/skill/sign`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify(manifest)
+      });
+
+      if (!signRes.ok) {
+        throw new Error("Failed to sign skill manifest. Ensure the Sovereign Vault is unlocked.");
+      }
+
+      const { signature, hash, signer } = await signRes.json();
+
+      // 2. Finalize object with real signature
+      const payload = {
+        ...manifest,
+        signature: signature,
+        hash: hash,
+        signer: signer,
+        publicKey: "pub_local_vault"
+      };
+
       const res = await fetch(`${DAEMON_URL}/skills`, {
         method: 'POST',
         headers: {
@@ -348,9 +366,9 @@ const SkillBuilderWizard: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       } else {
         alert("Failed to save to Daemon. Is it running?");
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      alert("Network Error: Could not connect to Sovereign Daemon.");
+      alert(e.message || "Network Error: Could not connect to Sovereign Daemon.");
     } finally {
       setIsSaving(false);
     }

@@ -14,8 +14,9 @@ class Probe:
     def __init__(self, context: str):
         self.context = context
 
-    async def check(self) -> Optional[str]:
-        raise NotImplementedError
+    async def check(self) -> Optional[Dict[str, Any]]:
+        """Subclasses must implement this to perform deterministic checks."""
+        return None
 
 class FileProbe(Probe):
     """Checks for changes in a specific directory or file."""
@@ -89,6 +90,7 @@ class HeartbeatDaemon:
         self.logger = logging.getLogger("Heartbeat")
         self.running = False
         self.state_file = "heartbeat_state.json"
+        self.ws_gateway = None
         
         # Configuration
         self.quiet_hours_start = time(22, 0)  # 10 PM UTC
@@ -178,6 +180,14 @@ class HeartbeatDaemon:
             return
 
         self.logger.info("[PULSE] Initiating system check...")
+
+        # Update WebSocket Heartbeat Icon (Phase 3 UX)
+        if self.ws_gateway:
+            asyncio.create_task(self.ws_gateway.broadcast_event('system.heartbeat', {
+                "timestamp": self.last_pulse.isoformat(),
+                "status": "NOMINAL",
+                "uptime_ms": int((datetime.now(timezone.utc) - self.last_pulse).total_seconds() * 1000)
+            }))
 
         # 2. Read Orders
         orders = await self._parse_standing_orders()

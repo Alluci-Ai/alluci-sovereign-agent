@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Connection } from '../../../types';
 import { SharedModalShell } from './SharedModalShell';
 import { activateBridge, saveBridgeCredentials } from '../../../lib/bridgeAuth';
 import { useStore } from '../../../store/useStore';
+import { adminService } from '../../../adminService';
 
 export const QRSyncModal: React.FC<{
     connection: Connection;
@@ -29,15 +30,35 @@ export const QRSyncModal: React.FC<{
         setError(null);
         try {
             if (!wechatAppId || !wechatAppSecret) throw new Error("Open Platform credentials required.");
-            // Simulate calling /api/channels/wechat/qr-init
-            await new Promise(r => setTimeout(r, 1000));
-            setWechatQr("wechat://qr/mock-1234");
+            // Calls real backend endpoint now
+            const res = await fetch(`${useStore.getState().accessToken ? DAEMON_URL : ''}/api/channels/wechat/qr-init`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ app_id: wechatAppId, app_secret: wechatAppSecret })
+            });
+            if (!res.ok) throw new Error(await res.text());
+            const data = await res.json();
+            if (data.qr_url) setWechatQr(data.qr_url);
         } catch (e: any) {
             setError(e.message);
         } finally {
             setIsLoading(false);
         }
     };
+
+    useEffect(() => {
+        const handleEvent = (method: string, params: any) => {
+            if (method === 'bridge.status' && params.bridge_id === bridgeId) {
+                if (params.status === 'CONNECTED') {
+                    onComplete(JSON.stringify({ status: 'connected_via_ws' }), "");
+                } else if (params.status === 'QR_READY' && bridgeId === 'wechat') {
+                    setWechatQr(params.qr_url);
+                }
+            }
+        };
+        adminService.addListener(handleEvent);
+        return () => adminService.removeListener(handleEvent);
+    }, [bridgeId, onComplete]);
 
     const handleSubmit = async () => {
         setIsLoading(true);

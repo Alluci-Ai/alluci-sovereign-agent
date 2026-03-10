@@ -9,25 +9,17 @@ const LOCALES = [
     { id: 'de', name: 'Deutsch', verified: false }
 ];
 
-// Simple Translation Hook logic stub mirroring i18n
-export const useTranslation = () => {
-    const locale = localStorage.getItem('OS_LOCALE') || 'en';
-    const t = (key: string, _defaultVal?: string) => {
-        // Mock fallback to default strings natively evaluating english bundles
-        return _defaultVal || key;
-    };
-    return { t, locale };
-};
+import { useTranslation } from 'react-i18next';
 
 export const LocaleSelector: React.FC = () => {
-    const [savedLocale, setSavedLocale] = useState(() => localStorage.getItem('OS_LOCALE') || 'en');
+    const { t, i18n } = useTranslation();
+    const savedLocale = i18n.language;
     const [isOpen, setIsOpen] = useState(false);
 
-    const changeLocale = (id: string) => {
+    const changeLocale = async (id: string) => {
+        await i18n.changeLanguage(id);
         localStorage.setItem('OS_LOCALE', id);
-        setSavedLocale(id);
         setIsOpen(false);
-        // Dispatch event or just let standard reloads catch state
     };
 
     return (

@@ -1209,6 +1209,41 @@ async def import_skill_package(package: Dict[str, Any]):
     result = await skill_manager.import_package(package)
     return result
 
+@app.post("/api/skill/sign", dependencies=[Depends(verify_authenticated)])
+async def sign_skill_manifest(manifest: Dict[str, Any]):
+    """
+    Cryptographically signs a skill manifest using the Vault's identity key.
+    Ensures sovereignty for locally built skills.
+    """
+    try:
+        import hashlib
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives.asymmetric import padding
+        
+        # 1. Cannonicalize and hash the manifest
+        manifest_str = json.dumps(manifest, sort_keys=True)
+        manifest_hash = hashlib.sha256(manifest_str.encode()).digest()
+        
+        # 2. Sign the hash using the Vault's RSA private key
+        signature = vault.private_key.sign(
+            manifest_hash,
+            padding.PSS(
+                mgf=padding.MGF1(hashes.SHA256()),
+                salt_length=padding.PSS.MAX_LENGTH
+            ),
+            hashes.SHA256()
+        )
+        
+        return {
+            "status": "SUCCESS",
+            "signature": signature.hex(),
+            "hash": manifest_hash.hex(),
+            "signer": "Sovereign_Vault_Alpha"
+        }
+    except Exception as e:
+        logger.error(f"Failed to sign skill manifest: {e}")
+        raise HTTPException(status_code=500, detail="Cryptographic signing failed.")
+
 @app.get("/skills/review", dependencies=[Depends(verify_authenticated)])
 async def get_review_queue():
     return await skill_manager.get_review_queue()
@@ -2139,8 +2174,20 @@ async def delete_exec_policy(policy_id: int):
     return {"status": "deleted"}
 
 
+@app.get("/api/sessions", dependencies=[Depends(verify_authenticated)])
+async def list_sessions(
+    start: Optional[str] = Query(None),
+    end: Optional[str] = Query(None),
+    limit: int = Query(100, ge=1, le=1000)
+):
+    """List all active and historical sessions (Alias for usage summary)."""
+    s_date = date.fromisoformat(start) if start else None
+    e_date = date.fromisoformat(end) if end else None
+    return usage_tracker.get_sessions(start=s_date, end=e_date, limit=limit)
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
-# Sprint 5: Session Config Overrides (Sovereign Spec §5.4–5.5)
+# Sprint 5: Session Config Overrides
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @app.get("/api/sessions/{session_key}/config", dependencies=[Depends(verify_authenticated)])

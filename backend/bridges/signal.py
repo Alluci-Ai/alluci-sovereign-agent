@@ -73,6 +73,8 @@ class SignalBridge(BridgeAdapter):
     async def _receive_loop(self):
         """Background loop to receive Signal messages via JSON polling."""
         self.logger.info("Signal receive loop started.")
+        self.message_buffer = [] # Local buffer for fetch_unread
+        
         while self.is_connected:
             try:
                 process = await asyncio.create_subprocess_exec(
@@ -91,12 +93,19 @@ class SignalBridge(BridgeAdapter):
                             data_msg = envelope.get("dataMessage", {})
                             
                             if data_msg and data_msg.get("message"):
-                                await self._dispatch_inbound({
+                                normalized = {
                                     "from": envelope.get("sourceNumber") or envelope.get("sourceName"),
                                     "body": data_msg["message"],
                                     "timestamp": envelope.get("timestamp"),
-                                    "account_id": self.phone_number
-                                })
+                                    "account_id": self.phone_number,
+                                    "id": f"{envelope.get('timestamp')}-{envelope.get('source')}"
+                                }
+                                # Add to buffer (keep last 50)
+                                self.message_buffer.append(normalized)
+                                if len(self.message_buffer) > 50:
+                                    self.message_buffer.pop(0)
+                                    
+                                await self._dispatch_inbound(normalized)
                         except Exception as e:
                             self.logger.warning(f"Failed to parse Signal message: {e}")
                 else:
@@ -113,7 +122,8 @@ class SignalBridge(BridgeAdapter):
         return await self.send(recipient, content)
 
     async def fetch_unread(self, limit: int = 10) -> List[Dict[str, Any]]:
-        return []
+        """Returns the last N messages from the internal buffer."""
+        return self.message_buffer[-limit:] if hasattr(self, 'message_buffer') else []
 
     async def validate_integrity(self) -> bool:
         return self.is_connected

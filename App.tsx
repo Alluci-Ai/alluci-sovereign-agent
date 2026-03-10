@@ -61,7 +61,7 @@ import CronPanel from './features/scheduling/CronPanel';
 import { WalletPanel } from './features/wallet/WalletPanel';
 import { NodePanel } from './features/wallet/NodePanel';
 import { MemoryPanel } from './features/memory/MemoryPanel';
-import { useTranslation } from './features/shell/LocaleSelector';
+import { useTranslation } from 'react-i18next';
 
 const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
 

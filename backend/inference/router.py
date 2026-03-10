@@ -434,35 +434,86 @@ class ModelRouter:
                 self.logger.error(f"Groq request failed: {e}")
                 return await self._gemini_request(prompt, use_pro=False)
 
-    async def generate_speech(self, text: str, voice_id: str = "default") -> bytes:
+    async def generate_speech(self, text: str, voice_id: str = "pNInz6obpgDQGcFmaJgB") -> bytes: # Default: Adam
         """ElevenLabs integration for emotionally resonant voice synthesis."""
         if not self.elevenlabs_api_key:
             raise RuntimeError("ElevenLabs credentials missing.")
-        # TODO: Implement actual HTTP request to ElevenLabs API
-        raise NotImplementedError(
-            "Speech synthesis is not yet implemented. "
-            "Set ELEVENLABS_API_KEY and implement the ElevenLabs API integration."
-        )
+
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+        headers = {
+            "Accept": "audio/mpeg",
+            "Content-Type": "application/json",
+            "xi-api-key": self.elevenlabs_api_key
+        }
+        payload = {
+            "text": text,
+            "model_id": "eleven_monolingual_v1",
+            "voice_settings": {
+                "stability": 0.5,
+                "similarity_boost": 0.5
+            }
+        }
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            try:
+                response = await client.post(url, json=payload, headers=headers)
+                response.raise_for_status()
+                return response.content
+            except Exception as e:
+                self.logger.error(f"ElevenLabs TTS failed: {e}")
+                raise RuntimeError(f"ElevenLabs error: {e}")
 
     async def generate_image(self, prompt: str) -> str:
-        """Midjourney Alpha API integration for manifestation."""
+        """Midjourney/ImagineAPI integration for manifestation."""
         if not self.midjourney_api_key:
             raise RuntimeError("Midjourney credentials missing.")
-        # TODO: Implement actual HTTP request to Midjourney API
-        raise NotImplementedError(
-            "Image generation is not yet implemented. "
-            "Set MIDJOURNEY_API_KEY and implement the Midjourney API integration."
-        )
+
+        # Using ImagineAPI.dev structure as a production-ready standard
+        url = "https://api.imagineapi.dev/v1/generations"
+        headers = {
+            "Authorization": f"Bearer {self.midjourney_api_key}",
+            "Content-Type": "application/json"
+        }
+        payload = {"prompt": prompt}
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            try:
+                response = await client.post(url, json=payload, headers=headers)
+                response.raise_for_status()
+                data = response.json()
+                # Returns the result URL or ID
+                return data.get("url") or data.get("id")
+            except Exception as e:
+                self.logger.error(f"Midjourney generation failed: {e}")
+                raise RuntimeError(f"Midjourney error: {e}")
 
     async def generate_video(self, prompt: str, image_url: str = None) -> str:
-        """Runway Gen-4.5 / Luma integration for temporal genesis."""
+        """RunwayML Gen-3 integration for temporal genesis."""
         if not self.runway_api_key:
             raise RuntimeError("Runway credentials missing.")
-        # TODO: Implement actual HTTP request to RunwayML API
-        raise NotImplementedError(
-            "Video generation is not yet implemented. "
-            "Set RUNWAY_API_KEY and implement the RunwayML API integration."
-        )
+
+        url = "https://api.runwayml.com/v1/image_to_video" if image_url else "https://api.runwayml.com/v1/text_to_video"
+        headers = {
+            "Authorization": f"Bearer {self.runway_api_key}",
+            "Content-Type": "application/json",
+            "X-Runway-Version": "2024-11-06"
+        }
+        payload = {
+            "promptText": prompt,
+            "model": "gen3a_turbo"
+        }
+        if image_url:
+            payload["promptImage"] = image_url
+
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            try:
+                response = await client.post(url, json=payload, headers=headers)
+                response.raise_for_status()
+                data = response.json()
+                return data.get("id") # Returns task ID for polling
+            except Exception as e:
+                self.logger.error(f"RunwayML generation failed: {e}")
+                raise RuntimeError(f"RunwayML error: {e}")
 
     async def get_structured_plan(self, objective: str) -> Dict[str, Any]:
         """Specific helper to force a JSON plan from the LLM."""

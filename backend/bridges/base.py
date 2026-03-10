@@ -24,6 +24,7 @@ class BridgeAdapter(ABC):
         self.session: Any = None
         self.client = httpx.AsyncClient(timeout=30.0)
         self.on_inbound: Optional[Callable] = None
+        self.on_event: Optional[Callable] = None
         self.last_activity: Optional[str] = None
         self.last_error: Optional[str] = None
 

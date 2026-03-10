@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../../store/useStore';
 import { adminService } from '../../adminService';
+import { useTranslation } from 'react-i18next';
 import { Terminal, Shield, Activity, Code, Server, CheckCircle, AlertTriangle, XCircle, LayoutGrid } from 'lucide-react';
 import { SystemHealthCard } from './SystemHealthCard';
 import { RpcConsole } from '../system/RpcConsole';
 
 export const DebugPanel: React.FC = () => {
     const { accessToken, activeView } = useStore();
+    const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState<'events' | 'rpc' | 'security' | 'health'>('events');
 
     // Event Log State
@@ -66,7 +68,7 @@ export const DebugPanel: React.FC = () => {
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-glass-edge pb-4">
                     <div className="flex items-center gap-3">
                         <Terminal size={20} className="text-accent" />
-                        <h2 className="text-xl font-medium tracking-tight text-text-primary">System Diagnostics & Debug Module</h2>
+                        <h2 className="text-xl font-medium tracking-tight text-text-primary">{t('debug.title')}</h2>
                     </div>
 
                     <div className="flex bg-glass-1 border border-glass-edge p-1 rounded-xl">
@@ -101,7 +103,7 @@ export const DebugPanel: React.FC = () => {
                     {activeTab === 'events' && (
                         <div className="bg-glass-1 border border-glass-edge rounded-xl p-4 flex flex-col gap-2 min-h-full">
                             {events.length === 0 ? (
-                                <div className="flex items-center justify-center opacity-40 text-xs font-mono h-32 tracking-widest">AWAITING_WS_DATA_PACKETS...</div>
+                                <div className="flex items-center justify-center opacity-40 text-xs font-mono h-32 tracking-widest">{t('debug.awaiting_data')}</div>
                             ) : events.map(ev => (
                                 <div key={ev.id} className="border border-white/5 bg-glass-2 rounded-lg p-3 hover:bg-glass-hover transition-colors font-mono text-[11px] flex flex-col gap-2">
                                     <div className="flex items-center justify-between cursor-pointer" onClick={() => toggleEventPayload(ev.id)}>

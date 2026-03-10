@@ -120,7 +120,14 @@ export class ExecutionManifestFactory {
   }
 
   private getDeviceFingerprint(): string {
-    // In a real implementation, this checks hardware serials.
-    return process.env.DEVICE_FINGERPRINT || "DEV_FINGERPRINT_STUB_NODE_20";
+    if (process.env.DEVICE_FINGERPRINT) return process.env.DEVICE_FINGERPRINT;
+
+    try {
+      const os = require('node:os');
+      const data = `${os.hostname()}-${os.platform()}-${os.arch()}`;
+      return createHash('sha256').update(data).digest('hex').substring(0, 16).toUpperCase();
+    } catch {
+      return "FALLBACK_NODE_ID";
+    }
   }
 }

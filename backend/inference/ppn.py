@@ -178,13 +178,13 @@ class PPNEmbeddingModule(nn.Module):
 
         # 9. Coherence Score (AAP-001)
         B_curr = B_pred if isinstance(B_pred, torch.Tensor) else torch.tensor(B_pred)
-        coherence = self.compute_coherence(G, B_curr, self._prev_betti)
+        coherence, h_norm, delta_b_norm = self.compute_coherence(G, B_curr, self._prev_betti)
         self._prev_betti = B_curr.detach().clone()
 
         # 10. Placeholder for topic_shift (Sprint 3)
         topic_shift = False
 
-        return G, D_t, B_pred, final_config, phi_total, budget_used, coherence, topic_shift
+        return G, D_t, B_pred, final_config, phi_total, budget_used, coherence, h_norm, delta_b_norm, topic_shift
 
     @staticmethod
     def normalize_to_fixed_point(t: torch.Tensor, scale: int = 1024) -> torch.Tensor:
@@ -213,7 +213,7 @@ class PPNEmbeddingModule(nn.Module):
 
         return (phi_I + phi_D) % 65536
 
-    def compute_coherence(self, G: torch.Tensor, B_current: torch.Tensor, B_prev: Optional[torch.Tensor]) -> float:
+    def compute_coherence(self, G: torch.Tensor, B_current: torch.Tensor, B_prev: Optional[torch.Tensor]) -> Tuple[float, float, float]:
         """
         Coh(P_t) = (1 - Δβ_norm) × (1 - H_G_norm)
         Source: AAP §Coherence Score
@@ -243,7 +243,7 @@ class PPNEmbeddingModule(nn.Module):
                 h_norm = h_raw / h_max if h_max > 0 else 0.0
 
         coherence = (1.0 - delta_b_norm) * (1.0 - h_norm)
-        return max(0.0, min(1.0, coherence))
+        return max(0.0, min(1.0, coherence)), h_norm, delta_b_norm
 
     def extract_simplex_counts(self, G: torch.Tensor) -> Tuple[int, int, int]:
         """

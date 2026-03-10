@@ -283,10 +283,22 @@ class JsonRpcGateway:
         
         vault = self._service_refs.get("vault")
         audit_ledger = await vault.retrieve_secret("audit_ledger") or [] if vault else []
+        
+        # Real-time Integrity Check (P1-S02)
+        integrity_ok = True
+        integrity_hash = "0x" + "0" * 40 # Placeholder for actual VDXF root hash
+        if vault and vault.vdxf:
+            vault_state = await vault._get_full_vault_state()
+            integrity_ok = await vault.vdxf.verify_integrity(vault_state)
+            # Fetch actual anchor if available
+            integrity_hash = getattr(vault.vdxf, "current_anchor", integrity_hash)
+
         security_summary = {
             "total_events": len(audit_ledger),
             "last_event": audit_ledger[-1].get("event") if audit_ledger else None,
-            "integrity_ok": True # Basic placeholder for ledger verification
+            "integrity_ok": integrity_ok,
+            "integrity_hash": integrity_hash,
+            "full_ledger": audit_ledger[-50:] # Recent history
         }
 
         # Include self-update status

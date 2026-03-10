@@ -66,6 +66,17 @@ class ExecutiveOrchestrator:
         # Heartbeat System
         self.heartbeat = HeartbeatDaemon(self, vault)
         self.heartbeat_task = None
+        self._ws_gateway = None
+        
+    @property
+    def ws_gateway(self):
+        return self._ws_gateway
+
+    @ws_gateway.setter
+    def ws_gateway(self, val):
+        self._ws_gateway = val
+        if self.heartbeat:
+            self.heartbeat.ws_gateway = val
         
         # Executor
         self.executor = Executor(
@@ -225,8 +236,8 @@ class ExecutiveOrchestrator:
             psi = self.ace.btm.psi_from_state(affect_state)
             
             # 3. PPN Forward Pass (Updated Signature for Sprint 2)
-            # Returns: G, D, B, Points, Phi, Budget, Coherence, Shift
-            G, D, B, _, phi_total, budget, coherence, _ = self.ppn(input_tensor, psi=psi, affect_state=affect_state)
+            # Returns: G, D, B, Points, Phi, Budget, Coherence, Entropy, Stability, Shift
+            G, D, B, _, phi_total, budget, coherence, h_norm, delta_b_norm, _ = self.ppn(input_tensor, psi=psi, affect_state=affect_state)
             
             # 4. Extract Simplicial Counts (V, E, F)
             V, E, F = self.ppn.extract_simplex_counts(G)
@@ -251,11 +262,8 @@ class ExecutiveOrchestrator:
             is_valid = self.dpk.authorize_execution(state)
             
             # 7. Entropy Spike Detection (PPN-007)
-            # Find graph entropy from coherence if available, or compute
-            # For brevity, we use the coherence logic's entropy component
-            # but usually we'd pass raw entropy here.
-            # In this stub, we just push 1 - coherence as a proxy.
-            self.entropy_monitor.push(1.0 - state.coherence)
+            # Find graph entropy from h_norm (Normalized Graph Entropy)
+            self.entropy_monitor.push(h_norm)
             
             return is_valid, state
 
