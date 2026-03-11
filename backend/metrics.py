@@ -9,12 +9,17 @@ class MetricsTracker:
         self.latency_sum = 0
         self.error_count = 0
         self.start_time = time.time()
+        self._counters: Dict[str, int] = {}
 
     def record_request(self, latency: float, status_code: int):
         self.request_count += 1
         self.latency_sum += latency
         if status_code >= 400:
             self.error_count += 1
+
+    def increment_counter(self, name: str, amount: int = 1):
+        """Increment a named Prometheus-style counter."""
+        self._counters[name] = self._counters.get(name, 0) + amount
 
     def get_metrics_text(self) -> str:
         uptime = time.time() - self.start_time
@@ -48,6 +53,13 @@ class MetricsTracker:
             "# TYPE alluci_ram_percent gauge",
             f"alluci_ram_percent {ram}",
         ]
+
+        # Emit dynamic counters (e.g., redis_init_failures_total)
+        for name, val in self._counters.items():
+            lines.append(f"# TYPE {name} counter")
+            lines.append(f"{name} {val}")
+
         return "\n".join(lines) + "\n"
 
 metrics = MetricsTracker()
+

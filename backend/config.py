@@ -101,16 +101,28 @@ class Settings(BaseSettings):
     PORT: int = 8000
     ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:5173", "http://127.0.0.1:5173"]
     
-    @field_validator("ALLOWED_ORIGINS")
+    @field_validator("ALLOWED_ORIGINS", mode="after")
     @classmethod
     def strip_localhost_in_prod(cls, v: List[str], info) -> List[str]:
-        # Access APP_ENV via info.data if we were within a single validator, 
-        # but Settings properties are loaded sequentially.
-        # However, pydantic-settings handles this well. 
-        # We can just check the raw env variable if needed or let it be.
-        if os.getenv("APP_ENV") == "production":
-            return [origin for origin in v if "localhost" not in origin and "127.0.0.1" not in origin]
+        # Use info.data to read the already-parsed APP_ENV value
+        app_env = info.data.get("APP_ENV", os.getenv("APP_ENV", "development"))
+        if app_env == "production":
+            filtered = [
+                origin for origin in v
+                if "localhost" not in origin and "127.0.0.1" not in origin
+            ]
+            if not filtered:
+                raise ValueError(
+                    "ALLOWED_ORIGINS contains only localhost entries but APP_ENV=production. "
+                    "Set ALLOWED_ORIGINS to your production domain."
+                )
+            return filtered
         return v
+
+    # WebAuthn Settings
+    WEBAUTHN_RP_ID: str = "localhost"
+    WEBAUTHN_ORIGIN: str = "http://localhost:5173"
+
     AUTH_COOKIE_NAME: str = "alluci_daemon_token"
     AUTH_COOKIE_SAMESITE: str = "lax"  # Use 'lax' or 'strict' for local dev
     
@@ -176,10 +188,18 @@ class Settings(BaseSettings):
 
     @field_validator("DATABASE_URL")
     @classmethod
-    def enforce_production_db(cls, v: str) -> str:
-        if os.getenv("APP_ENV") == "production" and "sqlite" in v:
-            # Fallback to local postgres if not set
-            return os.getenv("PROD_DATABASE_URL", "postgresql+asyncpg://alluci:password@localhost/polytope")
+    def enforce_production_db(cls, v: str, info) -> str:
+        app_env = info.data.get("APP_ENV", os.getenv("APP_ENV", "development"))
+        if app_env == "production" and "sqlite" in v:
+            prod_url = os.getenv("PROD_DATABASE_URL")
+            if not prod_url:
+                logger.critical(
+                    "\U0001f6a8 FATAL: APP_ENV=production but PROD_DATABASE_URL is not set. "
+                    "SQLite is not suitable for production. "
+                    "Set PROD_DATABASE_URL=postgresql+asyncpg://user:pass@host/dbname"
+                )
+                sys.exit(1)
+            return prod_url
         return v
 
     @field_validator("POLYTOPE_MASTER_KEY")

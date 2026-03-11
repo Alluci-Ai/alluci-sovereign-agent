@@ -304,8 +304,23 @@ class AuditEntry(BaseModel):
     id: str
     event: str
     details: Any
-    hash: str
-    prevHash: str
+    status: str = "INFO"
+    hash: str = ""
+    prevHash: str = ""
+
+class AuditLog(SQLModel, table=True):
+    """Immutable, append-only audit log stored in the database."""
+    __tablename__ = "audit_log"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    event_id: str = Field(index=True)          # UUID from AuditEntry
+    timestamp: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        index=True,
+    )
+    event: str = Field(index=True)
+    details: str = ""
+    status: str = Field(default="INFO")
+    integrity_hash: Optional[str] = None       # SHA-256 of previous entry chain
 
 class Device(SQLModel, table=True):
     """Device identity for node authentication (Sovereign Spec §4.3)."""

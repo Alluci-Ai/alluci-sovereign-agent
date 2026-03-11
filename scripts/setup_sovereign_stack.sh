@@ -1,90 +1,82 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# scripts/setup_sovereign_stack.sh
+# Installs local sovereign inference stack: Ollama, Whisper.cpp, Piper TTS
+set -euo pipefail
 
-# Alluci Sovereign Stack Setup Script (Cross-Platform)
-# Installs Ollama, Whisper.cpp, and Piper TTS for Mac, Linux, and RPi
+echo "═══════════════════════════════════════════════════════"
+echo "  Alluci Sovereign Stack Setup"
+echo "═══════════════════════════════════════════════════════"
 
-echo "--- Initializing Alluci Sovereign Architecture Setup ---"
+OS=$(uname -s)
+ARCH=$(uname -m)
 
-# Detect Architecture
-OS="$(uname -s)"
-ARCH="$(uname -m)"
-echo "[ INFO ]: Detected Platform: $OS ($ARCH)"
-
-# 1. Ollama
-if ! command -v ollama &> /dev/null; then
-    echo "[ INFO ]: Ollama not found. Installing..."
-    if [[ "$OS" == "Darwin" ]]; then
-        brew install --cask ollama
-    elif [[ "$OS" == "Linux" ]]; then
-        curl -fsSL https://ollama.com/install.sh | sh
-    fi
+# ── 1. Ollama ──────────────────────────────────────────────
+echo "[1/4] Installing Ollama..."
+if command -v ollama &>/dev/null; then
+    echo "  Ollama already installed: $(ollama --version)"
 else
-    echo "[ OK ]: Ollama already installed."
+    if [[ "$OS" == "Darwin" ]]; then
+        if command -v brew &>/dev/null; then
+            brew install ollama
+        else
+            curl -fsSL https://ollama.ai/install.sh | sh
+        fi
+    else
+        curl -fsSL https://ollama.ai/install.sh | sh
+    fi
 fi
 
-# 2. Whisper.cpp
-WHISPER_DIR="$HOME/whisper.cpp"
-if [ ! -d "$WHISPER_DIR" ]; then
-    echo "[ INFO ]: Cloning and building Whisper.cpp..."
-    git clone https://github.com/ggerganov/whisper.cpp.git "$WHISPER_DIR"
-    cd "$WHISPER_DIR"
-    
-    if [[ "$OS" == "Darwin" ]]; then
-        echo "[ INFO ]: macOS detected. Enabling Metal GPU inference for Whisper..."
-        WHISPER_METAL=1 make
-    elif [[ "$OS" == "Linux" ]]; then
-        # Check for CUDA
-        if command -v nvidia-smi &> /dev/null; then
-            echo "[ INFO ]: CUDA detected. Enabling GPU offload..."
-            GGML_CUDA=1 make
-        elif command -v rocminfo &> /dev/null; then
-            echo "[ INFO ]: ROCm detected. Enabling AMD GPU offload..."
-            GGML_HIPBLAS=1 make
-        else
-            make
-        fi
-    fi
-    
-    # Download models based on ARCH
-    if [[ "$ARCH" == "aarch64" || "$ARCH" == "arm"* ]]; then
-        if [[ "$OS" == "Darwin" ]]; then
-            echo "[ INFO ]: Apple Silicon detected. Transcribing with 'small' model (Metal optimized)..."
-            bash ./models/download-ggml-model.sh small.en
-        else
-            echo "[ INFO ]: ARM Linux (RPi) detected. Downloading 'tiny' model..."
-            bash ./models/download-ggml-model.sh tiny.en
-        fi
-    elif [[ "$ARCH" == "x86_64" && "$OS" == "Darwin" ]]; then
-        echo "[ INFO ]: Intel Mac detected. Downloading 'tiny' model for CPU efficiency..."
-        bash ./models/download-ggml-model.sh tiny.en
+echo "[2/4] Pulling Llama 3.2 model (default sovereign model)..."
+ollama pull llama3.2
+
+# ── 2. Whisper.cpp ─────────────────────────────────────────
+echo "[3/4] Setting up Whisper.cpp for local ASR..."
+if [[ ! -d "$HOME/.polytope/whisper.cpp" ]]; then
+    git clone https://github.com/ggerganov/whisper.cpp "$HOME/.polytope/whisper.cpp"
+    cd "$HOME/.polytope/whisper.cpp"
+    if [[ "$ARCH" == "arm64" ]] && [[ "$OS" == "Darwin" ]]; then
+        make -j$(sysctl -n hw.physicalcpu) WHISPER_METAL=1
     else
-        echo "[ INFO ]: Standard x86_64 (Linux/Windows) detected. Downloading 'small' model..."
-        bash ./models/download-ggml-model.sh small.en
+        make -j$(nproc 2>/dev/null || echo 4)
     fi
+    bash ./models/download-ggml-model.sh base.en
     cd -
 else
-    echo "[ OK ]: Whisper.cpp found at $WHISPER_DIR."
+    echo "  Whisper.cpp already installed at ~/.polytope/whisper.cpp"
 fi
 
-# 3. Piper TTS
-if ! command -v piper &> /dev/null; then
-    echo "[ INFO ]: Downloading Piper TTS..."
-    PIPER_VERSION="1.2.0"
-    if [[ "$OS" == "Darwin" ]]; then
-        curl -L "https://github.com/rhasspy/piper/releases/download/v${PIPER_VERSION}/piper_macos_x64.tar.gz" -o piper.tar.gz
-    elif [[ "$ARCH" == "aarch64" || "$ARCH" == "arm"* ]]; then
-        curl -L "https://github.com/rhasspy/piper/releases/download/v${PIPER_VERSION}/piper_linux_aarch64.tar.gz" -o piper.tar.gz
+# ── 3. Piper TTS ───────────────────────────────────────────
+echo "[4/4] Setting up Piper TTS..."
+PIPER_DIR="$HOME/.polytope/piper"
+mkdir -p "$PIPER_DIR"
+
+if [[ "$OS" == "Darwin" ]]; then
+    if [[ "$ARCH" == "arm64" ]]; then
+        PIPER_URL="https://github.com/rhasspy/piper/releases/latest/download/piper_macos_aarch64.tar.gz"
     else
-        curl -L "https://github.com/rhasspy/piper/releases/download/v${PIPER_VERSION}/piper_linux_x86_64.tar.gz" -o piper.tar.gz
+        PIPER_URL="https://github.com/rhasspy/piper/releases/latest/download/piper_macos_x64.tar.gz"
     fi
-    
-    mkdir -p piper_tmp && tar -xzf piper.tar.gz -C piper_tmp
-    sudo mv piper_tmp/piper/piper /usr/local/bin/
-    rm -rf piper_tmp piper.tar.gz
-else
-    echo "[ OK ]: Piper already installed."
+elif [[ "$OS" == "Linux" ]]; then
+    PIPER_URL="https://github.com/rhasspy/piper/releases/latest/download/piper_linux_x86_64.tar.gz"
 fi
 
-echo "--- Setup Complete ---"
-echo "[ ACTION ]: Ensure Ollama is running ('ollama serve') and has models pulled."
-echo "[ ACTION ]: Suggested: 'ollama pull mistral' (Desktop) or 'ollama pull phi3:mini' (RPi)."
+if [[ ! -f "$PIPER_DIR/piper" ]]; then
+    curl -L "$PIPER_URL" | tar xz -C "$PIPER_DIR" --strip-components=1
+    curl -L "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/amy/medium/en_US-amy-medium.onnx" \
+         -o "$PIPER_DIR/en_US-amy-medium.onnx"
+    curl -L "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/amy/medium/en_US-amy-medium.onnx.json" \
+         -o "$PIPER_DIR/en_US-amy-medium.onnx.json"
+else
+    echo "  Piper already installed at ~/.polytope/piper"
+fi
+
+# ── Summary ────────────────────────────────────────────────
+echo ""
+echo "═══════════════════════════════════════════════════════"
+echo "  Setup complete! Add these to your .env:"
+echo ""
+echo "  OLLAMA_URL=http://localhost:11434"
+echo "  WHISPER_CPP_PATH=$HOME/.polytope/whisper.cpp/main"
+echo "  PIPER_PATH=$HOME/.polytope/piper/piper"
+echo "  PIPER_MODEL=$HOME/.polytope/piper/en_US-amy-medium.onnx"
+echo "═══════════════════════════════════════════════════════"

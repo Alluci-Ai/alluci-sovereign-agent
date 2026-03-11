@@ -1,0 +1,7 @@
+# requirements-tda.txt  (OPTIONAL — only needed for full PPN/DPK implementation)
+# Install with: pip install -r requirements-tda.txt
+# WARNING: Large download (~2GB for torch). Not required for standard operation.
+
+torch>=2.3.0
+numpy>=1.26.0
+gudhi>=3.9.0

@@ -85,15 +85,27 @@ audit_lock = asyncio.Lock()
 channel_registry: Dict[str, Any] = {}
 
 # --- Input Sanitization ---
+MAX_INPUT_LENGTH = 10_000  # characters — prevents token-cost amplification attacks
+
 async def sanitize_input(text: str) -> str:
-    """Sanitize user input to prevent prompt injection and policy violations."""
-    is_safe, error_msg = await scanner.scan_input(text)
-    if not is_safe:
-        logger.warning(f"[SECURITY] Guardrail Violation: {error_msg}")
-        raise HTTPException(status_code=400, detail=error_msg)
-    
-    # Strip null bytes and excessive whitespace
+    """Sanitize user input. Guards against injection, policy violations, and oversized payloads."""
+    # 1. Length guard (prevents cost-amplification attacks)
+    if len(text) > MAX_INPUT_LENGTH:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Objective exceeds maximum length of {MAX_INPUT_LENGTH} characters."
+        )
+
+    # 2. Null byte strip
     text = text.replace("\x00", "").strip()
+
+    # 3. Guardrail scan — skip if scanner not yet ready (startup window)
+    if scanner is not None:
+        is_safe, error_msg = await scanner.scan_input(text)
+        if not is_safe:
+            logger.warning(f"[SECURITY] Guardrail Violation: {error_msg}")
+            raise HTTPException(status_code=400, detail=error_msg)
+
     return text
 
 
@@ -204,7 +216,6 @@ async def lifespan(app: FastAPI):
 
     # 13. Sprint 1: Config Editor
     config_editor = ConfigEditor(settings)
-    logger.info("DEBUG: Passed config_editor")
 
     # 14. Sprint 2: Channel Adapter Registry
     vault_root = os.path.expanduser("~/.polytope/vaults")
@@ -219,7 +230,6 @@ async def lifespan(app: FastAPI):
     from .bridges.google_chat import GoogleChatBridge
     from .bridges.nostr import NostrBridge
     from .bridges.imessage import IMessageBridge
-    logger.info("DEBUG: Passed bridge imports")
 
     async def broadcast_bridge_event(event: str, data: Any):
         await ws_gw.broadcast_event(event, data)
@@ -233,7 +243,6 @@ async def lifespan(app: FastAPI):
     channel_registry["google_chat"] = GoogleChatBridge("google_chat", vault_root)
     channel_registry["nostr"] = NostrBridge("nostr", vault_root)
     channel_registry["imessage"] = IMessageBridge("imessage", vault_root)
-    logger.info("DEBUG: Passed channel_registry instances")
 
     for ch_name, adapter in channel_registry.items():
         if hasattr(adapter, "on_event"):
@@ -243,7 +252,6 @@ async def lifespan(app: FastAPI):
 
     # Auto-connect channels from vault-stored credentials (non-blocking)
     for ch_name, adapter in channel_registry.items():
-        logger.info(f"DEBUG: Processing channel {ch_name}")
         try:
             # Check if channel is enabled (default True)
             enabled_state = await vault.retrieve_secret(f"channel_{ch_name}_enabled")
@@ -265,21 +273,16 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.debug(f"[ CHANNELS ] {ch_name} connection error during boot: {e}")
             await log_system_event("BRIDGE_CONNECT", f"Critical error during boot connect for {ch_name}: {str(e)}", "ERROR")
-    logger.info("DEBUG: Passed channel auto-connect loop")
 
     # Wire channel registry to cron engine for delivery routing
     cron_engine.channel_registry = channel_registry
 
     # 16. Sprint 4.3: Device Manager
-    logger.info("DEBUG: Before DeviceManager")
     from .device_manager import DeviceManager
     device_manager = DeviceManager(vault_root)
-    logger.info("DEBUG: Passed DeviceManager")
 
     # 15. Background Services
-    logger.info("DEBUG: Before start_background_services")
     await orchestrator.start_background_services()
-    logger.info("DEBUG: After start_background_services")
 
     logger.info("[ POLYTOPE_DAEMON ] All systems nominal. Ready.")
 
@@ -566,9 +569,10 @@ async def get_system_health():
     # 1. Database
     db_status = "healthy"
     try:
-        from sqlmodel import Session, select
-        with Session(analytics.db_engine) as session:
-            session.exec(select(1)).first()
+        from sqlmodel import text
+        with Session(db_engine) as session:
+            session.exec(text("SELECT 1"))
+        db_status = "healthy"
     except Exception:
         db_status = "unhealthy"
 
@@ -577,17 +581,15 @@ async def get_system_health():
 
     # 3. Model Router
     router_status = "unhealthy"
-    if router and router.router and any(p.client for p in router.router.providers.values()):
-        router_status = "healthy"
-    elif router:
-        router_status = "warning" # No providers configured
-    
+    if router:
+        router_status = "warning"  # configured but no providers verified yet
+
     # 4. Local Inference
     local_inference_status = "healthy" if local_inference else "unhealthy"
 
     # 5. Bridges
     active_bridges = list(vault.get_active_vaults()) if vault else []
-    
+
     # 6. Cron Engine Tasks
     cron_status = "healthy" if task_manager else "unhealthy"
 
@@ -598,7 +600,7 @@ async def get_system_health():
         "local_inference": local_inference_status,
         "bridges": len(active_bridges),
         "cron_engine": cron_status,
-        "uptime": time.time() - metrics.start_time
+        "uptime": time.time() - metrics.start_time,
     }
 
 @app.get("/status", dependencies=[Depends(verify_authenticated)])
@@ -1154,31 +1156,32 @@ async def get_audit_ledger():
 
 # --- WebAuthn (Passkeys) Authentication ---
 
-# In-memory challenge store (per-session in production, use Redis)
-_webauthn_challenges: Dict[str, bytes] = {}
+from .security.webauthn_store import webauthn_store
 
 @app.get("/auth/webauthn/challenge")
 async def get_webauthn_challenge():
     """Generates a cryptographic challenge for WebAuthn/FIDO2."""
-    import secrets
-    
-    challenge = secrets.token_bytes(32)
-    b64_challenge = base64.urlsafe_b64encode(challenge).decode().replace("=", "")
-    
-    # Store challenge keyed by the base64 representation for later verification
-    _webauthn_challenges[b64_challenge] = challenge
-    
+    challenge_id, b64_challenge = await webauthn_store.create_challenge()
+
     return {
+        "challengeId": challenge_id,
         "challenge": b64_challenge,
-        "timeout": 60000,
-        "rp": {"name": "Alluci Sovereign Agent", "id": settings.WEBAUTHN_RP_ID if hasattr(settings, 'WEBABAUTHN_RP_ID') else "localhost"},
-        "user": {
-            "id": "ALLUCI_SOVEREIGN_001", 
-            "name": "sovereign_admin", 
-            "displayName": "Sovereign Administrator"
+        "timeout": 120_000,
+        "rp": {
+            "name": "Alluci Sovereign Agent",
+            "id": getattr(settings, "WEBAUTHN_RP_ID", "localhost"),
         },
-        "pubKeyCredParams": [{"type": "public-key", "alg": -7}, {"type": "public-key", "alg": -257}]
+        "user": {
+            "id": "ALLUCI_SOVEREIGN_001",
+            "name": "sovereign_admin",
+            "displayName": "Sovereign Administrator",
+        },
+        "pubKeyCredParams": [
+            {"type": "public-key", "alg": -7},
+            {"type": "public-key", "alg": -257},
+        ],
     }
+
 
 @app.post("/auth/webauthn/verify")
 async def verify_webauthn_response(payload: Dict[str, Any] = Body(...)):
@@ -1187,46 +1190,44 @@ async def verify_webauthn_response(payload: Dict[str, Any] = Body(...)):
         from webauthn import verify_registration_response
         from webauthn.helpers.structs import RegistrationCredential
     except ImportError:
-        logger.error("py_webauthn is not installed. Run: pip install webauthn")
-        raise HTTPException(status_code=501, detail="WebAuthn verification library not available. Install py_webauthn.")
+        raise HTTPException(
+            status_code=501,
+            detail="WebAuthn library not installed. Run: pip install webauthn>=2.0.0"
+        )
 
+    challenge_id = payload.get("challengeId")
     credential_id = payload.get("id")
     raw_id = payload.get("rawId")
     response_data = payload.get("response", {})
-    attestation_object = response_data.get("attestationObject")
-    client_data_json = response_data.get("clientDataJSON")
 
-    if not all([credential_id, raw_id, attestation_object, client_data_json]):
+    if not all([challenge_id, credential_id, raw_id,
+                response_data.get("attestationObject"),
+                response_data.get("clientDataJSON")]):
         raise HTTPException(status_code=400, detail="Missing required WebAuthn fields")
 
-    # Find the matching challenge
-    # The client_data_json contains the challenge used; we check all stored challenges
-    expected_challenge = None
-    challenge_key_to_remove = None
-    for key, challenge_bytes in _webauthn_challenges.items():
-        expected_challenge = challenge_bytes
-        challenge_key_to_remove = key
-        break  # Use the most recent challenge (FIFO in practice)
-
+    # Atomically consume the challenge — prevents replay
+    expected_challenge = await webauthn_store.consume_challenge(challenge_id)
     if expected_challenge is None:
-        raise HTTPException(status_code=400, detail="No pending WebAuthn challenge found. Request a new challenge.")
+        raise HTTPException(status_code=400, detail="Challenge not found or expired.")
 
-    rp_id = settings.WEBAUTHN_RP_ID if hasattr(settings, 'WEBAUTHN_RP_ID') else "localhost"
-    expected_origin = settings.WEBAUTHN_ORIGIN if hasattr(settings, 'WEBAUTHN_ORIGIN') else "http://localhost:3000"
+    rp_id = getattr(settings, "WEBAUTHN_RP_ID", "localhost")
+    expected_origin = getattr(settings, "WEBAUTHN_ORIGIN", "http://localhost:5173")
 
     try:
-        # Build the credential object for py_webauthn
         credential = RegistrationCredential(
             id=credential_id,
             raw_id=base64.urlsafe_b64decode(raw_id + "=="),
             response={
-                "attestation_object": base64.urlsafe_b64decode(attestation_object + "=="),
-                "client_data_json": base64.urlsafe_b64decode(client_data_json + "=="),
+                "attestation_object": base64.urlsafe_b64decode(
+                    response_data["attestationObject"] + "=="
+                ),
+                "client_data_json": base64.urlsafe_b64decode(
+                    response_data["clientDataJSON"] + "=="
+                ),
             },
             type="public-key",
         )
 
-        # Removed unused variable 'verification'
         verify_registration_response(
             credential=credential,
             expected_challenge=expected_challenge,
@@ -1234,11 +1235,7 @@ async def verify_webauthn_response(payload: Dict[str, Any] = Body(...)):
             expected_origin=expected_origin,
         )
 
-        # Clean up used challenge
-        if challenge_key_to_remove:
-            _webauthn_challenges.pop(challenge_key_to_remove, None)
-
-        logger.info(f"WebAuthn verification successful for credential: {credential_id}")
+        logger.info(f"[WEBAUTHN] Verification successful: {credential_id}")
         return {
             "status": "SUCCESS",
             "token": create_access_token({"sub": "sovereign_admin", "webauthn": True}),
@@ -1246,11 +1243,11 @@ async def verify_webauthn_response(payload: Dict[str, Any] = Body(...)):
         }
 
     except Exception as e:
-        logger.warning(f"WebAuthn verification failed: {e}")
-        # Clean up failed challenge to prevent replay
-        if challenge_key_to_remove:
-            _webauthn_challenges.pop(challenge_key_to_remove, None)
-        raise HTTPException(status_code=401, detail=f"WebAuthn verification failed: {type(e).__name__}")
+        logger.warning(f"[WEBAUTHN] Verification failed: {e}")
+        raise HTTPException(
+            status_code=401,
+            detail=f"WebAuthn verification failed: {type(e).__name__}"
+        )
 
 
 
@@ -1496,7 +1493,13 @@ async def gemini_proxy(payload: Dict[str, Any]):
         return {"result": result}
     except HTTPException:
         raise
-        raise HTTPException(status_code=500, detail="Inference request failed.")
+    except Exception as e:
+        error_id = str(uuid.uuid4())
+        logger.error(f"Gemini proxy failed [ref={error_id}]: {e}\n{traceback.format_exc()}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Inference request failed. Error reference: {error_id}"
+        )
 
 @app.post("/api/chat/abort")
 async def abort_chat_generation(request: Request):
@@ -1564,19 +1567,36 @@ async def memory_store(content: str = Body(...), metadata: Optional[Dict[str, An
 
 @app.get("/api/memory", dependencies=[Depends(verify_authenticated)])
 async def list_memory(limit: int = Query(50)):
-    return memory_manager.collection.get(limit=limit)
+    """List recent memory fragments."""
+    if not memory:
+        raise HTTPException(status_code=503, detail="Memory manager not initialized")
+    if memory.lite_mode:
+        return await memory.fts_manager.list(limit=limit)
+    return memory.collection.get(limit=limit)
+
 
 @app.get("/api/memory/search", dependencies=[Depends(verify_authenticated)])
 async def search_memory(q: str = Query(...)):
-    return await memory_manager.recall(q, top_k=10)
+    """Semantic search across the sovereign memory manifold."""
+    if not memory:
+        return []
+    return await memory.search(q, limit=10)
+
 
 @app.get("/api/memory/stats", dependencies=[Depends(verify_authenticated)])
 async def get_memory_stats():
+    """Return memory manifold statistics."""
+    if not memory:
+        raise HTTPException(status_code=503, detail="Memory manager not initialized")
+    if memory.lite_mode:
+        return {"mode": "fts", "count": await memory.fts_manager.count()}
     return {
-        "count": memory_manager.collection.count(),
-        "name": memory_manager.collection.name,
-        "metadata": memory_manager.collection.metadata
+        "mode": "chromadb",
+        "count": memory.collection.count(),
+        "name": memory.collection.name,
+        "metadata": memory.collection.metadata,
     }
+
 
 @app.post("/api/memory/ingest", dependencies=[Depends(verify_authenticated)])
 async def ingest_document(file_path: str = Body(...)):
@@ -1585,9 +1605,13 @@ async def ingest_document(file_path: str = Body(...)):
         raise HTTPException(status_code=501, detail="Document ingestion tool not available")
     return await adapter.execute(file_path)
 
+
 @app.delete("/api/memory/{entry_id}", dependencies=[Depends(verify_authenticated)])
 async def forget_memory(entry_id: str):
-    await memory_manager.forget(entry_id)
+    """Remove a specific memory fragment."""
+    if not memory:
+        raise HTTPException(status_code=503, detail="Memory manager not initialized")
+    await memory.forget(entry_id)
     return {"deleted": entry_id}
 
 # --- Cognitive Goals & SOPs ---
@@ -1897,12 +1921,15 @@ async def telegram_webhook(token: str, update: Dict[str, Any] = Body(...)):
     adapter = channel_registry.get("telegram")
     if not adapter or not hasattr(adapter, "process_webhook"):
         return {"ok": False, "error": "Adapter not ready"}
-    
-    # Optional: check token against vault-stored token for security
-    
+
+    # Security: validate the token matches the stored bot token
+    if adapter.is_connected and adapter.bot_token and adapter.bot_token != token:
+        logger.warning("[TELEGRAM] Webhook received with invalid token — rejected.")
+        return {"ok": False, "error": "unauthorized"}
+
     parsed = await adapter.process_webhook(update)
-    if parsed:
-        await orchestrator.handle_inbound_message(parsed)
+    if parsed and orchestrator:
+        asyncio.create_task(orchestrator.handle_inbound_message(parsed))
     return {"ok": True}
 
 
@@ -2252,68 +2279,6 @@ async def connect_channel(channel_id: str, data: Dict[str, Any] = Body(...)):
         raise HTTPException(status_code=400, detail=f"Connection failed: {getattr(adapter, 'last_error', 'Unknown error')}")
     
     return {"status": "connected", "channel": channel_id}
-
-
-# ── Webhook Inbound Handlers (Sprint 2 — Sovereign Spec §2.1–2.2) ──
-
-@app.post("/webhook/telegram/{token}")
-async def telegram_webhook(token: str, update: Dict[str, Any]):
-    """Inbound webhook for Telegram messages."""
-    adapter = channel_registry.get("telegram")
-    if not adapter or not adapter.is_connected or adapter.bot_token != token:
-        return {"ok": False, "error": "unauthorized"}
-
-    parsed = await adapter.process_webhook(update)
-    if parsed and orchestrator:
-        # Trigger autonomous turn if enabled
-        asyncio.create_task(orchestrator.handle_inbound_message(parsed))
-    
-    return {"ok": True}
-
-
-@app.get("/webhook/whatsapp")
-async def whatsapp_verify(
-    mode: str = Query(None, alias="hub.mode"),
-    token: str = Query(None, alias="hub.verify_token"),
-    challenge: str = Query(None, alias="hub.challenge"),
-):
-    """WhatsApp verification endpoint (GET)."""
-    adapter = channel_registry.get("whatsapp")
-    if not adapter:
-        raise HTTPException(status_code=404)
-    
-    res = adapter.verify_webhook(mode, token, challenge)
-    if res:
-        return Response(content=res)
-    raise HTTPException(status_code=403)
-
-
-@app.post("/webhook/whatsapp")
-async def whatsapp_webhook(body: Dict[str, Any]):
-    """WhatsApp inbound payload handler (POST)."""
-    adapter = channel_registry.get("whatsapp")
-    if not adapter or not adapter.is_connected:
-        return {"status": "ignored"}
-
-    parsed_list = adapter.process_webhook_event(body)
-    if parsed_list and orchestrator:
-        for msg in parsed_list:
-            asyncio.create_task(orchestrator.handle_inbound_message(msg))
-            
-    return {"status": "received"}
-
-
-@app.post("/webhook/google_chat")
-async def google_chat_webhook(payload: Dict[str, Any]):
-    """Google Chat App events handler."""
-    adapter = channel_registry.get("google_chat")
-    if not adapter or not adapter.is_connected:
-        return {"status": "ignored"}
-        
-    parsed = await adapter.process_event(payload)
-    if parsed and orchestrator:
-        asyncio.create_task(orchestrator.handle_inbound_message(parsed))
-    return {"status": "success"}
 
 
 
@@ -2819,21 +2784,61 @@ async def oauth_authorize(bridge_id: str):
     auth_url = f"{config['authorize_url']}?{urllib.parse.urlencode(params)}"
     return {"authorize_url": auth_url}
 
+_VALID_BRIDGE_IDS = frozenset([
+    "telegram", "whatsapp", "discord", "slack", "email", "signal",
+    "google_chat", "nostr", "imessage", "gdrive", "gmail", "gm", "gd",
+    "msteams", "facebook", "instagram", "x_twitter", "wechat",
+])
+
 @app.get("/api/oauth/{bridge_id}/callback")
 async def oauth_callback(bridge_id: str, code: str = Query(None), state: str = Query(None)):
     """Generic OAuth callback endpoint for all OAuth-based bridges."""
-    if bridge_id not in channel_registry:
+
+    # Security: validate bridge_id against known set before any string interpolation
+    if bridge_id not in _VALID_BRIDGE_IDS:
+        logger.warning(f"[OAUTH] Callback received for unknown bridge_id: '{bridge_id}'")
         from fastapi.responses import HTMLResponse
-        return HTMLResponse("<script>window.opener.postMessage({ type: 'OAUTH_COMPLETE', bridgeId: '" + bridge_id + "', error: 'Bridge not found' }, '*'); window.close();</script>")
-    adapter = channel_registry[bridge_id]
+        return HTMLResponse(
+            "<script>"
+            "window.opener && window.opener.postMessage("
+            "  JSON.stringify({ type: 'OAUTH_COMPLETE', error: 'invalid_bridge' }),"
+            "  window.location.origin"
+            ");"
+            "window.close();"
+            "</script>",
+            status_code=400,
+        )
+
+    # Use JSON.stringify so the data is safely serialised — no string interpolation
+    def _make_response(success: bool, error: str = "") -> "HTMLResponse":
+        from fastapi.responses import HTMLResponse
+        import json as _json
+        payload = _json.dumps({
+            "type": "OAUTH_COMPLETE",
+            "bridgeId": bridge_id,
+            "success": success,
+            "error": error,
+        })
+        return HTMLResponse(
+            f"<script>"
+            f"window.opener && window.opener.postMessage({payload}, window.location.origin);"
+            f"window.close();"
+            f"</script>"
+        )
+
+    adapter = channel_registry.get(bridge_id)
+    if not adapter:
+        return _make_response(False, "bridge_not_found")
+
     if hasattr(adapter, "handle_oauth_callback"):
-        result = await adapter.handle_oauth_callback(code, state)
-        # Assuming the adapter handles saving creds internally and we just want to close the popup
-        from fastapi.responses import HTMLResponse
-        return HTMLResponse("<script>window.opener.postMessage({ type: 'OAUTH_COMPLETE', bridgeId: '" + bridge_id + "', success: true }, '*'); window.close();</script>")
-    
-    from fastapi.responses import HTMLResponse
-    return HTMLResponse("<script>window.opener.postMessage({ type: 'OAUTH_COMPLETE', bridgeId: '" + bridge_id + "', error: 'OAuth not implemented' }, '*'); window.close();</script>")
+        try:
+            await adapter.handle_oauth_callback(code, state)
+            return _make_response(True)
+        except Exception as e:
+            logger.error(f"[OAUTH] Callback error for {bridge_id}: {e}")
+            return _make_response(False, "callback_error")
+
+    return _make_response(False, "oauth_not_implemented")
 
 @app.get("/api/channels/wechat/qr-init")
 async def wechat_qr_init():
