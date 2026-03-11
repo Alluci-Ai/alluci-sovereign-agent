@@ -62,6 +62,7 @@ import { WalletPanel } from './features/wallet/WalletPanel';
 import { NodePanel } from './features/wallet/NodePanel';
 import { MemoryPanel } from './features/memory/MemoryPanel';
 import { DAGPanel } from './features/dag/DAGPanel';
+import PVTDashboard from './features/observability/PVTDashboard';
 import { useTranslation } from 'react-i18next';
 import './styles/dag.css';
 
@@ -139,6 +140,20 @@ const App: React.FC = () => {
               tokenCount: params.tokenCount,
               timestamp: new Date().toISOString()
             }]);
+          } else if (method === 'manifold.pvt') {
+            // PVT Health Dashboard real-time update
+            useStore.getState().setPvtHealth({
+              P: params.P ?? 0,
+              V: params.V ?? 1,
+              T: params.T ?? 0,
+              psi: params.psi ?? 0,
+              coherence: params.coherence ?? 1,
+              status: params.status ?? 'HEALTHY',
+              isRuptured: params.is_ruptured ?? false,
+              phi_total: params.phi_total ?? 0
+            });
+          } else if (method === 'manifold.rupture') {
+            useStore.getState().setPvtHealth({ isRuptured: true });
           }
         },
         onOpen: () => setIsConnected(true),
@@ -516,13 +531,19 @@ const App: React.FC = () => {
       case 'logs':
         return <LogPanel />;
       case 'crons':
-        return <CronPanel />;
+        return (
+          <div className="inline-panel-wrapper">
+            <CronPanel />
+          </div>
+        );
       case 'agents':
         return <AgentsPanel />;
       case 'debug':
         return <DebugPanel />;
       case 'dag':
         return <DAGPanel />;
+      case 'pvt':
+        return <PVTDashboard />;
       case 'chat':
       default:
         return (

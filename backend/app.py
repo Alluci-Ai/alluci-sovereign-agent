@@ -350,17 +350,55 @@ async def voice_synthesise(text: str = Query(...)):
 
 @app.post("/api/telemetry", dependencies=[Depends(verify_authenticated)])
 async def post_telemetry(data: TelemetryData):
-    """Ingests biometric telemetry from companion devices (P4-003)."""
+    """
+    Ingests biometric telemetry from companion devices (Apple Watch, etc.)
+    Unifies ACE processing, Sovereign Memory storage, and Harmonic Enhancer synchronization.
+    """
     if not ace:
         raise HTTPException(status_code=503, detail="Affective Engine not initialized")
     
-    # Process the data through ACE
+    # 1. Process data through the Affective Computing Engine (ACE)
     flow_result = ace.process_telemetry(data)
     
-    # Return the updated state
+    source = data.device_id if hasattr(data, "device_id") and data.device_id else "companion_device"
+    
+    # 2. Cognitive Pipeline — Store affective state in Sovereign Memory
+    if memory:
+        try:
+            await memory.store(
+                content=f"Biometrics ({source}): {flow_result.get('mode')} - {flow_result.get('reason')}",
+                metadata={
+                    "type": "biometric_telemetry",
+                    "source": source,
+                    "valence": data.valence,
+                    "arousal": data.arousal,
+                    "focus": data.focus
+                }
+            )
+        except Exception as e:
+            logger.warning(f"Failed to store ACE state in memory: {e}")
+
+    # 3. Forward to Orchestrator's Harmonic Enhancer (updates UI agent reflection)
+    try:
+        if orchestrator and hasattr(orchestrator, 'harmonic') and orchestrator.harmonic:
+            from .harmonic_enhancer import AttentionSignal
+            signal = AttentionSignal(
+                valence=data.valence or 0.5,
+                arousal=data.arousal or 0.5,
+                focus=data.focus or 0.5
+            )
+            await orchestrator.harmonic.tick(signal)
+    except Exception as e:
+        logger.warning(f"Harmonic Enhancer tick failed: {e}")
+        
+    logger.info(f"[ TELEMETRY ]: Biometrics ingested from {source}. Flow Status: {flow_result.get('mode')}")
+    
+    # Return the unified state response
     return {
         "status": "SUCCESS",
         "flow_state": flow_result,
+        "resonance": ace.current_state["physical_vitality"],
+        "flow_intervention": flow_result, # For legacy UI compat
         "current_metrics": {
             "stress_score": ace.current_state["stress_score"],
             "vitality": ace.current_state["physical_vitality"],
@@ -839,46 +877,6 @@ async def execute_objective(req: ObjectiveRequest):
             detail=f"Objective execution failed. Error reference: {error_id}"
         )
 
-
-# --- Telemetry ---
-
-@app.post("/telemetry", dependencies=[Depends(verify_authenticated)])
-async def ingest_telemetry(data: TelemetryData):
-    result = ace.process_telemetry(data)
-    
-    # P1-002: Cognitive Pipeline — Store affective state in memory
-    if memory:
-        try:
-            await memory.store(
-                content=f"Affective State: {result.get('mode')} - {result.get('reason')}",
-                metadata={
-                    "type": "ace_state",
-                    "valence": data.valence,
-                    "arousal": data.arousal,
-                    "focus": data.focus
-                }
-            )
-        except Exception as e:
-            logger.warning(f"Failed to store ACE state in memory: {e}")
-
-    # Forward to orchestrator's harmonic enhancer if it exists
-    try:
-        if orchestrator and hasattr(orchestrator, 'harmonic') and orchestrator.harmonic:
-            from .harmonic_enhancer import AttentionSignal
-            signal = AttentionSignal(
-                valence=data.valence or 0.5,
-                arousal=data.arousal or 0.5,
-                focus=data.focus or 0.5
-            )
-            await orchestrator.harmonic.tick(signal)
-    except Exception as e:
-        logger.warning(f"Harmonic Enhancer tick failed: {e}")
-
-    return {
-        "status": "ok",
-        "mode": result.get("mode"),
-        "reason": result.get("reason")
-    }
 
 # --- Manifold Sovereignty (Sprint 4) ---
 
@@ -1516,37 +1514,6 @@ async def abort_chat_generation(request: Request):
     except Exception as e:
         logger.error(f"Failed to abort generation: {e}")
         return {"status": "error", "message": str(e)}
-
-# --- iWatch Biometrics Bridge ---
-
-@app.post("/api/bridge/iwatch/biometrics", dependencies=[Depends(verify_authenticated)])
-async def ingest_iwatch_biometrics(data: TelemetryData):
-    """
-    Ingests real-time HealthKit metrics from Apple Watch.
-    Integrates results into the Affective Computing Engine (ACE).
-    """
-    try:
-        # Process through ACE
-        flow_update = ace.process_telemetry(data)
-        
-        # P1-002: Cognitive Pipeline
-        if memory:
-            await memory.store(
-                content=f"iWatch Biometrics: {flow_update.get('mode')} - {flow_update.get('reason')}",
-                metadata={"type": "iwatch_biometrics", "source": "apple_watch"}
-            )
-        
-        # Log to vault conceptually
-        logger.info(f"[ IWATCH_BRIDGE ]: Biometrics ingested. Flow Status: {flow_update['mode']}")
-        
-        return {
-            "status": "SUCCESS",
-            "resonance": ace.current_state["physical_vitality"],
-            "flow_intervention": flow_update
-        }
-    except Exception as e:
-        logger.error(f"iWatch bridge ingestion error: {e}")
-        raise HTTPException(status_code=500, detail="Biometric ingestion failed.")
 
 # --- Persistent Memory Manifold ---
 
@@ -2883,11 +2850,38 @@ async def imessage_permission():
     raise HTTPException(status_code=501, detail="iMessage permissions not implemented")
 
 @app.post("/api/channels/iwatch/pair")
-async def iwatch_pair(data: Dict[str, str] = Body(...)):
+async def iwatch_pair():
+    """
+    Step 1 of Apple Watch pairing.
+    Generates a cryptographically secure base32 TOTP secret.
+    """
     adapter = channel_registry.get("iwatch")
-    if hasattr(adapter, "submit_pairing_code"):
-        return await adapter.submit_pairing_code(data.get("code"))
-    raise HTTPException(status_code=501, detail="iWatch pairing not implemented")
+    if not adapter: raise HTTPException(404, "Adapter not found")
+    import pyotp
+    secret = pyotp.random_base32()
+    adapter.pending_totp_secret = secret
+    uri = pyotp.totp.TOTP(secret).provisioning_uri(name="Sovereign Agent", issuer_name="Alluci")
+    return {"status": "SUCCESS", "secret": secret, "provisioning_uri": uri}
+
+@app.post("/api/channels/iwatch/pair/verify")
+async def iwatch_pair_verify(data: Dict[str, str] = Body(...)):
+    """
+    Step 2 of Apple Watch pairing.
+    Validates the 6-digit code generated by the Watch to verify the secret sync.
+    """
+    code = data.get("code")
+    if not code: raise HTTPException(400, "Missing 'code' parameter")
+    adapter = channel_registry.get("iwatch")
+    if not adapter: raise HTTPException(404, "Adapter not found")
+    
+    result = await adapter.submit_pairing_code(code)
+    if result.get("paired"):
+        credentials = result.get("credentials", {})
+        await vault.store_secret("channel_iwatch", credentials)
+        await log_system_event("DEVICE_PAIR", "Apple Watch successfully paired via TOTP.", "SUCCESS")
+        return {"status": "SUCCESS", "message": "Apple Watch Paired."}
+        
+    raise HTTPException(status_code=401, detail=result.get("error", "Pairing failed"))
 
 if __name__ == "__main__":
     import uvicorn

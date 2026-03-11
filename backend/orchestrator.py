@@ -32,6 +32,7 @@ from .security.health_monitor import PVTManifoldHealthMonitor
 from .security.audit_log import TopologicalAuditLog
 from .ace.memory_decay import MemoryTopologyDecay
 from .inference.ppn import PPNEmbeddingModule
+from .inference.holoid import HoloidConsensus
 
 class ExecutiveOrchestrator:
     def __init__(self, router: ModelRouter, vault: VaultManager, ace: AffectiveEngine, 
@@ -341,9 +342,45 @@ class ExecutiveOrchestrator:
         # 1a. PVT Health Monitor (AAP-004)
         if polytope_state:
             health_report = self.health_monitor.evaluate(polytope_state)
+            
+            # PVT WebSocket Push — broadcast to all connected clients
+            if hasattr(self, 'ws_gateway') and self.ws_gateway:
+                try:
+                    pvt = health_report.get("pvt", {})
+                    await self.ws_gateway.broadcast_event('manifold.pvt', {
+                        "P": pvt.get("P", 0.0),
+                        "V": pvt.get("V", 1.0),
+                        "T": pvt.get("T", 0.0),
+                        "psi": health_report.get("psi", 0.0),
+                        "coherence": health_report.get("coherence", 0.0),
+                        "status": health_report["status"],
+                        "is_ruptured": health_report.get("is_ruptured", False),
+                        "phi_total": health_report.get("phi_total", 0)
+                    })
+                except Exception as e:
+                    self.logger.debug(f"PVT broadcast failed: {e}")
+            
+            # Manifold Rupture Safe-Halt (g=0)
+            if health_report.get("is_ruptured", False):
+                self.logger.critical(f"🛑 MANIFOLD RUPTURE DETECTED (T={health_report['pvt']['T']:.3f}). g=0 Safe-Halt.")
+                if hasattr(self, 'ws_gateway') and self.ws_gateway:
+                    try:
+                        await self.ws_gateway.broadcast_event('manifold.rupture', {
+                            "pvt": health_report.get("pvt", {}),
+                            "issues": health_report.get("issues", []),
+                            "action": "SAFE_HALT"
+                        })
+                    except Exception:
+                        pass
+                return {
+                    "status": "halted",
+                    "reason": "Manifold rupture detected — g=0 safe-halt engaged",
+                    "pvt": health_report.get("pvt", {}),
+                    "issues": health_report.get("issues", [])
+                }
+            
             if health_report["status"] == "CRITICAL":
                 self.logger.critical(f"🛑 CRITICAL MANIFOLD HEALTH: {health_report['issues']}")
-                # Continue for now, but in strict mode we could halt.
 
         # 2. Create DB Run Record
         run_id = self._create_run_record(objective, autonomy)
@@ -454,12 +491,9 @@ class ExecutiveOrchestrator:
                 }
             
             # --- Audit Logging (AAP-005) ---
-            if polytope_state and hasattr(self, "geodesic_cost"):
-                # Goal Betti is conceptually [1, 1, 1] for a stable 3D manifold
-                goal_betti = torch.tensor([1, 1, 1])
             if polytope_state:
+                # Compute geodesic drift with KCM
                 if hasattr(self, "geodesic_cost"):
-                    # Goal Betti is conceptually [1, 1, 1] for a stable 3D manifold
                     goal_betti = torch.tensor([1, 1, 1])
                     drift = self.geodesic_cost.compute(
                         torch.tensor(polytope_state.betti), 
@@ -467,7 +501,10 @@ class ExecutiveOrchestrator:
                         psi=polytope_state.affective_tension_psi
                     )
                     self.logger.info(f"📈 Manifold Geodesic Drift: {drift:.4f}")
-                self.audit_log.log_entry(objective, polytope_state, results_summary)
+                
+                # Log with PVT triple for forensic reconstruction
+                pvt_triple = self.health_monitor.get_last_pvt() if hasattr(self, 'health_monitor') else None
+                self.audit_log.log_entry(objective, polytope_state, results_summary, pvt=pvt_triple)
            
             # --- AVL Security Gate (PPN-006) ---
             # Verify the completion against the manifold state

@@ -29,7 +29,7 @@ export const ObjectiveSubmitBar: React.FC<Props> = ({ onSubmit, onPreview }) => 
 
   return (
     <div style={{
-      padding: '12px 14px', borderTop: '1px solid var(--separator)',
+      padding: '12px 14px', borderBottom: '1px solid var(--separator)',
       background: 'var(--glass-bg)',
       backdropFilter: 'var(--glass-blur)',
       WebkitBackdropFilter: 'var(--glass-blur)',

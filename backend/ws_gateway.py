@@ -122,6 +122,8 @@ class JsonRpcGateway:
                             schema={"params": {"phone_number": "str", "use_voice": "bool"}, "description": "Initiate Signal account registration."})
         self.register_method("signal.verify", self._rpc_signal_verify,
                             schema={"params": {"phone_number": "str", "code": "str"}, "description": "Finalize Signal anchoring with SMS/Voice code."})
+        self.register_method("manifold.pvt", self._rpc_manifold_pvt,
+                            schema={"description": "Query the current PVT (Pressure/Volume/Temperature) manifold health state."})
 
     def register_method(self, name: str, handler, schema: Dict[str, Any] = None):
         """Register a JSON-RPC method with optional schema documentation."""
@@ -508,3 +510,20 @@ class JsonRpcGateway:
                 db.commit()
         except Exception as e:
             logger.debug(f"[WS] Failed to record presence for {client.client_id}: {e}")
+
+    async def _rpc_manifold_pvt(self, params: dict, client: ConnectedClient) -> dict:
+        """RPC method: Return the current PVT manifold health state."""
+        orchestrator = self._service_refs.get("orchestrator")
+        if not orchestrator:
+            return {"error": "Orchestrator not available"}
+
+        health_monitor = getattr(orchestrator, "health_monitor", None)
+        if not health_monitor:
+            return {"error": "Health monitor not initialized"}
+
+        pvt = health_monitor.get_last_pvt()
+        return {
+            "pvt": pvt,
+            "is_ruptured": health_monitor.is_ruptured(),
+            "rupture_threshold": health_monitor.RUPTURE_THRESHOLD
+        }

@@ -1,6 +1,7 @@
 
 import json
 import logging
+import math
 import httpx
 from typing import Literal, Dict, Any, List
 
@@ -275,10 +276,28 @@ class ModelRouter:
 
     async def get_response(self, prompt: str, complexity: Literal["LOW", "MEDIUM", "HIGH"] = "MEDIUM", psi: float = 0.0) -> str:
         """Get a response with automatic failover across providers."""
-        # AAP-002: ψ-Modulated Model Routing.
-        # High Tension (ψ > 0.8) triggers automatic routing to "Strong" models
-        # to ensure manifold stability.
-        use_strong = (complexity == "HIGH") or (psi > 0.8)
+        # AAP-002: ψ-Modulated Model Routing via KCM Hyperbolic Penalty.
+        # High Tension (ψ > 0.7) triggers cosh() penalty on Strong models,
+        # forcing routing to Light/deterministic models for safety.
+        use_strong = (complexity == "HIGH")
+        use_tactical = False
+        
+        if psi > 0.0:
+            # KCM Hyperbolic Penalty: cosh(ψ) × latency
+            strong_penalty = math.cosh(psi) * 3000.0  # Strong model ~3s latency
+            light_penalty = math.cosh(psi) * 200.0    # Light model ~200ms latency
+            
+            if strong_penalty > 2.0 * light_penalty and psi > 0.7:
+                # High tension: force tactical/light model
+                use_tactical = True
+                use_strong = False
+                self.logger.info(f"[KCM] ψ={psi:.2f} → Routing to Light model (penalty={strong_penalty:.0f} vs {light_penalty:.0f})")
+            elif psi > 0.8:
+                # Very high tension but no extreme penalty: still use strong for stability
+                use_strong = True
+        
+        if not use_tactical:
+            use_strong = use_strong or (complexity == "HIGH") or (psi > 0.8)
         
         # Only activate JSON mode when the prompt explicitly requests JSON output
         # not just any mention of the word "json" in the content.
@@ -288,6 +307,16 @@ class ModelRouter:
             prompt.lower()
         ))
         errors = []
+
+        # KCM Tactical Shortcut: if high-tension routing selected "light",
+        # attempt Groq LPU first for sub-second deterministic response
+        if use_tactical and self.groq_api_key:
+            try:
+                self.logger.info("[KCM] Tactical routing → Groq LPU")
+                return await self.get_fast_tactical_response(prompt)
+            except Exception as e:
+                errors.append(f"Groq (tactical): {e}")
+                self.logger.warning(f"Tactical Groq failed, falling through: {e}")
 
         # Attempt 1: Gemini
         if self.gemini_flash or self.gemini_pro:

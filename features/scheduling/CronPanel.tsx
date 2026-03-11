@@ -199,7 +199,7 @@ export const CronPanel: React.FC = () => {
                 {/* Filters Mirroring TaskPanel */}
                 <div style={{
                     display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end',
-                    padding: '14px 16px', borderRadius: 16,
+                    padding: 14, borderRadius: 12,
                     background: 'var(--fill-quaternary)',
                     border: '1px solid var(--separator)',
                     boxShadow: 'var(--liquid-inner-glow)',
@@ -245,7 +245,7 @@ export const CronPanel: React.FC = () => {
             </div>
 
             {/* Cron List Mirroring Task List Style */}
-            <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20, paddingRight: 4 }} className="scrollbar-hide">
+            <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16, paddingRight: 4 }} className="scrollbar-hide">
                 {loading ? (
                     <div className="flex items-center justify-center h-48 opacity-40 font-mono text-xs tracking-widest animate-pulse">SYNCING_CRON_MANIFOLD...</div>
                 ) : filteredJobs.length === 0 ? (
@@ -318,7 +318,7 @@ export const CronPanel: React.FC = () => {
             {/* Quick Add Bottom Bar Mirroring TaskPanel */}
             <div style={{
                 display: 'flex', gap: 8, alignItems: 'center',
-                padding: '12px 14px', borderRadius: 16,
+                padding: 12, borderRadius: 12,
                 background: 'var(--fill-quaternary)',
                 border: '1px solid var(--separator)',
                 boxShadow: 'var(--glass-shadow-lg)',
@@ -327,7 +327,7 @@ export const CronPanel: React.FC = () => {
                     value={newType}
                     onChange={(e) => setNewType(e.target.value as any)}
                     className="glass-input"
-                    style={{ width: 110, fontSize: 12, padding: '7px 8px', borderRadius: 10 }}
+                    style={{ width: 110, fontSize: 12, padding: '6px 6px' }}
                 >
                     <option value="interval">Interval</option>
                     <option value="cron">Cron Expr</option>
@@ -339,7 +339,7 @@ export const CronPanel: React.FC = () => {
                     onKeyDown={(e) => e.key === 'Enter' && handleQuickAdd()}
                     placeholder="Scheduler Label..."
                     className="glass-input"
-                    style={{ flex: 1, fontSize: 13, padding: '8px 12px', borderRadius: 10 }}
+                    style={{ flex: 1, fontSize: 13 }}
                 />
                 <input
                     value={newValue}
@@ -347,12 +347,12 @@ export const CronPanel: React.FC = () => {
                     onKeyDown={(e) => e.key === 'Enter' && handleQuickAdd()}
                     placeholder={newType === 'interval' ? 'Minutes (e.g. 60)' : 'Value...'}
                     className="glass-input"
-                    style={{ width: 150, fontSize: 12, padding: '8px 12px', borderRadius: 10 }}
+                    style={{ width: 150, fontSize: 12 }}
                 />
                 <button
                     onClick={handleQuickAdd}
                     className="glass-btn glass-btn--primary"
-                    style={{ fontSize: 12, padding: '0 16px', height: 36, borderRadius: 10, flexShrink: 0 }}
+                    style={{ fontSize: 12, padding: '6px 16px', flexShrink: 0 }}
                 >
                     Add Scheduler
                 </button>

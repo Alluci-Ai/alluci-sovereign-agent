@@ -12,7 +12,7 @@ export type ActiveView =
     | 'chat' | 'soul' | 'skills' | 'bridges' | 'memory'
     | 'api' | 'tasks' | 'files' | 'audit' | 'canvas'
     | 'sessions' | 'analytics' | 'crons'
-    | 'agents' | 'config' | 'logs' | 'debug' | 'wallet' | 'node' | 'dag';
+    | 'agents' | 'config' | 'logs' | 'debug' | 'wallet' | 'node' | 'dag' | 'pvt';
 export type Theme = 'light' | 'dark';
 
 export interface AppState {
@@ -165,6 +165,15 @@ export interface AppState {
     // DAG Planner
     activeRunId: number | null;
     setActiveRunId: (id: number | null) => void;
+
+    // PVT Health Dashboard
+    pvtHealth: {
+        P: number; V: number; T: number;
+        psi: number; coherence: number;
+        status: string; isRuptured: boolean;
+        phi_total: number;
+    };
+    setPvtHealth: (val: Partial<AppState['pvtHealth']>) => void;
 }
 
 export const useStore = create<AppState>((set) => ({
@@ -346,4 +355,15 @@ export const useStore = create<AppState>((set) => ({
     // DAG Planner
     activeRunId: null,
     setActiveRunId: (id) => set({ activeRunId: id }),
+
+    // PVT Health Dashboard
+    pvtHealth: {
+        P: 0.0, V: 1.0, T: 0.0,
+        psi: 0.0, coherence: 1.0,
+        status: 'HEALTHY', isRuptured: false,
+        phi_total: 0
+    },
+    setPvtHealth: (val) => set((state) => ({
+        pvtHealth: { ...state.pvtHealth, ...val }
+    })),
 }));

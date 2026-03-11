@@ -23,7 +23,8 @@ async def test_objective_execute_success(mock_router, temp_db, mock_adapter_regi
              coherence=1.0,
              budget_used=0.1,
              affective_tension_psi=0.1,
-             phi_total=1.0
+             phi_total=1.0,
+             betti=[1, 0, 0]
          ))):
         
         vault = VaultManager(key, vault_root=vdir)

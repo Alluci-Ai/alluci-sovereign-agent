@@ -93,7 +93,7 @@ export const DAGPanel: React.FC = () => {
     : runs;
 
   return (
-    <div data-testid="dag-panel" className="inline-panel-wrapper" style={{ flexDirection: 'row', gap: 0 }}>
+    <div data-testid="dag-panel" className="inline-panel-wrapper" style={{ display: 'flex', flexDirection: 'row', gap: 0, padding: 0, height: '100%', overflow: 'hidden' }}>
 
       {/* Left: Run List Sidebar */}
       <RunListSidebar
@@ -108,6 +108,11 @@ export const DAGPanel: React.FC = () => {
 
       {/* Right: Detail Column */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, position: 'relative' }}>
+        {/* Submit Bar — always visible at the top */}
+        <ObjectiveSubmitBar
+          onSubmit={handleObjectiveSubmit}
+          onPreview={setPreviewObjective}
+        />
 
         {selectedRun ? (
           <>
@@ -138,12 +143,6 @@ export const DAGPanel: React.FC = () => {
             </p>
           </div>
         )}
-
-        {/* Submit Bar — always visible */}
-        <ObjectiveSubmitBar
-          onSubmit={handleObjectiveSubmit}
-          onPreview={setPreviewObjective}
-        />
       </div>
 
       {/* Task Detail Drawer */}

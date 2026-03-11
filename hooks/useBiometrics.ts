@@ -7,52 +7,37 @@ export const useBiometrics = () => {
     const { biometrics, updateBiometrics, setHarmonicStatus } = useStore();
 
     useEffect(() => {
-        // [ BIOMETRIC_SIMULATION ]
-        // Only active in demo mode to prevent production data pollution
-        if (import.meta.env.VITE_DEMO_MODE !== 'true') return;
-
-        const interval = setInterval(async () => {
-            // Subtle variations
-            const nextHR = Math.floor(70 + Math.random() * 10);
-            const nextHRV = Math.floor(50 + Math.random() * 15);
-            const nextRR = 12 + Math.random() * 4;
-
-            updateBiometrics({ hr: nextHR, hrv: nextHRV, respiratoryRate: nextRR });
-
-            // Push to backend
-            try {
-                const res = await fetch(`${DAEMON_URL}/api/bridge/iwatch/biometrics`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        hr: nextHR,
-                        hrv: nextHRV,
-                        respiratory_rate: nextRR,
-                        sleep_efficiency: biometrics.sleepEfficiency,
-                        valence: biometrics.emotional,
-                        arousal: biometrics.physical,
-                        focus: biometrics.cognitive
-                    })
+        // [ BIOMETRIC_INTEGRATION ]
+        // We now rely on the WebSocket gateway pushing 'system.telemetry' events from the backend.
+        // The mock generator has been removed for production readiness.
+        
+        const handleTelemetry = (event: CustomEvent) => {
+            const data = event.detail;
+            
+            // Only update if we receive real biometric data points
+            if (data && (data.hr || data.hrv || data.respiratory_rate)) {
+                updateBiometrics({ 
+                    hr: data.hr || biometrics.hr, 
+                    hrv: data.hrv || biometrics.hrv, 
+                    respiratoryRate: data.respiratory_rate || biometrics.respiratoryRate 
                 });
-                const data = await res.json();
-                if (data.flow_intervention) {
-                    if (data.flow_intervention.mode === 'RECOVERY_MODE') {
-                        setHarmonicStatus('Stress_Basin');
-                    } else if (data.flow_intervention.mode === 'PEAK_PERFORMANCE') {
-                        setHarmonicStatus('Nominal');
-                    }
-                }
-            } catch (e) {
-                // Silently fail or log to audit
             }
-        }, 5000);
-        return () => clearInterval(interval);
-    }, [
-        biometrics.emotional,
-        biometrics.physical,
-        biometrics.cognitive,
-        biometrics.sleepEfficiency,
-        updateBiometrics,
-        setHarmonicStatus
-    ]);
+            
+            // Sync Harmonic Status based on Flow Intervention mode
+            if (data.flow_intervention) {
+                if (data.flow_intervention.mode === 'RECOVERY_MODE') {
+                    setHarmonicStatus('Stress_Basin');
+                } else if (data.flow_intervention.mode === 'PEAK_PERFORMANCE') {
+                    setHarmonicStatus('Nominal');
+                }
+            }
+        };
+
+        // Listen for standard WebSocket telemetry events dispatched by the App container
+        window.addEventListener('alluci.system.telemetry', handleTelemetry as EventListener);
+        
+        return () => {
+            window.removeEventListener('alluci.system.telemetry', handleTelemetry as EventListener);
+        };
+    }, [updateBiometrics, setHarmonicStatus, biometrics.hr, biometrics.hrv, biometrics.respiratoryRate]);
 };

@@ -184,6 +184,7 @@ class ObjectiveRequest(BaseModel):
 class TelemetryData(BaseModel):
     hr: Optional[int] = None
     hrv: Optional[int] = None
+    gsr: Optional[float] = None  # Galvanic Skin Response (μS)
     stress_score: Optional[float] = None
     energy_level: Optional[float] = None
     valence: Optional[float] = 0.5
