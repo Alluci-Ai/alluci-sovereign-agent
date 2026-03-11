@@ -36,9 +36,17 @@ class AffectiveEngine:
         self.current_state["physical_vitality"] = max(0.0, 1.0 - (stress / 100.0))
         
         # Map valence/arousal for legacy modes
-        if self._affective_state.valence > 700:
+        v = self._affective_state.valence / 1024.0
+        
+        # Apply cognitive biases (e.g. sleep deprivation)
+        if data.sleep_efficiency and data.sleep_efficiency < 0.8:
+            # Low sleep biases valence negatively
+            sleep_bias = data.sleep_efficiency - 0.8 # e.g. 0.4 - 0.8 = -0.4
+            v = max(0.0, min(1.0, v + sleep_bias))
+
+        if v > 0.7:
             self.current_state["affective_valence"] = "expansive"
-        elif self._affective_state.valence < 300:
+        elif v < 0.3:
             self.current_state["affective_valence"] = "contracted"
         else:
             self.current_state["affective_valence"] = "neutral"

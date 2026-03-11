@@ -19,7 +19,7 @@ class TestVaultManager:
     def _make_vault(self, tmpdir):
         from backend.security.vault import VaultManager
         key = Fernet.generate_key().decode()
-        with patch('backend.security.vault.settings') as mock_settings:
+        with patch('backend.config.settings') as mock_settings:
             mock_settings.VERUS_AUTH_ENABLED = False
             return VaultManager(key, vault_root=tmpdir)
 
@@ -73,14 +73,15 @@ class TestVaultManager:
             await vault.store_secret("to_delete", {"secret": "data"})
             assert await vault.retrieve_secret("to_delete") != {}
             
-            result = vault.delete_secret("to_delete")
+            result = await vault.delete_secret("to_delete")
             assert result is True
             assert await vault.retrieve_secret("to_delete") == {}
 
-    def test_delete_nonexistent_returns_false(self):
+    @pytest.mark.asyncio
+    async def test_delete_nonexistent_returns_false(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             vault = self._make_vault(tmpdir)
-            result = vault.delete_secret("nope")
+            result = await vault.delete_secret("nope")
             assert result is False
 
     @pytest.mark.asyncio
@@ -105,7 +106,7 @@ class TestAuth:
     def test_create_and_decode_token(self, mock_settings):
         from jose import jwt as jose_jwt
         
-        with patch('backend.security.auth.settings', mock_settings):
+        with patch('backend.config.settings', mock_settings):
             from backend.security.auth import create_access_token
             
             token = create_access_token({"sub": "sovereign_admin"})
@@ -119,7 +120,7 @@ class TestAuth:
     def test_token_expires(self, mock_settings):
         from jose import jwt as jose_jwt
         
-        with patch('backend.security.auth.settings', mock_settings):
+        with patch('backend.config.settings', mock_settings):
             from backend.security.auth import create_access_token
             
             # Create token that expires in 1 second

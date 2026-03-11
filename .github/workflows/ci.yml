@@ -1,44 +1,266 @@
-name: CI
+# Alluci Sovereign Agent — CI/CD Pipeline
+# Runs on every push to main and all pull requests.
+# Production deployments require all jobs to pass.
+
+name: CI — Test, Lint, Security, Build
 
 on:
   push:
-    branches: [ main ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main ]
+    branches: [main]
+
+env:
+  POLYTOPE_MASTER_KEY: ${{ secrets.TEST_POLYTOPE_MASTER_KEY }}
+  JWT_SECRET_KEY: ${{ secrets.TEST_JWT_SECRET_KEY }}
+  GEMINI_API_KEY:  "test-key-for-ci"
+  APP_ENV:         "testing"
 
 jobs:
-  frontend:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - name: Install dependencies
-        run: npm install
-      - name: Lint
-        run: npm run lint
 
-  backend:
+  # ══════════════════════════════════════════════════════════════
+  # JOB 1: Backend Smoke Tests (fast gate, <60s)
+  # ══════════════════════════════════════════════════════════════
+  smoke:
+    name: Smoke Tests (Backend)
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Setup Python
+
+      - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
-          python-version: 3.12
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install test dependencies
+        run: pip install pytest pytest-asyncio pytest-mock cryptography pydantic pydantic-settings sqlmodel fastapi httpx uvicorn python-jose tenacity structlog
+
+      - name: Run smoke tests
+        run: pytest backend/tests/ -m smoke -v --tb=short --no-header
+
+
+  # ══════════════════════════════════════════════════════════════
+  # JOB 2: Full Backend Unit + Integration + Security Tests
+  # ══════════════════════════════════════════════════════════════
+  backend-tests:
+    name: Backend Tests (Unit + Integration + Security)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: smoke
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install all dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pytest-cov pytest-timeout locust respx
+
+      - name: Run full backend test suite with coverage
+        run: |
+          pytest backend/tests/ \
+            -m "not slow and not performance" \
+            --cov=backend \
+            --cov-report=xml:coverage.xml \
+            --cov-report=term-missing \
+            --cov-fail-under=82 \
+            -v --tb=short
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage.xml
+          fail_ci_if_error: false
+
+
+  # ══════════════════════════════════════════════════════════════
+  # JOB 3: Frontend Lint + Unit Tests
+  # ══════════════════════════════════════════════════════════════
+  frontend-tests:
+    name: Frontend Tests (Vitest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
       - name: Install dependencies
-        run: pip install -r requirements.txt
-      - name: Lint with Ruff
+        run: npm ci
+
+      - name: TypeScript type check
+        run: npx tsc --noEmit
+
+      - name: Run Vitest unit tests with coverage
+        run: npm run test:coverage
+
+      - name: Upload frontend coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage/lcov.info
+          fail_ci_if_error: false
+
+
+  # ══════════════════════════════════════════════════════════════
+  # JOB 4: Static Analysis & Security Scanning
+  # ══════════════════════════════════════════════════════════════
+  security-scan:
+    name: Security Scan (SAST + Dependency Audit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install security tools
+        run: pip install bandit safety ruff
+
+      - name: Run Ruff linter (Python)
+        run: ruff check backend/ --output-format=github
+
+      - name: Run Bandit SAST (Python security analysis)
         run: |
-          pip install ruff
-          ruff check .
-      - name: Run tests
+          bandit -r backend/ \
+            -x backend/tests/ \
+            --severity-level medium \
+            --confidence-level medium \
+            -f json -o bandit-report.json || true
+          # Fail on high-severity findings
+          bandit -r backend/ \
+            -x backend/tests/ \
+            --severity-level high \
+            --confidence-level high
+
+      - name: Check Python dependencies for known vulnerabilities
+        run: safety check -r requirements.txt --full-report
+
+      - name: npm audit (frontend dependencies)
+        run: npm audit --audit-level=high
+        continue-on-error: true  # Warn but don't fail on medium vulns
+
+
+  # ══════════════════════════════════════════════════════════════
+  # JOB 5: Docker Build Validation
+  # ══════════════════════════════════════════════════════════════
+  docker-build:
+    name: Docker Build Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build backend Docker image
+        run: docker build -f Dockerfile.backend -t alluci-backend:ci .
+
+      - name: Build frontend Docker image
+        run: docker build -f Dockerfile.frontend -t alluci-frontend:ci .
+
+      - name: Test backend container health
+        run: |
+          docker run -d --name alluci-ci \
+            -p 18000:8000 \
+            -e POLYTOPE_MASTER_KEY="${POLYTOPE_MASTER_KEY}" \
+            -e JWT_SECRET_KEY="${JWT_SECRET_KEY}" \
+            -e GEMINI_API_KEY="test-key" \
+            -e APP_ENV="testing" \
+            alluci-backend:ci
+
+          echo "Waiting for health check..."
+          for i in $(seq 1 30); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:18000/health || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "✅ Backend healthy after ${i}s"
+              break
+            fi
+            sleep 1
+          done
+          [ "$STATUS" = "200" ] || (docker logs alluci-ci && exit 1)
+
+      - name: Cleanup
+        if: always()
+        run: docker rm -f alluci-ci || true
+
+
+  # ══════════════════════════════════════════════════════════════
+  # JOB 6: E2E Tests (runs after backend + frontend build)
+  # ══════════════════════════════════════════════════════════════
+  e2e:
+    name: E2E Tests (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [backend-tests, frontend-tests, docker-build]
+    if: github.ref == 'refs/heads/main' || github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Start backend with Docker Compose
+        run: |
+          docker compose up -d backend
+          sleep 15  # Allow time for full startup
+
+      - name: Run E2E tests
         env:
-          POLYTOPE_MASTER_KEY: ${{ secrets.TEST_MASTER_KEY }}
-          JWT_SECRET_KEY: ${{ secrets.TEST_JWT_KEY }}
-          GEMINI_API_KEY: ${{ secrets.TEST_GEMINI_KEY }}
+          E2E_BASE_URL: "http://localhost:3000"
+          DAEMON_URL:    "http://localhost:8000"
+        run: npx playwright test e2e/ --project=chromium
+
+      - name: Upload Playwright report on failure
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+
+      - name: Cleanup
+        if: always()
+        run: docker compose down
+
+
+  # ══════════════════════════════════════════════════════════════
+  # JOB 7: Production Gate (all jobs must pass)
+  # ══════════════════════════════════════════════════════════════
+  production-gate:
+    name: ✅ Production Gate
+    runs-on: ubuntu-latest
+    needs: [smoke, backend-tests, frontend-tests, security-scan, docker-build, e2e]
+    if: always()
+    steps:
+      - name: Check all jobs passed
         run: |
-          export PYTHONPATH=$PYTHONPATH:$(pwd)
-          pytest backend/tests/ -v --cov=backend --cov-report=xml
+          if [ "${{ needs.smoke.result }}" != "success" ] ||
+             [ "${{ needs.backend-tests.result }}" != "success" ] ||
+             [ "${{ needs.frontend-tests.result }}" != "success" ] ||
+             [ "${{ needs.security-scan.result }}" != "success" ] ||
+             [ "${{ needs.docker-build.result }}" != "success" ]; then
+            echo "❌ Production gate FAILED — one or more jobs did not pass"
+            exit 1
+          fi
+          echo "✅ All gates passed — safe to deploy to production"

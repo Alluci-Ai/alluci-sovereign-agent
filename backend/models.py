@@ -251,7 +251,7 @@ class ExecutionGraph(BaseModel):
     edges: List[Dict[str, str]] = [] # {source, target}
 
 class SoulManifest(BaseModel):
-    preferences: SoulPreferences
+    preferences: SoulPreferences = SoulPreferences()
     identityCore: str = "You are Alluci, a Sovereign Executive Assistant operating within a high-dimensional Polytope geometry."
     directives: List[str] = ["Sovereignty", "Polytopic Reasoning", "Deterministic Execution"]
     voiceProfile: str = "Professional, crisp, slightly futuristic, yet warm."

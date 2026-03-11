@@ -49,6 +49,28 @@ class UsageTracker:
 
     # ── Recording ─────────────────────────────────────────────────────────
 
+    def _calculate_cost(
+        self,
+        model: str,
+        input_tokens: int = 0,
+        output_tokens: int = 0,
+        cache_read_tokens: int = 0,
+        cache_write_tokens: int = 0,
+    ) -> float:
+        """Utility to compute cost for a set of token counts without recording it."""
+        pricing = self._get_pricing(model)
+        if pricing is None:
+            self._missing_cost_models.add(model)
+            return 0.0
+        
+        cost = (
+            (input_tokens * pricing["input"] / 1_000_000)
+            + (output_tokens * pricing["output"] / 1_000_000)
+            + (cache_read_tokens * pricing.get("cache_read", 0) / 1_000_000)
+            + (cache_write_tokens * pricing.get("cache_write", 0) / 1_000_000)
+        )
+        return cost
+
     def record_turn(
         self,
         session_key: str,
@@ -65,19 +87,13 @@ class UsageTracker:
         """
         from .models import UsageLog
 
-        # Look up pricing — DB first, then defaults
-        pricing = self._get_pricing(model)
-        if pricing is None:
-            self._missing_cost_models.add(model)
-            logger.warning(f"[Analytics] No pricing data for model: {model}")
-            cost = 0.0
-        else:
-            cost = (
-                (input_tokens * pricing["input"] / 1_000_000)
-                + (output_tokens * pricing["output"] / 1_000_000)
-                + (cache_read_tokens * pricing.get("cache_read", 0) / 1_000_000)
-                + (cache_write_tokens * pricing.get("cache_write", 0) / 1_000_000)
-            )
+        cost = self._calculate_cost(
+            model, 
+            input_tokens, 
+            output_tokens, 
+            cache_read_tokens, 
+            cache_write_tokens
+        )
 
         entry = UsageLog(
             session_key=session_key,

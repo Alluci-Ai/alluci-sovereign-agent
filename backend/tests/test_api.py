@@ -18,7 +18,7 @@ def app_client(mock_settings):
         
         # Mock the global services
         app_module.vault = MagicMock()
-        app_module.vault.retrieve_secret = MagicMock(return_value={})
+        app_module.vault.retrieve_secret = AsyncMock(return_value={})
         app_module.vault.store_secret = MagicMock()
         app_module.vault.get_active_vaults = MagicMock(return_value=set())
         
@@ -41,8 +41,12 @@ def app_client(mock_settings):
         app_module.skill_manager = MagicMock()
         app_module.skill_manager.list_skills = MagicMock(return_value=[])
         
-        client = TestClient(app, raise_server_exceptions=False)
-        yield client
+        from backend.security.guardrail import GuardrailScanner
+        app_module.scanner = GuardrailScanner(router=app_module.router)
+        
+        with patch('fastapi_limiter.depends.RateLimiter.__call__', new_callable=AsyncMock):
+            client = TestClient(app, raise_server_exceptions=False)
+            yield client
 
 
 class TestHealthEndpoints:

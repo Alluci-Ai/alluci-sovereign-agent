@@ -2,10 +2,19 @@ import pytest
 from unittest.mock import MagicMock, AsyncMock
 from backend.inference.router import ModelRouter
 
+from backend.config import Settings
+
 @pytest.mark.asyncio
 async def test_psi_routing_logic():
-    settings = MagicMock()
-    settings.GEMINI_API_KEY = "test"
+    settings = Settings(
+        GEMINI_API_KEY="test",
+        LOCAL_LLM_ENABLED=False,
+        LM_STUDIO_URL="",
+        OLLAMA_BASE_URL="",
+        AWS_ACCESS_KEY_ID="",
+        AWS_SECRET_ACCESS_KEY="",
+        AWS_REGION="us-east-1"
+    )
     router = ModelRouter(settings)
     
     # Mock request methods

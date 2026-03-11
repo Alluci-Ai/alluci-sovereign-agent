@@ -1,6 +1,7 @@
 """
 Unit tests for the TaskManager (TASKS.md CRUD operations).
 """
+import pytest
 import os
 import tempfile
 from backend.tasks import TaskManager
@@ -17,32 +18,35 @@ class TestTaskManager:
         f.close()
         return TaskManager(filepath=f.name), f.name
 
-    def test_parse_basic_task(self):
+    @pytest.mark.asyncio
+    async def test_parse_basic_task(self):
         content = "- [ ] Fix the bug\n"
         mgr, path = self._make_manager(content)
         
-        tasks = mgr.get_tasks()
+        tasks = await mgr.get_tasks()
         assert len(tasks) == 1
         assert tasks[0].completed is False
         assert "Fix the bug" in tasks[0].description
         
         os.unlink(path)
 
-    def test_parse_completed_task(self):
+    @pytest.mark.asyncio
+    async def test_parse_completed_task(self):
         content = "- [x] Done task\n"
         mgr, path = self._make_manager(content)
         
-        tasks = mgr.get_tasks()
+        tasks = await mgr.get_tasks()
         assert len(tasks) == 1
         assert tasks[0].completed is True
         
         os.unlink(path)
 
-    def test_parse_priority(self):
+    @pytest.mark.asyncio
+    async def test_parse_priority(self):
         content = "- [ ] [URGENT] Critical fix\n- [ ] [LOW] Nice to have\n"
         mgr, path = self._make_manager(content)
         
-        tasks = mgr.get_tasks()
+        tasks = await mgr.get_tasks()
         assert len(tasks) == 2
         # Should be sorted by priority (URGENT first)
         assert tasks[0].priority == TaskPriority.URGENT
@@ -50,16 +54,18 @@ class TestTaskManager:
         
         os.unlink(path)
 
-    def test_parse_due_date(self):
+    @pytest.mark.asyncio
+    async def test_parse_due_date(self):
         content = "- [ ] Deadline task (due: 2024-06-15)\n"
         mgr, path = self._make_manager(content)
         
-        tasks = mgr.get_tasks()
+        tasks = await mgr.get_tasks()
         assert tasks[0].due_date == "2024-06-15"
         
         os.unlink(path)
 
-    def test_add_task(self):
+    @pytest.mark.asyncio
+    async def test_add_task(self):
         mgr, path = self._make_manager("# Tasks\n")
         
         task = TaskUpdate(
@@ -68,18 +74,19 @@ class TestTaskManager:
             priority=TaskPriority.HIGH,
             due_date="2024-12-01"
         )
-        result = mgr.add_task(task)
+        result = await mgr.add_task(task)
         
         assert result is not None
         assert "New task" in result.description
         
         # Verify persisted
-        tasks = mgr.get_tasks()
+        tasks = await mgr.get_tasks()
         assert len(tasks) == 1
         
         os.unlink(path)
 
-    def test_update_task(self):
+    @pytest.mark.asyncio
+    async def test_update_task(self):
         content = "- [ ] Original task\n"
         mgr, path = self._make_manager(content)
         
@@ -88,7 +95,7 @@ class TestTaskManager:
             completed=True,
             priority=TaskPriority.HIGH
         )
-        result = mgr.update_task(0, update)
+        result = await mgr.update_task(0, update)
         
         assert result is not None
         assert result.completed is True
@@ -96,72 +103,80 @@ class TestTaskManager:
         
         os.unlink(path)
 
-    def test_delete_task(self):
+    @pytest.mark.asyncio
+    async def test_delete_task(self):
         content = "- [ ] Task to delete\n- [ ] Keep this\n"
         mgr, path = self._make_manager(content)
         
-        assert mgr.delete_task(0) is True
+        assert await mgr.delete_task(0) is True
         
-        tasks = mgr.get_tasks()
+        tasks = await mgr.get_tasks()
         assert len(tasks) == 1
         assert "Keep" in tasks[0].description
         
         os.unlink(path)
 
-    def test_filter_by_status_active(self):
+    @pytest.mark.asyncio
+    async def test_filter_by_status_active(self):
         content = "- [ ] Active task\n- [x] Done task\n"
         mgr, path = self._make_manager(content)
         
-        active = mgr.get_tasks(status="active")
+        active = await mgr.get_tasks(status="active")
         assert len(active) == 1
         assert active[0].completed is False
         
         os.unlink(path)
 
-    def test_filter_by_status_completed(self):
+    @pytest.mark.asyncio
+    async def test_filter_by_status_completed(self):
         content = "- [ ] Active task\n- [x] Done task\n"
         mgr, path = self._make_manager(content)
         
-        completed = mgr.get_tasks(status="completed")
+        completed = await mgr.get_tasks(status="completed")
         assert len(completed) == 1
         assert completed[0].completed is True
         
         os.unlink(path)
 
-    def test_filter_by_priority(self):
+    @pytest.mark.asyncio
+    async def test_filter_by_priority(self):
         content = "- [ ] [HIGH] Important\n- [ ] [LOW] Not important\n"
         mgr, path = self._make_manager(content)
         
-        high = mgr.get_tasks(priority="HIGH")
+        high = await mgr.get_tasks(priority="HIGH")
         assert len(high) == 1
         assert high[0].priority == TaskPriority.HIGH
         
         os.unlink(path)
 
-    def test_empty_file(self):
+    @pytest.mark.asyncio
+    async def test_empty_file(self):
         mgr, path = self._make_manager("")
-        tasks = mgr.get_tasks()
+        tasks = await mgr.get_tasks()
         assert tasks == []
         os.unlink(path)
 
-    def test_nonexistent_file(self):
+    @pytest.mark.asyncio
+    async def test_nonexistent_file(self):
         mgr = TaskManager(filepath="/tmp/nonexistent_tasks_12345.md")
-        tasks = mgr.get_tasks()
+        tasks = await mgr.get_tasks()
         assert tasks == []
 
-    def test_delete_out_of_bounds(self):
+    @pytest.mark.asyncio
+    async def test_delete_out_of_bounds(self):
         content = "- [ ] Only task\n"
         mgr, path = self._make_manager(content)
         
-        assert mgr.delete_task(99) is False
+        assert await mgr.delete_task(99) is False
         
         os.unlink(path)
 
-    def test_update_out_of_bounds(self):
+    @pytest.mark.asyncio
+    async def test_update_out_of_bounds(self):
         content = "- [ ] Only task\n"
         mgr, path = self._make_manager(content)
         
-        result = mgr.update_task(99, TaskUpdate(description="X", completed=False))
+        result = await mgr.update_task(99, TaskUpdate(description="X", completed=False))
         assert result is None
         
         os.unlink(path)

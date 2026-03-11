@@ -254,7 +254,7 @@ class ExecutiveOrchestrator:
         # 2. Skills Layer
         if self.skill_manager:
             try:
-                skills = self.skill_manager.list_skills()
+                skills = await self.skill_manager.list_skills()
                 active_skills = [s for s in skills if s.get("verified", False)]
                 if active_skills:
                     context_parts.append("AVAILABLE COGNITIVE MODULES (SKILLS):")

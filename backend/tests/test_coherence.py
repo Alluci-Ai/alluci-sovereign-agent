@@ -8,7 +8,7 @@ def test_coherence_score_stability():
     G = torch.eye(10)
     B = torch.tensor([1.0, 0.0, 0.0, 0.0])
     
-    coh1 = ppn.compute_coherence(G, B, B)
+    coh1, d1, h1 = ppn.compute_coherence(G, B, B)
     # Entropy of eye matrix: degrees are all 1. 
     # probs = 1/10. H = -sum(0.1 * log2(0.1)) = log2(10). 
     # h_norm = log2(10)/log2(10) = 1.0. 
@@ -22,5 +22,5 @@ def test_coherence_score_stability():
     G_star = torch.zeros(10, 10)
     G_star[0, :] = 1.0
     G_star[:, 0] = 1.0
-    coh2 = ppn.compute_coherence(G_star, B, B)
+    coh2, d2, h2 = ppn.compute_coherence(G_star, B, B)
     assert coh2 > coh1
