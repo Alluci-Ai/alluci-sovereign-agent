@@ -109,6 +109,10 @@ class SlackBridge(BridgeAdapter):
             return None
         return None
 
+    async def fetch_unread(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """Slack doesn't support easy 'fetch unread' via Web API without heavy scope. Requires Event API."""
+        return []
+
     async def validate_integrity(self) -> bool:
         if not self.bot_token: return False
         async with httpx.AsyncClient() as client:

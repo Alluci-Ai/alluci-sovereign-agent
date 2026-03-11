@@ -1,0 +1,64 @@
+
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useStore } from '../../../store/useStore';
+import type { DAGRun } from '../types';
+
+const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
+const POLL_INTERVAL_MS = 5000;
+
+interface UseDAGRunsOptions {
+  status?: string;
+  limit?: number;
+  autoRefresh?: boolean;
+}
+
+export function useDAGRuns({ status, limit = 20, autoRefresh = true }: UseDAGRunsOptions = {}) {
+  const { accessToken } = useStore();
+  const [runs, setRuns] = useState<DAGRun[]>([]);
+  const [total, setTotal] = useState(0);
+  const [offset, setOffset] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const fetchRuns = useCallback(async (currentOffset = 0, replace = true) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams({ limit: String(limit), offset: String(currentOffset) });
+      if (status) params.set('status', status);
+      const res = await fetch(`${DAEMON_URL}/api/dag/runs?${params}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setRuns(prev => replace ? data.runs : [...prev, ...data.runs]);
+      setTotal(data.total);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [accessToken, status, limit]);
+
+  const refresh = useCallback(() => fetchRuns(0, true), [fetchRuns]);
+
+  const loadMore = useCallback(() => {
+    const nextOffset = offset + limit;
+    setOffset(nextOffset);
+    fetchRuns(nextOffset, false);
+  }, [offset, limit, fetchRuns]);
+
+  useEffect(() => {
+    fetchRuns(0, true);
+    if (autoRefresh) {
+      intervalRef.current = setInterval(() => fetchRuns(0, true), POLL_INTERVAL_MS);
+    }
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [fetchRuns, autoRefresh]);
+
+  return { runs, total, loading, error, refresh, loadMore, hasMore: runs.length < total };
+}

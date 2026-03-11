@@ -67,7 +67,16 @@ class ExecutiveOrchestrator:
         self.heartbeat = HeartbeatDaemon(self, vault)
         self.heartbeat_task = None
         self._ws_gateway = None
+        self._active_runs: Dict[int, asyncio.Task] = {}
         
+        # Executor
+        self.executor = Executor(
+            self.adapter_registry, 
+            session_factory=lambda: db_engine,
+            max_concurrent=settings.MAX_CONCURRENT_TASKS,
+            approval_manager=self.approval_manager
+        )
+
     @property
     def ws_gateway(self):
         return self._ws_gateway
@@ -77,14 +86,54 @@ class ExecutiveOrchestrator:
         self._ws_gateway = val
         if self.heartbeat:
             self.heartbeat.ws_gateway = val
-        
-        # Executor
-        self.executor = Executor(
-            self.adapter_registry, 
-            session_factory=lambda: db_engine,
-            max_concurrent=settings.MAX_CONCURRENT_TASKS,
-            approval_manager=self.approval_manager
-        )
+
+    async def cancel_run(self, run_id: int) -> bool:
+        """Cancel an active run. Cancels asyncio task and marks pending tasks as failed."""
+        task = self._active_runs.get(run_id)
+        if task and not task.done():
+            task.cancel()
+            self.logger.info(f"[Orchestrator] Run {run_id} cancelled by user.")
+
+        from sqlmodel import Session, select
+        from .models import Run, TaskRecord
+        from .database import engine as db_engine_local
+
+        with Session(db_engine_local) as session:
+            run = session.get(Run, run_id)
+            if not run:
+                return False
+
+            stmt = select(TaskRecord).where(
+                TaskRecord.run_id == run_id,
+                TaskRecord.status.in_(["pending", "running"])
+            )
+            tasks = session.exec(stmt).all()
+            for t in tasks:
+                t.status = "failed"
+                t.error = "Cancelled by user"
+                t.end_time = datetime.now(timezone.utc)
+                session.add(t)
+
+            run.status = "failed"
+            session.add(run)
+            session.commit()
+
+        return True
+
+    async def preview_plan(self, objective: str) -> list:
+        """Generate a plan without executing it. Returns DAG task list for preview."""
+        context = await self._build_soul_context()
+        tasks = await self.planner.generate_plan(objective, context=context)
+        return [
+            {
+                "id":           t_id,
+                "action":       task.action,
+                "description":  task.args.get("description", ""),
+                "dependencies": task.dependencies,
+                "priority":     getattr(task, "priority_score", 0),
+            }
+            for t_id, task in tasks.items()
+        ]
 
     async def start_background_services(self):
         self.logger.info("Background services started.")
@@ -95,6 +144,7 @@ class ExecutiveOrchestrator:
             self.heartbeat.stop()
             await self.heartbeat_task
         self.logger.info("Background services stopped.")
+
 
     async def handle_inbound_message(self, message: Dict[str, Any]):
         """

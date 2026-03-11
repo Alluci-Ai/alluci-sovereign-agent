@@ -4,7 +4,7 @@ import AffectiveWidget from './AffectiveWidget';
 import {
     MessageSquare, Brain, Zap, Link2, Key,
     CheckSquare, FolderOpen, Shield, ChevronLeft, ChevronRight, ChevronDown, ChevronUp,
-    LayoutList, BarChart3, Calendar, Bot, Settings, ScrollText, Bug, CalendarDays, Wallet, Server
+    LayoutList, BarChart3, Calendar, Bot, Settings, ScrollText, Bug, CalendarDays, Wallet, Server, GitFork
 } from 'lucide-react';
 
 interface NavItem {
@@ -52,6 +52,7 @@ const NAV_GROUPS: NavGroup[] = [
         items: [
             { id: 'crons', label: 'Crons', icon: CalendarDays },
             { id: 'tasks', label: 'Tasks', icon: CheckSquare },
+            { id: 'dag', label: 'DAG Planner', icon: GitFork },
         ]
     },
     {

@@ -1,0 +1,76 @@
+/* =========================================================================
+   ALLUCI DAG PLANNER — Component Styles
+   Extends the existing design token system. Zero new tokens introduced.
+   ========================================================================= */
+
+/* === Animations === */
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1;   transform: scale(1); }
+  50%       { opacity: 0.4; transform: scale(0.8); }
+}
+
+@keyframes pulse-width {
+  0%, 100% { opacity: 1;   }
+  50%       { opacity: 0.5; }
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(30px); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+/* === DAG Graph Container === */
+
+.dag-graph-container {
+  flex: 1;
+  overflow: auto;
+  padding: 16px;
+  background: var(--bg-base);
+  position: relative;
+}
+
+.dag-graph-container canvas {
+  cursor: pointer;
+  display: block;
+}
+
+/* === Run Card hover === */
+
+.dag-run-card:hover {
+  background: var(--glass-bg-hover) !important;
+  border-color: var(--glass-edge) !important;
+}
+
+/* === Task Drawer slide animation === */
+
+.dag-task-drawer {
+  animation: slideInRight 0.22s var(--ease-spring, cubic-bezier(0.34, 1.56, 0.64, 1));
+}
+
+/* === Live stream indicator dot === */
+
+.dag-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-warm);
+  animation: pulse-dot 1.2s ease-in-out infinite;
+  display: inline-block;
+}
+
+/* === Progress bar fill animation === */
+
+.dag-progress-fill {
+  transition: width 0.4s ease;
+}
+
+/* === Empty state mono label === */
+
+.dag-empty-label {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  letter-spacing: 0.1em;
+  color: var(--text-tertiary);
+  text-align: center;
+}

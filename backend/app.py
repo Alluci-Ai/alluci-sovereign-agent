@@ -14,7 +14,7 @@ from datetime import datetime, timezone, date, timedelta
 from typing import Dict, Any, Optional, List
 from fastapi import FastAPI, HTTPException, Depends, Query, Body, Request, Response, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from jose import JWTError, jwt
 from fastapi_limiter import FastAPILimiter
 from fastapi_limiter.depends import RateLimiter
@@ -22,12 +22,13 @@ from fastapi.staticfiles import StaticFiles # Added for future static use if nee
 
 from .config import settings
 from .database import create_db_and_tables, engine as db_engine
-from sqlmodel import Session, select, delete
+from sqlmodel import Session, select, delete, desc
 import urllib.parse
 from .oauth_config import OAUTH_CONFIGS
 from .models import (
     ObjectiveRequest, TelemetryData, SystemStatus, LoginRequest,
-    TaskUpdate, SoulPreferences, SoulManifest, AuditEntry
+    TaskUpdate, SoulPreferences, SoulManifest, AuditEntry,
+    Run, TaskRecord as TaskRecordModel
 )
 from .security.vault import VaultManager
 from .security.auth import create_access_token, verify_authenticated
@@ -924,6 +925,193 @@ async def delete_task(index: int):
     if not await task_manager.delete_task(index):
         raise HTTPException(status_code=404, detail="Task not found")
     return {"status": "deleted"}
+
+
+# ── DAG Planner API ────────────────────────────────────────────────────────
+
+@app.get("/api/dag/runs", dependencies=[Depends(verify_authenticated)])
+async def list_dag_runs(
+    status: Optional[str] = None,
+    limit: int = 20,
+    offset: int = 0
+):
+    """Return paginated list of execution runs with task summary."""
+    with Session(db_engine) as session:
+        stmt = select(Run).order_by(desc(Run.created_at)).offset(offset).limit(limit)
+        if status:
+            stmt = stmt.where(Run.status == status)
+        runs = session.exec(stmt).all()
+
+        result = []
+        for run in runs:
+            task_stmt = select(TaskRecordModel).where(TaskRecordModel.run_id == run.id)
+            tasks = session.exec(task_stmt).all()
+            task_counts = {
+                "total":     len(tasks),
+                "completed": sum(1 for t in tasks if t.status == "completed"),
+                "failed":    sum(1 for t in tasks if t.status == "failed"),
+                "running":   sum(1 for t in tasks if t.status == "running"),
+                "pending":   sum(1 for t in tasks if t.status == "pending"),
+            }
+            result.append({
+                **run.model_dump(),
+                "task_counts": task_counts,
+            })
+
+        total_stmt = select(Run)
+        if status:
+            total_stmt = total_stmt.where(Run.status == status)
+        total = len(session.exec(total_stmt).all())
+
+        return {"runs": result, "total": total, "limit": limit, "offset": offset}
+
+
+@app.get("/api/dag/runs/{run_id}", dependencies=[Depends(verify_authenticated)])
+async def get_dag_run(run_id: int):
+    """Return a single run record."""
+    with Session(db_engine) as session:
+        run = session.get(Run, run_id)
+        if not run:
+            raise HTTPException(status_code=404, detail="Run not found")
+        return run.model_dump()
+
+
+@app.get("/api/dag/runs/{run_id}/tasks", dependencies=[Depends(verify_authenticated)])
+async def get_dag_run_tasks(run_id: int):
+    """Return all task records for a run."""
+    with Session(db_engine) as session:
+        stmt = select(TaskRecordModel).where(TaskRecordModel.run_id == run_id).order_by(TaskRecordModel.id)
+        tasks = session.exec(stmt).all()
+        return {"tasks": [t.model_dump() for t in tasks]}
+
+
+@app.get("/api/dag/runs/{run_id}/stream", dependencies=[Depends(verify_authenticated)])
+async def stream_dag_run_tasks(run_id: int, token: Optional[str] = None):
+    """
+    SSE stream of live task state transitions for a run.
+    Pushes JSON-encoded TaskRecord diffs as events.
+    """
+    async def event_generator():
+        last_seen: dict = {}
+        keep_alive_counter = 0
+
+        while True:
+            await asyncio.sleep(0.5)
+            keep_alive_counter += 1
+
+            if keep_alive_counter % 30 == 0:
+                yield ": keep-alive\n\n"
+
+            with Session(db_engine) as session:
+                run = session.get(Run, run_id)
+                if not run:
+                    yield f"event: error\ndata: {json.dumps({'error': 'run_not_found'})}\n\n"
+                    return
+
+                stmt = select(TaskRecordModel).where(TaskRecordModel.run_id == run_id)
+                tasks = session.exec(stmt).all()
+
+                for task in tasks:
+                    key = task.task_dag_id
+                    current_status = task.status
+                    if last_seen.get(key) != current_status:
+                        last_seen[key] = current_status
+                        payload = {
+                            "task_dag_id": task.task_dag_id,
+                            "action":      task.action,
+                            "status":      current_status,
+                            "result":      task.result,
+                            "error":       task.error,
+                            "start_time":  task.start_time.isoformat() if task.start_time else None,
+                            "end_time":    task.end_time.isoformat() if task.end_time else None,
+                        }
+                        yield f"data: {json.dumps(payload)}\n\n"
+
+                active = any(t.status in ("running", "pending") for t in tasks)
+                if run.status in ("completed", "failed") and not active:
+                    yield f"event: done\ndata: {json.dumps({'run_id': run_id, 'status': run.status})}\n\n"
+                    return
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control":     "no-cache",
+            "X-Accel-Buffering":  "no",
+            "Connection":        "keep-alive",
+        },
+    )
+
+
+@app.post("/api/dag/runs/{run_id}/cancel", dependencies=[Depends(verify_authenticated)])
+async def cancel_dag_run(run_id: int):
+    """Cancel a running plan. Marks all pending tasks as failed."""
+    success = await orchestrator.cancel_run(run_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Run not found or already complete")
+    return {"cancelled": True, "run_id": run_id}
+
+
+@app.post(
+    "/api/dag/preview",
+    dependencies=[Depends(verify_authenticated), Depends(RateLimiter(times=10, seconds=60))]
+)
+async def preview_dag_plan(body: ObjectiveRequest):
+    """Generate and return a plan DAG without executing it."""
+    if not orchestrator:
+        raise HTTPException(status_code=503, detail="Orchestrator not ready")
+    try:
+        tasks = await orchestrator.preview_plan(body.objective)
+        return {"objective": body.objective, "tasks": tasks, "count": len(tasks)}
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+
+@app.post(
+    "/api/dag/runs/{run_id}/tasks/{task_dag_id}/retry",
+    dependencies=[Depends(verify_authenticated)]
+)
+async def retry_dag_task(run_id: int, task_dag_id: str):
+    """Retry a single failed task from a run."""
+    with Session(db_engine) as session:
+        run = session.get(Run, run_id)
+        if not run:
+            raise HTTPException(status_code=404, detail="Run not found")
+
+        stmt = select(TaskRecordModel).where(
+            TaskRecordModel.run_id == run_id,
+            TaskRecordModel.task_dag_id == task_dag_id
+        )
+        record = session.exec(stmt).first()
+        if not record:
+            raise HTTPException(status_code=404, detail="Task not found")
+        if record.status != "failed":
+            raise HTTPException(status_code=400, detail="Only failed tasks can be retried")
+
+        # Fetch upstream completed dependency outputs
+        all_tasks_stmt = select(TaskRecordModel).where(
+            TaskRecordModel.run_id == run_id,
+            TaskRecordModel.status == "completed"
+        )
+        completed = {t.task_dag_id: t.result for t in session.exec(all_tasks_stmt).all()}
+
+        try:
+            task_args = {**(record.args or {}), "dependency_output": completed}
+            result = await orchestrator.executor._execute_adapter(
+                record.action, task_args, task_id=task_dag_id
+            )
+            record.status = "completed"
+            record.result = str(result)
+            record.error = None
+            record.end_time = datetime.now(timezone.utc)
+        except Exception as e:
+            record.status = "failed"
+            record.error = f"Retry failed: {type(e).__name__}: {str(e)[:200]}"
+            record.end_time = datetime.now(timezone.utc)
+
+        session.add(record)
+        session.commit()
+        return {"task_dag_id": task_dag_id, "status": record.status, "result": record.result}
 
 
 @app.post("/api/audit/entry", dependencies=[Depends(verify_authenticated)])

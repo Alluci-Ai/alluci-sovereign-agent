@@ -12,7 +12,7 @@ export type ActiveView =
     | 'chat' | 'soul' | 'skills' | 'bridges' | 'memory'
     | 'api' | 'tasks' | 'files' | 'audit' | 'canvas'
     | 'sessions' | 'analytics' | 'crons'
-    | 'agents' | 'config' | 'logs' | 'debug' | 'wallet' | 'node';
+    | 'agents' | 'config' | 'logs' | 'debug' | 'wallet' | 'node' | 'dag';
 export type Theme = 'light' | 'dark';
 
 export interface AppState {
@@ -161,6 +161,10 @@ export interface AppState {
     setWalletMode: (val: 'lite' | 'sovereign') => void;
     walletStatus: 'synced' | 'syncing' | 'offline';
     setWalletStatus: (val: 'synced' | 'syncing' | 'offline') => void;
+
+    // DAG Planner
+    activeRunId: number | null;
+    setActiveRunId: (id: number | null) => void;
 }
 
 export const useStore = create<AppState>((set) => ({
@@ -338,4 +342,8 @@ export const useStore = create<AppState>((set) => ({
     setWalletMode: (val) => set({ walletMode: val }),
     walletStatus: 'offline',
     setWalletStatus: (val) => set({ walletStatus: val }),
+
+    // DAG Planner
+    activeRunId: null,
+    setActiveRunId: (id) => set({ activeRunId: id }),
 }));

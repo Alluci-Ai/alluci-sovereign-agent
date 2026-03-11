@@ -61,7 +61,9 @@ import CronPanel from './features/scheduling/CronPanel';
 import { WalletPanel } from './features/wallet/WalletPanel';
 import { NodePanel } from './features/wallet/NodePanel';
 import { MemoryPanel } from './features/memory/MemoryPanel';
+import { DAGPanel } from './features/dag/DAGPanel';
 import { useTranslation } from 'react-i18next';
+import './styles/dag.css';
 
 const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
 
@@ -519,6 +521,8 @@ const App: React.FC = () => {
         return <AgentsPanel />;
       case 'debug':
         return <DebugPanel />;
+      case 'dag':
+        return <DAGPanel />;
       case 'chat':
       default:
         return (
