@@ -222,7 +222,7 @@ def app_client(mock_settings, temp_db):
     The client is pre-configured to work without real API keys.
     """
     from fastapi.testclient import TestClient
-    import backend.app as app_module
+    import backend.services as services
 
     with patch("backend.config.load_settings", return_value=mock_settings), \
          patch("backend.database.load_settings", return_value=mock_settings):
@@ -230,28 +230,31 @@ def app_client(mock_settings, temp_db):
         from backend.app import app
 
         # Inject mocked services
-        app_module.vault = MagicMock()
-        app_module.vault.retrieve_secret = AsyncMock(return_value={})
-        app_module.vault.store_secret = AsyncMock()
-        app_module.vault.get_active_vaults = MagicMock(return_value=set())
-        app_module.vault.delete_secret = AsyncMock(return_value=True)
-        app_module.vault.rotate_keys = AsyncMock(return_value=True)
+        services.vault = MagicMock()
+        services.vault.retrieve_secret = AsyncMock(return_value={})
+        services.vault.store_secret = AsyncMock()
+        services.vault.get_active_vaults = MagicMock(return_value=set())
+        services.vault.delete_secret = AsyncMock(return_value=True)
+        services.vault.rotate_keys = AsyncMock(return_value=True)
+        services.vault.flush_cache = AsyncMock()
+        services.vault.update_vault_status = AsyncMock()
 
-        app_module.router = MagicMock()
-        app_module.router.router = MagicMock()
-        app_module.router.router.providers = {}
-        app_module.router.get_response = AsyncMock(return_value="Test response")
-        app_module.router.get_structured_plan = AsyncMock(return_value={
+        services.router = MagicMock()
+        services.router.router = MagicMock()
+        services.router.router.providers = {}
+        services.router.get_response = AsyncMock(return_value="Test response")
+        services.router.get_structured_plan = AsyncMock(return_value={
             "steps": [{"id": "s1", "tool": "search", "description": "Test", "dependencies": []}]
         })
-        app_module.router.critique_result = AsyncMock(return_value={"score": 0.9, "feedback": "Good"})
-        app_module.router.check_health = AsyncMock(return_value={"gemini": "ok"})
+        services.router.critique_result = AsyncMock(return_value={"score": 0.9, "feedback": "Good"})
+        services.router.check_health = AsyncMock(return_value={"gemini": "ok"})
 
         from backend.security.guardrail import GuardrailScanner
-        app_module.scanner = GuardrailScanner(router=app_module.router)
+        services.scanner = GuardrailScanner(router=services.router)
 
-        app_module.ace = MagicMock()
-        app_module.ace.process_telemetry = MagicMock(return_value={"mode": "STANDARD", "reason": "Test"})
+        services.ace = MagicMock()
+        services.ace.process_telemetry = MagicMock(return_value={"mode": "STANDARD", "reason": "Test"})
+        services.ace.compute_psi = MagicMock(return_value=1.5)
 
         mock_orch = AsyncMock()
         mock_orch.execute_objective = AsyncMock(return_value={
@@ -261,16 +264,30 @@ def app_client(mock_settings, temp_db):
             {"id": "s1", "action": "search", "description": "Search step", "dependencies": []}
         ])
         mock_orch.cancel_run = AsyncMock(return_value=True)
-        app_module.orchestrator = mock_orch
+        services.orchestrator = mock_orch
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as tf:
             tf.write("- [ ] Test task\n")
             tasks_path = tf.name
 
         from backend.tasks import TaskManager
-        app_module.task_manager = TaskManager(filepath=tasks_path)
-        app_module.skill_manager = MagicMock()
-        app_module.skill_manager.list_skills = MagicMock(return_value=[])
+        services.task_manager = TaskManager(filepath=tasks_path)
+        services.skill_manager = MagicMock()
+        services.skill_manager.list_skills = MagicMock(return_value=[])
+        
+        services.usage_tracker = MagicMock()
+        services.usage_tracker.get_sessions = MagicMock(return_value=[])
+        
+        services.cron_engine = MagicMock()
+        services.cron_engine.list_jobs = MagicMock(return_value=[])
+        
+        services.channel_registry = {}
+        
+        services.config_editor = MagicMock()
+        services.config_editor.read_config = MagicMock(return_value={})
+        
+        services.exec_approval = AsyncMock()
+        services.exec_approval.get_pending = AsyncMock(return_value=[])
 
         # Bypass RateLimiter since lifespan isn't run for TestClient
         with patch('fastapi_limiter.depends.RateLimiter.__call__', new_callable=AsyncMock):

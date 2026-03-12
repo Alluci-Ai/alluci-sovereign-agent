@@ -136,6 +136,29 @@ class CronRun(SQLModel, table=True):
     delivery_status: Optional[str] = None
     log_text: Optional[str] = None
 
+class GoalRecord(SQLModel, table=True):
+    """Sovereign Goal tracking manifold."""
+    __tablename__ = "goal_record"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    title: str
+    description: Optional[str] = None
+    status: str = Field(default="active") # active, achieved, abandoned
+    priority: str = Field(default="MEDIUM")
+    metric_target: Optional[float] = None
+    metric_current: float = 0.0
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: Optional[datetime] = None
+
+class SOPRecord(SQLModel, table=True):
+    """Standard Operating Procedure (SOP) repository."""
+    __tablename__ = "sop_record"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str
+    description: Optional[str] = None
+    steps: Dict = Field(default={}, sa_column=Column(JSON))
+    is_active: bool = True
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
 # --- Exec Approval Policies (Sprint 3 — Sovereign Spec §5.6) ---
 
 class ExecPolicy(SQLModel, table=True):

@@ -1,47 +1,57 @@
 
-import uuid
 import logging
 from typing import List, Dict, Any, Optional
-from datetime import datetime
-from enum import Enum
+from datetime import datetime, timezone
+from sqlmodel import Session, select
+from ..database import engine as db_engine
+from ..models import GoalRecord
 
-class GoalStatus(Enum):
-    PENDING = "pending"
-    ACTIVE = "active"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    ABANDONED = "abandoned"
+logger = logging.getLogger("GoalsEngine")
 
 class GoalsEngine:
     """
-    ZeroClaw Goals Engine.
-    Manages long-running objectives and hierarchical task breakdown.
+    Sovereign Goals Engine.
+    Manages long-running objectives and hierarchical task breakdown with DB persistence.
     """
-    def __init__(self):
-        self.goals: Dict[str, Dict[str, Any]] = {}
+    def __init__(self, engine=None):
+        self.engine = engine or db_engine
 
-    def create_goal(self, title: str, description: str, priority: int = 5) -> str:
-        goal_id = str(uuid.uuid4())
-        self.goals[goal_id] = {
-            "id": goal_id,
-            "title": title,
-            "description": description,
-            "priority": priority,
-            "status": GoalStatus.PENDING.value,
-            "progress": 0.0,
-            "sub_goals": [],
-            "created_at": datetime.now().isoformat(),
-            "updated_at": datetime.now().isoformat()
-        }
-        return goal_id
+    async def create_goal(self, title: str, description: str, priority: str = "MEDIUM") -> int:
+        with Session(self.engine) as session:
+            goal = GoalRecord(
+                title=title,
+                description=description,
+                priority=priority,
+                status="active"
+            )
+            session.add(goal)
+            session.commit()
+            session.refresh(goal)
+            return goal.id
 
-    def update_goal(self, goal_id: str, status: GoalStatus = None, progress: float = None):
-        if goal_id in self.goals:
-            if status: self.goals[goal_id]["status"] = status.value
-            if progress is not None: self.goals[goal_id]["progress"] = progress
-            self.goals[goal_id]["updated_at"] = datetime.now().isoformat()
+    async def update_goal(self, goal_id: int, status: str = None, progress: float = None):
+        with Session(self.engine) as session:
+            goal = session.get(GoalRecord, goal_id)
+            if goal:
+                if status: goal.status = status
+                if progress is not None: goal.metric_current = progress
+                goal.updated_at = datetime.now(timezone.utc)
+                session.add(goal)
+                session.commit()
+                return True
+        return False
 
-    def get_active_goals(self) -> List[Dict[str, Any]]:
-        return [g for g in self.goals.values() if g["status"] in [GoalStatus.PENDING.value, GoalStatus.ACTIVE.value]]
+    async def get_active_goals(self) -> List[GoalRecord]:
+        with Session(self.engine) as session:
+            stmt = select(GoalRecord).where(GoalRecord.status == "active")
+            return session.exec(stmt).all()
 
+    def list_goals(self, status: Optional[str] = None) -> List[GoalRecord]:
+        with Session(self.engine) as session:
+            stmt = select(GoalRecord)
+            if status:
+                stmt = stmt.where(GoalRecord.status == status)
+            return session.exec(stmt).all()
+
+# Global Singleton
 goal_engine = GoalsEngine()

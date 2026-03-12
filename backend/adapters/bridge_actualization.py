@@ -38,7 +38,8 @@ class BridgeActualizationAdapter(Adapter):
         from ..config import settings
         self.vault_manager = VaultManager(settings.POLYTOPE_MASTER_KEY, vault_root)
         self.oauth_handler = OAuthHandler(self.vault_manager)
-        self.qr_handler = QRSyncHandler(self.vault_manager)
+        from .. import services
+        self.qr_handler = QRSyncHandler(self.vault_manager, redis_client=services.redis_client)
         self.tunnel_handler = TunnelHandler()
         self.logger = logging.getLogger("BridgeActualization")
         self.on_inbound = on_inbound
@@ -148,7 +149,7 @@ class BridgeActualizationAdapter(Adapter):
 
         elif auth_type == "challenge":
             # Generate a new QR Sync challenge
-            return {"status": "success", "challenge": self.qr_handler.create_sync_challenge()}
+            return {"status": "success", "challenge": await self.qr_handler.create_sync_challenge()}
 
         else:
             raise AdapterError(f"Unsupported auth type: {auth_type}")

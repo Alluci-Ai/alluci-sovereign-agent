@@ -14,35 +14,44 @@ def app_client(mock_settings):
         
         # We need to patch the lifespan to avoid real initialization
         from backend.app import app
-        import backend.app as app_module
+        import backend.services as services
         
         # Mock the global services
-        app_module.vault = MagicMock()
-        app_module.vault.retrieve_secret = AsyncMock(return_value={})
-        app_module.vault.store_secret = MagicMock()
-        app_module.vault.get_active_vaults = MagicMock(return_value=set())
+        services.vault = MagicMock()
+        services.vault.retrieve_secret = AsyncMock(return_value={})
+        services.vault.store_secret = AsyncMock()
+        services.vault.get_active_vaults = MagicMock(return_value=set())
         
-        app_module.router = AsyncMock()
-        app_module.router.get_response = AsyncMock(return_value="Test response")
+        services.router = AsyncMock()
+        services.router.get_response = AsyncMock(return_value="Test response")
+        services.router.get_structured_plan = AsyncMock(return_value={"steps": []})
         
-        app_module.ace = MagicMock()
-        app_module.ace.process_telemetry = MagicMock(return_value={"mode": "STANDARD", "reason": "Test"})
+        services.ace = MagicMock()
+        services.ace.process_telemetry = MagicMock(return_value={"mode": "STANDARD", "reason": "Test"})
         
-        app_module.orchestrator = MagicMock()
-        app_module.orchestrator.execute_objective = AsyncMock(return_value={"status": "completed"})
+        services.orchestrator = MagicMock()
+        services.orchestrator.execute_objective = AsyncMock(return_value={"status": "completed"})
         
         from backend.tasks import TaskManager
         import tempfile
         tf = tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False)
         tf.write("- [ ] Test task\n")
         tf.close()
-        app_module.task_manager = TaskManager(filepath=tf.name)
+        services.task_manager = TaskManager(filepath=tf.name)
         
-        app_module.skill_manager = MagicMock()
-        app_module.skill_manager.list_skills = MagicMock(return_value=[])
+        services.skill_manager = MagicMock()
+        services.skill_manager.list_skills = MagicMock(return_value=[])
         
         from backend.security.guardrail import GuardrailScanner
-        app_module.scanner = GuardrailScanner(router=app_module.router)
+        services.scanner = GuardrailScanner(router=services.router)
+        
+        services.usage_tracker = MagicMock()
+        services.usage_tracker.get_sessions = MagicMock(return_value=[])
+
+        services.cron_engine = MagicMock()
+        services.cron_engine.list_jobs = MagicMock(return_value=[])
+
+        services.channel_registry = {}
         
         with patch('fastapi_limiter.depends.RateLimiter.__call__', new_callable=AsyncMock):
             client = TestClient(app, raise_server_exceptions=False)

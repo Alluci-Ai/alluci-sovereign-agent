@@ -41,6 +41,8 @@ htmlcov/
 *.db
 *.db-shm
 *.db-wal
+coverage.xml
+typecheck_output.txt
 heartbeat_state.json
 
 # Vault data (contains encrypted secrets)

@@ -1,0 +1,27 @@
+
+import logging
+from fastapi import APIRouter, HTTPException, Depends, Query, Response, File, UploadFile
+from ..security.auth import verify_authenticated
+from .. import services
+
+logger = logging.getLogger("VoiceRouter")
+
+router = APIRouter(tags=["Voice & Audio"])
+
+@router.post("/api/voice/transcribe", dependencies=[Depends(verify_authenticated)])
+async def transcribe_voice(file: UploadFile = File(...)):
+    """Transcribes audio using local Whisper bridge (P1-007)."""
+    if not services.local_inference:
+        raise HTTPException(status_code=503, detail="Local inference not initialized")
+    
+    audio_data = await file.read()
+    text = await services.local_inference.transcribe(audio_data)
+    return {"status": "SUCCESS", "text": text}
+
+@router.get("/api/voice/synthesise", dependencies=[Depends(verify_authenticated)])
+async def synthesise_voice(text: str = Query(...)):
+    """Synthesise text to speech using local Piper bridge (P1-007)."""
+    if not services.local_inference:
+        raise HTTPException(status_code=503, detail="Local inference not initialized")
+    audio_bytes = await services.local_inference.synthesise(text)
+    return Response(content=audio_bytes, media_type="audio/wav")
