@@ -13,6 +13,7 @@ logger = logging.getLogger("ChannelsRouter")
 
 # In-memory PKCE verifier store — replace with Redis in multi-worker deployment
 _slack_pkce_states: Dict[str, str] = {}   # state → code_verifier
+_x_pkce_states:     Dict[str, str] = {}   # state → code_verifier
 
 router = APIRouter(tags=["Bridge Channels"])
 
@@ -470,6 +471,77 @@ async def facebook_webhook_post(request: Request):
     asyncio.create_task(adapter.process_webhook(body))
 
     return {"ok": True}
+
+# --- X (Twitter) OAuth ---
+
+@router.get("/api/oauth/x/start", dependencies=[Depends(verify_authenticated)])
+async def x_oauth_start():
+    """Initiate X/Twitter OAuth 2.0 PKCE flow."""
+    adapter = services.channel_registry.get("x")
+    if not adapter:
+        raise HTTPException(status_code=503, detail="X adapter not initialised.")
+
+    daemon_url = os.getenv("DAEMON_PUBLIC_URL", "http://localhost:8000").rstrip("/")
+    redirect_uri = f"{daemon_url}/api/oauth/x/callback"
+    state = secrets.token_urlsafe(32)
+
+    authorize_url, code_verifier = adapter.build_oauth_url(redirect_uri, state)
+    _x_pkce_states[state] = code_verifier
+    
+    return {
+        "authorize_url": authorize_url,
+        "state":         state,
+    }
+
+@router.get("/api/oauth/x/callback")
+async def x_oauth_callback(
+    code:  str = Query(None),
+    state: str = Query(None),
+    error: str = Query(None),
+):
+    """Handle X OAuth 2.0 callback."""
+    def _respond(success: bool, detail: str = "") -> HTMLResponse:
+        payload = json.dumps({
+            "type":    "OAUTH_COMPLETE",
+            "bridgeId": "x",
+            "success": success,
+            "error":   detail,
+        })
+        return HTMLResponse(
+            f"<html><head><script>"
+            f"window.opener && window.opener.postMessage({payload}, window.location.origin);"
+            f"window.close();"
+            f"</script></head><body>OAuth Complete. Closing window...</body></html>"
+        )
+
+    if error: return _respond(False, error)
+    if not code: return _respond(False, "missing_code")
+
+    code_verifier = _x_pkce_states.pop(state, None)
+    if not code_verifier:
+        return _respond(False, "invalid_state_or_timeout")
+
+    adapter = services.channel_registry.get("x")
+    if not adapter: return _respond(False, "adapter_not_ready")
+
+    daemon_url = os.getenv("DAEMON_PUBLIC_URL", "http://localhost:8000").rstrip("/")
+    redirect_uri = f"{daemon_url}/api/oauth/x/callback"
+
+    try:
+        creds = await adapter.handle_oauth_callback(
+            code=code, 
+            state=state, 
+            code_verifier=code_verifier,
+            redirect_uri=redirect_uri
+        )
+        if services.vault:
+            from ..security.utils import log_system_event
+            await services.vault.store_secret("channel_x", creds)
+            await log_system_event("OAUTH_COMPLETE", "X OAuth completed successfully.", "SUCCESS")
+        return _respond(True)
+    except Exception as e:
+        logger.error(f"[X OAUTH] Token exchange failed: {e}")
+        return _respond(False, str(e))
 
 @router.post("/api/channels/icloud/2fa")
 async def icloud_2fa(data: Dict[str, str] = Body(...)):
