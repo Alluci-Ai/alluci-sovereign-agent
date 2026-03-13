@@ -373,6 +373,104 @@ async def instagram_webhook_post(request: Request):
 
     return {"ok": True}
 
+# --- Facebook OAuth & Webhook ---
+
+@router.get("/api/oauth/facebook/start", dependencies=[Depends(verify_authenticated)])
+async def facebook_oauth_start():
+    """Initiate Facebook Messenger OAuth flow."""
+    adapter = services.channel_registry.get("facebook")
+    if not adapter:
+        raise HTTPException(status_code=503, detail="Facebook adapter not initialised.")
+
+    daemon_url = os.getenv("DAEMON_PUBLIC_URL", "http://localhost:8000").rstrip("/")
+    redirect_uri = f"{daemon_url}/api/oauth/facebook/callback"
+    state = secrets.token_urlsafe(32)
+
+    authorize_url, _ = adapter.build_oauth_url(redirect_uri, state)
+    return {
+        "authorize_url": authorize_url,
+        "state":         state,
+    }
+
+@router.get("/api/oauth/facebook/callback")
+async def facebook_oauth_callback(
+    code:  str = Query(None),
+    state: str = Query(None),
+    error: str = Query(None),
+):
+    """Handle Facebook OAuth callback."""
+    def _respond(success: bool, detail: str = "") -> HTMLResponse:
+        payload = json.dumps({
+            "type":    "OAUTH_COMPLETE",
+            "bridgeId": "facebook",
+            "success": success,
+            "error":   detail,
+        })
+        return HTMLResponse(
+            f"<html><head><script>"
+            f"window.opener && window.opener.postMessage({payload}, window.location.origin);"
+            f"window.close();"
+            f"</script></head><body>OAuth Complete. Closing window...</body></html>"
+        )
+
+    if error: return _respond(False, error)
+    if not code: return _respond(False, "missing_code")
+
+    adapter = services.channel_registry.get("facebook")
+    if not adapter: return _respond(False, "adapter_not_ready")
+
+    daemon_url = os.getenv("DAEMON_PUBLIC_URL", "http://localhost:8000").rstrip("/")
+    redirect_uri = f"{daemon_url}/api/oauth/facebook/callback"
+
+    try:
+        creds = await adapter.handle_oauth_callback(code=code, state=state, redirect_uri=redirect_uri)
+        if services.vault:
+            from ..security.utils import log_system_event
+            await services.vault.store_secret("channel_facebook", creds)
+            await log_system_event("OAUTH_COMPLETE", "Facebook OAuth completed successfully.", "SUCCESS")
+        return _respond(True)
+    except Exception as e:
+        logger.error(f"[FACEBOOK OAUTH] Token exchange failed: {e}")
+        return _respond(False, str(e))
+
+@router.get("/api/webhook/facebook")
+async def facebook_webhook_verify(
+    mode:      str = Query(None, alias="hub.mode"),
+    token:     str = Query(None, alias="hub.verify_token"),
+    challenge: str = Query(None, alias="hub.challenge"),
+):
+    """Responds to Meta's hub.challenge verification for Facebook."""
+    adapter = services.channel_registry.get("facebook")
+    if not adapter: raise HTTPException(status_code=503, detail="Adapter not ready")
+
+    result = adapter.verify_webhook(mode or "", token or "", challenge or "")
+    if result is not None:
+        return PlainTextResponse(content=result)
+    raise HTTPException(status_code=403, detail="Verification failed.")
+
+@router.post("/api/webhook/facebook")
+async def facebook_webhook_post(request: Request):
+    """Handles Facebook Messenger webhook events."""
+    raw_body = await request.body()
+    signature = request.headers.get("X-Hub-Signature-256", "")
+
+    adapter = services.channel_registry.get("facebook")
+    if not adapter: return {"ok": False, "error": "Adapter not ready"}
+
+    if not adapter.verify_signature(raw_body, signature):
+        logger.warning("[FACEBOOK] Rejected POST webhook — HMAC verification failed.")
+        raise HTTPException(status_code=403, detail="Invalid webhook signature.")
+
+    try:
+        body = json.loads(raw_body)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON body.")
+
+    # Dispatch to adapter
+    asyncio.create_task(adapter.process_webhook(body))
+
+    return {"ok": True}
+
 @router.post("/api/channels/icloud/2fa")
 async def icloud_2fa(data: Dict[str, str] = Body(...)):
     adapter = services.channel_registry.get("icloud")

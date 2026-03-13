@@ -114,6 +114,10 @@ class Settings(BaseSettings):
     META_APP_SECRET: Optional[str] = None
     META_VERIFY_TOKEN: Optional[str] = None
     
+    # Facebook Messenger
+    FACEBOOK_CLIENT_ID: Optional[str] = None
+    FACEBOOK_CLIENT_SECRET: Optional[str] = None
+    
     # Signal Bridge
     SIGNAL_CLI_PATH: str = "signal-cli"
     SIGNAL_SOCKET_PATH: str = "/tmp/signal-cli.sock"

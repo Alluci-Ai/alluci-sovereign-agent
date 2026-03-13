@@ -156,6 +156,7 @@ async def _init_channels(vault_root: str):
     from .bridges.nostr import NostrBridge
     from .bridges.imessage import IMessageBridge
     from .bridges.instagram import InstagramBridge
+    from .bridges.facebook import FacebookBridge
 
     async def broadcast_bridge_event(event: str, data: Any):
         if ws_gw:
@@ -171,6 +172,7 @@ async def _init_channels(vault_root: str):
     channel_registry["nostr"] = NostrBridge("nostr", vault_root)
     channel_registry["imessage"] = IMessageBridge("imessage", vault_root)
     channel_registry["instagram"] = InstagramBridge("instagram", vault_root)
+    channel_registry["facebook"] = FacebookBridge("facebook", vault_root)
 
     for ch_name, adapter in channel_registry.items():
         if hasattr(adapter, "on_event"):
