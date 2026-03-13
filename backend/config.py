@@ -85,6 +85,10 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_SECRET: Optional[str] = None
     SLACK_CLIENT_ID: Optional[str] = None
     SLACK_CLIENT_SECRET: Optional[str] = None
+    SLACK_SIGNING_SECRET: Optional[str] = None
+    SLACK_BOT_TOKEN: Optional[str] = None
+    SLACK_VERIFICATION_TOKEN: Optional[str] = None
+    SLACK_REDIRECT_URI: Optional[str] = "http://localhost:8000/api/channels/slack/callback"
     DISCORD_CLIENT_ID: Optional[str] = None
     DISCORD_CLIENT_SECRET: Optional[str] = None
     INSTAGRAM_CLIENT_ID: Optional[str] = None
@@ -95,6 +99,21 @@ class Settings(BaseSettings):
     TWITTER_CLIENT_SECRET: Optional[str] = None
     MSTEAMS_CLIENT_ID: Optional[str] = None
     MSTEAMS_CLIENT_SECRET: Optional[str] = None
+    
+    # WhatsApp Cloud API
+    WHATSAPP_CLIENT_ID: Optional[str] = None
+    WHATSAPP_CLIENT_SECRET: Optional[str] = None
+    WHATSAPP_PHONE_NUMBER_ID: Optional[str] = None
+    WHATSAPP_ACCESS_TOKEN: Optional[str] = None
+    WHATSAPP_VERIFY_TOKEN: Optional[str] = None
+    WHATSAPP_APP_SECRET: Optional[str] = None
+    
+    # Signal Bridge
+    SIGNAL_CLI_PATH: str = "signal-cli"
+    SIGNAL_SOCKET_PATH: str = "/tmp/signal-cli.sock"
+    
+    # iCloud Bridge
+    ICLOUD_COOKIE_DIR: str = "~/.icloud"
     
     # Network
     HOST: str = "0.0.0.0"

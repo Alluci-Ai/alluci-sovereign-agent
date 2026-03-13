@@ -1,129 +1,452 @@
-from typing import Dict, Any, List
-from .base import BridgeAdapter
-import subprocess
+"""
+Sovereign Signal Bridge.
+
+Architecture:
+  PRIMARY:  signal-cli daemon --socket (persistent process, Unix JSON-RPC socket)
+  FALLBACK: signal-cli receive --json  (subprocess polling — legacy, high overhead)
+
+Prerequisites:
+  - signal-cli >= 0.13.0 installed and in PATH (or configured via SIGNAL_CLI_PATH)
+  - Phone number registered and linked via `signal-cli link` or `signal-cli register`
+"""
+
 import asyncio
-import os
 import json
+import logging
+import os
+import time
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
+
+from .base import BridgeAdapter
+
 
 class SignalBridge(BridgeAdapter):
     """
-    Sovereign Signal Bridge.
-    Uses signal-cli daemon in the background to handle E2EE and device linking.
+    Production Signal Bridge using signal-cli daemon mode with Unix socket JSON-RPC.
+    Falls back to subprocess polling when the daemon is unavailable.
     """
+
     def __init__(self, bridge_id: str, vault_root: str):
         super().__init__(bridge_id, vault_root)
-        self.phone_number = None
+        self.phone_number: Optional[str] = None
+        self._cli_path: str = "signal-cli"
+        self._socket_path: str = "/tmp/signal-cli.sock"
+
+        # Daemon state
+        self._daemon_process: Optional[asyncio.subprocess.Process] = None
+        self._daemon_task: Optional[asyncio.Task] = None
+        self._listener_task: Optional[asyncio.Task] = None
+        self._rpc_id: int = 0
+
+        # Fallback polling state
+        self._use_daemon: bool = True
+        self._message_buffer: List[Dict[str, Any]] = []
+
+    # ── Connection ───────────────────────────────────────────────────────────
 
     async def connect(self, credentials: Dict[str, Any]) -> bool:
+        """
+        Link the bridge to a registered Signal phone number and start the daemon.
+        credentials:
+            phone_number (str): E.164 format, e.g. "+14155552671"
+            cli_path (str):     Path to signal-cli binary (optional)
+            socket_path (str):  Unix socket path (optional)
+        """
+        from ..config import settings
+
         self.phone_number = credentials.get("phone_number")
-        
-        if self.phone_number:
-            self.is_connected = True
-            self.logger.info(f"Signal linked to {self.phone_number}")
-            # Start background receive loop
-            asyncio.create_task(self._receive_loop())
-            return True
-            
-        self.logger.error("No phone number registered for Signal bridge.")
+        self._cli_path    = credentials.get("cli_path") or settings.SIGNAL_CLI_PATH
+        self._socket_path = credentials.get("socket_path") or settings.SIGNAL_SOCKET_PATH
+
+        if not self.phone_number:
+            self.last_error = "phone_number required for Signal bridge."
+            self.logger.error(f"[SIGNAL] {self.last_error}")
+            return False
+
+        # Try to start the daemon
+        started = await self._start_daemon()
+        if started:
+            self._use_daemon = True
+            self._listener_task = asyncio.create_task(self._daemon_listener())
+            self.logger.info(
+                f"[SIGNAL] Daemon mode active — {self.phone_number} on {self._socket_path}"
+            )
+        else:
+            self._use_daemon = False
+            self._listener_task = asyncio.create_task(self._polling_fallback())
+            self.logger.warning(
+                "[SIGNAL] Daemon unavailable — falling back to subprocess polling (high overhead)."
+            )
+
+        self.is_connected = True
+        return True
+
+    # ── Daemon Lifecycle ─────────────────────────────────────────────────────
+
+    async def _start_daemon(self) -> bool:
+        """
+        Start `signal-cli daemon --socket <path>` as a persistent background process.
+        Returns True if the daemon started and the socket became available within 10s.
+        """
+        # Remove stale socket
+        if os.path.exists(self._socket_path):
+            try:
+                os.remove(self._socket_path)
+            except OSError:
+                pass
+
+        try:
+            self._daemon_process = await asyncio.create_subprocess_exec(
+                self._cli_path,
+                "-u", self.phone_number,
+                "daemon",
+                "--socket", self._socket_path,
+                "--ignore-stories",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+        except (FileNotFoundError, PermissionError) as e:
+            self.logger.warning(f"[SIGNAL] Cannot start daemon ({e}). Falling back to polling.")
+            return False
+
+        # Wait up to 10 seconds for the socket to appear
+        for _ in range(20):
+            await asyncio.sleep(0.5)
+            if os.path.exists(self._socket_path):
+                self.logger.info("[SIGNAL] Daemon socket ready.")
+                # Start a stderr reader so the process doesn't deadlock
+                asyncio.create_task(self._drain_stderr(self._daemon_process))
+                return True
+
+        self.logger.warning("[SIGNAL] Daemon socket did not appear within 10s.")
+        if self._daemon_process:
+            self._daemon_process.terminate()
+            self._daemon_process = None
         return False
 
-    async def get_link_qr(self) -> str:
+    async def _drain_stderr(self, proc: asyncio.subprocess.Process) -> None:
+        """Consume stderr from the daemon process to prevent pipe deadlock."""
+        if proc.stderr:
+            async for line in proc.stderr:
+                decoded = line.decode(errors="replace").strip()
+                if decoded:
+                    self.logger.debug(f"[SIGNAL-DAEMON] {decoded}")
+
+    # ── Unix Socket JSON-RPC Client ──────────────────────────────────────────
+
+    async def _rpc_call(self, method: str, params: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Executes signal-cli link to generate a tsdevice:// URI 
-        that would be shown to the user as a QR code in the frontend.
+        Send a JSON-RPC 2.0 request to the signal-cli daemon socket.
+        signal-cli daemon protocol: newline-delimited JSON over a Unix socket.
         """
+        self._rpc_id += 1
+        request = json.dumps({
+            "jsonrpc": "2.0",
+            "id":      self._rpc_id,
+            "method":  method,
+            "params":  params,
+        }) + "\n"
+
         try:
-            process = await asyncio.create_subprocess_exec(
-                "signal-cli", "link", "-n", "Alluci Agent",
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_unix_connection(self._socket_path),
+                timeout=5.0,
             )
-            stdout, stderr = await process.communicate()
-            if process.returncode == 0:
-                uri = stdout.decode().strip()
-                return uri
-            else:
-                self.logger.error(f"signal-cli link error: {stderr.decode()}")
-                return ""
-        except Exception as e:
-            self.logger.error(f"signal-cli error: {e}")
-            return "tsdevice:/?uuid=mock-uuid&pub_key=mock-key" # Fallback to mock if binary missing
+            writer.write(request.encode())
+            await writer.drain()
+
+            response_line = await asyncio.wait_for(reader.readline(), timeout=15.0)
+            writer.close()
+            await writer.wait_closed()
+
+            response = json.loads(response_line.decode())
+            if "error" in response:
+                raise RuntimeError(
+                    f"signal-cli RPC error: {response['error'].get('message', response['error'])}"
+                )
+            return response.get("result", {})
+
+        except asyncio.TimeoutError:
+            raise TimeoutError("signal-cli daemon did not respond within timeout.")
+        except (ConnectionRefusedError, FileNotFoundError) as e:
+            raise ConnectionError(f"Signal daemon socket unavailable: {e}")
+
+    # ── Daemon Listener (receive loop) ───────────────────────────────────────
+
+    async def _daemon_listener(self) -> None:
+        """
+        Subscribe to incoming messages via the daemon socket using
+        the `subscribeReceive` JSON-RPC method and process them as a stream.
+        """
+        self.logger.info("[SIGNAL] Starting daemon listener (subscribeReceive).")
+        reconnect_delay = 2.0
+
+        while self.is_connected:
+            try:
+                reader, writer = await asyncio.wait_for(
+                    asyncio.open_unix_connection(self._socket_path),
+                    timeout=5.0,
+                )
+                # Subscribe to receive events
+                subscribe_request = json.dumps({
+                    "jsonrpc": "2.0",
+                    "id":      0,
+                    "method":  "subscribeReceive",
+                    "params":  {"account": self.phone_number},
+                }) + "\n"
+                writer.write(subscribe_request.encode())
+                await writer.drain()
+
+                reconnect_delay = 2.0  # Reset on successful connect
+
+                async for raw_line in reader:
+                    if not raw_line:
+                        break
+                    try:
+                        event = json.loads(raw_line.decode())
+                        await self._handle_daemon_event(event)
+                    except json.JSONDecodeError:
+                        continue
+
+                writer.close()
+                await writer.wait_closed()
+
+            except asyncio.CancelledError:
+                self.logger.info("[SIGNAL] Daemon listener cancelled.")
+                return
+            except Exception as e:
+                self.logger.error(f"[SIGNAL] Daemon listener error: {e}. Reconnecting in {reconnect_delay}s.")
+                await asyncio.sleep(reconnect_delay)
+                reconnect_delay = min(reconnect_delay * 2, 60)  # Exponential backoff
+
+    async def _handle_daemon_event(self, event: Dict[str, Any]) -> None:
+        """Parse a signal-cli daemon event and dispatch normalised inbound message."""
+        method = event.get("method", "")
+        params = event.get("params", {})
+
+        if method != "receive":
+            return
+
+        envelope = params.get("envelope", {})
+        data_msg = envelope.get("dataMessage", {})
+        sync_msg = envelope.get("syncMessage", {})
+
+        # Handle direct messages and sync messages
+        target = data_msg if data_msg else sync_msg.get("sentMessage", {})
+        if not target or not target.get("message"):
+            return
+
+        sender = envelope.get("sourceNumber") or envelope.get("sourceName", "unknown")
+        group_id = target.get("groupInfo", {}).get("groupId")
+
+        # Extract attachments
+        attachments = [
+            {
+                "id":        att.get("id"),
+                "mime":      att.get("contentType"),
+                "filename":  att.get("filename"),
+                "size":      att.get("size"),
+                "local_path": att.get("filename"),  # signal-cli downloads to temp dir
+            }
+            for att in target.get("attachments", [])
+        ]
+
+        normalized = {
+            "id":          f"{envelope.get('timestamp')}-{sender}",
+            "from":        sender,
+            "body":        target["message"],
+            "group_id":    group_id,
+            "attachments": attachments,
+            "timestamp":   envelope.get("timestamp"),
+            "account_id":  self.phone_number,
+            "protocol":    "SIGNAL",
+        }
+
+        # Buffer for fetch_unread()
+        self._message_buffer.append(normalized)
+        if len(self._message_buffer) > 100:
+            self._message_buffer.pop(0)
+
+        self.last_activity = datetime.now(timezone.utc).isoformat()
+        await self._dispatch_inbound(normalized)
+
+    # ── Subprocess Polling Fallback ──────────────────────────────────────────
+
+    async def _polling_fallback(self) -> None:
+        """
+        Legacy fallback: calls `signal-cli receive --json` once per 30 seconds.
+        Uses a single subprocess call per cycle (not one per message).
+        """
+        self.logger.info("[SIGNAL] Polling fallback active (30s interval).")
+
+        while self.is_connected:
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    self._cli_path, "-u", self.phone_number, "receive", "--json",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=20.0)
+
+                if proc.returncode == 0:
+                    for line in stdout.decode().splitlines():
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            await self._handle_daemon_event(json.loads(line))
+                        except Exception:
+                            continue
+                elif stderr:
+                    err = stderr.decode().strip()
+                    if err:
+                        self.logger.error(f"[SIGNAL] Polling error: {err}")
+
+            except asyncio.TimeoutError:
+                self.logger.warning("[SIGNAL] Polling subprocess timed out.")
+            except asyncio.CancelledError:
+                return
+            except Exception as e:
+                self.logger.error(f"[SIGNAL] Polling fallback failed: {e}")
+
+            await asyncio.sleep(30)
+
+    # ── Send ────────────────────────────────────────────────────────────────
 
     async def send(self, recipient: str, content: str, **kwargs) -> Dict[str, Any]:
-        if not self.is_connected or not self.phone_number:
+        """
+        Send a Signal message.
+        Uses JSON-RPC when in daemon mode, subprocess when in fallback mode.
+        kwargs:
+            attachments (list[str]): Local file paths to attach
+            group_id (str):          Group ID for group messages
+        """
+        if not self.is_connected:
             return {"status": "failed", "error": "Not connected"}
-            
+
+        if self._use_daemon:
+            return await self._send_daemon(recipient, content, **kwargs)
+        return await self._send_subprocess(recipient, content, **kwargs)
+
+    async def _send_daemon(
+        self, recipient: str, content: str, **kwargs
+    ) -> Dict[str, Any]:
+        """Send via JSON-RPC to the daemon socket."""
+        params: Dict[str, Any] = {
+            "account":    self.phone_number,
+            "message":    content,
+        }
+        if kwargs.get("group_id"):
+            params["groupId"] = kwargs["group_id"]
+        else:
+            params["recipients"] = [recipient]
+
+        if kwargs.get("attachments"):
+            params["attachments"] = kwargs["attachments"]
+
         try:
-            process = await asyncio.create_subprocess_exec(
-                "signal-cli", "-u", self.phone_number, "send", "-m", content, recipient,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-            stdout, stderr = await process.communicate()
-            if process.returncode == 0:
-                self.last_activity = str(int(asyncio.get_event_loop().time()))
-                return {"status": "success", "message_id": stdout.decode().strip()}
-            else:
-                self.last_error = stderr.decode().strip()
-                return {"status": "failed", "error": self.last_error}
+            result = await self._rpc_call("send", params)
+            self.last_activity = datetime.now(timezone.utc).isoformat()
+            return {"status": "success", "timestamp": result.get("timestamp")}
         except Exception as e:
             self.last_error = str(e)
             return {"status": "failed", "error": str(e)}
 
-    async def _receive_loop(self):
-        """Background loop to receive Signal messages via JSON polling."""
-        self.logger.info("Signal receive loop started.")
-        self.message_buffer = [] # Local buffer for fetch_unread
-        
-        while self.is_connected:
-            try:
-                process = await asyncio.create_subprocess_exec(
-                    "signal-cli", "-u", self.phone_number, "receive", "--json",
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
-                )
-                stdout, stderr = await process.communicate()
-                
-                if process.returncode == 0:
-                    for line in stdout.decode().splitlines():
-                        if not line.strip(): continue
-                        try:
-                            msg_data = json.loads(line)
-                            envelope = msg_data.get("envelope", {})
-                            data_msg = envelope.get("dataMessage", {})
-                            
-                            if data_msg and data_msg.get("message"):
-                                normalized = {
-                                    "from": envelope.get("sourceNumber") or envelope.get("sourceName"),
-                                    "body": data_msg["message"],
-                                    "timestamp": envelope.get("timestamp"),
-                                    "account_id": self.phone_number,
-                                    "id": f"{envelope.get('timestamp')}-{envelope.get('source')}"
-                                }
-                                # Add to buffer (keep last 50)
-                                self.message_buffer.append(normalized)
-                                if len(self.message_buffer) > 50:
-                                    self.message_buffer.pop(0)
-                                    
-                                await self._dispatch_inbound(normalized)
-                        except Exception as e:
-                            self.logger.warning(f"Failed to parse Signal message: {e}")
-                else:
-                    err = stderr.decode().strip()
-                    if err: self.logger.error(f"Signal receive error: {err}")
-                    
-            except Exception as e:
-                self.logger.error(f"Signal loop critical failure: {e}")
-                await asyncio.sleep(10)
-            
-            await asyncio.sleep(5)
+    async def _send_subprocess(
+        self, recipient: str, content: str, **kwargs
+    ) -> Dict[str, Any]:
+        """Fallback send via subprocess (when daemon is not running)."""
+        cmd = [self._cli_path, "-u", self.phone_number, "send", "-m", content]
+
+        if kwargs.get("group_id"):
+            cmd += ["-g", kwargs["group_id"]]
+        else:
+            cmd.append(recipient)
+
+        for att in kwargs.get("attachments", []):
+            cmd += ["-a", att]
+
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30.0)
+            if proc.returncode == 0:
+                self.last_activity = datetime.now(timezone.utc).isoformat()
+                return {"status": "success", "raw": stdout.decode().strip()}
+            self.last_error = stderr.decode().strip()
+            return {"status": "failed", "error": self.last_error}
+        except Exception as e:
+            self.last_error = str(e)
+            return {"status": "failed", "error": str(e)}
 
     async def send_message(self, recipient: str, content: str) -> Dict[str, Any]:
         return await self.send(recipient, content)
 
+    # ── Linking QR ───────────────────────────────────────────────────────────
+
+    async def get_link_qr(self) -> str:
+        """Generate a tsdevice:// URI for device linking."""
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                self._cli_path, "link", "-n", "Alluci Agent",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=30.0)
+            return stdout.decode().strip()
+        except Exception as e:
+            self.logger.error(f"[SIGNAL] link command failed: {e}")
+            return ""
+
+    # ── Teardown ─────────────────────────────────────────────────────────────
+
+    async def disconnect(self) -> None:
+        self.is_connected = False
+
+        if self._listener_task and not self._listener_task.done():
+            self._listener_task.cancel()
+            try:
+                await self._listener_task
+            except asyncio.CancelledError:
+                pass
+
+        if self._daemon_process:
+            try:
+                self._daemon_process.terminate()
+                await asyncio.wait_for(self._daemon_process.wait(), timeout=5.0)
+            except Exception:
+                self._daemon_process.kill()
+            self._daemon_process = None
+
+        await super().disconnect()
+        self.logger.info("[SIGNAL] Bridge disconnected.")
+
+    # ── Supporting Methods ───────────────────────────────────────────────────
+
     async def fetch_unread(self, limit: int = 10) -> List[Dict[str, Any]]:
-        """Returns the last N messages from the internal buffer."""
-        return self.message_buffer[-limit:] if hasattr(self, 'message_buffer') else []
+        return self._message_buffer[-limit:]
 
     async def validate_integrity(self) -> bool:
-        return self.is_connected
+        if not self.is_connected:
+            return False
+        if self._use_daemon:
+            return (
+                self._daemon_process is not None
+                and self._daemon_process.returncode is None
+                and os.path.exists(self._socket_path)
+            )
+        return True
+
+    def get_health(self) -> Dict[str, Any]:
+        h = super().get_health()
+        h.update({
+            "mode":       "daemon" if self._use_daemon else "polling",
+            "socket":     self._socket_path if self._use_daemon else None,
+            "daemon_pid": self._daemon_process.pid if self._daemon_process else None,
+            "buffered":   len(self._message_buffer),
+        })
+        return h
