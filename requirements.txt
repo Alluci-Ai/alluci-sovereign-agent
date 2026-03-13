@@ -37,6 +37,7 @@ python-telegram-bot==21.6    # Telegram bridge
 nostr-sdk==0.3.0             # Nostr bridge
 aiosmtplib==3.0.1            # Async SMTP for email bridge
 aioimaplib==1.1.0            # Async IMAP for email bridge
+pyicloud==1.0.0              # iCloud bridge
 
 # ─── Vector Memory ────────────────────────────────────────────────────────────
 chromadb==0.5.0
