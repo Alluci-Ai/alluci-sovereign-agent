@@ -108,6 +108,12 @@ class Settings(BaseSettings):
     WHATSAPP_VERIFY_TOKEN: Optional[str] = None
     WHATSAPP_APP_SECRET: Optional[str] = None
     
+    # Instagram / Meta Business
+    INSTAGRAM_CLIENT_ID: Optional[str] = None
+    INSTAGRAM_CLIENT_SECRET: Optional[str] = None
+    META_APP_SECRET: Optional[str] = None
+    META_VERIFY_TOKEN: Optional[str] = None
+    
     # Signal Bridge
     SIGNAL_CLI_PATH: str = "signal-cli"
     SIGNAL_SOCKET_PATH: str = "/tmp/signal-cli.sock"
