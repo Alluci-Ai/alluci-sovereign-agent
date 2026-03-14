@@ -9,17 +9,9 @@ from fastapi.responses import HTMLResponse, PlainTextResponse
 from ..security.auth import verify_authenticated
 from .. import services
 from ..models import TelemetryData
+from ..security.oauth_store import oauth_store
 
 logger = logging.getLogger("ChannelsRouter")
-
-# Per-bridge PKCE/state stores — replace with Redis in multi-worker deployments
-_slack_pkce_states: Dict[str, str] = {}   # state → code_verifier
-_oauth_states: Dict[str, Dict[str, Any]] = {
-    "instagram": {},  # state → {"verifier": ..., "redirect_uri": ...}
-    "facebook":  {},
-    "x":         {},  # state → {"verifier": ..., "redirect_uri": ...}
-    "msteams":   {},
-}
 
 router = APIRouter(tags=["Bridge Channels"])
 
@@ -200,20 +192,20 @@ async def oauth_callback(bridge_id: str, code: str = Query(None), state: str = Q
 
     try:
         if bridge_id == "slack":
-            verifier = _slack_pkce_states.pop(state, None)
+            verifier = await oauth_store.consume_state(state)
             if not verifier: return _make_response(False, "invalid_state")
             daemon_url = os.getenv("DAEMON_PUBLIC_URL", "http://localhost:8000").rstrip("/")
             creds = await adapter.handle_oauth_callback(code=code, state=state, code_verifier=verifier, redirect_uri=f"{daemon_url}/api/oauth/slack/callback")
             await services.vault.store_secret("channel_slack", creds)
         
         elif bridge_id == "x":
-            sd = _oauth_states["x"].pop(state, None)
+            sd = await oauth_store.consume_state(state)
             if not sd: return _make_response(False, "invalid_state")
             creds = await adapter.handle_oauth_callback(code=code, state=state, code_verifier=sd["verifier"], redirect_uri=sd["redirect_uri"])
             await services.vault.store_secret("channel_x", creds)
-
+ 
         elif bridge_id in ["instagram", "facebook", "msteams"]:
-            sd = _oauth_states[bridge_id].pop(state, None)
+            sd = await oauth_store.consume_state(state)
             if not sd: return _make_response(False, "invalid_state")
             creds = await adapter.handle_oauth_callback(code=code, state=state, redirect_uri=sd["redirect_uri"])
             await services.vault.store_secret(f"channel_{bridge_id}", creds)
@@ -255,7 +247,7 @@ async def slack_oauth_start():
     redirect_uri = f"{daemon_url}/api/oauth/slack/callback"
     state = secrets.token_urlsafe(32)
     authorize_url, code_verifier = adapter.build_oauth_url(redirect_uri, state)
-    _slack_pkce_states[state] = code_verifier
+    await oauth_store.store_state(state, code_verifier)
     return {"authorize_url": authorize_url, "state": state}
 
 @router.post("/api/webhook/slack")
@@ -298,7 +290,7 @@ async def instagram_oauth_start():
     redirect_uri = f"{daemon_url}/api/oauth/instagram/callback"
     state = secrets.token_urlsafe(32)
     url, _ = adapter.build_oauth_url(redirect_uri, state)
-    _oauth_states["instagram"][state] = {"redirect_uri": redirect_uri}
+    await oauth_store.store_state(state, {"redirect_uri": redirect_uri})
     return {"authorize_url": url, "state": state}
 
 @router.get("/api/webhook/instagram")
@@ -329,7 +321,7 @@ async def facebook_oauth_start():
     redirect_uri = f"{daemon_url}/api/oauth/facebook/callback"
     state = secrets.token_urlsafe(32)
     url, _ = adapter.build_oauth_url(redirect_uri, state)
-    _oauth_states["facebook"][state] = {"redirect_uri": redirect_uri}
+    await oauth_store.store_state(state, {"redirect_uri": redirect_uri})
     return {"authorize_url": url, "state": state}
 
 @router.get("/api/webhook/facebook")
@@ -360,7 +352,7 @@ async def x_oauth_start():
     redirect_uri = f"{daemon_url}/api/oauth/x/callback"
     state = secrets.token_urlsafe(32)
     url, verifier = adapter.build_oauth_url(redirect_uri, state)
-    _oauth_states["x"][state] = {"verifier": verifier, "redirect_uri": redirect_uri}
+    await oauth_store.store_state(state, {"verifier": verifier, "redirect_uri": redirect_uri})
     return {"authorize_url": url, "state": state}
 
 # --- MS Teams (Graph) OAuth & Webhook ---
@@ -373,7 +365,7 @@ async def msteams_oauth_start():
     redirect_uri = f"{daemon_url}/api/oauth/msteams/callback"
     state = secrets.token_urlsafe(32)
     url, _ = adapter.build_oauth_url(redirect_uri, state)
-    _oauth_states["msteams"][state] = {"redirect_uri": redirect_uri}
+    await oauth_store.store_state(state, {"redirect_uri": redirect_uri})
     return {"authorize_url": url, "state": state}
 
 @router.post("/api/webhook/msteams")

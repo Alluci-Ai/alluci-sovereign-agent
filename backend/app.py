@@ -23,6 +23,11 @@ async def lifespan(app: FastAPI):
         _wa_store_module.webauthn_store = WebAuthnChallengeStore(services.redis_client)
         logger.info("[ WEBAUTHN ] Challenge store backed by Redis.")
         
+        from .security.oauth_store import oauth_store, OAuthStateStore
+        import backend.security.oauth_store as _oauth_store_module
+        _oauth_store_module.oauth_store = OAuthStateStore(services.redis_client)
+        logger.info("[ OAUTH ] State store backed by Redis.")
+        
     yield
     await services.shutdown_services()
 
