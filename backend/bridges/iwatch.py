@@ -61,7 +61,7 @@ class IWatchBridge(BridgeAdapter):
     # ── Persistence ───────────────────────────────────────────────────────────
 
     def _devices_path(self) -> str:
-        return os.path.join(self.vault_path, "devices.json")
+        return os.path.join(self.vault_path, "paired_devices.json")
 
     def _load_devices(self) -> None:
         path = self._devices_path()

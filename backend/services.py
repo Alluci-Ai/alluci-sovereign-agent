@@ -160,6 +160,7 @@ async def _init_channels(vault_root: str):
     from .bridges.x_twitter import XBridge
     from .bridges.msteams import MSTeamsBridge
     from .bridges.wechat import WeChatBridge
+    from .bridges.iwatch import IWatchBridge
 
     async def broadcast_bridge_event(event: str, data: Any):
         if ws_gw:
@@ -179,6 +180,7 @@ async def _init_channels(vault_root: str):
     channel_registry["x"] = XBridge("x", vault_root)
     channel_registry["msteams"] = MSTeamsBridge("msteams", vault_root)
     channel_registry["wechat"] = WeChatBridge("wechat", vault_root)
+    channel_registry["iwatch"] = IWatchBridge("iwatch", vault_root)
 
     for ch_name, adapter in channel_registry.items():
         if hasattr(adapter, "on_event"):
