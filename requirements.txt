@@ -3,7 +3,7 @@
 # ─── Web Framework ────────────────────────────────────────────────────────────
 fastapi==0.115.0
 uvicorn[standard]==0.30.0
-python-multipart==0.0.9
+python-multipart==0.0.22
 starlette==0.41.0
 
 # ─── Data Validation & Settings ───────────────────────────────────────────────
