@@ -122,6 +122,11 @@ class Settings(BaseSettings):
     TWITTER_CLIENT_ID: Optional[str] = None
     TWITTER_CLIENT_SECRET: Optional[str] = None
     
+    # MS Teams / Graph API
+    MSTEAMS_CLIENT_ID: Optional[str] = None
+    MSTEAMS_CLIENT_SECRET: Optional[str] = None
+    MSTEAMS_BOT_APP_ID: Optional[str] = None
+    
     # Signal Bridge
     SIGNAL_CLI_PATH: str = "signal-cli"
     SIGNAL_SOCKET_PATH: str = "/tmp/signal-cli.sock"

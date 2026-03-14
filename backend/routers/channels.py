@@ -543,6 +543,89 @@ async def x_oauth_callback(
         logger.error(f"[X OAUTH] Token exchange failed: {e}")
         return _respond(False, str(e))
 
+
+# --- MS Teams (Graph) OAuth & Webhook ---
+
+@router.get("/api/oauth/msteams/start", dependencies=[Depends(verify_authenticated)])
+async def msteams_oauth_start():
+    """Initiate MS Teams/Azure AD OAuth 2.0 flow."""
+    adapter = services.channel_registry.get("msteams")
+    if not adapter:
+        raise HTTPException(status_code=503, detail="MS Teams adapter not initialised.")
+
+    daemon_url = os.getenv("DAEMON_PUBLIC_URL", "http://localhost:8000").rstrip("/")
+    redirect_uri = f"{daemon_url}/api/oauth/msteams/callback"
+    state = secrets.token_urlsafe(32)
+
+    authorize_url, _ = adapter.build_oauth_url(redirect_uri, state)
+    return {
+        "authorize_url": authorize_url,
+        "state":         state,
+    }
+
+@router.get("/api/oauth/msteams/callback")
+async def msteams_oauth_callback(
+    code:  str = Query(None),
+    state: str = Query(None),
+    error: str = Query(None),
+):
+    """Handle MS Teams OAuth 2.0 callback."""
+    def _respond(success: bool, detail: str = "") -> HTMLResponse:
+        payload = json.dumps({
+            "type":    "OAUTH_COMPLETE",
+            "bridgeId": "msteams",
+            "success": success,
+            "error":   detail,
+        })
+        return HTMLResponse(
+            f"<html><head><script>"
+            f"window.opener && window.opener.postMessage({payload}, window.location.origin);"
+            f"window.close();"
+            f"</script></head><body>OAuth Complete. Closing window...</body></html>"
+        )
+
+    if error: return _respond(False, error)
+    if not code: return _respond(False, "missing_code")
+
+    adapter = services.channel_registry.get("msteams")
+    if not adapter: return _respond(False, "adapter_not_ready")
+
+    daemon_url = os.getenv("DAEMON_PUBLIC_URL", "http://localhost:8000").rstrip("/")
+    redirect_uri = f"{daemon_url}/api/oauth/msteams/callback"
+
+    try:
+        creds = await adapter.handle_oauth_callback(code=code, state=state, redirect_uri=redirect_uri)
+        if services.vault:
+            from ..security.utils import log_system_event
+            await services.vault.store_secret("channel_msteams", creds)
+            await log_system_event("OAUTH_COMPLETE", "MS Teams OAuth completed successfully.", "SUCCESS")
+        return _respond(True)
+    except Exception as e:
+        logger.error(f"[MSTEAMS OAUTH] Token exchange failed: {e}")
+        return _respond(False, str(e))
+
+@router.post("/api/webhook/msteams")
+async def msteams_webhook(request: Request):
+    """
+    Bot Framework webhook. Verifies JWT before processing activity.
+    """
+    adapter = services.channel_registry.get("msteams")
+    if not adapter:
+        raise HTTPException(status_code=404, detail="MS Teams adapter not found")
+
+    auth_header = request.headers.get("Authorization", "")
+    if not await adapter.verify_bot_activity(auth_header):
+        logger.warning(f"MS Teams webhook verification failed from {request.client.host}")
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    try:
+        payload = await request.json()
+        asyncio.create_task(adapter.process_webhook(payload))
+        return Response(status_code=202)
+    except Exception as e:
+        logger.error(f"MS Teams webhook processing error: {e}")
+        return {"status": "error", "detail": str(e)}
+
 @router.post("/api/channels/icloud/2fa")
 async def icloud_2fa(data: Dict[str, str] = Body(...)):
     adapter = services.channel_registry.get("icloud")

@@ -158,6 +158,7 @@ async def _init_channels(vault_root: str):
     from .bridges.instagram import InstagramBridge
     from .bridges.facebook import FacebookBridge
     from .bridges.x_twitter import XBridge
+    from .bridges.msteams import MSTeamsBridge
 
     async def broadcast_bridge_event(event: str, data: Any):
         if ws_gw:
@@ -175,6 +176,7 @@ async def _init_channels(vault_root: str):
     channel_registry["instagram"] = InstagramBridge("instagram", vault_root)
     channel_registry["facebook"] = FacebookBridge("facebook", vault_root)
     channel_registry["x"] = XBridge("x", vault_root)
+    channel_registry["msteams"] = MSTeamsBridge("msteams", vault_root)
 
     for ch_name, adapter in channel_registry.items():
         if hasattr(adapter, "on_event"):
