@@ -27,8 +27,8 @@ class SignalBridge(BridgeAdapter):
     Falls back to subprocess polling when the daemon is unavailable.
     """
 
-    def __init__(self, bridge_id: str, vault_root: str):
-        super().__init__(bridge_id, vault_root)
+    def __init__(self, bridge_id: str, vault_root: str, vault_manager: Optional[Any] = None):
+        super().__init__(bridge_id, vault_root, vault_manager)
         self.phone_number: Optional[str] = None
         self._cli_path: str = "signal-cli"
         self._socket_path: str = "/tmp/signal-cli.sock"

@@ -33,8 +33,8 @@ class NostrBridge(BridgeAdapter):
     and NIP-04 (Encrypted DMs) within a Simplicial Vault.
     """
 
-    def __init__(self, bridge_id: str, vault_root: str):
-        super().__init__(bridge_id, vault_root)
+    def __init__(self, bridge_id: str, vault_root: str, vault_manager: Optional[Any] = None):
+        super().__init__(bridge_id, vault_root, vault_manager)
         self.keys: Optional[Keys] = None
         self.client: Optional[Client] = None
         self.relays: List[str] = [

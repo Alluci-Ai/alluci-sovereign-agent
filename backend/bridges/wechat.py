@@ -43,8 +43,8 @@ class WeChatBridge(BridgeAdapter):
     Uses WeCom (企业微信) Application API for enterprise messaging.
     """
 
-    def __init__(self, bridge_id: str, vault_root: str):
-        super().__init__(bridge_id, vault_root)
+    def __init__(self, bridge_id: str, vault_root: str, vault_manager: Optional[Any] = None):
+        super().__init__(bridge_id, vault_root, vault_manager)
         self._corp_id:      Optional[str] = os.getenv("WECOM_CORP_ID")
         self._corp_secret:  Optional[str] = os.getenv("WECOM_CORP_SECRET")
         self._agent_id:     Optional[str] = os.getenv("WECOM_AGENT_ID")

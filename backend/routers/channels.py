@@ -196,19 +196,22 @@ async def oauth_callback(bridge_id: str, code: str = Query(None), state: str = Q
             if not verifier: return _make_response(False, "invalid_state")
             daemon_url = os.getenv("DAEMON_PUBLIC_URL", "http://localhost:8000").rstrip("/")
             creds = await adapter.handle_oauth_callback(code=code, state=state, code_verifier=verifier, redirect_uri=f"{daemon_url}/api/oauth/slack/callback")
-            await services.vault.store_secret("channel_slack", creds)
+            team_id = creds.get("team_id") or "default"
+            await services.vault.store_connection_secret("slack", team_id, creds)
         
         elif bridge_id == "x":
             sd = await oauth_store.consume_state(state)
             if not sd: return _make_response(False, "invalid_state")
             creds = await adapter.handle_oauth_callback(code=code, state=state, code_verifier=sd["verifier"], redirect_uri=sd["redirect_uri"])
-            await services.vault.store_secret("channel_x", creds)
+            user_id = creds.get("user_id") or "default"
+            await services.vault.store_connection_secret("x", user_id, creds)
  
         elif bridge_id in ["instagram", "facebook", "msteams"]:
             sd = await oauth_store.consume_state(state)
             if not sd: return _make_response(False, "invalid_state")
             creds = await adapter.handle_oauth_callback(code=code, state=state, redirect_uri=sd["redirect_uri"])
-            await services.vault.store_secret(f"channel_{bridge_id}", creds)
+            account_id = creds.get("team_id") or creds.get("user_id") or "default"
+            await services.vault.store_connection_secret(bridge_id, account_id, creds)
             
         elif hasattr(adapter, "handle_oauth_callback"):
             await adapter.handle_oauth_callback(code, state)

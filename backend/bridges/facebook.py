@@ -37,8 +37,8 @@ class FacebookBridge(BridgeAdapter):
         "pages_manage_metadata",
     ]
 
-    def __init__(self, bridge_id: str, vault_root: str):
-        super().__init__(bridge_id, vault_root)
+    def __init__(self, bridge_id: str, vault_root: str, vault_manager: Optional[Any] = None):
+        super().__init__(bridge_id, vault_root, vault_manager)
         self.page_id: Optional[str] = None
         self.page_access_token: Optional[str] = None
         self.page_name: Optional[str] = None
@@ -159,15 +159,12 @@ class FacebookBridge(BridgeAdapter):
             "client_id":         self._client_id,
             "client_secret":     self._client_secret,
         }
-        self._save_credentials(creds)
+        await self._save_credentials(creds)
         await self.connect(creds)
         return creds
 
-    def _save_credentials(self, creds: Dict[str, Any]) -> None:
-        path = os.path.join(self.vault_path, "credentials.json")
-        with open(path, "w") as f:
-            json.dump(creds, f)
-        os.chmod(path, 0o600)
+    async def _save_credentials(self, creds: Dict[str, Any]) -> None:
+        await super()._save_credentials(creds, account_id=self.page_id or "default")
 
     # ── Webhook Security ──────────────────────────────────────────────────────
 

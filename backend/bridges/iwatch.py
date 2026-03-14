@@ -50,8 +50,8 @@ class IWatchBridge(BridgeAdapter):
     TOTP_WINDOW  = 1       # Accept ± 1 step (covers ~30s clock drift)
     SESSION_DAYS = 90      # Device session token validity
 
-    def __init__(self, bridge_id: str, vault_root: str):
-        super().__init__(bridge_id, vault_root)
+    def __init__(self, bridge_id: str, vault_root: str, vault_manager: Optional[Any] = None):
+        super().__init__(bridge_id, vault_root, vault_manager)
         self._paired_devices: Dict[str, Dict] = {}  # device_id → {seed, token, paired_at}
         self._pending_seeds:  Dict[str, str]  = {}  # device_id → base32 seed (pre-pair)
         self._telemetry_buffer: List[Dict]    = []

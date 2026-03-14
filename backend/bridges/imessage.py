@@ -33,8 +33,8 @@ class IMessageBridge(BridgeAdapter):
     CURSOR_KEY = "imessage_last_rowid"
     DEDUP_MAXSIZE = 2_000
 
-    def __init__(self, bridge_id: str, vault_root: str):
-        super().__init__(bridge_id, vault_root)
+    def __init__(self, bridge_id: str, vault_root: str, vault_manager: Optional[Any] = None):
+        super().__init__(bridge_id, vault_root, vault_manager)
         self.is_macos: bool = platform.system() == "Darwin"
         self._poll_task: Optional[asyncio.Task] = None
         self._last_rowid: int = 0

@@ -15,14 +15,17 @@ class WhatsAppBridge(BridgeAdapter):
     Uses direct Cloud API (preferred).
     Supports Hub Signature verification, PKCE-like token rotation, and multi-media messaging.
     """
-    def __init__(self, bridge_id: str, vault_root: str):
-        super().__init__(bridge_id, vault_root)
+    def __init__(self, bridge_id: str, vault_root: str, vault_manager: Optional[Any] = None):
+        super().__init__(bridge_id, vault_root, vault_manager)
         self.access_token: Optional[str] = None
         self.phone_number_id: Optional[str] = None
         self._client_id: Optional[str] = None
         self._client_secret: Optional[str] = None
         self._refresh_token: Optional[str] = None
         self._token_expires_at: float = 0.0
+
+    async def _save_credentials(self, creds: Dict[str, Any]) -> None:
+        await super()._save_credentials(creds, account_id=self.phone_number_id or "default")
 
     async def connect(self, credentials: Dict[str, Any]) -> bool:
         if not credentials:
@@ -89,16 +92,11 @@ class WhatsAppBridge(BridgeAdapter):
                 self._token_expires_at = time.time() + data.get("expires_in", 5184000)
                 
                 # Persist updated token to vault
-                vault_file = os.path.join(self.vault_path, "credentials.json")
-                if os.path.exists(vault_file):
-                    with open(vault_file) as f:
-                        creds = json.load(f)
-                    creds.update({
-                        "access_token": self.access_token,
-                        "expires_at": self._token_expires_at
-                    })
-                    with open(vault_file, "w") as f:
-                        json.dump(creds, f)
+                creds.update({
+                    "access_token": self.access_token,
+                    "expires_at": self._token_expires_at
+                })
+                await self._save_credentials(creds)
                 
                 self.logger.info("[WHATSAPP] Token refreshed successfully.")
         except Exception as e:

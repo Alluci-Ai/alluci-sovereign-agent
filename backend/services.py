@@ -175,21 +175,21 @@ async def _init_channels(vault_root: str):
         if ws_gw:
             await ws_gw.broadcast_event(event, data)
 
-    channel_registry["telegram"] = TelegramBridge("telegram", vault_root)
-    channel_registry["whatsapp"] = WhatsAppBridge("whatsapp", vault_root)
-    channel_registry["discord"] = DiscordBridge("discord", vault_root)
-    channel_registry["slack"] = SlackBridge("slack", vault_root)
-    channel_registry["email"] = EmailBridge("email", vault_root)
-    channel_registry["signal"] = SignalBridge("signal", vault_root)
-    channel_registry["google_chat"] = GoogleChatBridge("google_chat", vault_root)
-    channel_registry["nostr"] = NostrBridge("nostr", vault_root)
-    channel_registry["imessage"] = IMessageBridge("imessage", vault_root)
-    channel_registry["instagram"] = InstagramBridge("instagram", vault_root)
-    channel_registry["facebook"] = FacebookBridge("facebook", vault_root)
-    channel_registry["x"] = XBridge("x", vault_root)
-    channel_registry["msteams"] = MSTeamsBridge("msteams", vault_root)
-    channel_registry["wechat"] = WeChatBridge("wechat", vault_root)
-    channel_registry["iwatch"] = IWatchBridge("iwatch", vault_root)
+    channel_registry["telegram"] = TelegramBridge("telegram", vault_root, vault_manager=vault)
+    channel_registry["whatsapp"] = WhatsAppBridge("whatsapp", vault_root, vault_manager=vault)
+    channel_registry["discord"] = DiscordBridge("discord", vault_root, vault_manager=vault)
+    channel_registry["slack"] = SlackBridge("slack", vault_root, vault_manager=vault)
+    channel_registry["email"] = EmailBridge("email", vault_root, vault_manager=vault)
+    channel_registry["signal"] = SignalBridge("signal", vault_root, vault_manager=vault)
+    channel_registry["google_chat"] = GoogleChatBridge("google_chat", vault_root, vault_manager=vault)
+    channel_registry["nostr"] = NostrBridge("nostr", vault_root, vault_manager=vault)
+    channel_registry["imessage"] = IMessageBridge("imessage", vault_root, vault_manager=vault)
+    channel_registry["instagram"] = InstagramBridge("instagram", vault_root, vault_manager=vault)
+    channel_registry["facebook"] = FacebookBridge("facebook", vault_root, vault_manager=vault)
+    channel_registry["x"] = XBridge("x", vault_root, vault_manager=vault)
+    channel_registry["msteams"] = MSTeamsBridge("msteams", vault_root, vault_manager=vault)
+    channel_registry["wechat"] = WeChatBridge("wechat", vault_root, vault_manager=vault)
+    channel_registry["iwatch"] = IWatchBridge("iwatch", vault_root, vault_manager=vault)
 
     for ch_name, adapter in channel_registry.items():
         if hasattr(adapter, "on_event"):
@@ -200,13 +200,32 @@ async def _init_channels(vault_root: str):
     # Auto-connect channels
     for ch_name, adapter in channel_registry.items():
         try:
+            # 1. Check if enabled (default True)
             enabled_state = await vault.retrieve_secret(f"channel_{ch_name}_enabled")
             adapter.enabled = enabled_state.get("enabled", True) if enabled_state else True
             if not adapter.enabled: continue
 
-            creds = await vault.retrieve_secret(f"channel_{ch_name}")
-            if creds:
-                await adapter.connect(creds)
+            # 2. Multi-account discovery (P1-009 Standard)
+            accounts = await vault.list_connections(ch_name)
+            
+            if accounts:
+                for account_id in accounts:
+                    creds = await vault.retrieve_connection_secret(ch_name, account_id)
+                    if creds:
+                        success = await adapter.connect(creds)
+                        if success:
+                            logger.info(f"[ CHANNELS ] Connected {ch_name} (Account: {account_id})")
+            else:
+                # 3. Legacy Fallback (Migration path)
+                creds = await vault.retrieve_secret(f"channel_{ch_name}")
+                if creds:
+                    success = await adapter.connect(creds)
+                    if success:
+                        logger.info(f"[ CHANNELS ] Connected legacy {ch_name}")
+                        # Auto-migrate if we have an account ID now
+                        acc_id = creds.get("team_id") or creds.get("user_id") or "default"
+                        await vault.store_connection_secret(ch_name, acc_id, creds)
+
         except Exception as e:
             logger.debug(f"[ CHANNELS ] {ch_name} connection error during boot: {e}")
 

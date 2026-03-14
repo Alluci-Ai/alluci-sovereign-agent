@@ -246,9 +246,8 @@ class BridgeActualizationAdapter(Adapter):
         if not credentials:
             credentials = await self.vault_manager.retrieve_secret(bridge_type)
 
-        # Instantiate bridge with account-isolated vault path
-        # Note: The bridge itself might manage its own sub-files (logs, etc.)
-        bridge = bridge_class(bridge_id=f"{bridge_type}_{account_id}", vault_root=self.vault_manager.vault_root)
+        # Instantiate bridge with account-isolated vault path and vault manager
+        bridge = bridge_class(bridge_id=bridge_type, vault_root=self.vault_manager.vault_root, vault_manager=self.vault_manager)
         bridge.on_inbound = self.on_inbound
         if hasattr(bridge, "connect"):
             await bridge.connect(credentials)

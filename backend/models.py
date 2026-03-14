@@ -102,7 +102,6 @@ class ChannelAccount(SQLModel, table=True):
     channel_type: str = Field(index=True) # "slack", "telegram", etc.
     account_label: str
     account_identifier: str = Field(unique=True, index=True) # e.g. Team ID or Phone Number
-    credentials: Dict = Field(default={}, sa_column=Column(JSON)) # Encrypted if possible
     is_active: bool = True
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 

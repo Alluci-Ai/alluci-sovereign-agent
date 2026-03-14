@@ -26,8 +26,8 @@ class TelegramBridge(BridgeAdapter):
     inbound parsing, and health reporting.
     """
 
-    def __init__(self, bridge_id: str, vault_root: str):
-        super().__init__(bridge_id, vault_root)
+    def __init__(self, bridge_id: str, vault_root: str, vault_manager: Optional[Any] = None):
+        super().__init__(bridge_id, vault_root, vault_manager)
         self.bot_token: str = ""
         self.bot_username: str = ""
         self.api_url = "https://api.telegram.org/bot"

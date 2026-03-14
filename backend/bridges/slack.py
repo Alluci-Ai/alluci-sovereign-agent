@@ -21,8 +21,8 @@ class SlackBridge(BridgeAdapter):
     Supports OAuth 2.0 install flow, Events API, Block Kit messages, and workspace reporting.
     """
 
-    def __init__(self, bridge_id: str, vault_root: str):
-        super().__init__(bridge_id, vault_root)
+    def __init__(self, bridge_id: str, vault_root: str, vault_manager: Optional[Any] = None):
+        super().__init__(bridge_id, vault_root, vault_manager)
         self.api_url = "https://slack.com/api"
         self.bot_token: str = ""
         self.default_channel: str = ""
@@ -187,11 +187,9 @@ class SlackBridge(BridgeAdapter):
             "authed_user_token": authed_user.get("access_token"),
         }
 
-        # Persist to vault
-        vault_file = os.path.join(self.vault_path, "credentials.json")
-        with open(vault_file, "w") as f:
-            json.dump(creds, f)
-        os.chmod(vault_file, 0o600)
+        # Persist to vault using account-specific manifold
+        team_id = data.get("team", {}).get("id") or "default"
+        await self._save_credentials(creds, account_id=team_id)
 
         self.logger.info(f"[SLACK] OAuth complete — workspace {data.get('team', {}).get('name')}")
         await self.connect(creds)
@@ -225,17 +223,12 @@ class SlackBridge(BridgeAdapter):
                 self._refresh_token = updated["refresh_token"]
 
             # Persist updated token to vault
-            vault_file = os.path.join(self.vault_path, "credentials.json")
-            if os.path.exists(vault_file):
-                with open(vault_file) as f:
-                    creds = json.load(f)
-                creds.update({
-                    "access_token":  self.bot_token,
-                    "refresh_token": self._refresh_token,
-                    "expires_at":    self._token_expires_at,
-                })
-                with open(vault_file, "w") as f:
-                    json.dump(creds, f)
+            creds.update({
+                "access_token":  self.bot_token,
+                "refresh_token": self._refresh_token,
+                "expires_at":    self._token_expires_at,
+            })
+            await self._save_credentials(creds, account_id=self.workspace_id or "default")
 
     async def send(self, recipient: str, content: str, **kwargs) -> Dict[str, Any]:
         await self._ensure_token()

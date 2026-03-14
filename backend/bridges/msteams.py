@@ -51,8 +51,8 @@ class MSTeamsBridge(BridgeAdapter):
         "offline_access",
     ]
 
-    def __init__(self, bridge_id: str, vault_root: str):
-        super().__init__(bridge_id, vault_root)
+    def __init__(self, bridge_id: str, vault_root: str, vault_manager: Optional[Any] = None):
+        super().__init__(bridge_id, vault_root, vault_manager)
         self._access_token:   Optional[str] = None
         self._refresh_token:  Optional[str] = None
         self._expires_at:     float = 0.0
@@ -148,15 +148,12 @@ class MSTeamsBridge(BridgeAdapter):
             "client_secret": self._client_secret,
             "tenant_id":     self._tenant_id,
         }
-        self._save_credentials(creds)
+        await self._save_credentials(creds)
         await self.connect(creds)
         return creds
 
-    def _save_credentials(self, creds: Dict[str, Any]) -> None:
-        path = os.path.join(self.vault_path, "credentials.json")
-        with open(path, "w") as f:
-            json.dump(creds, f)
-        os.chmod(path, 0o600)
+    async def _save_credentials(self, creds: Dict[str, Any]) -> None:
+        await super()._save_credentials(creds, account_id=self._user_id or "default")
 
     # ── Token Refresh ─────────────────────────────────────────────────────────
 
@@ -195,7 +192,7 @@ class MSTeamsBridge(BridgeAdapter):
                     "refresh_token": self._refresh_token,
                     "expires_at":    self._expires_at,
                 })
-                self._save_credentials(stored)
+                await self._save_credentials(stored)
 
             self.logger.info("[MSTEAMS] Token refreshed.")
         except Exception as e:

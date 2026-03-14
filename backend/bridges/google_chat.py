@@ -44,8 +44,8 @@ class GoogleChatBridge(BridgeAdapter):
     JWKS_TTL    = 3600.0   # Refresh JWKS cache every hour
     TOKEN_SLACK = 60.0     # Refresh access token 60s before expiry
 
-    def __init__(self, bridge_id: str, vault_root: str):
-        super().__init__(bridge_id, vault_root)
+    def __init__(self, bridge_id: str, vault_root: str, vault_manager: Optional[Any] = None):
+        super().__init__(bridge_id, vault_root, vault_manager)
         self._sa_credentials: Optional[Dict] = None
         self._access_token:   Optional[str] = None
         self._token_expires:  float = 0.0

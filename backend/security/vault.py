@@ -251,6 +251,19 @@ class VaultManager:
             
         return data or {}
 
+    async def list_connections(self, bridge_id: str) -> List[str]:
+        """Returns a list of account IDs currently stored for a specific bridge."""
+        return await asyncio.to_thread(self._list_connections_sync, bridge_id)
+
+    def _list_connections_sync(self, bridge_id: str) -> List[str]:
+        path = os.path.join(self.vault_root, "connections", bridge_id)
+        if not os.path.exists(path):
+            return []
+        try:
+            return [f.replace(".vault", "") for f in os.listdir(path) if f.endswith(".vault")]
+        except OSError:
+            return []
+
     async def delete_connection_secret(self, bridge_id: str, account_id: str) -> bool:
         rel_path = f"connections/{bridge_id}/{account_id}.vault"
         return await asyncio.to_thread(self._delete_secret_by_path_sync, rel_path)

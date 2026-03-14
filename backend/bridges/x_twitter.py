@@ -52,8 +52,8 @@ class XBridge(BridgeAdapter):
     MENTION_INTERVAL = 900    # 15 minutes
     DM_INTERVAL      = 900    # 15 minutes
 
-    def __init__(self, bridge_id: str, vault_root: str):
-        super().__init__(bridge_id, vault_root)
+    def __init__(self, bridge_id: str, vault_root: str, vault_manager: Optional[Any] = None):
+        super().__init__(bridge_id, vault_root, vault_manager)
         self._access_token:   Optional[str] = None
         self._refresh_token:  Optional[str] = None
         self._expires_at:     float = 0.0
@@ -126,15 +126,12 @@ class XBridge(BridgeAdapter):
             "client_id":     self._client_id,
             "client_secret": self._client_secret,
         }
-        self._save_credentials(creds)
+        await self._save_credentials(creds)
         await self.connect(creds)
         return creds
 
-    def _save_credentials(self, creds: Dict[str, Any]) -> None:
-        path = os.path.join(self.vault_path, "credentials.json")
-        with open(path, "w") as f:
-            json.dump(creds, f)
-        os.chmod(path, 0o600)
+    async def _save_credentials(self, creds: Dict[str, Any]) -> None:
+        await super()._save_credentials(creds, account_id=self._my_user_id or "default")
 
     # ── Connection ────────────────────────────────────────────────────────────
 
@@ -214,7 +211,7 @@ class XBridge(BridgeAdapter):
                     "refresh_token": self._refresh_token,
                     "expires_at":    self._expires_at,
                 })
-                self._save_credentials(stored)
+                await self._save_credentials(stored)
 
         except Exception as e:
             self.logger.error(f"[X] Token refresh failed: {e}")

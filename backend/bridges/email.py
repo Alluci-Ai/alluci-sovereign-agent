@@ -16,8 +16,8 @@ class EmailBridge(BridgeAdapter):
     Production Email Bridge implementing SMTP/IMAP standards.
     Adheres to Simplicial Vault Isolation by persisting all traffic to the local vault.
     """
-    def __init__(self, bridge_id: str, vault_root: str):
-        super().__init__(bridge_id, vault_root)
+    def __init__(self, bridge_id: str, vault_root: str, vault_manager: Optional[Any] = None):
+        super().__init__(bridge_id, vault_root, vault_manager)
         self.smtp_server = None
         self.smtp_port = 587
         self.imap_server = None
