@@ -18,6 +18,16 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm="HS256")
     return encoded_jwt
 
+def verify_token(token: str) -> dict:
+    """Verifies a JWT token signature and returns the payload."""
+    try:
+        payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=["HS256"])
+        if payload.get("sub") is None:
+            raise JWTError("Missing subject")
+        return payload
+    except JWTError:
+        raise
+
 async def verify_authenticated(request: Request, token: str = Depends(oauth2_scheme)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -33,10 +43,7 @@ async def verify_authenticated(request: Request, token: str = Depends(oauth2_sch
         raise credentials_exception
 
     try:
-        # Verify signature using dedicated JWT secret key
-        payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=["HS256"])
-        if payload.get("sub") is None:
-            raise credentials_exception
+        verify_token(token)
     except JWTError:
         raise credentials_exception
     return True
