@@ -1,9 +1,27 @@
-# Alluci WatchOS Companion Bridge
+# AlluciWatch — watchOS HealthKit Integration
 
-This directory contains the documentation and core bridge logic for the Alluci Apple Watch companion.
+The AlluciWatch application is a native Swift/WatchKit implementation that bridges biometric data from HealthKit to the Alluci Sovereign Agent.
 
-## Overview
-The Alluci WatchOS app serves as a physiological sensor node that streams Heart Rate (HR) and Heart Rate Variability (HRV) data to the Sovereign Agent to inform the **ACE (Affective Control Engine)**.
+## Implementation Status
+- **Models**: `TelemetrySample.swift` (Matches backend `TelemetryData`)
+- **Managers**: 
+  - `HealthKitManager.swift` (Live HR/HRV monitoring)
+  - `NetworkManager.swift` (TOTP Pairing & Telemetry Ingestion)
+- **UI**: SwiftUI-based pairing and monitoring views.
+
+## Setup Instructions
+1. Open the project in Xcode (requires Mac).
+2. Ensure the `HealthKit` capability is enabled.
+3. Deploy to your Apple Watch.
+4. Open **Settings > iWatch** on your Alluci Desktop Agent to get your Pairing QR.
+5. Enter the **Agent URL**, **Device ID**, and **TOTP Code** into the watch app.
+6. Tap **Connect** to start the physiological feedback loop.
+
+## Automatic Monitoring
+Once paired, tapping **Start Tracking** will:
+1. Initialize an `HKObserverQuery` for heart rate changes.
+2. Batched samples are sent via POST to `/api/bridge/iwatch/biometrics`.
+3. The ACE engine on the backend processes this data to adjust the agent's autonomy and flow mode.
 
 ## Core Bridge Logic (Swift)
 
