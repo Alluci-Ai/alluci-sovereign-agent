@@ -62,8 +62,8 @@ class ModelRouter:
         self.gemini_pro = None
         if GEMINI_AVAILABLE and settings.GEMINI_API_KEY:
             genai.configure(api_key=settings.GEMINI_API_KEY)
-            self.gemini_flash = genai.GenerativeModel("gemini-1.5-flash-latest")
-            self.gemini_pro = genai.GenerativeModel("gemini-1.5-pro-latest")
+            self.gemini_flash = genai.GenerativeModel("gemini-2.0-flash")
+            self.gemini_pro = genai.GenerativeModel("gemini-1.5-pro") # Using 1.5 Pro for maximum reasoning stability
             self.logger.info("Gemini models initialized (primary).")
 
         # Failover 1: OpenAI / GitHub Models
@@ -195,7 +195,7 @@ class ModelRouter:
         if not self.anthropic_client:
             raise RuntimeError("Anthropic not configured")
         
-        model = "claude-3-5-sonnet-20241022" if use_strong else "claude-3-5-haiku-20241022"
+        model = "claude-3-7-sonnet-20250219" if use_strong else "claude-3-5-haiku-20241022"
         message = await self.anthropic_client.messages.create(
             model=model,
             max_tokens=4096,
@@ -338,7 +338,7 @@ class ModelRouter:
         # Attempt 3: Anthropic
         if self.anthropic_client:
             try:
-                await self._notify_fallback("Anthropic (Claude 3.5)")
+                await self._notify_fallback("Anthropic (Claude 3.7)")
                 return await self._anthropic_request(prompt, use_strong=use_strong)
             except Exception as e:
                 errors.append(f"Anthropic: {e}")

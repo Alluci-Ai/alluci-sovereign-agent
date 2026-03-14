@@ -135,20 +135,20 @@ Alluci empowers you to act across your entire digital life from a single, secure
 Alluci coordinates across a secure multi-bridge ecosystem, providing unified access to state-of-the-art tools:
 
 #### 1. LLM_REASONING_&_LOGIC
-- **OpenAI**: GPT-5.1 & o1 for deep strategic planning.
-- **Anthropic**: Claude 4.5 / 4.6 for nuanced context and coding.
-- **Google Cloud**: Gemini 3 for massive context windows.
+- **OpenAI**: GPT-4o & o1 for deep strategic planning.
+- **Anthropic**: Claude 3.7 Sonnet for nuanced context and coding.
+- **Google Cloud**: Gemini 2.0 Flash for massive context and speed.
 - **Groq**: LPU-powered high-speed tactical execution.
 
 #### 2. CONVERSATIONAL_AUDIO
 - **OpenAI Realtime API**: emotionally resonant vocal interaction.
 - **ElevenLabs**: Specialized Agents API for high-fidelity voice synthesis.
-- **Retell AI / Inworld**: Professional telephony and character-driven dialogue.
+- **Retell AI**: Professional telephony and automated dialogue.
 
 #### 3. MULTI-MODAL CREATIVITY
-- **Music**: Suno API, Stable Audio, & Soundverse for melodic composition.
-- **Image**: Midjourney Alpha, DALL·E 3, Fal.ai, & Adobe Firefly.
-- **Video**: Runway Gen-4.5 & Luma Dream Machine for temporal genesis.
+- **Music**: Suno API & Soundverse for melodic composition.
+- **Image**: Midjourney, DALL·E 3, & Fal.ai.
+- **Video**: Runway Gen-3 Alpha & Luma Dream Machine for temporal genesis.
 
 ---
 

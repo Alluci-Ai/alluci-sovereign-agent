@@ -29,8 +29,8 @@ class UsageTracker:
         "gemini-2.0-flash": {
             "input": 0.10, "output": 0.40, "cache_read": 0.025, "cache_write": 0.025,
         },
-        "gemini-2.5-pro-preview-06-05": {
-            "input": 1.25, "output": 10.00, "cache_read": 0.315, "cache_write": 0.315,
+        "gemini-1.5-pro": {
+            "input": 1.25, "output": 5.00, "cache_read": 0.3125, "cache_write": 0.3125,
         },
         "gpt-4o": {
             "input": 2.50, "output": 10.00, "cache_read": 1.25, "cache_write": 1.25,
@@ -38,7 +38,7 @@ class UsageTracker:
         "gpt-4o-mini": {
             "input": 0.15, "output": 0.60, "cache_read": 0.075, "cache_write": 0.075,
         },
-        "claude-sonnet-4-20250514": {
+        "claude-3-7-sonnet-20250219": {
             "input": 3.00, "output": 15.00, "cache_read": 0.30, "cache_write": 3.75,
         },
     }
