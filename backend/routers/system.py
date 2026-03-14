@@ -21,9 +21,45 @@ async def health_check():
     return {"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()}
 
 @router.get("/api/system/health", dependencies=[Depends(verify_authenticated)])
-async def api_health_check():
-    """Protected system health check."""
-    return await health_check()
+async def get_detailed_health():
+    """Runs diagnostic checks across primary modules for the Health dashboard."""
+    import time
+    from ..metrics import metrics
+    
+    # 1. Database
+    db_status = "healthy"
+    try:
+        with Session(db_engine) as session:
+            session.exec(text("SELECT 1"))
+    except Exception:
+        db_status = "unhealthy"
+ 
+    # 2. Vault Security
+    vault_status = "healthy" if services.vault else "warning"
+ 
+    # 3. Model Router
+    router_status = "unhealthy"
+    if services.router:
+        router_status = "warning"  # configured but providers might not be verified
+ 
+    # 4. Local Inference
+    local_inference_status = "healthy" if services.local_inference else "unhealthy"
+ 
+    # 5. Bridges
+    active_bridges = list(services.vault.get_active_vaults()) if services.vault else []
+ 
+    # 6. Cron Engine Tasks
+    cron_status = "healthy" if services.task_manager else "unhealthy"
+ 
+    return {
+        "database": db_status,
+        "vault": vault_status,
+        "model_router": router_status,
+        "local_inference": local_inference_status,
+        "bridges": len(active_bridges),
+        "cron_engine": cron_status,
+        "uptime": time.time() - metrics.start_time,
+    }
 
 @router.get("/ready")
 async def readiness_check():
@@ -90,11 +126,11 @@ async def get_prometheus_metrics():
     return metrics.generate_latest()
 
 @router.get("/api/audit/ledger", dependencies=[Depends(verify_authenticated)])
-async def get_audit_ledger(limit: int = 50, offset: int = 0):
-    from ..security.audit_log import read_audit_log
-    return await read_audit_log(limit, offset)
+async def get_audit_ledger(limit: int = 50, offset: int = 0, status: Optional[str] = None):
+    from ..security.audit_ledger import read_audit_log
+    return await read_audit_log(limit=limit, offset=offset, status=status)
 
 @router.post("/api/audit/entry", dependencies=[Depends(verify_authenticated)])
 async def add_audit_entry(entry: AuditEntry):
-    from ..security.audit_log import sync_audit_entry
+    from ..security.audit_ledger import sync_audit_entry
     return await sync_audit_entry(entry)

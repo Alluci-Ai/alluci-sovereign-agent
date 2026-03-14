@@ -24,6 +24,8 @@ from .config_editor import ConfigEditor
 from .updater import updater as updater_instance
 from .log_streamer import log_buffer
 from .device_manager import DeviceManager
+from .goals.engine import goal_engine as goal_engine_instance
+from .sop.engine import sop_engine as sop_engine_instance
 
 logger = logging.getLogger("PolytopeServices")
 
@@ -45,6 +47,8 @@ memory: Optional[MemoryManager] = None
 redis_client: Optional[redis.Redis] = None
 scanner: Optional[GuardrailScanner] = None
 device_manager: Optional[DeviceManager] = None
+goal_engine = goal_engine_instance
+sop_engine = sop_engine_instance
 updater = updater_instance
 channel_registry: Dict[str, Any] = {}
 
@@ -56,14 +60,19 @@ async def init_services(app_instance):
     logger.info("[ SERVICES ] Initializing global system components...")
 
     # 1. Redis Cache
+    from .metrics import metrics
     if settings.REDIS_URL:
         try:
             redis_client = redis.from_url(settings.REDIS_URL, encoding="utf-8")
             from fastapi_limiter import FastAPILimiter
             await FastAPILimiter.init(redis_client)
-            logger.info(f"[ CACHE ]: Redis initialized on {settings.REDIS_URL}")
+            logger.info(f"[ CACHE ]: Redis distributed rate limiter online: {settings.REDIS_URL}")
         except Exception as e:
-            logger.error(f"[ CACHE ]: Redis initialization failed: {e}")
+            logger.error(f"[ CACHE ]: Redis initialization failed — rate limiting DISABLED: {e}")
+            metrics.increment_counter("redis_init_failures_total")
+    else:
+        logger.warning("[ CACHE ]: REDIS_URL not configured. Rate limiting is INACTIVE.")
+        metrics.increment_counter("redis_not_configured_total")
 
     # 2. Database & Data Layout
     create_db_and_tables()

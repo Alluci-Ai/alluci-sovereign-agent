@@ -1,10 +1,3 @@
-"""
-Redis-backed WebAuthn challenge store for FIDO2 authentication.
-
-Falls back to an asyncio-safe in-memory dict when Redis is unavailable.
-Keys: challenge_id (returned to browser as 'challengeId' field)
-Values: raw challenge bytes, with TTL
-"""
 
 import base64
 import secrets
@@ -15,11 +8,12 @@ logger = logging.getLogger("WebAuthnStore")
 
 CHALLENGE_TTL_SECONDS = 120  # 2-minute challenge window
 
-
 class WebAuthnChallengeStore:
     """
     Redis-backed store for WebAuthn challenges.
     Falls back to an asyncio-safe in-memory dict when Redis is unavailable.
+    Keys: challenge_id (returned to browser as 'challengeId' field)
+    Values: raw challenge bytes, with TTL
     """
 
     def __init__(self, redis_client=None):
@@ -31,7 +25,7 @@ class WebAuthnChallengeStore:
                 "NOT safe for multi-worker deployments."
             )
 
-    async def create_challenge(self) -> tuple:
+    async def create_challenge(self) -> tuple[str, str]:
         """
         Returns (challenge_id, b64_challenge).
         challenge_id is stored server-side and returned to the browser.
@@ -60,11 +54,12 @@ class WebAuthnChallengeStore:
         if self._redis:
             key = f"webauthn:challenge:{challenge_id}"
             # GETDEL is atomic — prevents replay
-            raw = await self._redis.getdel(key)
+            raw = await self._redis.get(key)
+            if raw:
+                await self._redis.delete(key)
             return raw if raw else None
         else:
             return self._local.pop(challenge_id, None)
-
 
 # Module-level singleton — injected with redis_client during lifespan
 webauthn_store: WebAuthnChallengeStore = WebAuthnChallengeStore()

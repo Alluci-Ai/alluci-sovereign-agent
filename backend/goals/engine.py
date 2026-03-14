@@ -41,12 +41,20 @@ class GoalsEngine:
                 return True
         return False
 
-    async def get_active_goals(self) -> List[GoalRecord]:
+    async def get_goal(self, goal_id: int) -> Optional[GoalRecord]:
         with Session(self.engine) as session:
-            stmt = select(GoalRecord).where(GoalRecord.status == "active")
-            return session.exec(stmt).all()
+            return session.get(GoalRecord, goal_id)
 
-    def list_goals(self, status: Optional[str] = None) -> List[GoalRecord]:
+    async def delete_goal(self, goal_id: int) -> bool:
+        with Session(self.engine) as session:
+            goal = session.get(GoalRecord, goal_id)
+            if goal:
+                session.delete(goal)
+                session.commit()
+                return True
+        return False
+
+    async def list_goals(self, status: Optional[str] = None) -> List[GoalRecord]:
         with Session(self.engine) as session:
             stmt = select(GoalRecord)
             if status:

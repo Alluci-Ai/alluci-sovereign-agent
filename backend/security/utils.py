@@ -30,7 +30,7 @@ async def sanitize_input(text: str, scanner=None) -> str:
 
 async def log_system_event(event: str, details: str, status: str = "INFO"):
     """Internal helper to record immutable system events."""
-    from .audit_log import sync_audit_entry # Local import to avoid circularity if needed
+    from .audit_ledger import sync_audit_entry # Local import to avoid circularity if needed
     try:
         entry = AuditEntry(
             id=str(uuid.uuid4()),
