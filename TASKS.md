@@ -1,8 +1,18 @@
+# Active Strategic Roadmaps
 
-# Active Task List
+The `HeartbeatDaemon` monitors this file for governance health and tactical urgency.
 
-The HeartbeatDaemon monitors this file for overdue items.
+## 🟢 Recently Completed Milestones
+- [x] **[CRITICAL]** End-to-End Biometric Pipeline (Native watchOS Swift App + HealthKit + ACE Engine)
+- [x] **[CRITICAL]** Security Hardening (Simplicial Vault Connection Storage, Nginx CSP/HSTS, WebSocket JWT Auth)
+- [x] **[CRITICAL]** Infrastructure Stability (Redis-backed OAuth PKCE, Sync/Async DB Migration Path)
+- [x] **[HIGH]** Vector Memory Persistence (ChromaDB Integration)
+- [x] **[HIGH]** Model Manifold Update (Gemini 2.0, Claude 3.7 integration)
 
-- [ ] [HIGH] Review PR #102 for security vulnerabilities (due: 2025-04-01)
-- [ ] [HIGH] Update dependency graph for bridges (due: 2025-04-15)
-- [ ] [HIGH] Implement Vector Memory persistence (due: 2025-05-01)
+## 🟡 Currently Active Tasks (Phase 4)
+- [ ] **[HIGH]** Windows 11 Integration: Native Credential Manager & MSIX Installer (due: 2026-03-25)
+- [ ] **[MEDIUM]** Verus Multi-Chain Wallet UI Synchronization (due: 2026-03-20)
+- [ ] **[LOW]** Liquid Glass Tactile Interaction refined for AffectiveWidget (due: 2026-04-01)
+
+---
+*Last Updated: 2026-03-14 by Sovereign Architect*
