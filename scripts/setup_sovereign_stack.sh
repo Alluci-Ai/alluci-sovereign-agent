@@ -69,6 +69,10 @@ if [[ ! -f "$PIPER_DIR/piper" ]]; then
 else
     echo "  Piper already installed at ~/.polytope/piper"
 fi
+# ── 4. Native Security Kernels ─────────────────────────────
+echo "[5/5] Compiling Native Security Kernels (DPK)..."
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+make -C "$SCRIPT_DIR/../backend/security"
 
 # ── Summary ────────────────────────────────────────────────
 echo ""

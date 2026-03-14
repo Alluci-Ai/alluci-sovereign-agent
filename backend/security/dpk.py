@@ -1,10 +1,23 @@
-
 import logging
+import ctypes
+import os
 from dataclasses import dataclass
-from typing import List
+from typing import List, Optional
 
 logger = logging.getLogger("DPK")
 
+# --- Native Struct Definitions ---
+class NativePolytopeState(ctypes.Structure):
+    _fields_ = [
+        ("signature_hash", ctypes.c_uint64),
+        ("vertices_V", ctypes.c_int32),
+        ("edges_E", ctypes.c_int32),
+        ("faces_F", ctypes.c_int32),
+        ("betti", ctypes.c_float * 4),
+        ("affective_tension_psi", ctypes.c_float),
+    ]
+
+# --- Python Model ---
 @dataclass
 class PolytopeState:
     signature_hash: int          # AAP-003: SHA256-derived sovereign hash
@@ -19,58 +32,64 @@ class PolytopeState:
 
 class DiscreteProjectionKernel:
     """
-    Python logic mirroring the C++ Discrete Projection Kernel (dpk_kernel.cpp).
-    Performs Euler Characteristic checks to validate manifold integrity.
+    Gatekeeper for agent execution logic. Uses C++ Kernel via ctypes
+    with a High-Fidelity Python fallback if the binary is unavailable.
     """
     def __init__(self):
-        self.prev_state: PolytopeState = None
+        self.prev_state: Optional[PolytopeState] = None
         self.initialized = False
         self.MAX_EULER_DEVIATION = 2
         self.TEARING_THRESHOLD = 0.15
+        
+        # Load Native Kernel
+        self.native_lib = self._load_native_lib()
+        self.native_instance = None
+        if self.native_lib:
+            try:
+                self.native_lib.dpk_new.restype = ctypes.c_void_p
+                self.native_lib.dpk_free.argtypes = [ctypes.c_void_p]
+                self.native_lib.dpk_authorize.argtypes = [ctypes.c_void_p, ctypes.POINTER(NativePolytopeState)]
+                self.native_lib.dpk_authorize.restype = ctypes.c_bool
+                self.native_instance = self.native_lib.dpk_new()
+                logger.info("[DPK] Native C++ Kernel Loaded.")
+            except Exception as e:
+                logger.warning(f"[DPK] Failed to initialize native instance: {e}. Falling back to Python.")
+                self.native_lib = None
 
-    @staticmethod
-    def compute_signature_hash(betti: List[float], chi: int) -> int:
-        """
-        H_P = SHA256(sorted_betti + '|' + chi + '|' + epoch_bin)
-        Source: AAP §Sovereign Attribution
-        """
-        import hashlib
-        import time
-        sorted_betti = sorted(round(b, 2) for b in betti)
-        betti_str = ",".join(str(b) for b in sorted_betti)
-        epoch_bin = str(int(time.time()) // 60)
-        payload = f"{betti_str}|{chi}|{epoch_bin}"
-        h = hashlib.sha256(payload.encode()).hexdigest()
-        # First 16 hex chars = 64-bit integer
-        return int(h[:16], 16)
+    def _load_native_lib(self):
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        ext = ".so" if os.name != "nt" else ".dll"
+        if os.uname().sysname == "Darwin": ext = ".dylib"
+        
+        lib_path = os.path.join(base_dir, f"libdpk{ext}")
+        if os.path.exists(lib_path):
+            try:
+                return ctypes.CDLL(lib_path)
+            except Exception as e:
+                logger.warning(f"[DPK] Failed to load library at {lib_path}: {e}")
+        return None
 
-    def validate_manifold_integrity(self, current: PolytopeState) -> bool:
-        # 1. Sovereign Attribution Check
+    def __del__(self):
+        if self.native_lib and self.native_instance:
+            self.native_lib.dpk_free(self.native_instance)
+
+    def validate_manifold_integrity_py(self, current: PolytopeState) -> bool:
+        """Pure Python fallback implementation."""
         if current.signature_hash == 0:
             logger.critical("[DPK] CRITICAL: Unsigned Manifold. Execution Blocked.")
             return False
 
-        # 2. Euler Characteristic Check (χ = V - E + F)
         chi = current.vertices_V - current.edges_E + current.faces_F
-        
-        # Alternating Sum of Betti Numbers (χ = Σ (-1)^k * β_k)
-        # B0 - B1 + B2 - B3
         betti_chi = round(current.betti[0] - current.betti[1] + current.betti[2] - current.betti[3])
 
         if abs(chi - betti_chi) > self.MAX_EULER_DEVIATION:
-            logger.error(f"[DPK] TOPOLOGY ERROR: Euler Mismatch. Geometric Chi: {chi} vs Homological Chi: {betti_chi}")
-            return False  # BLOCKING: Topology violation halts execution
+            logger.error(f"[DPK] TOPOLOGY ERROR: Euler Mismatch. {chi} vs {betti_chi}")
+            return False
         
-        # 3. Manifold Tearing Check (Temporal Consistency)
-        # PPN-005 will upgrade this to Lipschitz budget tracking in Sprint 2.
         if self.initialized and current.affective_tension_psi < 0.8:
-            topology_shift = 0.0
-            for i in range(4):
-                if i < len(current.betti) and i < len(self.prev_state.betti):
-                    topology_shift += abs(current.betti[i] - self.prev_state.betti[i])
-            
+            topology_shift = sum(abs(current.betti[i] - self.prev_state.betti[i]) for i in range(4))
             if topology_shift > self.TEARING_THRESHOLD * 10.0:
-                logger.warning("[DPK] SAFETY: Manifold Tearing Detected. Sudden jump in Betti numbers.")
+                logger.warning("[DPK] SAFETY: Manifold Tearing Detected.")
                 return False
 
         self.prev_state = current
@@ -78,10 +97,23 @@ class DiscreteProjectionKernel:
         return True
 
     def authorize_execution(self, state: PolytopeState) -> bool:
-        if self.validate_manifold_integrity(state):
-            chi = state.vertices_V - state.edges_E + state.faces_F
-            logger.info(f"[DPK] STATE VALID. Geodesic Path Cleared. χ={chi}")
-            return True
-        else:
-            logger.error("[DPK] STATE INVALID. Triggering Global Rupture Protocol.")
-            return False
+        """Entry point for authorization, routes to native or python."""
+        if self.native_lib and self.native_instance:
+            native_state = NativePolytopeState(
+                signature_hash=state.signature_hash,
+                vertices_V=state.vertices_V,
+                edges_E=state.edges_E,
+                faces_F=state.faces_F,
+                betti=(ctypes.c_float * 4)(*state.betti),
+                affective_tension_psi=state.affective_tension_psi
+            )
+            is_valid = self.native_lib.dpk_authorize(self.native_instance, ctypes.byref(native_state))
+            if is_valid:
+                logger.info(f"[DPK] STATE VALID (NATIVE). χ={state.vertices_V - state.edges_E + state.faces_F}")
+                return True
+            else:
+                logger.error("[DPK] STATE INVALID (NATIVE). Blocking execution.")
+                return False
+        
+        # Fallback to Python
+        return self.validate_manifold_integrity_py(state)

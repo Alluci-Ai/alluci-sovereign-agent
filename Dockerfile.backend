@@ -29,6 +29,9 @@ WORKDIR /app
 COPY backend/ ./backend/
 COPY TASKS.md HEARTBEAT.md ./
 
+# Compile Native Kernels (DPK)
+RUN make -C backend/security/
+
 # Create non-root user for security
 RUN useradd -m -r polytope && \
     mkdir -p /home/polytope/.polytope/vaults && \
