@@ -27,42 +27,47 @@ from backend import models  # noqa: F401, E402 — force models to register with
 
 app_settings = load_settings()
 
-# Override sqlalchemy.url from the app's DATABASE_URL if not set via CLI
-if not config.get_main_option("sqlalchemy.url"):
-    config.set_main_option("sqlalchemy.url", app_settings.DATABASE_URL)
-
 # Point Alembic at SQLModel's metadata for autogenerate support
 target_metadata = SQLModel.metadata
 
+def get_url() -> str:
+    """Retrieves the sync-compatible database URL for Alembic."""
+    url = app_settings.DATABASE_URL
+    # Ensure synchronous driver is used for migrations (SQLModel/SQLAlchemy sync engine)
+    if url.startswith("postgresql+asyncpg://"):
+        url = url.replace("postgresql+asyncpg://", "postgresql://")
+    return url
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode (emit SQL to stdout)."""
-    url = config.get_main_option("sqlalchemy.url")
+    url = get_url()
+    is_sqlite = "sqlite" in url
+    
     context.configure(
         url=url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
-        render_as_batch=True,  # Required for SQLite ALTER TABLE support
+        render_as_batch=is_sqlite,  # Only use batch for SQLite
     )
 
     with context.begin_transaction():
         context.run_migrations()
 
-
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode with a live connection."""
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
+    url = get_url()
+    is_sqlite = "sqlite" in url
+    
+    # We create a sync engine for the migration runner
+    from sqlalchemy import create_engine
+    connectable = create_engine(url)
 
     with connectable.connect() as connection:
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
-            render_as_batch=True,  # Required for SQLite ALTER TABLE support
+            render_as_batch=is_sqlite,  # Only use batch for SQLite
         )
 
         with context.begin_transaction():
