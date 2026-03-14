@@ -62,8 +62,6 @@ app.include_router(sessions.router)
 app.include_router(config.router)
 app.include_router(soul.router)
 app.include_router(exec_approval.router)
-app.include_router(websockets.router)
-app.include_router(memory.router)
 
 if __name__ == "__main__":
     import uvicorn
