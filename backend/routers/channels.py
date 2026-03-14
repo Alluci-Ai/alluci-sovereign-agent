@@ -1,19 +1,25 @@
-
 import logging
-from fastapi import APIRouter, HTTPException, Depends, Query, Body, Request, Response
-from ..security.auth import verify_authenticated
-from .. import services
 import json
 import secrets
 import os
 import asyncio
+from typing import Dict, Any, Optional
+from fastapi import APIRouter, HTTPException, Depends, Query, Body, Request, Response
 from fastapi.responses import HTMLResponse, PlainTextResponse
+from ..security.auth import verify_authenticated
+from .. import services
+from ..models import TelemetryData
 
 logger = logging.getLogger("ChannelsRouter")
 
-# In-memory PKCE verifier store — replace with Redis in multi-worker deployment
+# Per-bridge PKCE/state stores — replace with Redis in multi-worker deployments
 _slack_pkce_states: Dict[str, str] = {}   # state → code_verifier
-_x_pkce_states:     Dict[str, str] = {}   # state → code_verifier
+_oauth_states: Dict[str, Dict[str, Any]] = {
+    "instagram": {},  # state → {"verifier": ..., "redirect_uri": ...}
+    "facebook":  {},
+    "x":         {},  # state → {"verifier": ..., "redirect_uri": ...}
+    "msteams":   {},
+}
 
 router = APIRouter(tags=["Bridge Channels"])
 
@@ -52,663 +58,363 @@ async def connect_channel(channel_id: str):
 
 # --- Specialized Channel Routes ---
 
+# --- iWatch (HealthKit) Routes ---
+
 @router.get("/api/channels/iwatch/status", dependencies=[Depends(verify_authenticated)])
 async def iwatch_status():
     adapter = services.channel_registry.get("iwatch")
-    if not adapter:
-        return {"status": "unloaded"}
+    if not adapter: return {"status": "unloaded"}
     return {"status": "connected" if getattr(adapter, "is_connected", False) else "paired"}
 
-@router.post("/api/channels/iwatch/pair")
-async def iwatch_pair(request: Request):
-    """Step 1: Generate QR code for Watch pairing."""
+@router.get("/api/channels/iwatch/pairing-qr", dependencies=[Depends(verify_authenticated)])
+async def iwatch_pairing_qr():
+    """Generate TOTP seed and QR payload for Watch pairing."""
     adapter = services.channel_registry.get("iwatch")
-    if not adapter: raise HTTPException(404, "Adapter not found")
-    
-    daemon_url = os.getenv("DAEMON_PUBLIC_URL", "http://localhost:8000")
+    if not adapter:
+        raise HTTPException(status_code=503, detail="iWatch adapter not initialised.")
+    daemon_url = os.getenv("DAEMON_PUBLIC_URL", "http://localhost:8000").rstrip("/")
     return await adapter.generate_pairing_qr(daemon_url)
 
-@router.post("/api/channels/iwatch/pair/verify")
-async def iwatch_pair_verify(data: Dict[str, str] = Body(...)):
-    """Step 2: Verify TOTP code and issue device token."""
-    code = data.get("code")
-    device_id = data.get("device_id")
-    if not code or not device_id: 
-        raise HTTPException(400, "Missing 'code' or 'device_id' parameter")
-        
+@router.post("/api/channels/iwatch/pair")
+async def iwatch_pair(data: Dict[str, str] = Body(...)):
+    """Verify TOTP code and issue a device session token."""
     adapter = services.channel_registry.get("iwatch")
-    if not adapter: raise HTTPException(404, "Adapter not found")
-    
-    result = await adapter.submit_pairing_code(code, device_id)
-    if result.get("status") == "SUCCESS":
-        return result
-    raise HTTPException(status_code=401, detail=result.get("error", "Pairing failed"))
+    if not adapter:
+        raise HTTPException(status_code=503, detail="iWatch adapter not initialised.")
+    code      = data.get("code", "")
+    device_id = data.get("device_id", "")
+    if not code or not device_id:
+        raise HTTPException(status_code=400, detail="code and device_id required.")
+    return await adapter.submit_pairing_code(code, device_id)
 
 @router.post("/api/bridge/iwatch/biometrics")
-async def iwatch_biometrics(request: Request, data: Dict[str, Any] = Body(...)):
-    """
-    Ingest HealthKit telemetry samples from a paired Watch.
-    Uses Bearer auth with device session token.
-    """
+async def ingest_iwatch_biometrics(request: Request):
+    """Ingest HealthKit telemetry from Apple Watch with device or user token."""
     adapter = services.channel_registry.get("iwatch")
-    if not adapter: raise HTTPException(404)
+    if not adapter:
+        raise HTTPException(status_code=503, detail="iWatch adapter not initialised.")
 
-    auth_header = request.headers.get("Authorization", "")
-    token = auth_header.removeprefix("Bearer ").strip()
-    
-    device_id = adapter.verify_device_token(token)
-    if not device_id:
-        raise HTTPException(status_code=401, detail="Invalid or expired device token")
+    authorization = request.headers.get("Authorization", "")
+    token = authorization.removeprefix("Bearer ").strip()
+    device_id = None
 
-    samples = data.get("samples", [])
+    if token:
+        device_id = adapter.verify_device_token(token)
+        if not device_id:
+            try:
+                # Fallback to user JWT verification
+                await verify_authenticated(request)
+                device_id = "manual"
+            except Exception:
+                raise HTTPException(status_code=401, detail="Invalid token.")
+
+    body = await request.json()
+    samples = body.get("samples") or ([body] if "hr" in body else [])
     if not samples:
-        return {"status": "ok", "processed": 0}
+        raise HTTPException(status_code=400, detail="No telemetry samples provided.")
 
-    return await adapter.ingest_telemetry(samples, device_id)
+    results = []
+    for raw in samples:
+        try:
+            td = TelemetryData(**{k: raw.get(k) for k in TelemetryData.model_fields if raw.get(k) is not None})
+            if services.ace:
+                flow = services.ace.process_telemetry(td)
+                results.append({"flow": flow, "ts": raw.get("recorded_at")})
+        except Exception: pass
 
-@router.get("/api/channels/wechat/qr-init")
+    await adapter.ingest_telemetry(samples, device_id or "unknown")
+    latest_flow = results[-1] if results else {}
+    return {
+        "status": "SUCCESS",
+        "processed": len(samples),
+        "flow_intervention": latest_flow.get("flow"),
+        "resonance": services.ace.current_state.get("physical_vitality") if services.ace else None,
+    }
+
+@router.get("/api/bridge/iwatch/telemetry", dependencies=[Depends(verify_authenticated)])
+async def get_iwatch_telemetry(limit: int = Query(20, ge=1, le=200)):
+    """Retrieve recent telemetry samples from the iWatch bridge buffer."""
+    adapter = services.channel_registry.get("iwatch")
+    if not adapter: raise HTTPException(503)
+    samples = adapter.get_recent_telemetry(limit)
+    return {"samples": samples, "count": len(samples)}
+
+# --- WeChat (WeCom) Routes ---
+
+@router.get("/api/channels/wechat/qr-init", dependencies=[Depends(verify_authenticated)])
 async def wechat_qr_init():
+    """Generate WeCom OAuth QR URL for workspace login."""
     adapter = services.channel_registry.get("wechat")
-    if hasattr(adapter, "init_qr"):
-        return await adapter.init_qr()
-    raise HTTPException(status_code=501, detail="WeChat QR flow not implemented")
+    if not adapter: raise HTTPException(503)
+    return await adapter.init_qr()
 
 @router.get("/api/oauth/wechat/callback")
-async def wechat_oauth_callback(
-    code:  str = Query(None),
-    state: str = Query(None),
-):
-    """Handle WeCom web OAuth callback."""
-    # This usually just returns a success page or redirects
-    return HTMLResponse("<html><body>Verification successful. You can close this window.</body></html>")
+async def wechat_oauth_callback(code: str = Query(None), state: str = Query(None)):
+    payload = json.dumps({"type": "OAUTH_COMPLETE", "bridgeId": "wechat", "success": bool(code)})
+    return HTMLResponse(f"<script>window.opener&&window.opener.postMessage({payload},window.location.origin);window.close();</script>")
 
 @router.get("/api/webhook/wechat")
-async def wechat_webhook_verify(
-    msg_signature: str = Query(None),
-    timestamp:     str = Query(None),
-    nonce:         str = Query(None),
-    echostr:       str = Query(None),
-):
-    """WeCom webhook verification (GET)."""
+async def wechat_webhook_verify(msg_signature: str = Query(...), timestamp: str = Query(...), nonce: str = Query(...), echostr: str = Query("")):
     adapter = services.channel_registry.get("wechat")
-    if not adapter: raise HTTPException(404)
+    if not adapter: raise HTTPException(503)
     result = adapter.verify_callback(msg_signature, timestamp, nonce, echostr)
     if result: return PlainTextResponse(result)
     raise HTTPException(403)
 
 @router.post("/api/webhook/wechat")
-async def wechat_webhook_post(
-    request: Request,
-    msg_signature: str = Query(None),
-    timestamp:     str = Query(None),
-    nonce:         str = Query(None),
-):
-    """WeCom webhook event receiver (POST)."""
-    body = await request.body()
+async def wechat_webhook_post(request: Request, msg_signature: str = Query(...), timestamp: str = Query(...), nonce: str = Query(...)):
     adapter = services.channel_registry.get("wechat")
-    if not adapter: raise HTTPException(404)
-    
-    # WeCom requires verification logic even on POST
-    # but here we just pass the raw XML to the adapter
-    await adapter.process_webhook({"raw_xml": body.decode("utf-8")})
-    return Response(status_code=200)
-
-@router.post("/api/channels/webchat/session/{id}/capture")
-async def webchat_session_capture(id: str, data: Dict[str, Any] = Body(...)):
-    adapter = services.channel_registry.get("webchat")
-    if hasattr(adapter, "capture_session"):
-        return await adapter.capture_session(id, data)
-    raise HTTPException(status_code=501, detail="WebChat capture not implemented")
+    if not adapter: return "<xml><Content>ok</Content></xml>"
+    raw_body = await request.body()
+    if adapter.verify_callback(msg_signature, timestamp, nonce) is None:
+        raise HTTPException(status_code=403)
+    await adapter.process_webhook({"raw_xml": raw_body.decode("utf-8")})
+    return "<xml><Content>ok</Content></xml>"
 
 # --- Slack OAuth & Webhook ---
 
 @router.get("/api/oauth/slack/start", dependencies=[Depends(verify_authenticated)])
 async def slack_oauth_start():
-    """
-    Initiate Slack PKCE OAuth flow.
-    Returns the authorization URL to redirect the user to.
-    """
     adapter = services.channel_registry.get("slack")
-    if not adapter:
-        raise HTTPException(status_code=503, detail="Slack adapter not initialised.")
-
+    if not adapter: raise HTTPException(503)
     daemon_url = os.getenv("DAEMON_PUBLIC_URL", "http://localhost:8000").rstrip("/")
     redirect_uri = f"{daemon_url}/api/oauth/slack/callback"
     state = secrets.token_urlsafe(32)
-
-    try:
-        authorize_url, code_verifier = adapter.build_oauth_url(redirect_uri, state)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to build OAuth URL: {e}")
-
-    # Persist verifier keyed by state (5-minute TTL handled by cleanup task)
+    authorize_url, code_verifier = adapter.build_oauth_url(redirect_uri, state)
     _slack_pkce_states[state] = code_verifier
-    
-    # Also backup to Redis if available
-    if services.redis_client:
-        await services.redis_client.setex(f"slack_pkce_{state}", 600, code_verifier)
-
-    return {
-        "authorize_url": authorize_url,
-        "state":         state,
-    }
+    return {"authorize_url": authorize_url, "state": state}
 
 @router.get("/api/oauth/slack/callback")
-async def slack_oauth_callback(
-    code:  str = Query(None),
-    state: str = Query(None),
-    error: str = Query(None),
-):
-    """
-    Handle Slack OAuth callback with PKCE code exchange.
-    Completes via postMessage to the opener window.
-    """
-    def _respond(success: bool, detail: str = "") -> HTMLResponse:
-        payload = json.dumps({
-            "type":    "OAUTH_COMPLETE",
-            "bridgeId": "slack",
-            "success": success,
-            "error":   detail,
-        })
-        return HTMLResponse(
-            f"<html><head><script>"
-            f"window.opener && window.opener.postMessage({payload}, window.location.origin);"
-            f"window.close();"
-            f"</script></head><body>OAuth Complete. Closing window...</body></html>"
-        )
-
-    if error:
-        logger.warning(f"[SLACK OAUTH] User denied or error: {error}")
-        return _respond(False, error)
-
-    if not code or not state:
-        return _respond(False, "missing_code_or_state")
-
-    # Try local state first, then fallback to Redis
-    code_verifier = _slack_pkce_states.pop(state, None)
-    if not code_verifier and services.redis_client:
-        v = await services.redis_client.get(f"slack_pkce_{state}")
-        if v:
-            code_verifier = v.decode("utf-8")
-            await services.redis_client.delete(f"slack_pkce_{state}")
-
-    if not code_verifier:
-        logger.warning(f"[SLACK OAUTH] Unknown or expired state: {state}")
-        return _respond(False, "invalid_or_expired_state")
-
+async def slack_oauth_callback(code: str = Query(None), state: str = Query(None), error: str = Query(None)):
+    def _resp(ok: bool, err: str = ""):
+        p = json.dumps({"type":"OAUTH_COMPLETE","bridgeId":"slack","success":ok,"error":err})
+        return HTMLResponse(f"<script>window.opener&&window.opener.postMessage({p},window.location.origin);window.close();</script>")
+    if error: return _resp(False, error)
+    verifier = _slack_pkce_states.pop(state, None)
+    if not verifier: return _resp(False, "invalid_state")
     adapter = services.channel_registry.get("slack")
-    if not adapter:
-        return _respond(False, "adapter_not_ready")
-
-    daemon_url = os.getenv("DAEMON_PUBLIC_URL", "http://localhost:8000").rstrip("/")
-    redirect_uri = f"{daemon_url}/api/oauth/slack/callback"
-
+    if not adapter: return _resp(False, "not_ready")
     try:
-        creds = await adapter.handle_oauth_callback(
-            code=code,
-            state=state,
-            code_verifier=code_verifier,
-            redirect_uri=redirect_uri,
-        )
-        # Persist to vault
-        if services.vault:
-            from ..security.utils import log_system_event
-            await services.vault.store_secret("channel_slack", creds)
-            await log_system_event("OAUTH_COMPLETE", "Slack OAuth completed successfully.", "SUCCESS")
-        return _respond(True)
-    except Exception as e:
-        logger.error(f"[SLACK OAUTH] Token exchange failed: {e}")
-        return _respond(False, str(e))
+        daemon_url = os.getenv("DAEMON_PUBLIC_URL", "http://localhost:8000").rstrip("/")
+        creds = await adapter.handle_oauth_callback(code=code, state=state, code_verifier=verifier, redirect_uri=f"{daemon_url}/api/oauth/slack/callback")
+        await services.vault.store_secret("channel_slack", creds)
+        return _resp(True)
+    except Exception as e: return _resp(False, str(e))
 
 @router.post("/api/webhook/slack")
 async def slack_webhook(request: Request):
-    """
-    Events API endpoint. Handles signature verification and dispatches to adapter.
-    """
     body = await request.body()
-    timestamp = request.headers.get("X-Slack-Request-Timestamp")
-    signature = request.headers.get("X-Slack-Signature")
-    
+    ts = request.headers.get("X-Slack-Request-Timestamp")
+    sig = request.headers.get("X-Slack-Signature")
     adapter = services.channel_registry.get("slack")
-    if not adapter:
-        raise HTTPException(status_code=404, detail="Slack adapter not found")
-    
-    # Verify Signature (SL-001)
-    if not adapter.verify_signature(body, timestamp, signature):
-        logger.warning(f"Slack webhook signature verification failed from {request.client.host}")
-        raise HTTPException(status_code=401, detail="Invalid signature")
-    
-    try:
-        payload = json.loads(body)
-        return await adapter.process_webhook(payload)
-    except Exception as e:
-        logger.error(f"Slack webhook processing error: {e}")
-        return {"status": "error", "detail": str(e)}
+    if not adapter or not adapter.verify_signature(body, ts, sig):
+        raise HTTPException(401)
+    return await adapter.process_webhook(json.loads(body))
 
 # --- WhatsApp Webhooks ---
 
 @router.get("/api/webhook/whatsapp")
-async def whatsapp_webhook_verify(
-    mode:      str = Query(None, alias="hub.mode"),
-    token:     str = Query(None, alias="hub.verify_token"),
-    challenge: str = Query(None, alias="hub.challenge"),
-):
-    """Responds to Meta's hub.challenge subscription verification."""
+async def whatsapp_webhook_verify(mode: str = Query(None, alias="hub.mode"), token: str = Query(None, alias="hub.verify_token"), challenge: str = Query(None, alias="hub.challenge")):
     adapter = services.channel_registry.get("whatsapp")
-    if not adapter:
-        raise HTTPException(status_code=503, detail="Adapter not ready")
-
+    if not adapter: raise HTTPException(503)
     result = adapter.verify_webhook(mode or "", token or "", challenge or "")
-    if result is not None:
-        return PlainTextResponse(content=result)
-
-    raise HTTPException(status_code=403, detail="Verification failed.")
+    if result: return PlainTextResponse(result)
+    raise HTTPException(403)
 
 @router.post("/api/webhook/whatsapp")
 async def whatsapp_webhook_post(request: Request):
-    """
-    Receives inbound events from Meta WhatsApp Cloud API.
-    Verifies X-Hub-Signature-256 before processing.
-    """
     raw_body = await request.body()
-    signature = request.headers.get("X-Hub-Signature-256", "")
-
+    sig = request.headers.get("X-Hub-Signature-256", "")
     adapter = services.channel_registry.get("whatsapp")
-    if not adapter:
-        return {"ok": False, "error": "Adapter not ready"}
-
-    # HMAC verification — reject unsigned payloads
-    if not adapter.verify_signature(raw_body, signature):
-        logger.warning("[WHATSAPP] Rejected POST webhook — HMAC verification failed.")
-        raise HTTPException(status_code=403, detail="Invalid webhook signature.")
-
-    try:
-        body = json.loads(raw_body)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid JSON body.")
-
-    parsed_list = await adapter.process_webhook_event(body)
-    if parsed_list and services.orchestrator:
-        for msg in parsed_list:
-            asyncio.create_task(services.orchestrator.handle_inbound_message(msg))
-
+    if not adapter or not adapter.verify_signature(raw_body, sig):
+        raise HTTPException(403)
+    await adapter.process_webhook_event(json.loads(raw_body))
     return {"ok": True}
 
 # --- Instagram OAuth & Webhook ---
 
 @router.get("/api/oauth/instagram/start", dependencies=[Depends(verify_authenticated)])
 async def instagram_oauth_start():
-    """Initiate Instagram/Meta OAuth flow."""
     adapter = services.channel_registry.get("instagram")
-    if not adapter:
-        raise HTTPException(status_code=503, detail="Instagram adapter not initialised.")
-
+    if not adapter: raise HTTPException(503)
     daemon_url = os.getenv("DAEMON_PUBLIC_URL", "http://localhost:8000").rstrip("/")
     redirect_uri = f"{daemon_url}/api/oauth/instagram/callback"
     state = secrets.token_urlsafe(32)
-
-    authorize_url, _ = adapter.build_oauth_url(redirect_uri, state)
-    return {
-        "authorize_url": authorize_url,
-        "state":         state,
-    }
+    url, _ = adapter.build_oauth_url(redirect_uri, state)
+    _oauth_states["instagram"][state] = {"redirect_uri": redirect_uri}
+    return {"authorize_url": url, "state": state}
 
 @router.get("/api/oauth/instagram/callback")
-async def instagram_oauth_callback(
-    code:  str = Query(None),
-    state: str = Query(None),
-    error: str = Query(None),
-):
-    """Handle Instagram OAuth callback."""
-    def _respond(success: bool, detail: str = "") -> HTMLResponse:
-        payload = json.dumps({
-            "type":    "OAUTH_COMPLETE",
-            "bridgeId": "instagram",
-            "success": success,
-            "error":   detail,
-        })
-        return HTMLResponse(
-            f"<html><head><script>"
-            f"window.opener && window.opener.postMessage({payload}, window.location.origin);"
-            f"window.close();"
-            f"</script></head><body>OAuth Complete. Closing window...</body></html>"
-        )
-
-    if error: return _respond(False, error)
-    if not code: return _respond(False, "missing_code")
-
+async def instagram_oauth_callback(code: str = Query(None), state: str = Query(None), error: str = Query(None)):
+    def _resp(ok: bool, err: str = ""):
+        p = json.dumps({"type":"OAUTH_COMPLETE","bridgeId":"instagram","success":ok,"error":err})
+        return HTMLResponse(f"<script>window.opener&&window.opener.postMessage({p},window.location.origin);window.close();</script>")
+    if error: return _resp(False, error)
+    sd = _oauth_states["instagram"].pop(state, None)
+    if not sd: return _resp(False, "invalid_state")
     adapter = services.channel_registry.get("instagram")
-    if not adapter: return _respond(False, "adapter_not_ready")
-
-    daemon_url = os.getenv("DAEMON_PUBLIC_URL", "http://localhost:8000").rstrip("/")
-    redirect_uri = f"{daemon_url}/api/oauth/instagram/callback"
-
+    if not adapter: return _resp(False, "not_ready")
     try:
-        creds = await adapter.handle_oauth_callback(code=code, state=state, redirect_uri=redirect_uri)
-        if services.vault:
-            from ..security.utils import log_system_event
-            await services.vault.store_secret("channel_instagram", creds)
-            await log_system_event("OAUTH_COMPLETE", "Instagram OAuth completed successfully.", "SUCCESS")
-        return _respond(True)
-    except Exception as e:
-        logger.error(f"[INSTAGRAM OAUTH] Token exchange failed: {e}")
-        return _respond(False, str(e))
+        creds = await adapter.handle_oauth_callback(code=code, state=state, redirect_uri=sd["redirect_uri"])
+        await services.vault.store_secret("channel_instagram", creds)
+        return _resp(True)
+    except Exception as e: return _resp(False, str(e))
 
 @router.get("/api/webhook/instagram")
-async def instagram_webhook_verify(
-    mode:      str = Query(None, alias="hub.mode"),
-    token:     str = Query(None, alias="hub.verify_token"),
-    challenge: str = Query(None, alias="hub.challenge"),
-):
-    """Responds to Meta's hub.challenge verification for Instagram."""
+async def instagram_webhook_verify(mode: str = Query(None, alias="hub.mode"), token: str = Query(None, alias="hub.verify_token"), challenge: str = Query(None, alias="hub.challenge")):
     adapter = services.channel_registry.get("instagram")
-    if not adapter: raise HTTPException(status_code=503, detail="Adapter not ready")
-
+    if not adapter: raise HTTPException(503)
     result = adapter.verify_webhook(mode or "", token or "", challenge or "")
-    if result is not None:
-        return PlainTextResponse(content=result)
-    raise HTTPException(status_code=403, detail="Verification failed.")
+    if result: return PlainTextResponse(result)
+    raise HTTPException(403)
 
 @router.post("/api/webhook/instagram")
 async def instagram_webhook_post(request: Request):
-    """Handles Instagram webhook events."""
     raw_body = await request.body()
-    signature = request.headers.get("X-Hub-Signature-256", "")
-
+    sig = request.headers.get("X-Hub-Signature-256", "")
     adapter = services.channel_registry.get("instagram")
-    if not adapter: return {"ok": False, "error": "Adapter not ready"}
-
-    if not adapter.verify_signature(raw_body, signature):
-        logger.warning("[INSTAGRAM] Rejected POST webhook — HMAC verification failed.")
-        raise HTTPException(status_code=403, detail="Invalid webhook signature.")
-
-    try:
-        body = json.loads(raw_body)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid JSON body.")
-
-    # Dispatch to adapter
-    asyncio.create_task(adapter.process_webhook(body))
-
+    if not adapter or not adapter.verify_signature(raw_body, sig):
+        raise HTTPException(403)
+    await adapter.process_webhook(json.loads(raw_body))
     return {"ok": True}
 
 # --- Facebook OAuth & Webhook ---
 
 @router.get("/api/oauth/facebook/start", dependencies=[Depends(verify_authenticated)])
 async def facebook_oauth_start():
-    """Initiate Facebook Messenger OAuth flow."""
     adapter = services.channel_registry.get("facebook")
-    if not adapter:
-        raise HTTPException(status_code=503, detail="Facebook adapter not initialised.")
-
+    if not adapter: raise HTTPException(503)
     daemon_url = os.getenv("DAEMON_PUBLIC_URL", "http://localhost:8000").rstrip("/")
     redirect_uri = f"{daemon_url}/api/oauth/facebook/callback"
     state = secrets.token_urlsafe(32)
-
-    authorize_url, _ = adapter.build_oauth_url(redirect_uri, state)
-    return {
-        "authorize_url": authorize_url,
-        "state":         state,
-    }
+    url, _ = adapter.build_oauth_url(redirect_uri, state)
+    _oauth_states["facebook"][state] = {"redirect_uri": redirect_uri}
+    return {"authorize_url": url, "state": state}
 
 @router.get("/api/oauth/facebook/callback")
-async def facebook_oauth_callback(
-    code:  str = Query(None),
-    state: str = Query(None),
-    error: str = Query(None),
-):
-    """Handle Facebook OAuth callback."""
-    def _respond(success: bool, detail: str = "") -> HTMLResponse:
-        payload = json.dumps({
-            "type":    "OAUTH_COMPLETE",
-            "bridgeId": "facebook",
-            "success": success,
-            "error":   detail,
-        })
-        return HTMLResponse(
-            f"<html><head><script>"
-            f"window.opener && window.opener.postMessage({payload}, window.location.origin);"
-            f"window.close();"
-            f"</script></head><body>OAuth Complete. Closing window...</body></html>"
-        )
-
-    if error: return _respond(False, error)
-    if not code: return _respond(False, "missing_code")
-
+async def facebook_oauth_callback(code: str = Query(None), state: str = Query(None), error: str = Query(None)):
+    def _resp(ok: bool, err: str = ""):
+        p = json.dumps({"type":"OAUTH_COMPLETE","bridgeId":"facebook","success":ok,"error":err})
+        return HTMLResponse(f"<script>window.opener&&window.opener.postMessage({p},window.location.origin);window.close();</script>")
+    if error: return _resp(False, error)
+    sd = _oauth_states["facebook"].pop(state, None)
+    if not sd: return _resp(False, "invalid_state")
     adapter = services.channel_registry.get("facebook")
-    if not adapter: return _respond(False, "adapter_not_ready")
-
-    daemon_url = os.getenv("DAEMON_PUBLIC_URL", "http://localhost:8000").rstrip("/")
-    redirect_uri = f"{daemon_url}/api/oauth/facebook/callback"
-
+    if not adapter: return _resp(False, "not_ready")
     try:
-        creds = await adapter.handle_oauth_callback(code=code, state=state, redirect_uri=redirect_uri)
-        if services.vault:
-            from ..security.utils import log_system_event
-            await services.vault.store_secret("channel_facebook", creds)
-            await log_system_event("OAUTH_COMPLETE", "Facebook OAuth completed successfully.", "SUCCESS")
-        return _respond(True)
-    except Exception as e:
-        logger.error(f"[FACEBOOK OAUTH] Token exchange failed: {e}")
-        return _respond(False, str(e))
+        creds = await adapter.handle_oauth_callback(code=code, state=state, redirect_uri=sd["redirect_uri"])
+        await services.vault.store_secret("channel_facebook", creds)
+        return _resp(True)
+    except Exception as e: return _resp(False, str(e))
 
 @router.get("/api/webhook/facebook")
-async def facebook_webhook_verify(
-    mode:      str = Query(None, alias="hub.mode"),
-    token:     str = Query(None, alias="hub.verify_token"),
-    challenge: str = Query(None, alias="hub.challenge"),
-):
-    """Responds to Meta's hub.challenge verification for Facebook."""
+async def facebook_webhook_verify(mode: str = Query(None, alias="hub.mode"), token: str = Query(None, alias="hub.verify_token"), challenge: str = Query(None, alias="hub.challenge")):
     adapter = services.channel_registry.get("facebook")
-    if not adapter: raise HTTPException(status_code=503, detail="Adapter not ready")
-
+    if not adapter: raise HTTPException(503)
     result = adapter.verify_webhook(mode or "", token or "", challenge or "")
-    if result is not None:
-        return PlainTextResponse(content=result)
-    raise HTTPException(status_code=403, detail="Verification failed.")
+    if result: return PlainTextResponse(result)
+    raise HTTPException(403)
 
 @router.post("/api/webhook/facebook")
 async def facebook_webhook_post(request: Request):
-    """Handles Facebook Messenger webhook events."""
     raw_body = await request.body()
-    signature = request.headers.get("X-Hub-Signature-256", "")
-
+    sig = request.headers.get("X-Hub-Signature-256", "")
     adapter = services.channel_registry.get("facebook")
-    if not adapter: return {"ok": False, "error": "Adapter not ready"}
-
-    if not adapter.verify_signature(raw_body, signature):
-        logger.warning("[FACEBOOK] Rejected POST webhook — HMAC verification failed.")
-        raise HTTPException(status_code=403, detail="Invalid webhook signature.")
-
-    try:
-        body = json.loads(raw_body)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid JSON body.")
-
-    # Dispatch to adapter
-    asyncio.create_task(adapter.process_webhook(body))
-
+    if not adapter or not adapter.verify_signature(raw_body, sig):
+        raise HTTPException(403)
+    await adapter.process_webhook(json.loads(raw_body))
     return {"ok": True}
 
 # --- X (Twitter) OAuth ---
 
 @router.get("/api/oauth/x/start", dependencies=[Depends(verify_authenticated)])
 async def x_oauth_start():
-    """Initiate X/Twitter OAuth 2.0 PKCE flow."""
     adapter = services.channel_registry.get("x")
-    if not adapter:
-        raise HTTPException(status_code=503, detail="X adapter not initialised.")
-
+    if not adapter: raise HTTPException(503)
     daemon_url = os.getenv("DAEMON_PUBLIC_URL", "http://localhost:8000").rstrip("/")
     redirect_uri = f"{daemon_url}/api/oauth/x/callback"
     state = secrets.token_urlsafe(32)
-
-    authorize_url, code_verifier = adapter.build_oauth_url(redirect_uri, state)
-    _x_pkce_states[state] = code_verifier
-    
-    return {
-        "authorize_url": authorize_url,
-        "state":         state,
-    }
+    url, verifier = adapter.build_oauth_url(redirect_uri, state)
+    _oauth_states["x"][state] = {"verifier": verifier, "redirect_uri": redirect_uri}
+    return {"authorize_url": url, "state": state}
 
 @router.get("/api/oauth/x/callback")
-async def x_oauth_callback(
-    code:  str = Query(None),
-    state: str = Query(None),
-    error: str = Query(None),
-):
-    """Handle X OAuth 2.0 callback."""
-    def _respond(success: bool, detail: str = "") -> HTMLResponse:
-        payload = json.dumps({
-            "type":    "OAUTH_COMPLETE",
-            "bridgeId": "x",
-            "success": success,
-            "error":   detail,
-        })
-        return HTMLResponse(
-            f"<html><head><script>"
-            f"window.opener && window.opener.postMessage({payload}, window.location.origin);"
-            f"window.close();"
-            f"</script></head><body>OAuth Complete. Closing window...</body></html>"
-        )
-
-    if error: return _respond(False, error)
-    if not code: return _respond(False, "missing_code")
-
-    code_verifier = _x_pkce_states.pop(state, None)
-    if not code_verifier:
-        return _respond(False, "invalid_state_or_timeout")
-
+async def x_oauth_callback(code: str = Query(None), state: str = Query(None), error: str = Query(None)):
+    def _resp(ok: bool, err: str = ""):
+        p = json.dumps({"type":"OAUTH_COMPLETE","bridgeId":"x","success":ok,"error":err})
+        return HTMLResponse(f"<script>window.opener&&window.opener.postMessage({p},window.location.origin);window.close();</script>")
+    if error: return _resp(False, error)
+    sd = _oauth_states["x"].pop(state, None)
+    if not sd: return _resp(False, "invalid_state")
     adapter = services.channel_registry.get("x")
-    if not adapter: return _respond(False, "adapter_not_ready")
-
-    daemon_url = os.getenv("DAEMON_PUBLIC_URL", "http://localhost:8000").rstrip("/")
-    redirect_uri = f"{daemon_url}/api/oauth/x/callback"
-
+    if not adapter: return _resp(False, "not_ready")
     try:
-        creds = await adapter.handle_oauth_callback(
-            code=code, 
-            state=state, 
-            code_verifier=code_verifier,
-            redirect_uri=redirect_uri
-        )
-        if services.vault:
-            from ..security.utils import log_system_event
-            await services.vault.store_secret("channel_x", creds)
-            await log_system_event("OAUTH_COMPLETE", "X OAuth completed successfully.", "SUCCESS")
-        return _respond(True)
-    except Exception as e:
-        logger.error(f"[X OAUTH] Token exchange failed: {e}")
-        return _respond(False, str(e))
-
+        creds = await adapter.handle_oauth_callback(code=code, state=state, code_verifier=sd["verifier"], redirect_uri=sd["redirect_uri"])
+        await services.vault.store_secret("channel_x", creds)
+        return _resp(True)
+    except Exception as e: return _resp(False, str(e))
 
 # --- MS Teams (Graph) OAuth & Webhook ---
 
 @router.get("/api/oauth/msteams/start", dependencies=[Depends(verify_authenticated)])
 async def msteams_oauth_start():
-    """Initiate MS Teams/Azure AD OAuth 2.0 flow."""
     adapter = services.channel_registry.get("msteams")
-    if not adapter:
-        raise HTTPException(status_code=503, detail="MS Teams adapter not initialised.")
-
+    if not adapter: raise HTTPException(503)
     daemon_url = os.getenv("DAEMON_PUBLIC_URL", "http://localhost:8000").rstrip("/")
     redirect_uri = f"{daemon_url}/api/oauth/msteams/callback"
     state = secrets.token_urlsafe(32)
-
-    authorize_url, _ = adapter.build_oauth_url(redirect_uri, state)
-    return {
-        "authorize_url": authorize_url,
-        "state":         state,
-    }
+    url, _ = adapter.build_oauth_url(redirect_uri, state)
+    _oauth_states["msteams"][state] = {"redirect_uri": redirect_uri}
+    return {"authorize_url": url, "state": state}
 
 @router.get("/api/oauth/msteams/callback")
-async def msteams_oauth_callback(
-    code:  str = Query(None),
-    state: str = Query(None),
-    error: str = Query(None),
-):
-    """Handle MS Teams OAuth 2.0 callback."""
-    def _respond(success: bool, detail: str = "") -> HTMLResponse:
-        payload = json.dumps({
-            "type":    "OAUTH_COMPLETE",
-            "bridgeId": "msteams",
-            "success": success,
-            "error":   detail,
-        })
-        return HTMLResponse(
-            f"<html><head><script>"
-            f"window.opener && window.opener.postMessage({payload}, window.location.origin);"
-            f"window.close();"
-            f"</script></head><body>OAuth Complete. Closing window...</body></html>"
-        )
-
-    if error: return _respond(False, error)
-    if not code: return _respond(False, "missing_code")
-
+async def msteams_oauth_callback(code: str = Query(None), state: str = Query(None), error: str = Query(None)):
+    def _resp(ok: bool, err: str = ""):
+        p = json.dumps({"type":"OAUTH_COMPLETE","bridgeId":"msteams","success":ok,"error":err})
+        return HTMLResponse(f"<script>window.opener&&window.opener.postMessage({p},window.location.origin);window.close();</script>")
+    if error: return _resp(False, error)
+    sd = _oauth_states["msteams"].pop(state, None)
+    if not sd: return _resp(False, "invalid_state")
     adapter = services.channel_registry.get("msteams")
-    if not adapter: return _respond(False, "adapter_not_ready")
-
-    daemon_url = os.getenv("DAEMON_PUBLIC_URL", "http://localhost:8000").rstrip("/")
-    redirect_uri = f"{daemon_url}/api/oauth/msteams/callback"
-
+    if not adapter: return _resp(False, "not_ready")
     try:
-        creds = await adapter.handle_oauth_callback(code=code, state=state, redirect_uri=redirect_uri)
-        if services.vault:
-            from ..security.utils import log_system_event
-            await services.vault.store_secret("channel_msteams", creds)
-            await log_system_event("OAUTH_COMPLETE", "MS Teams OAuth completed successfully.", "SUCCESS")
-        return _respond(True)
-    except Exception as e:
-        logger.error(f"[MSTEAMS OAUTH] Token exchange failed: {e}")
-        return _respond(False, str(e))
+        creds = await adapter.handle_oauth_callback(code=code, state=state, redirect_uri=sd["redirect_uri"])
+        await services.vault.store_secret("channel_msteams", creds)
+        return _resp(True)
+    except Exception as e: return _resp(False, str(e))
 
 @router.post("/api/webhook/msteams")
-async def msteams_webhook(request: Request):
-    """
-    Bot Framework webhook. Verifies JWT before processing activity.
-    """
+async def msteams_bot_activity(request: Request):
+    auth = request.headers.get("Authorization", "")
     adapter = services.channel_registry.get("msteams")
-    if not adapter:
-        raise HTTPException(status_code=404, detail="MS Teams adapter not found")
+    if not adapter or not await adapter.verify_bot_activity(auth):
+        raise HTTPException(401)
+    await adapter.process_webhook(await request.json())
+    return {}
 
-    auth_header = request.headers.get("Authorization", "")
-    if not await adapter.verify_bot_activity(auth_header):
-        logger.warning(f"MS Teams webhook verification failed from {request.client.host}")
-        raise HTTPException(status_code=401, detail="Unauthorized")
+# --- Google Chat Routes ---
 
-    try:
-        payload = await request.json()
-        asyncio.create_task(adapter.process_webhook(payload))
-        return Response(status_code=202)
-    except Exception as e:
-        logger.error(f"MS Teams webhook processing error: {e}")
-        return {"status": "error", "detail": str(e)}
-
-@router.post("/api/webhook/google-chat")
-async def google_chat_webhook(request: Request):
-    """
-    Google Chat App interaction webhook. Verifies OIDC JWT.
-    """
+@router.post("/api/webhook/google_chat")
+async def google_chat_event(request: Request):
+    auth = request.headers.get("Authorization", "")
     adapter = services.channel_registry.get("google_chat")
-    if not adapter:
-        raise HTTPException(status_code=404, detail="Google Chat adapter not found")
+    if not adapter or not await adapter.verify_webhook(auth):
+        raise HTTPException(401)
+    payload = await request.json()
+    response = await adapter.process_event(payload)
+    if response and response.get("body"): return {"text": response["body"]}
+    return {}
 
-    auth_header = request.headers.get("Authorization", "")
-    if not await adapter.verify_webhook(auth_header):
-        logger.warning(f"Google Chat webhook verification failed from {request.client.host}")
-        raise HTTPException(status_code=401, detail="Unauthorized")
-
-    try:
-        payload = await request.json()
-        result = await adapter.process_event(payload)
-        return result or {"status": "ok"}
-    except Exception as e:
-        logger.error(f"Google Chat webhook error: {e}")
-        return {"status": "error", "detail": str(e)}
+# --- iCloud & WebChat Utilities ---
 
 @router.post("/api/channels/icloud/2fa")
 async def icloud_2fa(data: Dict[str, str] = Body(...)):
     adapter = services.channel_registry.get("icloud")
-    if hasattr(adapter, "submit_2fa"):
-        return await adapter.submit_2fa(data.get("code"))
-    raise HTTPException(status_code=501, detail="iCloud 2FA not implemented")
+    if hasattr(adapter, "submit_2fa"): return await adapter.submit_2fa(data.get("code"))
+    raise HTTPException(status_code=501)
+
+@router.post("/api/channels/webchat/session/{id}/capture")
+async def webchat_session_capture(id: str, data: Dict[str, Any] = Body(...)):
+    adapter = services.channel_registry.get("webchat")
+    if hasattr(adapter, "capture_session"): return await adapter.capture_session(id, data)
+    raise HTTPException(status_code=501)
