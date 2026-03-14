@@ -39,6 +39,7 @@ aiosmtplib==3.0.1            # Async SMTP for email bridge
 aioimaplib==1.1.0            # Async IMAP for email bridge
 pyicloud==1.0.0              # iCloud bridge
 pycryptodome==3.20.0          # WeCom AES decryption
+pyotp==2.9.0                  # iWatch pairing
 
 # ─── Vector Memory ────────────────────────────────────────────────────────────
 chromadb==0.5.0

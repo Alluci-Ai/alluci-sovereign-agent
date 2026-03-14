@@ -60,33 +60,51 @@ async def iwatch_status():
     return {"status": "connected" if getattr(adapter, "is_connected", False) else "paired"}
 
 @router.post("/api/channels/iwatch/pair")
-async def iwatch_pair():
-    """Step 1: Generate TOTP secret for pairing."""
-    adapter = services.channel_registry.get("iwatch")
-    if not adapter: raise HTTPException(404, "Adapter not found")
-    import pyotp
-    secret = pyotp.random_base32()
-    adapter.pending_totp_secret = secret
-    uri = pyotp.totp.TOTP(secret).provisioning_uri(name="Sovereign Agent", issuer_name="Alluci")
-    return {"status": "SUCCESS", "secret": secret, "provisioning_uri": uri}
-
-@router.post("/api/channels/iwatch/pair/verify")
-async def iwatch_pair_verify(data: Dict[str, str] = Body(...)):
-    """Step 2: Verify TOTP code."""
-    code = data.get("code")
-    if not code: raise HTTPException(400, "Missing 'code' parameter")
+async def iwatch_pair(request: Request):
+    """Step 1: Generate QR code for Watch pairing."""
     adapter = services.channel_registry.get("iwatch")
     if not adapter: raise HTTPException(404, "Adapter not found")
     
-    result = await adapter.submit_pairing_code(code)
-    if result.get("paired"):
-        credentials = result.get("credentials", {})
-        if services.vault:
-            from ..security.utils import log_system_event
-            await services.vault.store_secret("channel_iwatch", credentials)
-            await log_system_event("DEVICE_PAIR", "Apple Watch successfully paired.", "SUCCESS")
-        return {"status": "SUCCESS", "message": "Apple Watch Paired."}
+    daemon_url = os.getenv("DAEMON_PUBLIC_URL", "http://localhost:8000")
+    return await adapter.generate_pairing_qr(daemon_url)
+
+@router.post("/api/channels/iwatch/pair/verify")
+async def iwatch_pair_verify(data: Dict[str, str] = Body(...)):
+    """Step 2: Verify TOTP code and issue device token."""
+    code = data.get("code")
+    device_id = data.get("device_id")
+    if not code or not device_id: 
+        raise HTTPException(400, "Missing 'code' or 'device_id' parameter")
+        
+    adapter = services.channel_registry.get("iwatch")
+    if not adapter: raise HTTPException(404, "Adapter not found")
+    
+    result = await adapter.submit_pairing_code(code, device_id)
+    if result.get("status") == "SUCCESS":
+        return result
     raise HTTPException(status_code=401, detail=result.get("error", "Pairing failed"))
+
+@router.post("/api/bridge/iwatch/biometrics")
+async def iwatch_biometrics(request: Request, data: Dict[str, Any] = Body(...)):
+    """
+    Ingest HealthKit telemetry samples from a paired Watch.
+    Uses Bearer auth with device session token.
+    """
+    adapter = services.channel_registry.get("iwatch")
+    if not adapter: raise HTTPException(404)
+
+    auth_header = request.headers.get("Authorization", "")
+    token = auth_header.removeprefix("Bearer ").strip()
+    
+    device_id = adapter.verify_device_token(token)
+    if not device_id:
+        raise HTTPException(status_code=401, detail="Invalid or expired device token")
+
+    samples = data.get("samples", [])
+    if not samples:
+        return {"status": "ok", "processed": 0}
+
+    return await adapter.ingest_telemetry(samples, device_id)
 
 @router.get("/api/channels/wechat/qr-init")
 async def wechat_qr_init():
