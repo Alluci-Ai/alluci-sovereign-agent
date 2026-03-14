@@ -6,10 +6,11 @@ from ..config import settings
 from ..models import LoginRequest
 from ..security.auth import create_access_token
 from ..security.verusid_auth import verus_auth
+from fastapi_limiter.depends import RateLimiter
 
 router = APIRouter(tags=["Authentication"])
 
-@router.post("/auth/login")
+@router.post("/auth/login", dependencies=[Depends(RateLimiter(times=5, minutes=1))])
 async def login(response: Response, payload: LoginRequest):
     """Sovereign Master Key Authentication."""
     if hmac.compare_digest(payload.key, settings.POLYTOPE_MASTER_KEY):
@@ -39,7 +40,7 @@ async def get_verusid_challenge(identity: str = Query("")):
         raise HTTPException(status_code=501, detail="VerusID Authentication not enabled")
     return verus_auth.create_login_challenge(identity)
 
-@router.post("/auth/verusid/callback")
+@router.post("/auth/verusid/callback", dependencies=[Depends(RateLimiter(times=20, minutes=1))])
 async def verusid_callback(response: Response, payload: Dict[str, str] = Body(...)):
     """Verifies the signed challenge and issues a JWT."""
     identity = payload.get("identity")
@@ -97,7 +98,7 @@ async def get_webauthn_challenge():
     }
 
 
-@router.post("/auth/webauthn/verify")
+@router.post("/auth/webauthn/verify", dependencies=[Depends(RateLimiter(times=20, minutes=1))])
 async def verify_webauthn_response(response: Response, payload: Dict[str, Any] = Body(...)):
     """Verifies the WebAuthn attestation/assertion using py_webauthn."""
     from ..security.webauthn_store import webauthn_store

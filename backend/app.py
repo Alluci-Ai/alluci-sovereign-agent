@@ -1,14 +1,23 @@
 
 import logging
 import contextlib
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, Response, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi_limiter.depends import RateLimiter
 from .config import settings
 from .logging_config import configure_logging
 from . import services
 from .routers import auth, objectives, telemetry, system, vault, channels, voice, crons, wallet, sessions, config, soul, exec_approval, tasks, dag, websockets, memory, goals, sop
 
 logger = logging.getLogger("PolytopeApp")
+
+async def global_rate_limit(request: Request, response: Response):
+    """
+    Global rate limit dependency. 
+    Skips if Redis is not configured or available.
+    """
+    if services.redis_client:
+        return await RateLimiter(times=settings.RATE_LIMIT_PER_MINUTE, seconds=60)(request, response)
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -35,7 +44,8 @@ app = FastAPI(
     title="Alluci Sovereign Agent",
     description="Sovereign Executive Assistant with Polytopic Manifolds",
     version="2.1.0",
-    lifespan=lifespan
+    lifespan=lifespan,
+    dependencies=[Depends(global_rate_limit)]
 )
 
 # CORS Policy

@@ -4,6 +4,7 @@ from typing import Dict, Any, List, Optional
 from fastapi import APIRouter, HTTPException, Depends, Body
 from ..security.auth import verify_authenticated
 from .. import services
+from fastapi_limiter.depends import RateLimiter
 
 logger = logging.getLogger("WalletRouter")
 
@@ -22,7 +23,7 @@ async def get_wallet_balance():
     if not adapter: return {"balance": 0, "currency": "VRSC"}
     return await adapter.get_balance()
 
-@router.post("/api/wallet/send", dependencies=[Depends(verify_authenticated)])
+@router.post("/api/wallet/send", dependencies=[Depends(verify_authenticated), Depends(RateLimiter(times=10, minutes=1))])
 async def wallet_send(data: Dict[str, Any] = Body(...)):
     adapter = services.channel_registry.get("verus_wallet")
     if not adapter: raise HTTPException(503, "Wallet adapter not loaded")

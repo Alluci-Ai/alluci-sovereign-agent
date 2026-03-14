@@ -5,13 +5,15 @@ from fastapi import APIRouter, HTTPException, Depends, Body
 from ..security.auth import verify_authenticated
 from ..security.utils import log_system_event
 from .. import services
+from fastapi_limiter.depends import RateLimiter
+from ..config import settings
 
 logger = logging.getLogger("VaultRouter")
 MASK = "••••••••••••"
 
 router = APIRouter(tags=["Vault Operations"])
 
-@router.post("/vault/rotate", dependencies=[Depends(verify_authenticated)])
+@router.post("/vault/rotate", dependencies=[Depends(verify_authenticated), Depends(RateLimiter(times=10, minutes=1))])
 async def rotate_vault_keys(payload: Dict[str, str] = Body(...)):
     """[ ROTATE_KEYS ] Instantly re-encrypts all vaults with a new key."""
     new_key = payload.get("new_key")
@@ -65,7 +67,7 @@ async def get_vault_keys():
         logger.error(f"Failed to retrieve vault keys: {e}")
         return {}
 
-@router.post("/api/vault/keys", dependencies=[Depends(verify_authenticated)])
+@router.post("/api/vault/keys", dependencies=[Depends(verify_authenticated), Depends(RateLimiter(times=settings.RATE_LIMIT_PER_MINUTE, seconds=60))])
 async def save_vault_keys(new_keys: Dict[str, Any] = Body(...)):
     """Persists API keys, merging with existing values to preserve masked secrets."""
     if not services.vault:
