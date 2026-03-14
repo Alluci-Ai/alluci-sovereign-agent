@@ -56,3 +56,6 @@ heartbeat_state.json
 
 # Process IDs
 *_pid.txt
+
+# Dev Scripts
+scripts/dev/
