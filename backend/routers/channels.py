@@ -95,6 +95,46 @@ async def wechat_qr_init():
         return await adapter.init_qr()
     raise HTTPException(status_code=501, detail="WeChat QR flow not implemented")
 
+@router.get("/api/oauth/wechat/callback")
+async def wechat_oauth_callback(
+    code:  str = Query(None),
+    state: str = Query(None),
+):
+    """Handle WeCom web OAuth callback."""
+    # This usually just returns a success page or redirects
+    return HTMLResponse("<html><body>Verification successful. You can close this window.</body></html>")
+
+@router.get("/api/webhook/wechat")
+async def wechat_webhook_verify(
+    msg_signature: str = Query(None),
+    timestamp:     str = Query(None),
+    nonce:         str = Query(None),
+    echostr:       str = Query(None),
+):
+    """WeCom webhook verification (GET)."""
+    adapter = services.channel_registry.get("wechat")
+    if not adapter: raise HTTPException(404)
+    result = adapter.verify_callback(msg_signature, timestamp, nonce, echostr)
+    if result: return PlainTextResponse(result)
+    raise HTTPException(403)
+
+@router.post("/api/webhook/wechat")
+async def wechat_webhook_post(
+    request: Request,
+    msg_signature: str = Query(None),
+    timestamp:     str = Query(None),
+    nonce:         str = Query(None),
+):
+    """WeCom webhook event receiver (POST)."""
+    body = await request.body()
+    adapter = services.channel_registry.get("wechat")
+    if not adapter: raise HTTPException(404)
+    
+    # WeCom requires verification logic even on POST
+    # but here we just pass the raw XML to the adapter
+    await adapter.process_webhook({"raw_xml": body.decode("utf-8")})
+    return Response(status_code=200)
+
 @router.post("/api/channels/webchat/session/{id}/capture")
 async def webchat_session_capture(id: str, data: Dict[str, Any] = Body(...)):
     adapter = services.channel_registry.get("webchat")

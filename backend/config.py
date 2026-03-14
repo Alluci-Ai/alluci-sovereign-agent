@@ -127,6 +127,13 @@ class Settings(BaseSettings):
     MSTEAMS_CLIENT_SECRET: Optional[str] = None
     MSTEAMS_BOT_APP_ID: Optional[str] = None
     
+    # WeCom (Enterprise WeChat)
+    WECOM_CORP_ID: Optional[str] = None
+    WECOM_CORP_SECRET: Optional[str] = None
+    WECOM_AGENT_ID: Optional[str] = None
+    WECOM_TOKEN: Optional[str] = None
+    WECOM_ENCODING_AES_KEY: Optional[str] = None
+    
     # Signal Bridge
     SIGNAL_CLI_PATH: str = "signal-cli"
     SIGNAL_SOCKET_PATH: str = "/tmp/signal-cli.sock"
