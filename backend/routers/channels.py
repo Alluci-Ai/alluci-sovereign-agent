@@ -666,6 +666,28 @@ async def msteams_webhook(request: Request):
         logger.error(f"MS Teams webhook processing error: {e}")
         return {"status": "error", "detail": str(e)}
 
+@router.post("/api/webhook/google-chat")
+async def google_chat_webhook(request: Request):
+    """
+    Google Chat App interaction webhook. Verifies OIDC JWT.
+    """
+    adapter = services.channel_registry.get("google_chat")
+    if not adapter:
+        raise HTTPException(status_code=404, detail="Google Chat adapter not found")
+
+    auth_header = request.headers.get("Authorization", "")
+    if not await adapter.verify_webhook(auth_header):
+        logger.warning(f"Google Chat webhook verification failed from {request.client.host}")
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    try:
+        payload = await request.json()
+        result = await adapter.process_event(payload)
+        return result or {"status": "ok"}
+    except Exception as e:
+        logger.error(f"Google Chat webhook error: {e}")
+        return {"status": "error", "detail": str(e)}
+
 @router.post("/api/channels/icloud/2fa")
 async def icloud_2fa(data: Dict[str, str] = Body(...)):
     adapter = services.channel_registry.get("icloud")

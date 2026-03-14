@@ -1,247 +1,366 @@
-import httpx
-import os
+"""
+Sovereign Google Chat Bridge — Service Account + REST API.
+
+Authentication:
+  Service Account JSON → JWT signed by the SA private key → Bearer token.
+  No user OAuth required. The SA must be added to each Space as a member.
+
+Webhook Verification:
+  Inbound App interactions carry a Bearer JWT signed by:
+    chat@system.gserviceaccount.com (RS256)
+  JWKS fetched from Google's OIDC endpoint, cached for 1 hour.
+
+Features:
+  - Send text and Card v2 messages to Spaces
+  - Reply in threads
+  - Handle MESSAGE, CARD_CLICKED, SLASH_COMMAND, ADDED_TO_SPACE events
+  - process_event() dispatches normalised inbound dict
+"""
+
+import asyncio
 import json
+import os
 import time
-import logging
 from datetime import datetime, timezone
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
+
+import httpx
+
 from .base import BridgeAdapter
+
+CHAT_API = "https://chat.googleapis.com/v1"
+GOOGLE_CERTS_URL = "https://www.googleapis.com/oauth2/v3/certs"
+GOOGLE_CHAT_ISSUER = "chat@system.gserviceaccount.com"
+GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+
 
 class GoogleChatBridge(BridgeAdapter):
     """
-    Sovereign Google Chat Bridge using Service Account Credentials.
-    Implements messaging and webhook event handling for Google Chat Spaces.
-    
-    Reference: Sovereign Spec Section 2.3 - Cloud Manifold Adapters
+    Production Google Chat Bridge.
+    Uses Service Account JWT authentication with async token refresh
+    and cached JWKS verification.
     """
+
+    JWKS_TTL    = 3600.0   # Refresh JWKS cache every hour
+    TOKEN_SLACK = 60.0     # Refresh access token 60s before expiry
 
     def __init__(self, bridge_id: str, vault_root: str):
         super().__init__(bridge_id, vault_root)
-        self.api_url = "https://chat.googleapis.com/v1"
-        self.credentials: Dict[str, Any] = {}
-        self.access_token: Optional[str] = None
-        self.token_expiry: float = 0
-        self.project_id: Optional[str] = None
-        
-        # Load cached credentials if they exist in the vault
-        self._load_config_from_vault()
+        self._sa_credentials: Optional[Dict] = None
+        self._access_token:   Optional[str] = None
+        self._token_expires:  float = 0.0
+        self._project_id:     Optional[str] = None
+
+        # JWKS cache
+        self._jwks_cache:      Optional[Dict] = None
+        self._jwks_fetched_at: float = 0.0
+
+        # Load service account from vault on init
+        self._load_sa_from_vault()
+
+    # ── Vault Helpers ─────────────────────────────────────────────────────────
+
+    def _load_sa_from_vault(self) -> None:
+        path = os.path.join(self.vault_path, "service_account.json")
+        if os.path.exists(path):
+            try:
+                with open(path) as f:
+                    self._sa_credentials = json.load(f)
+                self._project_id = self._sa_credentials.get("project_id")
+                self.logger.debug("[GCHAT] Service account loaded from vault.")
+            except Exception as e:
+                self.logger.error(f"[GCHAT] Failed to load SA from vault: {e}")
+
+    def _save_sa_to_vault(self, sa: Dict) -> None:
+        path = os.path.join(self.vault_path, "service_account.json")
+        with open(path, "w") as f:
+            json.dump(sa, f)
+        os.chmod(path, 0o600)
+
+    # ── Connection ────────────────────────────────────────────────────────────
 
     async def connect(self, credentials: Dict[str, Any]) -> bool:
         """
-        Initializes the bridge with Service Account JSON.
-        Expected credentials: { "type": "service_account", "project_id": "...", ... }
+        Connect using Service Account JSON credentials.
+        credentials may be:
+          - A full SA JSON dict (type="service_account")
+          - {"service_account_file": "/path/to/sa.json"}
         """
-        if not credentials:
-            self.logger.warning("[ GCHAT ] No credentials provided.")
+        from ..config import settings
+
+        if credentials.get("type") == "service_account":
+            self._sa_credentials = credentials
+        elif credentials.get("service_account_file"):
+            with open(credentials["service_account_file"]) as f:
+                self._sa_credentials = json.load(f)
+        elif settings.GOOGLE_CHAT_SERVICE_ACCOUNT_FILE:
+            with open(settings.GOOGLE_CHAT_SERVICE_ACCOUNT_FILE) as f:
+                self._sa_credentials = json.load(f)
+        elif self._sa_credentials:
+            pass  # Already loaded from vault
+        else:
+            self.last_error = "No service account credentials provided."
             return False
 
-        self.credentials = credentials
-        self.project_id = credentials.get("project_id")
-        
-        # Immediate token refresh to verify credentials
-        success = await self._refresh_token()
+        self._project_id = self._sa_credentials.get("project_id")
+        self._save_sa_to_vault(self._sa_credentials)
+
+        success = await self._refresh_access_token()
         if success:
             self.is_connected = True
-            self._persist_to_vault("config", self.credentials)
-            self.logger.info(f"[ GCHAT ] Successfully authenticated for project: {self.project_id}")
+            self.logger.info(f"[GCHAT] Connected — project: {self._project_id}")
         return success
 
-    async def _refresh_token(self) -> bool:
+    # ── Async Token Refresh ───────────────────────────────────────────────────
+
+    async def _refresh_access_token(self) -> bool:
         """
-        Retrieves an OAuth2 access token using the Service Account JWT flow.
-        Uses httpx to avoid heavy external dependencies.
+        Mint a short-lived access token by signing a JWT with the SA private key.
+        Fully async — no blocking requests library calls.
         """
-        # In a real sovereign environment, we would use a library like 'google-auth'.
-        # For this implementation, we assume the host environment has 'google-auth'
-        # or we mock the token logic if strictly required. 
-        # Here we attempt to use 'google.oauth2.service_account' if available.
-        try:
-            from google.oauth2 import service_account
-            from google.auth.transport.requests import Request as GoogleRequest
-            
-            scopes = ["https://www.googleapis.com/auth/chat.messages"]
-            creds = service_account.Credentials.from_service_account_info(self.credentials, scopes=scopes)
-            creds.refresh(GoogleRequest())
-            self.access_token = creds.token
-            self.token_expiry = creds.expiry.replace(tzinfo=timezone.utc).timestamp() if creds.expiry else time.time() + 3600
+        if self._access_token and time.time() < self._token_expires - self.TOKEN_SLACK:
             return True
-        except ImportError:
-            self.logger.error("[ GCHAT ] 'google-auth' library is required for Service Account authentication.")
+
+        if not self._sa_credentials:
             return False
+
+        try:
+            import base64
+            import json as _json
+            from cryptography.hazmat.primitives import hashes, serialization
+            from cryptography.hazmat.primitives.asymmetric import padding
+
+            now    = int(time.time())
+            expiry = now + 3600
+
+            # JWT header + claims
+            header = base64.urlsafe_b64encode(
+                _json.dumps({"alg": "RS256", "typ": "JWT"}).encode()
+            ).rstrip(b"=")
+            claims = base64.urlsafe_b64encode(
+                _json.dumps({
+                    "iss":   self._sa_credentials["client_email"],
+                    "scope": "https://www.googleapis.com/auth/chat.messages",
+                    "aud":   GOOGLE_TOKEN_URL,
+                    "iat":   now,
+                    "exp":   expiry,
+                }).encode()
+            ).rstrip(b"=")
+
+            # Sign with RSA private key from service account
+            private_key = serialization.load_pem_private_key(
+                self._sa_credentials["private_key"].encode(),
+                password=None,
+            )
+            signing_input = header + b"." + claims
+            signature = private_key.sign(signing_input, padding.PKCS1v15(), hashes.SHA256())
+            sig_b64 = base64.urlsafe_b64encode(signature).rstrip(b"=")
+            jwt_token = (signing_input + b"." + sig_b64).decode()
+
+            # Exchange JWT for access token
+            resp = await self.client.post(
+                GOOGLE_TOKEN_URL,
+                data={
+                    "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
+                    "assertion":  jwt_token,
+                },
+            )
+            resp.raise_for_status()
+            token_data = resp.json()
+            self._access_token  = token_data["access_token"]
+            self._token_expires = time.time() + token_data.get("expires_in", 3600)
+            return True
+
         except Exception as e:
-            self.logger.error(f"[ GCHAT ] Token refresh failed: {e}")
+            self.logger.error(f"[GCHAT] Token refresh failed: {e}")
             return False
 
-    async def _get_auth_headers(self) -> Dict[str, str]:
-        if not self.access_token or time.time() > self.token_expiry - 60:
-            await self._refresh_token()
-        return {"Authorization": f"Bearer {self.access_token}", "Content-Type": "application/json"}
+    # ── JWKS Cache ────────────────────────────────────────────────────────────
 
-    async def send_message(self, recipient: str, content: str) -> Dict[str, Any]:
-        """Legacy shim for BridgeAdapter compatibility."""
-        return await self.send(recipient, content)
+    async def _get_jwks(self) -> Optional[Dict]:
+        """Fetch Google's JWKS with 1-hour cache to avoid rate limits."""
+        now = time.time()
+        if self._jwks_cache and (now - self._jwks_fetched_at) < self.JWKS_TTL:
+            return self._jwks_cache
+        try:
+            resp = await self.client.get(GOOGLE_CERTS_URL, timeout=10.0)
+            resp.raise_for_status()
+            self._jwks_cache      = resp.json()
+            self._jwks_fetched_at = now
+            return self._jwks_cache
+        except Exception as e:
+            self.logger.error(f"[GCHAT] JWKS fetch failed: {e}")
+            return self._jwks_cache  # Return stale cache
+
+    # ── Webhook Verification ──────────────────────────────────────────────────
+
+    async def verify_webhook(self, authorization: str, body: bytes = b"") -> bool:
+        """
+        Verify a Google Chat app interaction via OIDC JWT.
+        The Authorization header carries: Bearer <JWT>
+        """
+        from ..config import settings
+
+        token = authorization.removeprefix("Bearer ").strip()
+        if not token:
+            return False
+
+        audience = settings.GOOGLE_CHAT_AUDIENCE or self._project_id
+
+        jwks = await self._get_jwks()
+        if not jwks:
+            self.logger.error("[GCHAT] No JWKS available.")
+            return False
+
+        try:
+            from jose import jwt as jose_jwt
+            payload = jose_jwt.decode(
+                token, jwks,
+                algorithms=["RS256"],
+                audience=audience,
+                issuer=GOOGLE_CHAT_ISSUER,
+                options={
+                    "verify_aud": bool(audience),
+                    "verify_iss": True,
+                    "verify_exp": True,
+                },
+            )
+            self.logger.debug(f"[GCHAT] JWT verified. Sub: {payload.get('sub')}")
+            return True
+        except Exception as e:
+            self.logger.warning(f"[GCHAT] Webhook JWT verification failed: {e}")
+            return False
+
+    # ── Messaging ─────────────────────────────────────────────────────────────
 
     async def send(self, recipient: str, content: str, **kwargs) -> Dict[str, Any]:
         """
-        Transmits a message to a Google Chat Space or Thread.
-        'recipient' should be the Space ID (e.g., 'spaces/XXXXXXXX')
+        Send a message to a Google Chat Space.
+        recipient: space resource name, e.g. "spaces/XXXXXXXX"
+        kwargs:
+            thread_key (str): Reply in a named thread
+            card (dict):      Card v2 JSON payload
         """
-        if not self.is_connected:
-            return {"status": "failed", "error": "Bridge Disconnected"}
+        if not await self._refresh_access_token():
+            return {"status": "failed", "error": "Token unavailable"}
 
-        space_id = recipient
-        thread_key = kwargs.get("thread_key")
-        
-        url = f"{self.api_url}/{space_id}/messages"
+        url    = f"{CHAT_API}/{recipient}/messages"
         params = {}
-        if thread_key:
-            params["threadKey"] = thread_key
+        if kwargs.get("thread_key"):
+            params["messageReplyOption"] = "REPLY_MESSAGE_FALLBACK_TO_NEW_THREAD"
 
-        payload = {"text": content}
-        if "cards" in kwargs:
-             payload["cardsV2"] = kwargs["cards"]
+        payload: Dict[str, Any] = {}
+        if content:
+            payload["text"] = content
+        if kwargs.get("card"):
+            payload["cardsV2"] = [
+                {
+                    "cardId": "alluci-card",
+                    "card":   kwargs["card"],
+                }
+            ]
+        if kwargs.get("thread_key"):
+            payload["thread"] = {"threadKey": kwargs["thread_key"]}
+
+        headers = {
+            "Authorization": f"Bearer {self._access_token}",
+            "Content-Type":  "application/json",
+        }
+
+        @BridgeAdapter.resilient_request
+        async def _post():
+            return await self.client.post(url, headers=headers, json=payload, params=params)
 
         try:
-            headers = await self._get_auth_headers()
-            async with httpx.AsyncClient() as client:
-                res = await client.post(url, headers=headers, json=payload, params=params)
-                data = res.json()
-                
-                status = "success" if res.status_code == 200 else "failed"
-                
-                self._persist_to_vault("sent_buffer", {
-                    "to": space_id,
-                    "content": content,
-                    "status": status,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "gchat_id": data.get("name") if status == "success" else None,
-                    "error": data.get("error", {}).get("message") if status == "failed" else None
-                })
-                
-                return {"status": status, "data": data}
+            resp = await _post()
+            data = resp.json()
+            if resp.status_code == 200:
+                self.last_activity = datetime.now(timezone.utc).isoformat()
+                return {"status": "success", "name": data.get("name")}
+            self.last_error = data.get("error", {}).get("message", resp.text)
+            return {"status": "failed", "error": self.last_error}
         except Exception as e:
-            self.logger.error(f"[ GCHAT ] Send failed: {e}")
             return {"status": "failed", "error": str(e)}
 
-    async def fetch_unread(self, limit: int = 10) -> List[Dict[str, Any]]:
-        """
-        Pulls recent messages. Note: Google Chat API usually prefers push-based 
-        webhooks, but we can poll lists if needed.
-        """
-        # Google Chat polling is space-specific. For now, we return empty
-        # as the master orchestrator relies on process_event push.
-        return []
+    async def send_message(self, recipient: str, content: str) -> Dict[str, Any]:
+        return await self.send(recipient, content)
 
-    async def process_event(self, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    # ── Inbound Event Processing ──────────────────────────────────────────────
+
+    async def process_event(
+        self, payload: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
         """
-        Parses incoming App Interaction events from Google Chat webhooks.
+        Parse Google Chat App interaction events:
+        MESSAGE, CARD_CLICKED, SLASH_COMMAND, ADDED_TO_SPACE, REMOVED_FROM_SPACE.
         """
-        event_type = payload.get("type")
-        
+        event_type = payload.get("type", "")
+        space      = payload.get("space", {})
+
         if event_type == "MESSAGE":
-            message = payload.get("message", {})
-            sender = message.get("sender", {})
-            
+            msg    = payload.get("message", {})
+            sender = msg.get("sender", {})
+
+            # Check for slash commands
+            slash = msg.get("slashCommand", {})
+            body  = msg.get("text", "")
+            if slash:
+                body = f"/{slash.get('commandName', '')} {body}".strip()
+
             normalized = {
-                "id": message.get("name"),
-                "from": sender.get("name"),
-                "from_name": sender.get("displayName"),
-                "body": message.get("text"),
-                "space": payload.get("space", {}).get("name"),
-                "thread": message.get("thread", {}).get("name"),
-                "protocol": "GCHAT",
-                "timestamp": message.get("createTime")
+                "id":          msg.get("name"),
+                "from":        sender.get("name"),
+                "from_name":   sender.get("displayName"),
+                "body":        body,
+                "space":       space.get("name"),
+                "thread":      msg.get("thread", {}).get("name"),
+                "protocol":    "GCHAT",
+                "timestamp":   msg.get("createTime"),
+                "slash_command": slash.get("commandName") if slash else None,
             }
-            
-            self._persist_to_vault("inbox", normalized)
-            if self.on_event:
-                await self.on_event("message", normalized)
+            await self._dispatch_inbound(normalized)
             return normalized
-            
+
+        elif event_type == "CARD_CLICKED":
+            action  = payload.get("action", {})
+            msg     = payload.get("message", {})
+            self.logger.info(
+                f"[GCHAT] Card clicked: {action.get('actionMethodName')} "
+                f"in space {space.get('name')}"
+            )
+            normalized = {
+                "id":        msg.get("name"),
+                "from":      payload.get("user", {}).get("name"),
+                "body":      f"[Card Action: {action.get('actionMethodName')}]",
+                "space":     space.get("name"),
+                "protocol":  "GCHAT",
+                "type":      "card_click",
+                "action":    action,
+                "timestamp": str(int(time.time())),
+            }
+            await self._dispatch_inbound(normalized)
+            return normalized
+
         elif event_type == "ADDED_TO_SPACE":
-            self.logger.info(f"[ GCHAT ] App added to space: {payload.get('space', {}).get('name')}")
-            
+            self.logger.info(f"[GCHAT] App added to space: {space.get('name')}")
+
+        elif event_type == "REMOVED_FROM_SPACE":
+            self.logger.info(f"[GCHAT] App removed from space: {space.get('name')}")
+
         return None
 
+    async def fetch_unread(self, limit: int = 10) -> List[Dict[str, Any]]:
+        return []  # Push-only via app interactions
+
     async def validate_integrity(self) -> bool:
-        return await self._refresh_token()
+        return await self._refresh_access_token()
 
-    def _persist_to_vault(self, box: str, data: Dict[str, Any]):
-        path = os.path.join(self.vault_path, f"{box}.json")
-        try:
-            if box == "config":
-                with open(path, "w") as f:
-                    json.dump(data, f)
-            else:
-                path = path + "l" # jsonl for buffers
-                with open(path, "a") as f:
-                    f.write(json.dumps(data) + "\n")
-        except Exception as e:
-            self.logger.error(f"[ GCHAT ] Vault Write Error: {e}")
-
-    def _load_config_from_vault(self):
-        path = os.path.join(self.vault_path, "config.json")
-        if os.path.exists(path):
-            try:
-                with open(path, "r") as f:
-                    self.credentials = json.load(f)
-                    self.project_id = self.credentials.get("project_id")
-                    self.is_connected = True
-            except Exception as e:
-                self.logger.error(f"[ GCHAT ] Config load error: {e}")
-
-    async def verify_webhook(self, signature: str, body: bytes) -> bool:
-        """
-        Verifies that the request coming into the webhook is actually from Google.
-        Google Chat uses Bearer tokens (JWTs) in the Authorization header,
-        signed by Google's OIDC certificates.
-        Reference: https://developers.google.com/chat/how-tos/webhooks#verify_the_token
-        """
-        import httpx
-        from jose import jwt as jose_jwt, JWTError as JoseJWTError
-
-        GOOGLE_CERTS_URL = "https://www.googleapis.com/oauth2/v3/certs"
-        GOOGLE_CHAT_ISSUER = "chat@system.gserviceaccount.com"
-
-        if not signature:
-            self.logger.warning("[ GCHAT ] Webhook rejected: no Authorization token provided.")
-            return False
-
-        # Strip "Bearer " prefix if present
-        token = signature.removeprefix("Bearer ").strip()
-        if not token:
-            self.logger.warning("[ GCHAT ] Webhook rejected: empty token after prefix strip.")
-            return False
-
-        try:
-            # Fetch Google's public JWKS (cached in production via httpx client)
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.get(GOOGLE_CERTS_URL)
-                resp.raise_for_status()
-                jwks = resp.json()
-
-            # Decode and verify the JWT
-            payload = jose_jwt.decode(
-                token,
-                jwks,
-                algorithms=["RS256"],
-                audience=self.project_id if hasattr(self, 'project_id') else None,
-                issuer=GOOGLE_CHAT_ISSUER,
-                options={
-                    "verify_aud": hasattr(self, 'project_id') and bool(self.project_id),
-                    "verify_iss": True,
-                    "verify_exp": True,
-                }
-            )
-            self.logger.debug(f"[ GCHAT ] Webhook JWT verified. Subject: {payload.get('sub', 'N/A')}")
-            return True
-
-        except JoseJWTError as e:
-            self.logger.warning(f"[ GCHAT ] Webhook JWT verification failed: {e}")
-            return False
-        except httpx.HTTPStatusError as e:
-            self.logger.error(f"[ GCHAT ] Failed to fetch Google JWKS: {e}")
-            return False
-        except Exception as e:
-            self.logger.error(f"[ GCHAT ] Unexpected error during webhook verification: {e}")
-            return False
+    def get_health(self) -> Dict[str, Any]:
+        h = super().get_health()
+        h.update({
+            "project_id":   self._project_id,
+            "token_valid":  bool(self._access_token and time.time() < self._token_expires),
+            "jwks_cached":  bool(self._jwks_cache),
+            "jwks_age_s":   int(time.time() - self._jwks_fetched_at) if self._jwks_cache else None,
+        })
+        return h

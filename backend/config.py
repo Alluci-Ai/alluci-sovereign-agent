@@ -134,6 +134,10 @@ class Settings(BaseSettings):
     WECOM_TOKEN: Optional[str] = None
     WECOM_ENCODING_AES_KEY: Optional[str] = None
     
+    # Google Chat
+    GOOGLE_CHAT_SERVICE_ACCOUNT_FILE: Optional[str] = None
+    GOOGLE_CHAT_AUDIENCE: Optional[str] = None
+    
     # Signal Bridge
     SIGNAL_CLI_PATH: str = "signal-cli"
     SIGNAL_SOCKET_PATH: str = "/tmp/signal-cli.sock"
