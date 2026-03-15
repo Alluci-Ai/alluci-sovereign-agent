@@ -1,4 +1,5 @@
 import Foundation
+import Security
 
 class NetworkManager: ObservableObject {
     @Published var isPaired: Bool = false
@@ -7,9 +8,11 @@ class NetworkManager: ObservableObject {
     @Published var deviceID: String = ""
     
     private let defaults = UserDefaults.standard
+    private let keychainService = "com.alluci.agent.token"
+    private let keychainAccount = "sessionToken"
     
     init() {
-        self.sessionToken = defaults.string(forKey: "sessionToken")
+        self.sessionToken = loadTokenFromKeychain()
         self.baseURL = defaults.string(forKey: "baseURL") ?? ""
         self.deviceID = defaults.string(forKey: "deviceID") ?? ""
         self.isPaired = self.sessionToken != nil
@@ -41,7 +44,9 @@ class NetworkManager: ObservableObject {
                 self.deviceID = deviceID
                 self.isPaired = true
                 
-                self.defaults.set(result.session_token, forKey: "sessionToken")
+                if let token = result.session_token {
+                    self.saveTokenToKeychain(token)
+                }
                 self.defaults.set(url, forKey: "baseURL")
                 self.defaults.set(deviceID, forKey: "deviceID")
             }
@@ -51,7 +56,7 @@ class NetworkManager: ObservableObject {
     }
     
     func sendTelemetry(samples: [TelemetrySample]) async throws {
-        guard let token = sessionToken, let url = URL(string: "\(baseURL)/api/bridge/iwatch/biometrics") else {
+        guard let token = sessionToken, let url = URL(string: "\(baseURL)/api/channels/iwatch/biometrics") else {
             return
         }
         
@@ -74,8 +79,52 @@ class NetworkManager: ObservableObject {
         DispatchQueue.main.async {
             self.sessionToken = nil
             self.isPaired = false
-            self.defaults.removeObject(forKey: "sessionToken")
+            self.deleteTokenFromKeychain()
         }
+    }
+    
+    // MARK: - Keychain Helpers
+    
+    private func saveTokenToKeychain(_ token: String) {
+        guard let data = token.data(using: .utf8) else { return }
+        
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: keychainService,
+            kSecAttrAccount as String: keychainAccount,
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
+        ]
+        
+        SecItemDelete(query as CFDictionary)
+        SecItemAdd(query as CFDictionary, nil)
+    }
+    
+    private func loadTokenFromKeychain() -> String? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: keychainService,
+            kSecAttrAccount as String: keychainAccount,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        
+        var dataTypeRef: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &dataTypeRef)
+        
+        if status == errSecSuccess, let data = dataTypeRef as? Data, let token = String(data: data, encoding: .utf8) {
+            return token
+        }
+        return nil
+    }
+    
+    private func deleteTokenFromKeychain() {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: keychainService,
+            kSecAttrAccount as String: keychainAccount
+        ]
+        SecItemDelete(query as CFDictionary)
     }
 }
 

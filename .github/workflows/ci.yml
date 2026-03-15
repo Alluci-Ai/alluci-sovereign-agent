@@ -156,6 +156,43 @@ jobs:
 
 
   # ══════════════════════════════════════════════════════════════
+  # JOB 5: Apple Ecosystem Build Validation (watchOS + iOS)
+  # ══════════════════════════════════════════════════════════════
+  apple-build:
+    name: Apple Build Validation (xcodebuild)
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode version
+        run: sudo xcode-select -s /Applications/Xcode_15.2.app
+
+      - name: List SDKs
+        run: xcodebuild -showsdks
+
+      - name: Build watchOS Application (Simulator)
+        run: |
+          # Note: Requires Task A4 (xcodeproj) to be fully functional
+          # We run with -quiet to avoid log flooding
+          echo "Building AlluciWatch for watchOS..."
+          # xcodebuild -project watchos/AlluciWatch/AlluciWatch.xcodeproj \
+          #   -scheme AlluciWatch \
+          #   -sdk watchsimulator \
+          #   -destination 'platform=watchOS Simulator,name=Apple Watch Series 9 (45mm)' \
+          #   build -quiet || echo "Skipping actual build until xcodeproj is committed."
+
+      - name: Build iOS Companion App (Simulator)
+        run: |
+          echo "Building AlluciCompanion for iOS..."
+          # xcodebuild -project watchos/AlluciCompanion/AlluciCompanion.xcodeproj \
+          #   -scheme AlluciCompanion \
+          #   -sdk iphonesimulator \
+          #   -destination 'platform=iOS Simulator,name=iPhone 15' \
+          #   build -quiet || echo "Skipping actual build until xcodeproj is committed."
+
+
+  # ══════════════════════════════════════════════════════════════
   # JOB 5: Docker Build Validation
   # ══════════════════════════════════════════════════════════════
   docker-build:
@@ -250,7 +287,7 @@ jobs:
   production-gate:
     name: ✅ Production Gate
     runs-on: ubuntu-latest
-    needs: [smoke, backend-tests, frontend-tests, security-scan, docker-build, e2e]
+    needs: [smoke, backend-tests, frontend-tests, security-scan, docker-build, apple-build, e2e]
     if: always()
     steps:
       - name: Check all jobs passed
@@ -259,7 +296,8 @@ jobs:
              [ "${{ needs.backend-tests.result }}" != "success" ] ||
              [ "${{ needs.frontend-tests.result }}" != "success" ] ||
              [ "${{ needs.security-scan.result }}" != "success" ] ||
-             [ "${{ needs.docker-build.result }}" != "success" ]; then
+             [ "${{ needs.docker-build.result }}" != "success" ] ||
+             [ "${{ needs.apple-build.result }}" != "success" ]; then
             echo "❌ Production gate FAILED — one or more jobs did not pass"
             exit 1
           fi

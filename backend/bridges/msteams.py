@@ -104,6 +104,16 @@ class MSTeamsBridge(BridgeAdapter):
                 self._upn         = data.get("userPrincipalName")
                 self.is_connected = True
                 self.logger.info(f"[MSTEAMS] Connected — {self._upn}")
+                
+                # Start background refresh loop
+                if not self._refresh_task:
+                    self._refresh_task = asyncio.create_task(self._token_refresh_loop(
+                        get_creds_fn=lambda: self._load_credentials(account_id=self._user_id or "default"),
+                        set_creds_fn=lambda c: self._save_credentials(c), # _save_credentials uses self._user_id
+                        token_url=self._token_url(),
+                        client_id=self._client_id or "",
+                        client_secret=self._client_secret or ""
+                    ))
                 return True
             self.last_error = resp.text
             return False

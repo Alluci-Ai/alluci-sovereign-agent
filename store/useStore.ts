@@ -174,6 +174,9 @@ export interface AppState {
         phi_total: number;
     };
     setPvtHealth: (val: Partial<AppState['pvtHealth']>) => void;
+    
+    // Hydration
+    hydrate: () => Promise<void>;
 }
 
 export const useStore = create<AppState>((set) => ({
@@ -366,4 +369,25 @@ export const useStore = create<AppState>((set) => ({
     setPvtHealth: (val) => set((state) => ({
         pvtHealth: { ...state.pvtHealth, ...val }
     })),
+    hydrate: async () => {
+        const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
+        // Only attempt hydration if the session signal cookie exists
+        if (!document.cookie.includes('alluci_session=1')) return;
+        
+        try {
+            const res = await fetch(`${DAEMON_URL}/api/session`, { credentials: 'include' });
+            if (res.ok) {
+                const data = await res.json();
+                if (data.status === 'SUCCESS') {
+                    set({
+                        isConnected: true,
+                        baseManifest: data.soul,
+                        connections: data.connections
+                    });
+                }
+            }
+        } catch (e) {
+            console.warn("[ HYDRATE ]: Failed to restore session", e);
+        }
+    },
 }));

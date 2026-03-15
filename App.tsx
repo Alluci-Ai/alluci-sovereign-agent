@@ -99,12 +99,17 @@ const App: React.FC = () => {
     modelFallbackMessage, setModelFallbackMessage,
     updateAvailable,
     latestVersion,
-    needsOnboarding
+    needsOnboarding,
+    hydrate
   } = useStore();
 
   // Core Refs
   const geminiServiceRef = useRef<AlluciGeminiService | null>(null);
   const sovereignServiceRef = useRef<AlluciSovereignService | null>(null);
+
+  useEffect(() => {
+    hydrate();
+  }, [hydrate]);
 
   useEffect(() => {
     if (bridgeManagerRef.current) {

@@ -14,6 +14,22 @@ logger = get_logger("SessionsRouter")
 
 router = APIRouter(tags=["Sessions & Agents"])
 
+@router.get("/api/session", dependencies=[Depends(verify_authenticated)])
+async def get_current_session():
+    """Returns the current user context (soul manifest + bridge connections) for frontend hydration."""
+    try:
+        from .. import services
+        soul = services.orchestrator.base_manifest if services.orchestrator else None
+        connections = services.orchestrator.bridge_manager.get_connections() if (services.orchestrator and services.orchestrator.bridge_manager) else []
+        return {
+            "status": "SUCCESS",
+            "soul": soul,
+            "connections": connections
+        }
+    except Exception as e:
+        logger.error(f"Failed to get session: {e}")
+        raise HTTPException(status_code=500, detail="Internal session error")
+
 @router.get("/api/sessions", dependencies=[Depends(verify_authenticated)])
 async def list_sessions(
     start: Optional[str] = Query(None),

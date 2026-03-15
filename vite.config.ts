@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
+import { VitePWA } from 'vite-plugin-pwa';
 
 // Fix for __dirname not available in ESM environment
 const __filename = fileURLToPath(import.meta.url);
@@ -15,7 +16,33 @@ export default defineConfig(({ mode }) => {
       port: 3000,
       host: '0.0.0.0',
     },
-    plugins: [react()],
+    plugins: [
+      react(),
+      VitePWA({
+        registerType: 'autoUpdate',
+        manifest: {
+          name: 'Alluci Sovereign Agent',
+          short_name: 'Alluci',
+          description: 'Sovereign AI Executive Assistant',
+          theme_color: '#0B7A8A',
+          background_color: '#0A1628',
+          display: 'standalone',
+          start_url: '/',
+          icons: [
+            {
+              src: '/icon-192.png',
+              sizes: '192x192',
+              type: 'image/png'
+            },
+            {
+              src: '/icon-512.png',
+              sizes: '512x512',
+              type: 'image/png'
+            }
+          ]
+        }
+      })
+    ],
     define: {
       // Only expose the daemon URL — API keys stay server-side
       'import.meta.env.VITE_DAEMON_URL': JSON.stringify(env.VITE_DAEMON_URL || 'http://localhost:8000'),

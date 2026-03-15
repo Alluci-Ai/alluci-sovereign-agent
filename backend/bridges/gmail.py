@@ -36,6 +36,16 @@ class GmailBridge(BridgeAdapter):
                 # Start background polling
                 if not self._poll_task:
                     self._poll_task = asyncio.create_task(self._poll_loop())
+                
+                # Start background refresh loop
+                if not self._refresh_task:
+                    self._refresh_task = asyncio.create_task(self._token_refresh_loop(
+                        get_creds_fn=lambda: self._load_credentials(account_id=self.email_address or "default"),
+                        set_creds_fn=lambda c: self._save_credentials(c, account_id=self.email_address or "default"),
+                        token_url="https://oauth2.googleapis.com/token",
+                        client_id=self.credentials.get("client_id") or os.getenv("GOOGLE_CLIENT_ID") or "",
+                        client_secret=self.credentials.get("client_secret") or os.getenv("GOOGLE_CLIENT_SECRET") or ""
+                    ))
                 return True
             elif res.status_code == 401 and credentials.get("refresh_token"):
                 self.is_connected = True 

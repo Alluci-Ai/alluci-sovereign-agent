@@ -64,7 +64,7 @@ class ModelRouter:
         if GEMINI_AVAILABLE and settings.GEMINI_API_KEY:
             genai.configure(api_key=settings.GEMINI_API_KEY)
             self.gemini_flash = genai.GenerativeModel("gemini-2.0-flash")
-            self.gemini_pro = genai.GenerativeModel("gemini-1.5-pro") # Using 1.5 Pro for maximum reasoning stability
+            self.gemini_pro = genai.GenerativeModel("gemini-2.0-pro-exp-02-05") # Using 2.0 Pro for maximum reasoning stability
             self.logger.info("Gemini models initialized (primary).")
 
         # Failover 1: OpenAI / GitHub Models

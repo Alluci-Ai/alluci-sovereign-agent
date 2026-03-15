@@ -29,6 +29,7 @@ class BridgeAdapter(ABC):
         self.on_event: Optional[Callable] = None
         self.last_activity: Optional[str] = None
         self.last_error: Optional[str] = None
+        self._refresh_task: Optional[asyncio.Task] = None
 
     async def _save_credentials(self, credentials: Dict[str, Any], account_id: str = "default"):
         """Securely persists credentials to the encrypted vault."""
@@ -173,8 +174,29 @@ class BridgeAdapter(ABC):
         creds["expires_at"] = time.time() + data.get("expires_in", 3600)
         return creds
 
+    async def _token_refresh_loop(self, get_creds_fn, set_creds_fn, token_url, client_id, client_secret):
+        """
+        Background task to periodically refresh tokens before they expire.
+        """
+        self.logger.info(f"Starting background token refresh loop for {self.bridge_id}")
+        while self.is_connected:
+            try:
+                creds = await get_creds_fn()
+                if creds and creds.get("refresh_token") and creds.get("expires_at"):
+                    # Use the helper to check and refresh
+                    updated = await self._get_valid_token(creds, token_url, client_id, client_secret)
+                    if updated["access_token"] != creds["access_token"]:
+                        await set_creds_fn(updated)
+            except Exception as e:
+                self.logger.error(f"Error in {self.bridge_id} refresh loop: {e}")
+            
+            # Check every 10 minutes
+            await asyncio.sleep(600)
+
     async def disconnect(self):
         """Graceful teardown of the connection."""
+        if self._refresh_task:
+            self._refresh_task.cancel()
         if self.client:
             await self.client.aclose()
         self.is_connected = False

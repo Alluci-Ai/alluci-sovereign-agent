@@ -59,10 +59,17 @@ class SlackBridge(BridgeAdapter):
             )
             data = res.json()
             if data.get("ok"):
-                self.is_connected = True
-                self.workspace_id = data.get("team_id")
-                self.bot_user_id = data.get("user_id")
                 self.logger.info(f"Slack Connected. Team: {data.get('team')} User: {data.get('user')}")
+                
+                # Start background refresh loop
+                if not self._refresh_task:
+                    self._refresh_task = asyncio.create_task(self._token_refresh_loop(
+                        get_creds_fn=lambda: self._load_credentials(account_id=self.workspace_id or "default"),
+                        set_creds_fn=lambda c: self._save_credentials(c, account_id=self.workspace_id or "default"),
+                        token_url="https://slack.com/api/tooling.tokens.rotate",
+                        client_id=self.client_id or "",
+                        client_secret=self.client_secret or ""
+                    ))
                 return True
             else:
                 self.logger.error(f"Slack auth failed: {data.get('error')}")
