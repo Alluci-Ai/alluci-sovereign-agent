@@ -11,7 +11,9 @@ from .. import services
 from ..models import TelemetryData
 from ..security.oauth_store import oauth_store
 
-logger = logging.getLogger("ChannelsRouter")
+from ..logging_config import get_logger
+
+logger = get_logger("ChannelsRouter")
 
 router = APIRouter(tags=["Bridge Channels"])
 
@@ -151,76 +153,77 @@ _VALID_BRIDGE_IDS = frozenset([
 @router.get("/api/oauth/{bridge_id}/callback")
 async def oauth_callback(bridge_id: str, code: str = Query(None), state: str = Query(None), error: str = Query(None)):
     """Generic OAuth callback endpoint for all OAuth-based bridges."""
-    
-    # 1. Security: validate bridge_id against known set before any string interpolation
-    if bridge_id not in _VALID_BRIDGE_IDS:
-        logger.warning(f"[OAUTH] Callback received for unknown bridge_id: '{bridge_id}'")
-        return HTMLResponse(
-            "<script>"
-            "window.opener && window.opener.postMessage("
-            "  JSON.stringify({ type: 'OAUTH_COMPLETE', error: 'invalid_bridge' }),"
-            "  window.location.origin"
-            ");"
-            "window.close();"
-            "</script>",
-            status_code=400,
-        )
+    import structlog
+    with structlog.contextvars.bound_contextvars(bridge_id=bridge_id):
+        # 1. Security: validate bridge_id against known set before any string interpolation
+        if bridge_id not in _VALID_BRIDGE_IDS:
+            logger.warning("Callback received for unknown bridge_id")
+            return HTMLResponse(
+                "<script>"
+                "window.opener && window.opener.postMessage("
+                "  JSON.stringify({ type: 'OAUTH_COMPLETE', error: 'invalid_bridge' }),"
+                "  window.location.origin"
+                ");"
+                "window.close();"
+                "</script>",
+                status_code=400,
+            )
 
-    # Helper for serialised responses
-    def _make_response(success: bool, error_msg: str = "") -> HTMLResponse:
-        import json as _json
-        payload = _json.dumps({
-            "type": "OAUTH_COMPLETE",
-            "bridgeId": bridge_id,  # safe: validated against whitelist
-            "success": success,
-            "error": error_msg,
-        })
-        return HTMLResponse(
-            f"<script>"
-            f"window.opener && window.opener.postMessage({payload}, window.location.origin);"
-            f"window.close();"
-            f"</script>"
-        )
+        # Helper for serialised responses
+        def _make_response(success: bool, error_msg: str = "") -> HTMLResponse:
+            import json as _json
+            payload = _json.dumps({
+                "type": "OAUTH_COMPLETE",
+                "bridgeId": bridge_id,  # safe: validated against whitelist
+                "success": success,
+                "error": error_msg,
+            })
+            return HTMLResponse(
+                f"<script>"
+                f"window.opener && window.opener.postMessage({payload}, window.location.origin);"
+                f"window.close();"
+                f"</script>"
+            )
 
-    if error:
-        return _make_response(False, error)
+        if error:
+            return _make_response(False, error)
 
-    # 2. Forward to specific adapter logic
-    adapter = services.channel_registry.get(bridge_id)
-    if not adapter:
-        return _make_response(False, "bridge_not_found")
+        # 2. Forward to specific adapter logic
+        adapter = services.channel_registry.get(bridge_id)
+        if not adapter:
+            return _make_response(False, "bridge_not_found")
 
-    try:
-        if bridge_id == "slack":
-            verifier = await oauth_store.consume_state(state)
-            if not verifier: return _make_response(False, "invalid_state")
-            daemon_url = os.getenv("DAEMON_PUBLIC_URL", "http://localhost:8000").rstrip("/")
-            creds = await adapter.handle_oauth_callback(code=code, state=state, code_verifier=verifier, redirect_uri=f"{daemon_url}/api/oauth/slack/callback")
-            team_id = creds.get("team_id") or "default"
-            await services.vault.store_connection_secret("slack", team_id, creds)
-        
-        elif bridge_id == "x":
-            sd = await oauth_store.consume_state(state)
-            if not sd: return _make_response(False, "invalid_state")
-            creds = await adapter.handle_oauth_callback(code=code, state=state, code_verifier=sd["verifier"], redirect_uri=sd["redirect_uri"])
-            user_id = creds.get("user_id") or "default"
-            await services.vault.store_connection_secret("x", user_id, creds)
- 
-        elif bridge_id in ["instagram", "facebook", "msteams"]:
-            sd = await oauth_store.consume_state(state)
-            if not sd: return _make_response(False, "invalid_state")
-            creds = await adapter.handle_oauth_callback(code=code, state=state, redirect_uri=sd["redirect_uri"])
-            account_id = creds.get("team_id") or creds.get("user_id") or "default"
-            await services.vault.store_connection_secret(bridge_id, account_id, creds)
+        try:
+            if bridge_id == "slack":
+                verifier = await oauth_store.consume_state(state)
+                if not verifier: return _make_response(False, "invalid_state")
+                daemon_url = os.getenv("DAEMON_PUBLIC_URL", "http://localhost:8000").rstrip("/")
+                creds = await adapter.handle_oauth_callback(code=code, state=state, code_verifier=verifier, redirect_uri=f"{daemon_url}/api/oauth/slack/callback")
+                team_id = creds.get("team_id") or "default"
+                await services.vault.store_connection_secret("slack", team_id, creds)
             
-        elif hasattr(adapter, "handle_oauth_callback"):
-            await adapter.handle_oauth_callback(code, state)
-        
-        return _make_response(True)
+            elif bridge_id == "x":
+                sd = await oauth_store.consume_state(state)
+                if not sd: return _make_response(False, "invalid_state")
+                creds = await adapter.handle_oauth_callback(code=code, state=state, code_verifier=sd["verifier"], redirect_uri=sd["redirect_uri"])
+                user_id = creds.get("user_id") or "default"
+                await services.vault.store_connection_secret("x", user_id, creds)
+    
+            elif bridge_id in ["instagram", "facebook", "msteams"]:
+                sd = await oauth_store.consume_state(state)
+                if not sd: return _make_response(False, "invalid_state")
+                creds = await adapter.handle_oauth_callback(code=code, state=state, redirect_uri=sd["redirect_uri"])
+                account_id = creds.get("team_id") or creds.get("user_id") or "default"
+                await services.vault.store_connection_secret(bridge_id, account_id, creds)
+                
+            elif hasattr(adapter, "handle_oauth_callback"):
+                await adapter.handle_oauth_callback(code, state)
+            
+            return _make_response(True)
 
-    except Exception as e:
-        logger.error(f"[OAUTH] Callback error for {bridge_id}: {e}")
-        return _make_response(False, str(e))
+        except Exception as e:
+            logger.error("Callback error", error=str(e))
+            return _make_response(False, str(e))
 
 @router.get("/api/webhook/wechat")
 async def wechat_webhook_verify(msg_signature: str = Query(...), timestamp: str = Query(...), nonce: str = Query(...), echostr: str = Query("")):

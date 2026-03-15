@@ -73,10 +73,12 @@ class PPNEmbeddingModule(nn.Module):
                 state_dict = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
                 self.load_state_dict(state_dict)
                 import logging
-                logging.getLogger("PPN").info(f"PPN checkpoint loaded from {checkpoint_path}")
+from ..logging_config import get_logger
+                get_logger("PPN").info(f"PPN checkpoint loaded from {checkpoint_path}")
             except Exception as e:
                 import logging
-                logging.getLogger("PPN").warning(f"Failed to load PPN checkpoint: {e}. Using deterministic init.")
+from ..logging_config import get_logger
+                get_logger("PPN").warning(f"Failed to load PPN checkpoint: {e}. Using deterministic init.")
                 self._deterministic_init()
         else:
             # No checkpoint: use deterministic initialization so the DPK gate

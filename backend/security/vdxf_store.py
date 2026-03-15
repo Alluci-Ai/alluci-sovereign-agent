@@ -1,12 +1,13 @@
 
 import hashlib
 import logging
+from ..logging_config import get_logger
 import time
 from typing import Any, Dict, Optional
 from backend.security.verus_rpc import verus_rpc
 from backend.config import settings
 
-logger = logging.getLogger("VDXFStore")
+logger = get_logger("VDXFStore")
 
 class VDXFStore:
     """

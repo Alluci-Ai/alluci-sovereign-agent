@@ -7,6 +7,9 @@ from ..models import LoginRequest
 from ..security.auth import create_access_token
 from ..security.verusid_auth import verus_auth
 from fastapi_limiter.depends import RateLimiter
+from ..logging_config import get_logger
+
+logger = get_logger("AuthRouter")
 
 router = APIRouter(tags=["Authentication"])
 
@@ -103,8 +106,6 @@ async def verify_webauthn_response(response: Response, payload: Dict[str, Any] =
     """Verifies the WebAuthn attestation/assertion using py_webauthn."""
     from ..security.webauthn_store import webauthn_store
     import base64
-    import logging
-    logger = logging.getLogger("AuthRouter")
     
     try:
         from webauthn import verify_registration_response

@@ -2,9 +2,10 @@
 import base64
 import secrets
 import logging
+from ..logging_config import get_logger
 from typing import Optional
 
-logger = logging.getLogger("WebAuthnStore")
+logger = get_logger("WebAuthnStore")
 
 CHALLENGE_TTL_SECONDS = 120  # 2-minute challenge window
 

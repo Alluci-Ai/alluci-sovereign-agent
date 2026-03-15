@@ -1,5 +1,6 @@
 
 import logging
+from ..logging_config import get_logger
 from typing import Dict, Any, List
 from fastapi import APIRouter, HTTPException, Depends, Body
 from ..security.auth import verify_authenticated
@@ -8,7 +9,7 @@ from .. import services
 from fastapi_limiter.depends import RateLimiter
 from ..config import settings
 
-logger = logging.getLogger("SoulRouter")
+logger = get_logger("SoulRouter")
 
 router = APIRouter(tags=["Soul Manifest"])
 

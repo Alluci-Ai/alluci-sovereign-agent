@@ -1,4 +1,5 @@
 import logging
+from ..logging_config import get_logger
 import json
 import re
 from typing import Tuple, List, Optional
@@ -24,7 +25,7 @@ PROMPT_INJECTION_PATTERNS = [
 class GuardrailScanner:
     def __init__(self, router: ModelRouter):
         self.router = router
-        self.logger = logging.getLogger("GuardrailScanner")
+        self.logger = get_logger("GuardrailScanner")
         self.safety_categories = {
             "O1": "Violence and Physical Harm",
             "O2": "Non-Consensual Sexual Content",

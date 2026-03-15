@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+from ..logging_config import get_logger
 import asyncio
 import httpx
 from typing import List, Dict, Any, Callable, Optional
@@ -15,7 +16,7 @@ class BridgeAdapter(ABC):
     def __init__(self, bridge_id: str, vault_root: str, vault_manager: Optional[Any] = None):
         self.bridge_id = bridge_id
         self.vault_manager = vault_manager
-        self.logger = logging.getLogger(f"Bridge_{bridge_id.upper()}")
+        self.logger = get_logger(f"Bridge_{bridge_id.upper()}")
         
         # Simplicial Vault Path: ~/.polytope/vaults/{bridge_id}
         self.vault_path = os.path.join(vault_root, bridge_id)

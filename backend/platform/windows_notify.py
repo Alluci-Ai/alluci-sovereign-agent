@@ -1,7 +1,8 @@
 import logging
+from ..logging_config import get_logger
 import platform
 
-logger = logging.getLogger("WindowsNotifier")
+logger = get_logger("WindowsNotifier")
 
 class WindowsNotifier:
     """

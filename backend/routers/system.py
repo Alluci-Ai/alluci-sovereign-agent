@@ -1,5 +1,6 @@
 
 import logging
+from ..logging_config import get_logger
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 from fastapi import APIRouter, HTTPException, Depends
@@ -11,7 +12,7 @@ from ..models import SystemStatus, AuditEntry
 from ..security.auth import verify_authenticated
 from .. import services
 
-logger = logging.getLogger("SystemRouter")
+logger = get_logger("SystemRouter")
 
 router = APIRouter(tags=["System Status"])
 

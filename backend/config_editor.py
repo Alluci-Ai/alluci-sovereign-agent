@@ -9,10 +9,11 @@ Reference: Sovereign Spec Sections 8.1–8.3
 
 import json
 import logging
+from .logging_config import get_logger
 import os
 from typing import Dict, Any
 
-logger = logging.getLogger("ConfigEditor")
+logger = get_logger("ConfigEditor")
 
 
 class ConfigEditor:

@@ -5,6 +5,7 @@ import hashlib
 import platform
 import psutil
 import logging
+from .logging_config import get_logger
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List, Optional
 from cryptography.hazmat.primitives.asymmetric import ed25519
@@ -13,7 +14,7 @@ from sqlmodel import Session, select
 from .database import engine as db_engine
 from .models import Device, DeviceBinding
 
-logger = logging.getLogger("DeviceManager")
+logger = get_logger("DeviceManager")
 
 class DeviceManager:
     """

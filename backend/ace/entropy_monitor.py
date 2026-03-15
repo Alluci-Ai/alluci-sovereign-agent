@@ -1,9 +1,10 @@
 import numpy as np
 import logging
+from ..logging_config import get_logger
 from collections import deque
 from typing import List
 
-logger = logging.getLogger("EntropyMonitor")
+logger = get_logger("EntropyMonitor")
 
 class EntropySpikeDetector:
     """

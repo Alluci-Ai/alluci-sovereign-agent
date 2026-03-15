@@ -1,6 +1,7 @@
 import secrets
 import time
 import logging
+from ..logging_config import get_logger
 import os
 import json
 import asyncio
@@ -8,7 +9,7 @@ from typing import Dict, Tuple, Any, Optional
 from backend.security.verus_rpc import verus_rpc
 from backend.config import settings
 
-logger = logging.getLogger("VerusIDAuth")
+logger = get_logger("VerusIDAuth")
 
 class VerusIDAuth:
     """

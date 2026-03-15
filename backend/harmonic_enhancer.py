@@ -1,11 +1,12 @@
 
 import numpy as np
 import logging
+from .logging_config import get_logger
 from datetime import datetime, timezone
 from typing import List, Any, Tuple
 from pydantic import BaseModel, Field
 
-logger = logging.getLogger("HarmonicEnhancer")
+logger = get_logger("HarmonicEnhancer")
 
 # --- Data Models ---
 

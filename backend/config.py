@@ -1,6 +1,7 @@
 import os
 import sys
 import logging
+from .logging_config import get_logger
 from typing import List, Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import field_validator
@@ -12,7 +13,7 @@ if not logging.root.handlers:
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
-logger = logging.getLogger("PolytopeConfig")
+logger = get_logger("PolytopeConfig")
 
 
 def get_secret(key: str, default: Optional[str] = None) -> Optional[str]:

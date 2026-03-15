@@ -10,13 +10,14 @@ Reference: Sovereign Spec Sections 9.1–9.4
 import asyncio
 import json
 import logging
+from .logging_config import get_logger
 from datetime import datetime, timezone
 from typing import Optional, Set, Dict, Any
 from collections import deque
 import structlog.contextvars
 from fastapi import WebSocket, WebSocketDisconnect
 
-logger = logging.getLogger("LogStreamer")
+logger = get_logger("LogStreamer")
 
 
 class LogBuffer:
@@ -35,7 +36,7 @@ class LogBuffer:
         if self._handler:
             return
         self._handler = _BufferHandler(self)
-        root = logging.getLogger()
+        root = get_logger()
         root.addHandler(self._handler)
         logger.info("[LogStreamer] Handler installed on root logger")
 

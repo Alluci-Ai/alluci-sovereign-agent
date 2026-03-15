@@ -1,10 +1,11 @@
 
 import httpx
 import logging
+from ..logging_config import get_logger
 from typing import Dict, Any
 from .base import Adapter
 
-logger = logging.getLogger("Adapters.Web")
+logger = get_logger("Adapters.Web")
 
 class WebAdapter(Adapter):
     @property

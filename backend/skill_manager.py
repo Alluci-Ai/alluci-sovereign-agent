@@ -1,11 +1,12 @@
 import yaml
 import os
 import logging
+from .logging_config import get_logger
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 from .security.vault import VaultManager
 
-logger = logging.getLogger("SkillManager")
+logger = get_logger("SkillManager")
 
 class SkillManager:
     def __init__(self, vault: VaultManager, skills_dir: Optional[str] = None):

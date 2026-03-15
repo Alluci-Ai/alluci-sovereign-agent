@@ -1,10 +1,11 @@
 
 import logging
+from ..logging_config import get_logger
 from fastapi import APIRouter, HTTPException, Depends, Query, Response, File, UploadFile
 from ..security.auth import verify_authenticated
 from .. import services
 
-logger = logging.getLogger("VoiceRouter")
+logger = get_logger("VoiceRouter")
 
 router = APIRouter(tags=["Voice & Audio"])
 

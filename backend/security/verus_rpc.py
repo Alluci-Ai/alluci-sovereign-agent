@@ -1,10 +1,11 @@
 
 import httpx
 import logging
+from ..logging_config import get_logger
 from typing import Any, Dict, List, Optional
 from backend.config import settings
 
-logger = logging.getLogger("VerusRPC")
+logger = get_logger("VerusRPC")
 
 class VerusRPCClient:
     """

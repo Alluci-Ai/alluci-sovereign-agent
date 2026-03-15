@@ -1,9 +1,10 @@
 
 import json
 import logging
+from ..logging_config import get_logger
 from typing import Optional, Any
 
-logger = logging.getLogger("OAuthStore")
+logger = get_logger("OAuthStore")
 
 STATE_TTL_SECONDS = 600  # 10-minute window for OAuth flow
 

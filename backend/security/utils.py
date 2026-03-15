@@ -1,12 +1,13 @@
 
 import logging
+from ..logging_config import get_logger
 import uuid
 from datetime import datetime, timezone
 from fastapi import HTTPException
 from ..config import settings
 from ..models import AuditEntry
 
-logger = logging.getLogger("PolytopeSecurityUtils")
+logger = get_logger("PolytopeSecurityUtils")
 
 MAX_INPUT_LENGTH = 10_000
 

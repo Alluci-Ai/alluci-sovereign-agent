@@ -97,22 +97,26 @@ class VaultManager:
             
             if keychain_key:
                 import logging
-                logging.getLogger("VaultManager").info("Master key retrieved from OS Keychain.")
+from ..logging_config import get_logger
+                get_logger("VaultManager").info("Master key retrieved from OS Keychain.")
                 return keychain_key
             
             # If not in keychain but we have a valid provided key, migrate
             if provided_key and "PLACEHOLDER" not in provided_key:
                 import logging
-                logging.getLogger("VaultManager").info(f"Migrating master key to {system} Keychain...")
+from ..logging_config import get_logger
+                get_logger("VaultManager").info(f"Migrating master key to {system} Keychain...")
                 keyring.set_password(service_name, username, provided_key)
                 return provided_key
                 
         except ImportError:
             import logging
-            logging.getLogger("VaultManager").warning("keyring library not found. Falling back to environment.")
+from ..logging_config import get_logger
+            get_logger("VaultManager").warning("keyring library not found. Falling back to environment.")
         except Exception as e:
             import logging
-            logging.getLogger("VaultManager").error(f"Keychain sync failed: {e}")
+from ..logging_config import get_logger
+            get_logger("VaultManager").error(f"Keychain sync failed: {e}")
             
         return provided_key
 
@@ -174,7 +178,8 @@ class VaultManager:
             if not await self.vdxf.verify_integrity(vault_aggregate):
                 # Integrity mismatch — vault may have been tampered with externally
                 import logging
-                logging.getLogger("VaultManager").critical(
+from ..logging_config import get_logger
+                get_logger("VaultManager").critical(
                     f"[SECURITY] VDXF integrity verification FAILED for bridge '{bridge_id}'. "
                     f"Vault data may have been tampered with. Investigate immediately."
                 )
@@ -203,7 +208,8 @@ class VaultManager:
                     return json.loads(decrypted.decode())
                 except Exception as e:
                     import logging
-                    logging.getLogger("VaultManager").error(f"AES-GCM decryption failed for {bridge_id}: {e}")
+from ..logging_config import get_logger
+                    get_logger("VaultManager").error(f"AES-GCM decryption failed for {bridge_id}: {e}")
                     return None
 
             # 2. Try V1 Fallback (Fernet)
@@ -212,7 +218,8 @@ class VaultManager:
                 data = json.loads(decrypted.decode())
                 # 3. Lazy Migration to V2
                 import logging
-                logging.getLogger("VaultManager").info(f"Migrating {bridge_id} to AES-256-GCM...")
+from ..logging_config import get_logger
+                get_logger("VaultManager").info(f"Migrating {bridge_id} to AES-256-GCM...")
                 self._store_secret_sync(bridge_id, data)
                 return data
             except (InvalidToken, Exception):
@@ -333,7 +340,8 @@ class VaultManager:
                     return json.loads(decrypted.decode())
                 except Exception as e:
                     import logging
-                    logging.getLogger("VaultManager").error(f"V2 hybrid decryption failed for {rel_path}: {e}")
+from ..logging_config import get_logger
+                    get_logger("VaultManager").error(f"V2 hybrid decryption failed for {rel_path}: {e}")
                     return None
 
             # --- Legacy Fernet V1 Hybrid Fallback ---
@@ -357,7 +365,8 @@ class VaultManager:
                 return data
             except Exception as e:
                 import logging
-                logging.getLogger("VaultManager").error(f"V1 hybrid fallback failed for {rel_path}: {e}")
+from ..logging_config import get_logger
+                get_logger("VaultManager").error(f"V1 hybrid fallback failed for {rel_path}: {e}")
                 return None
 
     def _delete_secret_by_path_sync(self, rel_path: str) -> bool:
@@ -477,7 +486,8 @@ class VaultManager:
             return True
         except Exception as e:
             import logging
-            logging.getLogger("VaultManager").error(f"Critical Failure during Key Rotation: {e}")
+from ..logging_config import get_logger
+            get_logger("VaultManager").error(f"Critical Failure during Key Rotation: {e}")
             return False
 
     def _store_secret_by_path_helper_sync(self, absolute_path: str, data: Dict[str, Any], pub_key):

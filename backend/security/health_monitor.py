@@ -1,8 +1,9 @@
 import logging
+from ..logging_config import get_logger
 from typing import Dict, Any, Optional, List
 from .dpk import PolytopeState
 
-logger = logging.getLogger("HealthMonitor")
+logger = get_logger("HealthMonitor")
 
 class PVTManifoldHealthMonitor:
     """

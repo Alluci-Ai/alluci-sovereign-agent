@@ -34,13 +34,15 @@ from .ace.memory_decay import MemoryTopologyDecay
 from .inference.ppn import PPNEmbeddingModule
 from .inference.holoid import HoloidConsensus
 
+from .logging_config import get_logger
+
 class ExecutiveOrchestrator:
     def __init__(self, router: ModelRouter, vault: VaultManager, ace: AffectiveEngine, 
                  settings: Settings, skill_manager: SkillManager = None, 
                  approval_manager=None, analytics=None, vault_root: str = None,
                  memory_manager = None):
         self.settings = settings
-        self.logger = logging.getLogger("ExecutiveOrchestrator")
+        self.logger = get_logger("ExecutiveOrchestrator")
         self.vault = vault
         self.skill_manager = skill_manager
         self.approval_manager = approval_manager
@@ -152,55 +154,65 @@ class ExecutiveOrchestrator:
         Process a message received from a connected channel adapter.
         Turns the message body into an autonomous objective.
         """
-        body = message.get("body", "").strip()
-        sender = message.get("from", "unknown")
-        protocol = message.get("protocol", "UNKNOWN")
-        account_id = message.get("account_id")
-        session_key = message.get("session_key", f"inbound_{int(datetime.now().timestamp())}")
+        from .tracing_config import get_tracer
+        tracer = get_tracer("Orchestrator")
 
-        if not body:
-            return
+        with tracer.start_as_current_span("handle_inbound_message") as span:
+            body = message.get("body", "").strip()
+            sender = message.get("from", "unknown")
+            protocol = message.get("protocol", "UNKNOWN")
+            account_id = message.get("account_id")
+            session_key = message.get("session_key", f"inbound_{int(datetime.now().timestamp())}")
 
-        self.logger.info(f"[Orchestrator] Inbound {protocol} message from {sender} (Account: {account_id}): {body[:50]}...")
-        
-        # 1. Record User Message to Log & Set Context
-        with structlog.contextvars.bound_contextvars(session_key=session_key):
-            if self.analytics:
-                self.analytics.record_message(
-                    session_key=session_key,
-                    role="user",
-                    content=body,
-                    account_id=account_id
-                )
+            span.set_attribute("protocol", protocol)
+            span.set_attribute("sender", sender)
+            span.set_attribute("account_id", str(account_id or ""))
 
-            # Trigger autonomous execution
-            try:
-                # Treats inbound message as a new objective.
-                # Injects account context into the objective for the planner/executor
-                routing_context = f" via {protocol} account {account_id}" if account_id else ""
-                
-                result = await self.execute_objective(
-                    objective=f"Respond to {protocol} message from {sender}: {body}{routing_context}",
-                    autonomy="autonomous"
-                )
+            if not body:
+                return
 
-                # 2. Record Assistant Response to Log
+                self.logger.info(f"[Orchestrator] Inbound {protocol} message from {sender} (Account: {account_id}): {body[:50]}...")
+            
+            # 1. Record User Message to Log & Set Context
+            with structlog.contextvars.bound_contextvars(session_key=session_key):
                 if self.analytics:
                     self.analytics.record_message(
                         session_key=session_key,
-                        role="assistant",
-                        content=str(result),
+                        role="user",
+                        content=body,
                         account_id=account_id
                     )
 
-            except Exception as e:
-                self.logger.error(f"[Orchestrator] Error handling inbound message: {e}")
-                if self.analytics:
-                    self.analytics.record_message(
-                        session_key=session_key,
-                        role="system",
-                        content=f"Error: {e}"
+                # Trigger autonomous execution
+                try:
+                    # Treats inbound message as a new objective.
+                    # Injects account context into the objective for the planner/executor
+                    routing_context = f" via {protocol} account {account_id}" if account_id else ""
+                    
+                    result = await self.execute_objective(
+                        objective=f"Respond to {protocol} message from {sender}: {body}{routing_context}",
+                        autonomy="autonomous"
                     )
+
+                    # 2. Record Assistant Response to Log
+                    if self.analytics:
+                        self.analytics.record_message(
+                            session_key=session_key,
+                            role="assistant",
+                            content=str(result),
+                            account_id=account_id
+                        )
+
+                except Exception as e:
+                    self.logger.error(f"[Orchestrator] Error handling inbound message: {e}")
+                    span.record_exception(e)
+                    span.set_status(trace.Status(trace.StatusCode.ERROR, str(e)))
+                    if self.analytics:
+                        self.analytics.record_message(
+                            session_key=session_key,
+                            role="system",
+                            content=f"Error: {e}"
+                        )
 
     async def _build_system_context(self) -> str:
         """
@@ -324,7 +336,15 @@ class ExecutiveOrchestrator:
             return False, None
 
     async def execute_objective(self, objective: str, autonomy: str, mode: str = "standard") -> Dict[str, Any]:
-        self.logger.info(f"🚀 EXECUTING SOVEREIGN OBJECTIVE ({mode.upper()} MODE): {objective}")
+        from .tracing_config import get_tracer
+        tracer = get_tracer("Orchestrator")
+        
+        with tracer.start_as_current_span("execute_objective") as span:
+            span.set_attribute("objective", objective)
+            span.set_attribute("autonomy", autonomy)
+            span.set_attribute("mode", mode)
+            
+            self.logger.info(f"🚀 EXECUTING SOVEREIGN OBJECTIVE ({mode.upper()} MODE): {objective}")
 
         if mode == "research":
             return await self.execute_research(objective)

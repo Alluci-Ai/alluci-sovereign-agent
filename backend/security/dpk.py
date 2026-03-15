@@ -1,10 +1,11 @@
 import logging
+from ..logging_config import get_logger
 import ctypes
 import os
 from dataclasses import dataclass
 from typing import List, Optional
 
-logger = logging.getLogger("DPK")
+logger = get_logger("DPK")
 
 # --- Native Struct Definitions ---
 class NativePolytopeState(ctypes.Structure):

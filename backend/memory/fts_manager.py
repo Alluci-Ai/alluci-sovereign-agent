@@ -3,10 +3,11 @@ import sqlite3
 import os
 import uuid
 import logging
+from ..logging_config import get_logger
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
-logger = logging.getLogger("FTSMemoryManager")
+logger = get_logger("FTSMemoryManager")
 
 class FTSMemoryManager:
     """

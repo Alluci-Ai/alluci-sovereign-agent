@@ -1,11 +1,12 @@
 
 import logging
+from ..logging_config import get_logger
 from typing import Dict, Any
 from fastapi import APIRouter, HTTPException, Depends, Body
 from ..security.auth import verify_authenticated
 from .. import services
 
-logger = logging.getLogger("ConfigRouter")
+logger = get_logger("ConfigRouter")
 
 router = APIRouter(tags=["System Configuration"])
 

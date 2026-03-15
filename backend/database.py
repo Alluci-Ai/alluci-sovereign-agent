@@ -1,8 +1,8 @@
 from sqlmodel import create_engine, SQLModel, Session
 from .config import settings
-import logging
+from .logging_config import get_logger
 
-logger = logging.getLogger("Database")
+logger = get_logger("Database")
 
 # Configurable database URL from settings.
 # For Production: use "postgresql://user:pass@host/dbname" (via psycopg2)

@@ -1,5 +1,6 @@
 
 import logging
+from ..logging_config import get_logger
 import hashlib
 import json
 from datetime import datetime, timezone
@@ -10,7 +11,7 @@ from ..models import AuditLog, AuditEntry
 from ..config import settings
 import asyncio
 
-logger = logging.getLogger("AuditLedger")
+logger = get_logger("AuditLedger")
 
 # Global lock to prevent race conditions on rolling hash
 audit_lock = asyncio.Lock()

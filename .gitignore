@@ -44,6 +44,10 @@ htmlcov/
 coverage.xml
 typecheck_output.txt
 heartbeat_state.json
+*.o
+*.so
+*.dylib
+*.dll
 
 # Vault data (contains encrypted secrets)
 .polytope/

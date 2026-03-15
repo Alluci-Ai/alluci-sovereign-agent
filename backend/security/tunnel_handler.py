@@ -1,13 +1,14 @@
 import asyncio
 import json
 import logging
+from ..logging_config import get_logger
 import os
 import uuid
 import httpx
 import websockets
 from typing import Dict, Any, Optional
 
-logger = logging.getLogger("TunnelHandler")
+logger = get_logger("TunnelHandler")
 
 class TunnelHandler:
     """

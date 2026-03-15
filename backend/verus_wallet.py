@@ -6,13 +6,14 @@ The agent's VerusID (from config) is used as the primary signing authority.
 """
 
 import logging
+from .logging_config import get_logger
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from backend.security.verus_rpc import verus_rpc
 from backend.config import settings
 from backend.models import WalletDashboard, CurrencyBalance
 
-logger = logging.getLogger("VerusWallet")
+logger = get_logger("VerusWallet")
 
 
 class VerusWalletService:

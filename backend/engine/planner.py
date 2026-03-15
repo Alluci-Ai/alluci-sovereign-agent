@@ -1,10 +1,11 @@
 
 import logging
+from ..logging_config import get_logger
 from typing import List, Dict, Any, Set
 from ..models import DAGTask, TaskStatus
 from ..inference.router import ModelRouter
 
-logger = logging.getLogger("Engine.Planner")
+logger = get_logger("Engine.Planner")
 
 class Planner:
     """

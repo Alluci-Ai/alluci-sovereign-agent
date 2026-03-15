@@ -15,6 +15,7 @@ import secrets
 import shutil
 import asyncio
 import logging
+from ..logging_config import get_logger
 import platform
 import subprocess
 import httpx
@@ -23,7 +24,7 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 from backend.config import settings
 
-logger = logging.getLogger("VerusNode")
+logger = get_logger("VerusNode")
 
 class VerusNodeManager:
     """

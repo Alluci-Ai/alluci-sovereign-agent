@@ -1,11 +1,12 @@
 
 import logging
+from ..logging_config import get_logger
 from fastapi import APIRouter, HTTPException, Depends
 from ..models import TelemetryData
 from ..security.auth import verify_authenticated
 from .. import services
 
-logger = logging.getLogger("TelemetryRouter")
+logger = get_logger("TelemetryRouter")
 
 router = APIRouter(tags=["Telemetry"])
 

@@ -1,4 +1,5 @@
 import logging
+from ..logging_config import get_logger
 import hashlib
 import json
 from typing import Dict, Any
@@ -12,7 +13,7 @@ except ImportError:
 
 from ..config import Settings
 
-logger = logging.getLogger("SovereignSecurity")
+logger = get_logger("SovereignSecurity")
 
 class SovereignIdentity:
     """

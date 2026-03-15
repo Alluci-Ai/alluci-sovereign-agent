@@ -1,11 +1,12 @@
 
 import json
 import logging
+from ..logging_config import get_logger
 import math
 import httpx
 from typing import Literal, Dict, Any, List
 
-logger = logging.getLogger("ModelRouter")
+logger = get_logger("ModelRouter")
 
 # Conditional imports for failover providers
 try:
@@ -54,7 +55,7 @@ class ModelRouter:
     Routes inference requests with failover chain: Gemini → OpenAI → Anthropic.
     """
     def __init__(self, settings):
-        self.logger = logging.getLogger("ModelRouter")
+        self.logger = get_logger("ModelRouter")
         self.settings = settings
         
         # Primary: Gemini
@@ -276,163 +277,200 @@ class ModelRouter:
 
     async def get_response(self, prompt: str, complexity: Literal["LOW", "MEDIUM", "HIGH"] = "MEDIUM", psi: float = 0.0) -> str:
         """Get a response with automatic failover across providers."""
-        # AAP-002: ψ-Modulated Model Routing via KCM Hyperbolic Penalty.
-        # High Tension (ψ > 0.7) triggers cosh() penalty on Strong models,
-        # forcing routing to Light/deterministic models for safety.
-        use_strong = (complexity == "HIGH")
-        use_tactical = False
-        
-        if psi > 0.0:
-            # KCM Hyperbolic Penalty: cosh(ψ) × latency
-            strong_penalty = math.cosh(psi) * 3000.0  # Strong model ~3s latency
-            light_penalty = math.cosh(psi) * 200.0    # Light model ~200ms latency
+        from ..tracing_config import get_tracer
+        from opentelemetry import trace
+        tracer = get_tracer("Inference.Router")
+
+        with tracer.start_as_current_span("get_response") as span:
+            span.set_attribute("complexity", complexity)
+            span.set_attribute("psi", psi)
+
+            # AAP-002: ψ-Modulated Model Routing via KCM Hyperbolic Penalty.
+            # High Tension (ψ > 0.7) triggers cosh() penalty on Strong models,
+            # forcing routing to Light/deterministic models for safety.
+            use_strong = (complexity == "HIGH")
+            use_tactical = False
             
-            if strong_penalty > 2.0 * light_penalty and psi > 0.7:
-                # High tension: force tactical/light model
-                use_tactical = True
-                use_strong = False
-                self.logger.info(f"[KCM] ψ={psi:.2f} → Routing to Light model (penalty={strong_penalty:.0f} vs {light_penalty:.0f})")
-            elif psi > 0.8:
-                # Very high tension but no extreme penalty: still use strong for stability
-                use_strong = True
-        
-        if not use_tactical:
-            use_strong = use_strong or (complexity == "HIGH") or (psi > 0.8)
-        
-        # Only activate JSON mode when the prompt explicitly requests JSON output
-        # not just any mention of the word "json" in the content.
-        import re
-        json_mode = bool(re.search(
-            r'\b(return|output|respond\s+with|give\s+me|provide|format\s+as|reply\s+in)\b[^.]*\bjson\b',
-            prompt.lower()
-        ))
-        errors = []
+            if psi > 0.0:
+                # KCM Hyperbolic Penalty: cosh(ψ) × latency
+                strong_penalty = math.cosh(psi) * 3000.0  # Strong model ~3s latency
+                light_penalty = math.cosh(psi) * 200.0    # Light model ~200ms latency
+                
+                if strong_penalty > 2.0 * light_penalty and psi > 0.7:
+                    # High tension: force tactical/light model
+                    use_tactical = True
+                    use_strong = False
+                    self.logger.info(f"[KCM] ψ={psi:.2f} → Routing to Light model (penalty={strong_penalty:.0f} vs {light_penalty:.0f})")
+                elif psi > 0.8:
+                    # Very high tension but no extreme penalty: still use strong for stability
+                    use_strong = True
+            
+            if not use_tactical:
+                use_strong = use_strong or (complexity == "HIGH") or (psi > 0.8)
+            
+            # Only activate JSON mode when the prompt explicitly requests JSON output
+            import re
+            json_mode = bool(re.search(
+                r'\b(return|output|respond\s+with|give\s+me|provide|format\s+as|reply\s+in)\b[^.]*\bjson\b',
+                prompt.lower()
+            ))
+            errors = []
 
-        # KCM Tactical Shortcut: if high-tension routing selected "light",
-        # attempt Groq LPU first for sub-second deterministic response
-        if use_tactical and self.groq_api_key:
-            try:
-                self.logger.info("[KCM] Tactical routing → Groq LPU")
-                return await self.get_fast_tactical_response(prompt)
-            except Exception as e:
-                errors.append(f"Groq (tactical): {e}")
-                self.logger.warning(f"Tactical Groq failed, falling through: {e}")
+            # KCM Tactical Shortcut: if high-tension routing selected "light",
+            # attempt Groq LPU first for sub-second deterministic response
+            if use_tactical and self.groq_api_key:
+                try:
+                    self.logger.info("[KCM] Tactical routing → Groq LPU")
+                    span.set_attribute("model_provider", "groq")
+                    return await self.get_fast_tactical_response(prompt)
+                except Exception as e:
+                    errors.append(f"Groq (tactical): {e}")
+                    span.add_event("Groq tactical failover")
+                    self.logger.warning(f"Tactical Groq failed, falling through: {e}")
 
-        # Attempt 1: Gemini
-        if self.gemini_flash or self.gemini_pro:
-            try:
-                return await self._gemini_request(prompt, use_pro=use_strong, json_mode=json_mode)
-            except Exception as e:
-                errors.append(f"Gemini: {e}")
-                self.logger.warning(f"Gemini failed, attempting failover: {e}")
+            # Attempt 1: Gemini
+            if self.gemini_flash or self.gemini_pro:
+                try:
+                    res = await self._gemini_request(prompt, use_pro=use_strong, json_mode=json_mode)
+                    span.set_attribute("model_provider", "gemini")
+                    return res
+                except Exception as e:
+                    errors.append(f"Gemini: {e}")
+                    span.add_event("Gemini failover", attributes={"error": str(e)})
+                    self.logger.warning(f"Gemini failed, attempting failover: {e}")
 
-        # Attempt 2: OpenAI
-        if self.openai_client:
-            try:
-                await self._notify_fallback("OpenAI (GPT-4o)")
-                return await self._openai_request(prompt, use_strong=use_strong, json_mode=json_mode)
-            except Exception as e:
-                errors.append(f"OpenAI: {e}")
-                self.logger.warning(f"OpenAI failed, attempting failover: {e}")
+            # Attempt 2: OpenAI
+            if self.openai_client:
+                try:
+                    await self._notify_fallback("OpenAI (GPT-4o)")
+                    res = await self._openai_request(prompt, use_strong=use_strong, json_mode=json_mode)
+                    span.set_attribute("model_provider", "openai")
+                    return res
+                except Exception as e:
+                    errors.append(f"OpenAI: {e}")
+                    span.add_event("OpenAI failover", attributes={"error": str(e)})
+                    self.logger.warning(f"OpenAI failed, attempting failover: {e}")
 
-        # Attempt 3: Anthropic
-        if self.anthropic_client:
-            try:
-                await self._notify_fallback("Anthropic (Claude 3.7)")
-                return await self._anthropic_request(prompt, use_strong=use_strong)
-            except Exception as e:
-                errors.append(f"Anthropic: {e}")
-                self.logger.warning(f"Anthropic failed: {e}")
+            # Attempt 3: Anthropic
+            if self.anthropic_client:
+                try:
+                    await self._notify_fallback("Anthropic (Claude 3.7)")
+                    res = await self._anthropic_request(prompt, use_strong=use_strong)
+                    span.set_attribute("model_provider", "anthropic")
+                    return res
+                except Exception as e:
+                    errors.append(f"Anthropic: {e}")
+                    span.add_event("Anthropic failover", attributes={"error": str(e)})
+                    self.logger.warning(f"Anthropic failed: {e}")
 
-        # Attempt 4: DeepSeek
-        if self.deepseek_client:
-            try:
-                await self._notify_fallback("DeepSeek (R1 / Chat)")
-                # Use DeepSeek-R1 for GitHub Models, deepseek-chat for direct
-                model = "DeepSeek-R1" if "azure" in str(self.deepseek_client.base_url) else "deepseek-chat"
-                response = await self.deepseek_client.chat.completions.create(
-                    model=model,
-                    messages=[{"role": "user", "content": prompt}],
-                    max_tokens=4096
-                )
-                return response.choices[0].message.content
-            except Exception as e:
-                errors.append(f"DeepSeek: {e}")
-                self.logger.warning(f"DeepSeek failed: {e}")
+            # Attempt 4: DeepSeek
+            if self.deepseek_client:
+                try:
+                    await self._notify_fallback("DeepSeek (R1 / Chat)")
+                    # Use DeepSeek-R1 for GitHub Models, deepseek-chat for direct
+                    model = "DeepSeek-R1" if "azure" in str(self.deepseek_client.base_url) else "deepseek-chat"
+                    response = await self.deepseek_client.chat.completions.create(
+                        model=model,
+                        messages=[{"role": "user", "content": prompt}],
+                        max_tokens=4096
+                    )
+                    span.set_attribute("model_provider", "deepseek")
+                    return response.choices[0].message.content
+                except Exception as e:
+                    errors.append(f"DeepSeek: {e}")
+                    span.add_event("DeepSeek failover", attributes={"error": str(e)})
+                    self.logger.warning(f"DeepSeek failed: {e}")
 
-        # Attempt 5: OpenRouter
-        if self.openrouter_client:
-            try:
-                await self._notify_fallback("OpenRouter (Llama 3.3)")
-                # Using a more standard model for OpenRouter failover to ensure stability
-                model = "meta-llama/llama-3.3-70b-instruct"
-                response = await self.openrouter_client.chat.completions.create(
-                    model=model,
-                    messages=[{"role": "user", "content": prompt}],
-                    max_tokens=4096
-                )
-                return response.choices[0].message.content
-            except Exception as e:
-                errors.append(f"OpenRouter: {e}")
-                self.logger.warning(f"OpenRouter failed: {e}")
+            # Attempt 5: OpenRouter
+            if self.openrouter_client:
+                try:
+                    await self._notify_fallback("OpenRouter (Llama 3.3)")
+                    # Using a more standard model for OpenRouter failover to ensure stability
+                    model = "meta-llama/llama-3.3-70b-instruct"
+                    response = await self.openrouter_client.chat.completions.create(
+                        model=model,
+                        messages=[{"role": "user", "content": prompt}],
+                        max_tokens=4096
+                    )
+                    span.set_attribute("model_provider", "openrouter")
+                    return response.choices[0].message.content
+                except Exception as e:
+                    errors.append(f"OpenRouter: {e}")
+                    span.add_event("OpenRouter failover", attributes={"error": str(e)})
+                    self.logger.warning(f"OpenRouter failed: {e}")
 
-        # Attempt 6: LM Studio
-        if self.lm_studio_client:
-            try:
-                await self._notify_fallback("LM Studio (Local)")
-                response = await self.lm_studio_client.chat.completions.create(
-                    model="model-identifier", # LM Studio usually uses whatever is loaded
-                    messages=[{"role": "user", "content": prompt}],
-                    max_tokens=2048
-                )
-                return response.choices[0].message.content
-            except Exception as e:
-                errors.append(f"LM Studio: {e}")
-                self.logger.warning(f"LM Studio failed: {e}")
+            # Attempt 6: LM Studio
+            if self.lm_studio_client:
+                try:
+                    await self._notify_fallback("LM Studio (Local)")
+                    response = await self.lm_studio_client.chat.completions.create(
+                        model="model-identifier", # LM Studio usually uses whatever is loaded
+                        messages=[{"role": "user", "content": prompt}],
+                        max_tokens=2048
+                    )
+                    span.set_attribute("model_provider", "lm_studio")
+                    return response.choices[0].message.content
+                except Exception as e:
+                    errors.append(f"LM Studio: {e}")
+                    span.add_event("LM Studio failover", attributes={"error": str(e)})
+                    self.logger.warning(f"LM Studio failed: {e}")
 
-        # Attempt 7: Together AI
-        if self.together_client:
-            try:
-                await self._notify_fallback("Together (Llama-3-70B)")
-                model = "meta-llama/Llama-3-70b-chat-hf"
-                response = await self.together_client.chat.completions.create(
-                    model=model,
-                    messages=[{"role": "user", "content": prompt}],
-                    max_tokens=4096
-                )
-                return response.choices[0].message.content
-            except Exception as e:
-                errors.append(f"Together: {e}")
-                self.logger.warning(f"Together failed: {e}")
+            # Attempt 7: Together AI
+            if self.together_client:
+                try:
+                    await self._notify_fallback("Together (Llama-3-70B)")
+                    model = "meta-llama/Llama-3-70b-chat-hf"
+                    response = await self.together_client.chat.completions.create(
+                        model=model,
+                        messages=[{"role": "user", "content": prompt}],
+                        max_tokens=4096
+                    )
+                    span.set_attribute("model_provider", "together")
+                    return response.choices[0].message.content
+                except Exception as e:
+                    errors.append(f"Together: {e}")
+                    span.add_event("Together failover", attributes={"error": str(e)})
+                    self.logger.warning(f"Together failed: {e}")
 
-        # Attempt 8: Cohere
-        if self.cohere_client:
-            try:
-                await self._notify_fallback("Cohere (Command R+)")
-                return await self._cohere_request(prompt, use_strong=use_strong)
-            except Exception as e:
-                errors.append(f"Cohere: {e}")
-                self.logger.warning(f"Cohere failed: {e}")
+            # Attempt 8: Cohere
+            if self.cohere_client:
+                try:
+                    await self._notify_fallback("Cohere (Command R+)")
+                    res = await self._cohere_request(prompt, use_strong=use_strong)
+                    span.set_attribute("model_provider", "cohere")
+                    return res
+                except Exception as e:
+                    errors.append(f"Cohere: {e}")
+                    span.add_event("Cohere failover", attributes={"error": str(e)})
+                    self.logger.warning(f"Cohere failed: {e}")
 
-        # Attempt 9: AWS Bedrock
-        if self.bedrock_runtime:
-            try:
-                await self._notify_fallback("AWS Bedrock (Claude 3)")
-                return await self._bedrock_request(prompt, use_strong=use_strong)
-            except Exception as e:
-                errors.append(f"AWS Bedrock: {e}")
-                self.logger.warning(f"AWS Bedrock failed: {e}")
+            # Attempt 9: AWS Bedrock
+            if self.bedrock_runtime:
+                try:
+                    await self._notify_fallback("AWS Bedrock (Claude 3)")
+                    res = await self._bedrock_request(prompt, use_strong=use_strong)
+                    span.set_attribute("model_provider", "bedrock")
+                    return res
+                except Exception as e:
+                    errors.append(f"AWS Bedrock: {e}")
+                    span.add_event("Bedrock failover", attributes={"error": str(e)})
+                    self.logger.warning(f"AWS Bedrock failed: {e}")
 
-        # Attempt 10: Kimi (Failover for reasoning)
-        if self.nvidia_nim_api_key:
-            try:
-                await self._notify_fallback("Kimi (k2.5)")
-                return await self._kimi_request(prompt, thinking=use_strong)
-            except Exception as e:
-                errors.append(f"Kimi: {e}")
-                self.logger.warning(f"Kimi failed: {e}")
+            # Attempt 10: Kimi (Failover for reasoning)
+            if self.nvidia_nim_api_key:
+                try:
+                    await self._notify_fallback("Kimi (k2.5)")
+                    res = await self._kimi_request(prompt, thinking=use_strong)
+                    span.set_attribute("model_provider", "kimi")
+                    return res
+                except Exception as e:
+                    errors.append(f"Kimi: {e}")
+                    span.add_event("Kimi failover", attributes={"error": str(e)})
+                    self.logger.warning(f"Kimi failed: {e}")
 
-        raise RuntimeError(f"All inference providers failed: {'; '.join(errors)}")
+            error_msg = f"All inference providers failed: {'; '.join(errors)}"
+            span.set_status(trace.Status(trace.StatusCode.ERROR, error_msg))
+            raise RuntimeError(error_msg)
 
     # --- Specialized Multi-Modal Audio/Video/Image Synthesis Targets ---
     

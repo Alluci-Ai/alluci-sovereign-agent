@@ -3,6 +3,7 @@ import asyncio
 import os
 import json
 import logging
+from .logging_config import get_logger
 import hashlib
 import re
 from datetime import datetime, time, timezone
@@ -87,7 +88,7 @@ class HeartbeatDaemon:
         self.orchestrator = orchestrator
         self.vault = vault
         self.interval = interval_seconds
-        self.logger = logging.getLogger("Heartbeat")
+        self.logger = get_logger("Heartbeat")
         self.running = False
         self.state_file = "heartbeat_state.json"
         self.ws_gateway = None

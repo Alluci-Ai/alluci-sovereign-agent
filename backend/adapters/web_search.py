@@ -2,6 +2,7 @@
 import os
 import httpx
 import logging
+from ..logging_config import get_logger
 from typing import Dict, Any, List
 from .base import Adapter
 
@@ -16,7 +17,7 @@ class WebSearchAdapter(Adapter):
     def __init__(self, api_key: str = None, provider: str = "serpapi"):
         self.api_key = api_key
         self.provider = provider
-        self.logger = logging.getLogger("WebSearchAdapter")
+        self.logger = get_logger("WebSearchAdapter")
 
     async def execute(self, query: str) -> Dict[str, Any]:
         """

@@ -1,10 +1,11 @@
 import secrets
 import time
 import logging
+from ..logging_config import get_logger
 from typing import Dict, Any, Optional
 from backend.security.vault import VaultManager
 
-logger = logging.getLogger("QRSyncHandler")
+logger = get_logger("QRSyncHandler")
 
 class QRSyncHandler:
     """

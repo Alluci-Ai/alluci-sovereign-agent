@@ -8,8 +8,9 @@ from sqlmodel import Session, select
 from ..models import DAGTask, TaskStatus, TaskRecord
 from ..adapters.registry import AdapterRegistry
 from .errors import AdapterNotFoundError
+from ..logging_config import get_logger
 
-logger = logging.getLogger("Engine.Executor")
+logger = get_logger("Engine.Executor")
 
 class Executor:
     """
@@ -28,8 +29,15 @@ class Executor:
         """
         Main execution loop.
         """
-        # Sync initial task records to DB
-        self._init_task_records(run_id, tasks)
+        from ..tracing_config import get_tracer
+        tracer = get_tracer("Engine.Executor")
+        
+        with tracer.start_as_current_span("execute_dag") as span:
+            span.set_attribute("run_id", run_id)
+            span.set_attribute("task_count", len(tasks))
+            
+            # Sync initial task records to DB
+            self._init_task_records(run_id, tasks)
 
         completed_ids: Set[str] = {t_id for t_id, t in tasks.items() if t.status == TaskStatus.COMPLETED}
         failed_ids: Set[str] = set()
@@ -77,45 +85,56 @@ class Executor:
         return tasks
 
     async def _run_task(self, run_id: int, task: DAGTask, all_tasks: Dict[str, DAGTask]) -> DAGTask:
+        from ..tracing_config import get_tracer
+        tracer = get_tracer("Engine.Executor")
+        
         async with self.semaphore:
-            task.status = TaskStatus.RUNNING
-            self._update_task_record(run_id, task.id, status="running", start_time=datetime.now(timezone.utc))
-            
-            # Context Injection
-            dep_context = {
-                dep: all_tasks[dep].result 
-                for dep in task.dependencies 
-                if all_tasks[dep].status == TaskStatus.COMPLETED
-            }
-            task.args["dependency_output"] = dep_context
+            with tracer.start_as_current_span("run_task") as span:
+                span.set_attribute("run_id", run_id)
+                span.set_attribute("task_id", task.id)
+                span.set_attribute("action", task.action)
+                
+                task.status = TaskStatus.RUNNING
+                self._update_task_record(run_id, task.id, status="running", start_time=datetime.now(timezone.utc))
+                
+                # Context Injection
+                dep_context = {
+                    dep: all_tasks[dep].result 
+                    for dep in task.dependencies 
+                    if all_tasks[dep].status == TaskStatus.COMPLETED
+                }
+                task.args["dependency_output"] = dep_context
 
-            try:
-                # Execute with Timeout
-                result = await asyncio.wait_for(
-                    self._execute_adapter(task.action, task.args, task.id),
-                    timeout=self.task_timeout
-                )
+                try:
+                    # Execute with Timeout
+                    result = await asyncio.wait_for(
+                        self._execute_adapter(task.action, task.args, task.id),
+                        timeout=self.task_timeout
+                    )
+                    
+                    task.result = str(result)
+                    task.status = TaskStatus.COMPLETED
+                    self._update_task_record(run_id, task.id, status="completed", result=str(result), end_time=datetime.now(timezone.utc))
+                    logger.info(f"Task {task.id} ({task.action}) ✅")
+                    
+                except asyncio.TimeoutError:
+                    err_msg = f"Task exceeded {self.task_timeout}s limit."
+                    logger.error(f"Task {task.id} ⏳ {err_msg}")
+                    task.status = TaskStatus.FAILED
+                    task.result = err_msg
+                    self._update_task_record(run_id, task.id, status="failed", error=err_msg, end_time=datetime.now(timezone.utc))
+                    span.set_status(trace.Status(trace.StatusCode.ERROR, err_msg))
+                    
+                except Exception as e:
+                    logger.error(f"Task {task.id} ❌ : {e}", exc_info=True)
+                    safe_error = f"Task failed: {type(e).__name__}"
+                    task.result = safe_error
+                    task.status = TaskStatus.FAILED
+                    self._update_task_record(run_id, task.id, status="failed", error=safe_error, end_time=datetime.now(timezone.utc))
+                    span.record_exception(e)
+                    span.set_status(trace.Status(trace.StatusCode.ERROR, str(e)))
                 
-                task.result = str(result)
-                task.status = TaskStatus.COMPLETED
-                self._update_task_record(run_id, task.id, status="completed", result=str(result), end_time=datetime.now(timezone.utc))
-                logger.info(f"Task {task.id} ({task.action}) ✅")
-                
-            except asyncio.TimeoutError:
-                err_msg = f"Task exceeded {self.task_timeout}s limit."
-                logger.error(f"Task {task.id} ⏳ {err_msg}")
-                task.status = TaskStatus.FAILED
-                task.result = err_msg
-                self._update_task_record(run_id, task.id, status="failed", error=err_msg, end_time=datetime.now(timezone.utc))
-                
-            except Exception as e:
-                logger.error(f"Task {task.id} ❌ : {e}", exc_info=True)
-                safe_error = f"Task failed: {type(e).__name__}"
-                task.result = safe_error
-                task.status = TaskStatus.FAILED
-                self._update_task_record(run_id, task.id, status="failed", error=safe_error, end_time=datetime.now(timezone.utc))
-            
-            return task
+                return task
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), reraise=True)
     async def _execute_adapter(self, action: str, args: Dict[str, Any], task_id: str = "") -> Any:

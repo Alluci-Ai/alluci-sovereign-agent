@@ -13,13 +13,14 @@ import asyncio
 import json
 import time
 import logging
+from .logging_config import get_logger
 import psutil
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional, Set
 from fastapi import WebSocket, WebSocketDisconnect
 from jose import jwt, JWTError
 
-logger = logging.getLogger("WSGateway")
+logger = get_logger("WSGateway")
 
 # ─── Connected Client Registry ───────────────────────────────────────────────
 

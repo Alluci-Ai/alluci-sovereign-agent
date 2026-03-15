@@ -1,8 +1,9 @@
 import logging
+from ..logging_config import get_logger
 from typing import Tuple
 from ..inference.router import ModelRouter
 
-logger = logging.getLogger("Engine.Critic")
+logger = get_logger("Engine.Critic")
 
 class Critic:
     """

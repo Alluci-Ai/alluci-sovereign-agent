@@ -1,6 +1,7 @@
 
 import subprocess
 import logging
+from ..logging_config import get_logger
 from typing import Dict, Any, Optional
 from .base import Adapter
 
@@ -14,7 +15,7 @@ class CodeExecAdapter(Adapter):
 
     def __init__(self, timeout: int = 30):
         self.timeout = timeout
-        self.logger = logging.getLogger("CodeExecAdapter")
+        self.logger = get_logger("CodeExecAdapter")
 
     async def execute(self, code: str, language: str = "python") -> Dict[str, Any]:
         """

@@ -26,8 +26,9 @@ from .log_streamer import log_buffer
 from .device_manager import DeviceManager
 from .goals.engine import goal_engine as goal_engine_instance
 from .sop.engine import sop_engine as sop_engine_instance
+from .logging_config import get_logger
 
-logger = logging.getLogger("PolytopeServices")
+logger = get_logger("PolytopeServices")
 
 # Global Service Instances
 vault: Optional[VaultManager] = None

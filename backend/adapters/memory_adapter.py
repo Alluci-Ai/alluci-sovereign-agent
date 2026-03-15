@@ -1,9 +1,10 @@
 
 import logging
+from ..logging_config import get_logger
 from typing import Dict, Any
 from .base import Adapter
 
-logger = logging.getLogger("Adapters.Memory")
+logger = get_logger("Adapters.Memory")
 
 class MemoryAdapter(Adapter):
     def __init__(self, memory_manager):

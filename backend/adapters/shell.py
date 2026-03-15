@@ -1,10 +1,11 @@
 
 import subprocess
 import logging
+from ..logging_config import get_logger
 from typing import Dict, Any
 from .base import Adapter
 
-logger = logging.getLogger("Adapters.Shell")
+logger = get_logger("Adapters.Shell")
 
 class ShellAdapter(Adapter):
     @property

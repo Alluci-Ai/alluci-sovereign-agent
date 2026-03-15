@@ -1,10 +1,11 @@
 import os
 import subprocess
 import logging
+from ..logging_config import get_logger
 import platform
 from typing import Dict, Any
 
-logger = logging.getLogger("LinuxPlatform")
+logger = get_logger("LinuxPlatform")
 
 class LinuxPlatform:
     """

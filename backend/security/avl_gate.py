@@ -1,8 +1,9 @@
 import logging
+from ..logging_config import get_logger
 from typing import Tuple, Optional
 from .dpk import PolytopeState
 
-logger = logging.getLogger("AVL")
+logger = get_logger("AVL")
 
 
 class AVLGate:

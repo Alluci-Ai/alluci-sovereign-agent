@@ -1,10 +1,11 @@
 
 import os
 import logging
+from ..logging_config import get_logger
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
-logger = logging.getLogger("MemoryManager")
+logger = get_logger("MemoryManager")
 
 class MemoryManager:
     """

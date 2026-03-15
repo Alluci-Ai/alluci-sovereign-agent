@@ -1,8 +1,9 @@
 import logging
+from ..logging_config import get_logger
 from typing import List, Dict, Any
 import numpy as np
 
-logger = logging.getLogger("HoloidConsensus")
+logger = get_logger("HoloidConsensus")
 
 class HoloidConsensus:
     """

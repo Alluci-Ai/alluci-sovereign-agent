@@ -1,10 +1,11 @@
 import logging
+from ..logging_config import get_logger
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from .. import services
 from ..security.auth import verify_token
 from jose import JWTError
 
-logger = logging.getLogger("WebsocketRouter")
+logger = get_logger("WebsocketRouter")
 router = APIRouter(tags=["WebSockets"])
 
 async def authenticate_ws(websocket: WebSocket, token: str):

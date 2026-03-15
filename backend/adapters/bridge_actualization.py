@@ -1,5 +1,6 @@
 
 import logging
+from ..logging_config import get_logger
 from typing import Dict, Any, Callable
 from .base import Adapter
 from ..bridges.slack import SlackBridge
@@ -41,7 +42,7 @@ class BridgeActualizationAdapter(Adapter):
         from .. import services
         self.qr_handler = QRSyncHandler(self.vault_manager, redis_client=services.redis_client)
         self.tunnel_handler = TunnelHandler()
-        self.logger = logging.getLogger("BridgeActualization")
+        self.logger = get_logger("BridgeActualization")
         self.on_inbound = on_inbound
         self.bridges: Dict[str, Any] = {}
         self._init_bridges()

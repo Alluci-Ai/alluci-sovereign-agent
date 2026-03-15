@@ -10,6 +10,18 @@ Usage in any module:
 import logging
 import sys
 import structlog
+from opentelemetry import trace
+
+
+def add_otel_trace_id(logger, method_name, event_dict):
+    """Injects current OTel trace and span IDs into the log event."""
+    span = trace.get_current_span()
+    if span and span.is_recording():
+        ctx = span.get_span_context()
+        if ctx.is_valid:
+            event_dict["trace_id"] = format(ctx.trace_id, "032x")
+            event_dict["span_id"] = format(ctx.span_id, "016x")
+    return event_dict
 
 
 def configure_logging(app_env: str = "development") -> None:
@@ -25,6 +37,7 @@ def configure_logging(app_env: str = "development") -> None:
     # --- Shared processors that run on every log entry ---
     shared_processors: list = [
         structlog.contextvars.merge_contextvars,
+        add_otel_trace_id,
         structlog.stdlib.add_log_level,
         structlog.stdlib.add_logger_name,
         structlog.processors.TimeStamper(fmt="iso"),

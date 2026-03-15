@@ -3,10 +3,11 @@ import os
 import asyncio
 import json
 import logging
+from ..logging_config import get_logger
 import shutil
 from typing import AsyncGenerator
 
-logger = logging.getLogger("LocalBridge")
+logger = get_logger("LocalBridge")
 
 class LocalInferenceBridge:
     """

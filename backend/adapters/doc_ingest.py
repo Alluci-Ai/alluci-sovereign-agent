@@ -1,6 +1,7 @@
 
 import os
 import logging
+from ..logging_config import get_logger
 from typing import Dict, Any, List
 from pypdf import PdfReader
 from docx import Document
@@ -17,7 +18,7 @@ class DocumentIngestAdapter(Adapter):
 
     def __init__(self, memory_manager: MemoryManager):
         self.memory_manager = memory_manager
-        self.logger = logging.getLogger("DocumentIngestAdapter")
+        self.logger = get_logger("DocumentIngestAdapter")
 
     async def execute(self, file_path: str) -> Dict[str, Any]:
         """

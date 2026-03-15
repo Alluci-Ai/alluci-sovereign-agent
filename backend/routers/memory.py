@@ -1,11 +1,12 @@
 
 import logging
+from ..logging_config import get_logger
 from typing import Dict, Any, List, Optional
 from fastapi import APIRouter, HTTPException, Depends, Query, Body
 from ..security.auth import verify_authenticated
 from .. import services
 
-logger = logging.getLogger("MemoryRouter")
+logger = get_logger("MemoryRouter")
 
 router = APIRouter(tags=["Sovereign Memory"])
 

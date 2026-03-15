@@ -11,12 +11,13 @@ import os
 import sys
 import asyncio
 import logging
+from .logging_config import get_logger
 import httpx
 import subprocess
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 
-logger = logging.getLogger("Updater")
+logger = get_logger("Updater")
 
 # Default repo for the Sovereign Manifold
 GITHUB_REPO = "Alluci-Ai/alluci-sovereign-agent"

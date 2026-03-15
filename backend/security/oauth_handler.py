@@ -3,12 +3,13 @@ import hashlib
 import base64
 import httpx
 import logging
+from ..logging_config import get_logger
 from typing import Dict, Any, Optional
 from backend.security.vault import VaultManager
 
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
-logger = logging.getLogger("OAuthHandler")
+logger = get_logger("OAuthHandler")
 
 class OAuthHandler:
     """

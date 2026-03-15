@@ -1,6 +1,7 @@
 
 import os
 import logging
+from ..logging_config import get_logger
 from typing import Dict, Any
 from mss import mss
 from .base import Adapter
@@ -16,7 +17,7 @@ class ScreenCaptureAdapter(Adapter):
     def __init__(self, output_dir: str = "/tmp/alluci/screenshots"):
         self.output_dir = output_dir
         os.makedirs(self.output_dir, exist_ok=True)
-        self.logger = logging.getLogger("ScreenCaptureAdapter")
+        self.logger = get_logger("ScreenCaptureAdapter")
 
     async def execute(self) -> Dict[str, Any]:
         """

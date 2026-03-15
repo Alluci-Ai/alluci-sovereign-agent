@@ -1,5 +1,6 @@
 
 import logging
+from ..logging_config import get_logger
 from datetime import date
 from typing import Dict, Any, List, Optional
 from fastapi import APIRouter, HTTPException, Depends, Query, Body
@@ -9,7 +10,7 @@ from ..database import engine as db_engine
 from ..models import SessionConfig
 from .. import services
 
-logger = logging.getLogger("SessionsRouter")
+logger = get_logger("SessionsRouter")
 
 router = APIRouter(tags=["Sessions & Agents"])
 
