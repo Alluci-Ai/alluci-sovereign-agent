@@ -29,7 +29,7 @@ google-generativeai==0.8.3
 google-auth==2.34.0
 openai==1.40.0
 anthropic==0.34.0
-httpx==0.27.0
+httpx==0.28.1
 
 # ─── Messaging & Bridge SDKs ──────────────────────────────────────────────────
 discord.py==2.3.2            # Discord bridge
