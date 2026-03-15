@@ -1,22 +1,47 @@
-
 import os
 import json
 import stat
 import shutil
 import asyncio
 import contextlib
+import hashlib
+import platform
+import struct
+import tempfile
+import logging
+from typing import Dict, Any, Set, Optional, List
+
+# Conditional imports for platform-specific or optional dependencies
+try:
+    import keyring
+except ImportError:
+    keyring = None
+
+try:
+    import resource
+except ImportError:
+    resource = None
+
+try:
+    import signal as _signal
+except ImportError:
+    _signal = None
+
 from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.backends import default_backend
-from typing import Dict, Any, Set, Optional
-from backend.security.vdxf_store import VDXFStore
+
+from ..config import settings
+from ..logging_config import get_logger
+from .vdxf_store import VDXFStore
+
+logger = get_logger("VaultManager")
 
 class VaultManager:
     def __init__(self, master_key: str, vault_root: Optional[str] = None):
-        from ..config import settings
         
         # P4-004: macOS Keychain Integration
         self.master_key = self._ensure_keychain_sync(master_key)
@@ -24,15 +49,19 @@ class VaultManager:
         self.vault_root = vault_root or os.path.expanduser("~/.polytope/vaults")
         self._ensure_vault_root_sync()
         
+        # Salt Management for PBKDF2 (P1-004)
+        self.salt = self._get_or_create_salt()
+        
         # Load or generate RSA keypair for asymmetric operations
         self.private_key, self.public_key = self._get_rsa_keys()
         
-        # Legacy symmetric Fernet for simple local state (non-asymmetric)
-        self.fernet = Fernet(master_key.encode() if isinstance(master_key, str) else master_key)
+        # P1-004: Hardened Key Derivation
+        # Derive two distinct keys from the master key to avoid cross-use
+        self.fernet_key = self._derive_key("fernet_v1")
+        import base64
+        self.fernet = Fernet(base64.urlsafe_b64encode(self.fernet_key))
         
-        # New AES-256-GCM for hardened storage (P1-004)
-        import hashlib
-        self.aes_key = hashlib.sha256(master_key.encode() if isinstance(master_key, str) else master_key).digest()
+        self.aes_key = self._derive_key("aes_v2")
         self.aes_gcm = AESGCM(self.aes_key)
         self.VAULT_V2_PREFIX = b"\x01"
         
@@ -45,30 +74,62 @@ class VaultManager:
         """Retrieves or generates RSA keys protected by the master key."""
         key_path = os.path.join(self.vault_root, "identity.pem")
         if os.path.exists(key_path):
-            with open(key_path, "rb") as f:
-                private_key = serialization.load_pem_private_key(
-                    f.read(),
-                    password=self.master_key.encode() if isinstance(self.master_key, str) else self.master_key,
+            try:
+                with open(key_path, "rb") as f:
+                    private_key = serialization.load_pem_private_key(
+                        f.read(),
+                        password=self.master_key.encode() if isinstance(self.master_key, str) else self.master_key,
+                        backend=default_backend()
+                    )
+                return private_key, private_key.public_key()
+            except (ValueError, InvalidToken, Exception) as e:
+                logger.error(f"Failed to decrypt RSA identity key: {e}. Asymmetric operations will be disabled.")
+                return None, None
+        else:
+            try:
+                private_key = rsa.generate_private_key(
+                    public_exponent=65537,
+                    key_size=4096,
                     backend=default_backend()
                 )
-        else:
-            private_key = rsa.generate_private_key(
-                public_exponent=65537,
-                key_size=4096,
-                backend=default_backend()
-            )
-            pem = private_key.private_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PrivateFormat.PKCS8,
-                encryption_algorithm=serialization.BestAvailableEncryption(
-                    self.master_key.encode() if isinstance(self.master_key, str) else self.master_key
+                pem = private_key.private_bytes(
+                    encoding=serialization.Encoding.PEM,
+                    format=serialization.PrivateFormat.PKCS8,
+                    encryption_algorithm=serialization.BestAvailableEncryption(
+                        self.master_key.encode() if isinstance(self.master_key, str) else self.master_key
+                    )
                 )
-            )
-            with open(key_path, "wb") as f:
-                f.write(pem)
-            os.chmod(key_path, stat.S_IRUSR | stat.S_IWUSR)
+                with open(key_path, "wb") as f:
+                    f.write(pem)
+                os.chmod(key_path, stat.S_IRUSR | stat.S_IWUSR)
+                return private_key, private_key.public_key()
+            except Exception as e:
+                return None, None
 
-        return private_key, private_key.public_key()
+    def _get_or_create_salt(self) -> bytes:
+        """Loads or generates a persistent salt for PBKDF2."""
+        salt_path = os.path.join(self.vault_root, "salt.bin")
+        if os.path.exists(salt_path):
+            with open(salt_path, "rb") as f:
+                return f.read()
+        else:
+            salt = os.urandom(16)
+            with open(salt_path, "wb") as f:
+                f.write(salt)
+            return salt
+
+    def _derive_key(self, purpose: str, salt: Optional[bytes] = None, iterations: int = 100_000, master_key: Optional[str] = None) -> bytes:
+        """Secure PBKDF2 key derivation."""
+        target_master = master_key or self.master_key
+        target_salt = salt or self.salt
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=target_salt + purpose.encode(), # Purpose-specific salt domain separation
+            iterations=iterations,
+            backend=default_backend()
+        )
+        return kdf.derive(target_master.encode() if isinstance(target_master, str) else target_master)
 
     def _ensure_vault_root_sync(self):
         """Sync version of ensure vault root."""
@@ -85,38 +146,30 @@ class VaultManager:
         Attempts to retrieve master key from OS keychain.
         If provided_key is valid and not in keychain, migrates it.
         """
-        import platform
         system = platform.system()
         service_name = "alluci-sovereign"
         username = "master-key"
         
+        if not keyring:
+            logger.warning("keyring library not found. Falling back to environment.")
+            return provided_key
+
         try:
-            import keyring
             # Attempt retrieval
             keychain_key = keyring.get_password(service_name, username)
             
             if keychain_key:
-                import logging
-from ..logging_config import get_logger
-                get_logger("VaultManager").info("Master key retrieved from OS Keychain.")
+                logger.info("Master key retrieved from OS Keychain.")
                 return keychain_key
             
             # If not in keychain but we have a valid provided key, migrate
             if provided_key and "PLACEHOLDER" not in provided_key:
-                import logging
-from ..logging_config import get_logger
-                get_logger("VaultManager").info(f"Migrating master key to {system} Keychain...")
+                logger.info(f"Migrating master key to {system} Keychain...")
                 keyring.set_password(service_name, username, provided_key)
                 return provided_key
                 
-        except ImportError:
-            import logging
-from ..logging_config import get_logger
-            get_logger("VaultManager").warning("keyring library not found. Falling back to environment.")
         except Exception as e:
-            import logging
-from ..logging_config import get_logger
-            get_logger("VaultManager").error(f"Keychain sync failed: {e}")
+            logger.error(f"Keychain sync failed: {e}")
             
         return provided_key
 
@@ -155,12 +208,14 @@ from ..logging_config import get_logger
         return await asyncio.to_thread(self._get_full_vault_state_sync)
 
     def _get_full_vault_state_sync(self) -> str:
-        all_content = []
+        """Memory-efficient streaming hash of all vault content."""
+        hasher = hashlib.sha256()
         for vfile in sorted(os.listdir(self.vault_root)):
             if vfile.endswith(".vault"):
                 with open(os.path.join(self.vault_root, vfile), "rb") as f:
-                    all_content.append(f.read().hex())
-        return "".join(all_content)
+                    while chunk := f.read(65536):
+                        hasher.update(chunk)
+        return hasher.hexdigest()
 
     async def retrieve_secret(self, bridge_id: str) -> Dict[str, Any]:
         """Decrypts and returns data for a specific manifold bridge with integrity check."""
@@ -177,13 +232,12 @@ from ..logging_config import get_logger
             vault_aggregate = await self._get_full_vault_state()
             if not await self.vdxf.verify_integrity(vault_aggregate):
                 # Integrity mismatch — vault may have been tampered with externally
-                import logging
-from ..logging_config import get_logger
-                get_logger("VaultManager").critical(
+                logger.error(
                     f"[SECURITY] VDXF integrity verification FAILED for bridge '{bridge_id}'. "
-                    f"Vault data may have been tampered with. Investigate immediately."
+                    f"Vault data may have been tampered with. ACCESS DENIED."
                 )
-                
+                return {} # Return empty for security
+
         # Populate cache
         if self.vdxf and data:
             self.vdxf.set_memory(bridge_id, data)
@@ -207,9 +261,7 @@ from ..logging_config import get_logger
                     decrypted = self.aes_gcm.decrypt(nonce, ciphertext, None)
                     return json.loads(decrypted.decode())
                 except Exception as e:
-                    import logging
-from ..logging_config import get_logger
-                    get_logger("VaultManager").error(f"AES-GCM decryption failed for {bridge_id}: {e}")
+                    logger.error(f"AES-GCM decryption failed for {bridge_id}: {e}")
                     return None
 
             # 2. Try V1 Fallback (Fernet)
@@ -217,9 +269,7 @@ from ..logging_config import get_logger
                 decrypted = self.fernet.decrypt(secret_data)
                 data = json.loads(decrypted.decode())
                 # 3. Lazy Migration to V2
-                import logging
-from ..logging_config import get_logger
-                get_logger("VaultManager").info(f"Migrating {bridge_id} to AES-256-GCM...")
+                logger.info(f"Migrating {bridge_id} to AES-256-GCM...")
                 self._store_secret_sync(bridge_id, data)
                 return data
             except (InvalidToken, Exception):
@@ -281,6 +331,10 @@ from ..logging_config import get_logger
         path = os.path.join(self.vault_root, rel_path)
         os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
         
+        if not self.public_key:
+            logger.error(f"Cannot store secret at {rel_path}: RSA Public Key unavailable.")
+            return
+
         # 1. Generate a random 256-bit key for this specific secret
         session_key = os.urandom(32)
         aes_gcm = AESGCM(session_key)
@@ -301,7 +355,6 @@ from ..logging_config import get_logger
         )
         
         # 4. Pack together: [VERSION(1)][len_key(4)][encrypted_key][nonce(12)][encrypted_data]
-        import struct
         final_payload = b"\x02" + struct.pack(">I", len(encrypted_key)) + encrypted_key + nonce + encrypted_data
         
         tmp_path = path + ".tmp"
@@ -321,8 +374,10 @@ from ..logging_config import get_logger
             
             # --- New AES-GCM V2 Hybrid Flow ---
             if payload.startswith(b"\x02"):
+                if not self.private_key:
+                    logger.error(f"Cannot retrieve hybrid secret at {rel_path}: RSA Private Key unavailable.")
+                    return None
                 try:
-                    import struct
                     key_len = struct.unpack(">I", payload[1:5])[0]
                     encrypted_key = payload[5:5+key_len]
                     nonce = payload[5+key_len : 5+key_len+12]
@@ -339,14 +394,11 @@ from ..logging_config import get_logger
                     decrypted = aes_gcm.decrypt(nonce, encrypted_data, None)
                     return json.loads(decrypted.decode())
                 except Exception as e:
-                    import logging
-from ..logging_config import get_logger
-                    get_logger("VaultManager").error(f"V2 hybrid decryption failed for {rel_path}: {e}")
+                    logger.error(f"V2 hybrid decryption failed for {rel_path}: {e}")
                     return None
 
             # --- Legacy Fernet V1 Hybrid Fallback ---
             try:
-                import struct
                 key_len = struct.unpack(">I", payload[:4])[0]
                 encrypted_key = payload[4:4+key_len]
                 encrypted_data = payload[4+key_len:]
@@ -364,9 +416,7 @@ from ..logging_config import get_logger
                 self._store_secret_by_path_sync(rel_path, data)
                 return data
             except Exception as e:
-                import logging
-from ..logging_config import get_logger
-                get_logger("VaultManager").error(f"V1 hybrid fallback failed for {rel_path}: {e}")
+                logger.error(f"V1 hybrid fallback failed for {rel_path}: {e}")
                 return None
 
     def _delete_secret_by_path_sync(self, rel_path: str) -> bool:
@@ -426,8 +476,11 @@ from ..logging_config import get_logger
             from cryptography.hazmat.primitives.asymmetric import rsa
             from cryptography.hazmat.backends import default_backend
             from cryptography.hazmat.primitives import serialization
+            import base64
 
-            new_fernet = Fernet(new_master_key.encode() if isinstance(new_master_key, str) else new_master_key)
+            new_salt = os.urandom(16)
+            new_fernet_key = self._derive_key("fernet_v1", salt=new_salt, master_key=new_master_key)
+            new_fernet = Fernet(base64.urlsafe_b64encode(new_fernet_key))
             new_private_key = rsa.generate_private_key(
                 public_exponent=65537,
                 key_size=4096,
@@ -439,14 +492,23 @@ from ..logging_config import get_logger
             vaults = [f for f in os.listdir(self.vault_root) if f.endswith(".vault")]
             for vault_file in vaults:
                 path = os.path.join(self.vault_root, vault_file)
-                with open(path, "rb") as f:
-                    decrypted = self.fernet.decrypt(f.read())
-                encrypted = new_fernet.encrypt(decrypted)
+                data = self._retrieve_secret_sync(vault_file.replace(".vault", ""))
+                if data is None:
+                    continue
+                
+                # Encrypt with NEW materials
+                # We use the new PBKDF2-derived key
+                new_aes_key = self._derive_key("aes_v2", salt=new_salt, master_key=new_master_key)
+                new_aes_gcm = AESGCM(new_aes_key)
+                
+                raw_data = json.dumps(data).encode()
+                nonce = os.urandom(12)
+                encrypted = self.VAULT_V2_PREFIX + nonce + new_aes_gcm.encrypt(nonce, raw_data, None)
                 
                 tmp_path = path + ".tmp"
                 with open(tmp_path, "wb") as f: f.write(encrypted)
                 os.replace(tmp_path, path)
-                os.chmod(path, stat.S_IRUSR | stat.S_IWUSR) # Ensure permissions are set
+                os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)
 
             # 3. Rotate Hybrid Connection Secrets (connections/**/*)
             conn_root = os.path.join(self.vault_root, "connections")
@@ -475,24 +537,40 @@ from ..logging_config import get_logger
                 )
             )
             with open(key_path, "wb") as f: f.write(pem)
-            os.chmod(key_path, stat.S_IRUSR | stat.S_IWUSR) # Ensure permissions are set
+            os.chmod(key_path, stat.S_IRUSR | stat.S_IWUSR)
 
-            # 5. Commit to memory
+            # 5. Update Keychain if applicable
+            if keyring:
+                try:
+                    service_name = "alluci-sovereign"
+                    username = "master-key"
+                    keyring.set_password(service_name, username, new_master_key)
+                    logger.info("Master key updated in OS Keychain.")
+                except Exception as e:
+                    logger.error(f"Failed to update Keychain during rotation: {e}")
+
+            # 7. Update salt on disk
+            salt_path = os.path.join(self.vault_root, "salt.bin")
+            with open(salt_path, "wb") as f:
+                f.write(new_salt)
+
+            # 8. Commit to memory
             self.master_key = new_master_key
+            self.salt = new_salt
+            self.fernet_key = new_fernet_key
             self.fernet = new_fernet
+            self.aes_key = new_aes_key
+            self.aes_gcm = new_aes_gcm
             self.private_key = new_private_key
             self.public_key = new_public_key
             
             return True
         except Exception as e:
-            import logging
-from ..logging_config import get_logger
-            get_logger("VaultManager").error(f"Critical Failure during Key Rotation: {e}")
+            logger.error(f"Critical Failure during Key Rotation: {e}")
             return False
 
     def _store_secret_by_path_helper_sync(self, absolute_path: str, data: Dict[str, Any], pub_key):
         """Internal helper for rotation without modifying global state."""
-        import struct
         session_key = os.urandom(32)
         aes_gcm = AESGCM(session_key)
         nonce = os.urandom(12)
@@ -510,7 +588,8 @@ from ..logging_config import get_logger
 
     def export_identity_pem(self) -> str:
         """Exports the current RSA private key in PEM format for recovery/backup."""
-        from cryptography.hazmat.primitives import serialization
+        if not self.private_key:
+            return ""
         return self.private_key.private_bytes(
             encoding=serialization.Encoding.PEM,
             format=serialization.PrivateFormat.PKCS8,
@@ -524,83 +603,89 @@ from ..logging_config import get_logger
         try:
             cache_path = os.path.join(self.vault_root, "cache")
             if os.path.exists(cache_path):
-                for root, dirs, files in os.walk(cache_path):
+                for root, dirs, files in os.walk(cache_path, topdown=False):
                     for file in files:
                         p = os.path.join(root, file)
-                        with open(p, "wb") as f:
-                            f.write(os.urandom(os.path.getsize(p)))
-                        os.remove(p)
-                shutil.rmtree(cache_path)
+                        try:
+                            with open(p, "wb") as f:
+                                f.write(os.urandom(os.path.getsize(p)))
+                            os.remove(p)
+                        except OSError: pass
+                    for dname in dirs:
+                        try: os.rmdir(os.path.join(root, dname))
+                        except OSError: pass
+                shutil.rmtree(cache_path, ignore_errors=True)
             return True
         except Exception:
             return False
+
+class Sandbox:
+    """
+    Handle for a sandboxed environment.
+    Provides methods to execute commands or code within the sandbox directory
+    with restricted environment and resource limits, without affecting the main process.
+    """
+    def __init__(self, sandbox_dir: str, env: Dict[str, str]):
+        self.path = sandbox_dir
+        self.env = env.copy()
+        # Poison network environment for any spawned subprocesses
+        self.env["http_proxy"] = "http://0.0.0.0:0"
+        self.env["https_proxy"] = "http://0.0.0.0:0"
+        self.env["no_proxy"] = ""
+        self.env["POLYTOPE_SANDBOXED"] = "1"
+
+    def run_command(self, cmd: List[str], timeout: int = 30) -> Any:
+        """
+        Runs a command in a subprocess isolated within this sandbox.
+        Resource limits and environment poisoning are applied only to the child.
+        """
+        import subprocess
+        
+        def preexec_fn():
+            # Apply resource limits to the child process only
+            # The 'resource' module is imported at the top of the file
+            try:
+                # Max 512 MB virtual memory
+                try: resource.setrlimit(resource.RLIMIT_AS, (512 * 1024 * 1024, resource.RLIM_INFINITY))
+                except (AttributeError, ValueError, Exception): pass
+                
+                # Max 30 seconds CPU time
+                try: resource.setrlimit(resource.RLIMIT_CPU, (30, 60))
+                except (AttributeError, ValueError, Exception): pass
+                
+                # Max 256 open file descriptors
+                try:
+                    soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+                    resource.setrlimit(resource.RLIMIT_NOFILE, (min(256, hard), hard))
+                except (AttributeError, ValueError, Exception): pass
+            except Exception:
+                pass
+
+        return subprocess.run(
+            cmd,
+            cwd=self.path,
+            env=self.env,
+            preexec_fn=preexec_fn if os.name != "nt" else None,
+            capture_output=True,
+            text=True,
+            timeout=timeout
+        )
 
 @contextlib.contextmanager
 def SandboxedExecutionEnv():
     """
     Context manager to enforce zero-trust local execution for agents.
-    Creates a restricted environment with:
-    - Isolated temporary workspace (chroot-like)
-    - Network access blocked via environment override
-    - Resource limits on memory, CPU time, and file descriptors
-    - Secure cleanup with overwrite on exit
+    Yields a Sandbox object that provides safe command execution in an isolated directory.
+    This implementation is thread-safe and safe for async concurrency as it avoids
+    modifying the main process's CWD, environment, or resource limits.
     """
-    import tempfile
-    import resource
-    import signal as _signal
-
     sandbox_dir = tempfile.mkdtemp(prefix="polytope_sandbox_")
-    original_cwd = os.getcwd()
-    original_env = os.environ.copy()
-
-    # ── Pre-execution environment lockdown ──────────────────────────
+    
     try:
-        # 1. Restrict filesystem: set CWD to sandbox
         os.chmod(sandbox_dir, 0o700)
-        os.chdir(sandbox_dir)
-
-        # 2. Block outbound network by poisoning proxy env vars
-        #    (subprocess-level isolation; full network namespace requires root/Docker)
-        os.environ["http_proxy"] = "http://0.0.0.0:0"
-        os.environ["https_proxy"] = "http://0.0.0.0:0"
-        os.environ["no_proxy"] = ""
-        os.environ["POLYTOPE_SANDBOXED"] = "1"
-
-        # 3. Set resource limits (soft limits; hard limits require root)
-        try:
-            # Max 512 MB virtual memory
-            resource.setrlimit(resource.RLIMIT_AS, (512 * 1024 * 1024, resource.RLIM_INFINITY))
-        except (ValueError, resource.error):
-            pass  # Some platforms don't support RLIMIT_AS
-
-        try:
-            # Max 30 seconds CPU time
-            resource.setrlimit(resource.RLIMIT_CPU, (30, 60))
-        except (ValueError, resource.error):
-            pass
-
-        try:
-            # Max 256 open file descriptors
-            soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
-            resource.setrlimit(resource.RLIMIT_NOFILE, (min(256, hard), hard))
-        except (ValueError, resource.error):
-            pass
-
-        yield sandbox_dir
-
+        yield Sandbox(sandbox_dir, os.environ)
     finally:
-        # ── Post-execution environment restoration ──────────────────
-        # 1. Restore CWD
-        try:
-            os.chdir(original_cwd)
-        except OSError:
-            pass
-
-        # 2. Restore environment
-        os.environ.clear()
-        os.environ.update(original_env)
-
-        # 3. Secure cleanup: overwrite sandbox contents before deletion
+        # Secure cleanup: overwrite sandbox contents before deletion
         try:
             for root, dirs, files in os.walk(sandbox_dir, topdown=False):
                 for fname in files:
