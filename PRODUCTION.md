@@ -145,4 +145,27 @@ For fully offline operation, install Ollama, Whisper.cpp, and Piper:
 bash scripts/setup_sovereign_stack.sh
 ```
 
-See `.env.example` for the corresponding environment variables.
+---
+
+## Windows 11 Deployment
+
+Alluci supports native Windows 11 integration including service management and Credential Manager storage.
+
+### 1. Installation
+Run the provided PowerShell script as **Administrator**:
+```powershell
+powershell.exe -ExecutionPolicy Bypass -File install.ps1
+```
+
+### 2. Service Management
+The backend can be managed as a Windows Service (`AlluciSovereignAgent`):
+```powershell
+# Start service
+Start-Service AlluciSovereignAgent
+
+# Check status
+Get-Service AlluciSovereignAgent
+```
+
+### 3. MSIX Packaging
+For Windows Store or enterprise deployment, use the GitHub Actions workflow to generate an MSIX package. This bundles the backend and frontend into a single installable unit.
