@@ -14,7 +14,7 @@ export const SessionSelector: React.FC = () => {
     useEffect(() => {
         const fetchSessions = async () => {
             try {
-                const res = await fetch(`${DAEMON_URL}/api/sessions`, {
+                const res = await fetch(`${DAEMON_URL}/api/v1/sessions`, {
                     headers: { 'Authorization': `Bearer ${accessToken}` },
                     credentials: 'include',
                 });

@@ -22,7 +22,7 @@ export const CronRunHistory: React.FC = () => {
 
     const fetchRuns = useCallback(async () => {
         try {
-            const res = await fetch(`${DAEMON_URL}/api/cron/runs?limit=30`, {
+            const res = await fetch(`${DAEMON_URL}/api/v1/cron/runs?limit=30`, {
                 headers: { 'Authorization': `Bearer ${accessToken}` },
                 credentials: 'include'
             });

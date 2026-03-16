@@ -51,7 +51,7 @@ export const useVoice = () => {
 
         try {
             const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
-            const response = await fetch(`${DAEMON_URL}/api/voice/transcribe`, {
+            const response = await fetch(`${DAEMON_URL}/api/v1/voice/transcribe`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${accessToken}`
@@ -74,7 +74,7 @@ export const useVoice = () => {
     const playSynthesis = async (text: string) => {
         try {
             const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
-            const response = await fetch(`${DAEMON_URL}/api/voice/synthesise?text=${encodeURIComponent(text)}`, {
+            const response = await fetch(`${DAEMON_URL}/api/v1/voice/synthesise?text=${encodeURIComponent(text)}`, {
                 headers: {
                     'Authorization': `Bearer ${accessToken}`
                 }

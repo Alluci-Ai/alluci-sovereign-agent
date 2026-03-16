@@ -10,7 +10,7 @@ const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
  * Production behavior:
  *  1. Fires AbortController.abort() on the shared controller ref to cancel
  *     any in-flight fetch (backend proxy) or Gemini SDK call client-side.
- *  2. Sends POST /api/chat/abort to cancel any server-side streaming.
+ *  2. Sends POST /api/v1/chat/abort to cancel any server-side streaming.
  *  3. Clears the isProcessing flag and appends an ABORTED message.
  *
  * Visual: red translucent pill with ■ icon, fades in via CSS keyframe
@@ -36,9 +36,9 @@ export const AbortButton: React.FC<AbortButtonProps> = ({ abortControllerRef, on
             abortControllerRef.current?.abort();
         } catch { /* Already aborted or null — safe to ignore */ }
 
-        // 2. Server-side: POST /api/chat/abort to cancel streaming backend
+        // 2. Server-side: POST /api/v1/chat/abort to cancel streaming backend
         try {
-            await fetch(`${DAEMON_URL}/api/chat/abort`, {
+            await fetch(`${DAEMON_URL}/api/v1/chat/abort`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

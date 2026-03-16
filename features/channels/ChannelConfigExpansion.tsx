@@ -26,7 +26,7 @@ export const ChannelConfigExpansion: React.FC<ConfigExpansionProps> = ({ channel
         const fetchConfig = async () => {
             setLoading(true);
             try {
-                const res = await fetch(`${DAEMON_URL}/api/channels/${channelId}/config`, {
+                const res = await fetch(`${DAEMON_URL}/api/v1/channels/${channelId}/config`, {
                     headers: { 'Authorization': `Bearer ${accessToken}` },
                     credentials: 'include'
                 });
@@ -45,7 +45,7 @@ export const ChannelConfigExpansion: React.FC<ConfigExpansionProps> = ({ channel
     const handleSave = async () => {
         setSaving(true);
         try {
-            await fetch(`${DAEMON_URL}/api/channels/${channelId}/config`, {
+            await fetch(`${DAEMON_URL}/api/v1/channels/${channelId}/config`, {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${accessToken}`,

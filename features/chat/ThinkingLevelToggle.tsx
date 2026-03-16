@@ -17,7 +17,7 @@ export const ThinkingLevelToggle: React.FC = () => {
     useEffect(() => {
         const loadConfig = async () => {
             try {
-                const res = await fetch(`${DAEMON_URL}/api/sessions/${activeSessionKey}/config`, {
+                const res = await fetch(`${DAEMON_URL}/api/v1/sessions/${activeSessionKey}/config`, {
                     headers: { 'Authorization': `Bearer ${accessToken}` },
                     credentials: 'include',
                 });

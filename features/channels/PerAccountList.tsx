@@ -16,7 +16,7 @@ export const PerAccountList: React.FC<PerAccountListProps> = ({ channelId }) => 
     useEffect(() => {
         const fetchAccounts = async () => {
             try {
-                const res = await fetch(`${DAEMON_URL}/api/channels/${channelId}/accounts`, {
+                const res = await fetch(`${DAEMON_URL}/api/v1/channels/${channelId}/accounts`, {
                     headers: { 'Authorization': `Bearer ${accessToken}` },
                     credentials: 'include'
                 });
@@ -37,7 +37,7 @@ export const PerAccountList: React.FC<PerAccountListProps> = ({ channelId }) => 
         if (!confirm('Are you sure you want to permanently sever connection to this account? Context cache will be lost.')) return;
 
         try {
-            const res = await fetch(`${DAEMON_URL}/api/channels/${channelId}/accounts/${accountId}`, {
+            const res = await fetch(`${DAEMON_URL}/api/v1/channels/${channelId}/accounts/${accountId}`, {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${accessToken}` },
                 credentials: 'include'

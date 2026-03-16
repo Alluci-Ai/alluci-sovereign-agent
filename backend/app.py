@@ -55,6 +55,14 @@ app = FastAPI(
     dependencies=[Depends(global_rate_limit)]
 )
 
+@app.get("/health", include_in_schema=False)
+async def root_health():
+    return {"status": "healthy"}
+
+@app.get("/ready", include_in_schema=False)
+async def root_ready():
+    return {"status": "ready"}
+
 # CORS Policy
 app.add_middleware(
     CORSMiddleware,
@@ -84,6 +92,15 @@ app.include_router(sessions.router, prefix="/api/v1")
 app.include_router(config.router, prefix="/api/v1")
 app.include_router(soul.router, prefix="/api/v1")
 app.include_router(exec_approval.router, prefix="/api/v1")
+
+from fastapi.responses import RedirectResponse
+
+@app.api_route("/api/{path:path}",
+    methods=["GET","POST","PUT","DELETE","PATCH","OPTIONS"],
+    include_in_schema=False)
+async def legacy_api_redirect(path: str):
+    """Redirect unversioned /api/ paths to /api/v1/ for backward compat."""
+    return RedirectResponse(url=f"/api/v1/{path}", status_code=307)
 
 if __name__ == "__main__":
     import uvicorn

@@ -52,7 +52,7 @@ export const OnboardingWizard: React.FC = () => {
                 }
             };
 
-            const res = await fetch(`${DAEMON_URL}/api/onboarding/complete`, {
+            const res = await fetch(`${DAEMON_URL}/api/v1/onboarding/complete`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

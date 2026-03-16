@@ -17,7 +17,7 @@ export const NodeBindingEditor: React.FC<NodeBindingEditorProps> = ({ agentId })
     useEffect(() => {
         const fetchDevices = async () => {
             try {
-                const res = await fetch(`${DAEMON_URL}/api/devices/status`, {
+                const res = await fetch(`${DAEMON_URL}/api/v1/devices/status`, {
                     headers: { 'Authorization': `Bearer ${accessToken}` },
                     credentials: 'include'
                 });
@@ -38,7 +38,7 @@ export const NodeBindingEditor: React.FC<NodeBindingEditorProps> = ({ agentId })
     const handleBind = async (deviceId: number) => {
         setBindingState(prev => ({ ...prev, [deviceId]: { loading: true, token: null } }));
         try {
-            const res = await fetch(`${DAEMON_URL}/api/devices/${deviceId}/bind`, {
+            const res = await fetch(`${DAEMON_URL}/api/v1/devices/${deviceId}/bind`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({ agent_id: agentId }),

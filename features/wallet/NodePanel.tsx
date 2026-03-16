@@ -26,7 +26,7 @@ export const NodePanel: React.FC = () => {
 
     const fetchStatus = async () => {
         try {
-            const res = await fetch(`${DAEMON_URL}/api/wallet/node/status`, {
+            const res = await fetch(`${DAEMON_URL}/api/v1/wallet/node/status`, {
                 headers: { 'Authorization': `Bearer ${accessToken}` }
             });
             if (res.ok) {
@@ -49,7 +49,7 @@ export const NodePanel: React.FC = () => {
     const handleAction = async (action: string) => {
         setActionLoading(action);
         try {
-            const res = await fetch(`${DAEMON_URL}/api/wallet/node/action`, {
+            const res = await fetch(`${DAEMON_URL}/api/v1/wallet/node/action`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${accessToken}`,

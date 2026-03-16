@@ -15,7 +15,7 @@ export const ToolProfileEditor: React.FC<ToolProfileEditorProps> = ({ agentId })
     useEffect(() => {
         const fetchTools = async () => {
             try {
-                const res = await fetch(`${DAEMON_URL}/api/agents/${agentId}/tools`, {
+                const res = await fetch(`${DAEMON_URL}/api/v1/agents/${agentId}/tools`, {
                     headers: { 'Authorization': `Bearer ${accessToken}` },
                     credentials: 'include'
                 });
@@ -43,7 +43,7 @@ export const ToolProfileEditor: React.FC<ToolProfileEditorProps> = ({ agentId })
         setTools(next);
 
         try {
-            await fetch(`${DAEMON_URL}/api/agents/${agentId}/tools`, {
+            await fetch(`${DAEMON_URL}/api/v1/agents/${agentId}/tools`, {
                 method: 'PUT',
                 headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({ tools: next }),

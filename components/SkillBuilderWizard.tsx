@@ -4,7 +4,7 @@ import PersonalityField from './PersonalityField';
 import { SkillManifest } from '../types';
 import { useStore } from '../store/useStore';
 
-const DAEMON_URL = 'http://localhost:8000';
+const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
 
 interface StepProps {
   data: Partial<SkillManifest>;
@@ -328,7 +328,7 @@ const SkillBuilderWizard: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
     try {
       // 1. Get real cryptographic signature from the backend
-      const signRes = await fetch(`${DAEMON_URL}/api/skill/sign`, {
+      const signRes = await fetch(`${DAEMON_URL}/api/v1/skill/sign`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -352,7 +352,7 @@ const SkillBuilderWizard: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         publicKey: "pub_local_vault"
       };
 
-      const res = await fetch(`${DAEMON_URL}/skills`, {
+      const res = await fetch(`${DAEMON_URL}/api/v1/skills`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

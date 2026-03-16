@@ -18,7 +18,7 @@ export const WorkspaceEditor: React.FC<WorkspaceEditorProps> = ({ agentId }) => 
 
     const loadFiles = async () => {
         try {
-            const res = await fetch(`${DAEMON_URL}/api/agents/${agentId}/files`, {
+            const res = await fetch(`${DAEMON_URL}/api/v1/agents/${agentId}/files`, {
                 headers: { 'Authorization': `Bearer ${accessToken}` },
                 credentials: 'include'
             });
@@ -37,7 +37,7 @@ export const WorkspaceEditor: React.FC<WorkspaceEditorProps> = ({ agentId }) => 
     const loadContent = async (filename: string) => {
         setLoading(true);
         try {
-            const res = await fetch(`${DAEMON_URL}/api/agents/${agentId}/files/${encodeURIComponent(filename)}`, {
+            const res = await fetch(`${DAEMON_URL}/api/v1/agents/${agentId}/files/${encodeURIComponent(filename)}`, {
                 headers: { 'Authorization': `Bearer ${accessToken}` },
                 credentials: 'include'
             });
@@ -55,7 +55,7 @@ export const WorkspaceEditor: React.FC<WorkspaceEditorProps> = ({ agentId }) => 
     const saveContent = async () => {
         setSaving(true);
         try {
-            await fetch(`${DAEMON_URL}/api/agents/${agentId}/files/${encodeURIComponent(selectedFile)}`, {
+            await fetch(`${DAEMON_URL}/api/v1/agents/${agentId}/files/${encodeURIComponent(selectedFile)}`, {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${accessToken}`,

@@ -15,7 +15,7 @@ export const AgentsPanel: React.FC = () => {
     const fetchAgents = async () => {
         setLoading(true);
         try {
-            const res = await fetch(`${DAEMON_URL}/api/agents`, {
+            const res = await fetch(`${DAEMON_URL}/api/v1/agents`, {
                 headers: { 'Authorization': `Bearer ${accessToken}` },
                 credentials: 'include'
             });
@@ -36,7 +36,7 @@ export const AgentsPanel: React.FC = () => {
 
     const handleCreate = async () => {
         try {
-            const res = await fetch(`${DAEMON_URL}/api/agents`, {
+            const res = await fetch(`${DAEMON_URL}/api/v1/agents`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${accessToken}`,

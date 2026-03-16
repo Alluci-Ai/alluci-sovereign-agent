@@ -21,8 +21,8 @@ export const VerusIdLogin: React.FC<VerusIdLoginProps> = ({ onComplete, onCancel
             // redirect_uri is where the Verus Mobile app will post the response
             // In a real local setup, this would be a public tunnel URL (ngrok/cloudflare)
             // or the agent's actual endpoint.
-            const redirectUri = `${window.location.protocol}//${window.location.host}/api/wallet/login/verify`;
-            const res = await fetch(`${DAEMON_URL}/api/wallet/login/request?redirect_uri=${encodeURIComponent(redirectUri)}`);
+            const redirectUri = `${window.location.protocol}//${window.location.host}/api/v1/wallet/login/verify`;
+            const res = await fetch(`${DAEMON_URL}/api/v1/wallet/login/request?redirect_uri=${encodeURIComponent(redirectUri)}`);
             if (!res.ok) throw new Error("Failed to fetch login request");
 
             const data = await res.json();
@@ -48,7 +48,7 @@ export const VerusIdLogin: React.FC<VerusIdLoginProps> = ({ onComplete, onCancel
 
         const interval = setInterval(async () => {
             try {
-                const res = await fetch(`${DAEMON_URL}/api/wallet/login/status/${challengeId}`);
+                const res = await fetch(`${DAEMON_URL}/api/v1/wallet/login/status/${challengeId}`);
                 if (!res.ok) return;
 
                 const data = await res.json();

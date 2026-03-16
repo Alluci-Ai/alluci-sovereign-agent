@@ -19,7 +19,7 @@ export const ChannelToggle: React.FC<ChannelToggleProps> = ({ channelId, initial
         try {
             // Optimistic UI
             setEnabled(nextState);
-            const res = await fetch(`${DAEMON_URL}/api/channels/${channelId}/toggle`, {
+            const res = await fetch(`${DAEMON_URL}/api/v1/channels/${channelId}/toggle`, {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${accessToken}`,

@@ -29,11 +29,11 @@ export const DAGPanel: React.FC = () => {
   const loadRunDetail = useCallback(async (runId: number) => {
     try {
       const [runRes, tasksRes] = await Promise.all([
-        fetch(`${DAEMON_URL}/api/dag/runs/${runId}`, {
+        fetch(`${DAEMON_URL}/api/v1/dag/runs/${runId}`, {
           headers: { Authorization: `Bearer ${accessToken}` },
           credentials: 'include',
         }),
-        fetch(`${DAEMON_URL}/api/dag/runs/${runId}/tasks`, {
+        fetch(`${DAEMON_URL}/api/v1/dag/runs/${runId}/tasks`, {
           headers: { Authorization: `Bearer ${accessToken}` },
           credentials: 'include',
         }),
@@ -62,7 +62,7 @@ export const DAGPanel: React.FC = () => {
 
   const handleCancel = async () => {
     if (!selectedRunId) return;
-    await fetch(`${DAEMON_URL}/api/dag/runs/${selectedRunId}/cancel`, {
+    await fetch(`${DAEMON_URL}/api/v1/dag/runs/${selectedRunId}/cancel`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${accessToken}` },
       credentials: 'include',
@@ -72,7 +72,7 @@ export const DAGPanel: React.FC = () => {
   };
 
   const handleObjectiveSubmit = async (objective: string, autonomy: string) => {
-    const res = await fetch(`${DAEMON_URL}/objective/execute`, {
+    const res = await fetch(`${DAEMON_URL}/api/v1/objective/execute`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
       credentials: 'include',

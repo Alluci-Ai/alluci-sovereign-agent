@@ -15,7 +15,7 @@ export const OneClickInstall: React.FC = () => {
         setInstalling(true);
         setResult(null);
         try {
-            const res = await fetch(`${DAEMON_URL}/api/skills/install`, {
+            const res = await fetch(`${DAEMON_URL}/api/v1/skills/install`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({ url }),

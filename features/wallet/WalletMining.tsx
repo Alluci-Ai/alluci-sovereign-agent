@@ -25,7 +25,7 @@ export const WalletMining: React.FC<WalletMiningProps> = ({ mining, chains, onSt
                 chains: selectedChains
             }) : undefined;
 
-            const res = await fetch(`${DAEMON_URL}/api/wallet/${action}`, {
+            const res = await fetch(`${DAEMON_URL}/api/v1/wallet/${action}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

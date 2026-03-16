@@ -15,7 +15,7 @@ export const MemoryPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
     const fetchMemories = useCallback(async () => {
         try {
-            const res = await fetch(`${DAEMON_URL}/api/memory?limit=50`, {
+            const res = await fetch(`${DAEMON_URL}/api/v1/memory?limit=50`, {
                 headers: { 'Authorization': `Bearer ${accessToken}` }
             });
             if (res.ok) {
@@ -33,7 +33,7 @@ export const MemoryPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
     const fetchStats = useCallback(async () => {
         try {
-            const res = await fetch(`${DAEMON_URL}/api/memory/stats`, {
+            const res = await fetch(`${DAEMON_URL}/api/v1/memory/stats`, {
                 headers: { 'Authorization': `Bearer ${accessToken}` }
             });
             if (res.ok) setStats(await res.json());
@@ -51,7 +51,7 @@ export const MemoryPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             return;
         }
         try {
-            const res = await fetch(`${DAEMON_URL}/api/memory/search?q=${encodeURIComponent(searchQuery)}`, {
+            const res = await fetch(`${DAEMON_URL}/api/v1/memory/search?q=${encodeURIComponent(searchQuery)}`, {
                 headers: { 'Authorization': `Bearer ${accessToken}` }
             });
             if (res.ok) setMemories(await res.json());
@@ -60,7 +60,7 @@ export const MemoryPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
     const handleDelete = async (id: string) => {
         try {
-            const res = await fetch(`${DAEMON_URL}/api/memory/${id}`, {
+            const res = await fetch(`${DAEMON_URL}/api/v1/memory/${id}`, {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${accessToken}` }
             });
@@ -75,7 +75,7 @@ export const MemoryPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         if (!ingestPath.trim()) return;
         setIsIngesting(true);
         try {
-            const res = await fetch(`${DAEMON_URL}/api/memory/ingest`, {
+            const res = await fetch(`${DAEMON_URL}/api/v1/memory/ingest`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${accessToken}`,

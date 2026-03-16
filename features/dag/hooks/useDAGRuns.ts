@@ -27,7 +27,7 @@ export function useDAGRuns({ status, limit = 20, autoRefresh = true }: UseDAGRun
     try {
       const params = new URLSearchParams({ limit: String(limit), offset: String(currentOffset) });
       if (status) params.set('status', status);
-      const res = await fetch(`${DAEMON_URL}/api/dag/runs?${params}`, {
+      const res = await fetch(`${DAEMON_URL}/api/v1/dag/runs?${params}`, {
         headers: { Authorization: `Bearer ${accessToken}` },
         credentials: 'include',
       });

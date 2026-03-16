@@ -28,7 +28,7 @@ export const PlanPreviewModal: React.FC<Props> = ({ objective, onClose, onExecut
     (async () => {
       setLoading(true);
       try {
-        const res = await fetch(`${DAEMON_URL}/api/dag/preview`, {
+        const res = await fetch(`${DAEMON_URL}/api/v1/dag/preview`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
           credentials: 'include',

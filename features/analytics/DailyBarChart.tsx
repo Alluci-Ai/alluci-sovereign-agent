@@ -23,7 +23,7 @@ export const DailyBarChart: React.FC<DailyBarChartProps> = ({ startDate, endDate
                 if (startDate) params.append('start', startDate);
                 if (endDate) params.append('end', endDate);
 
-                const res = await fetch(`${DAEMON_URL}/api/usage/daily?${params}`, {
+                const res = await fetch(`${DAEMON_URL}/api/v1/usage/daily?${params}`, {
                     headers: { 'Authorization': `Bearer ${accessToken}` },
                     credentials: 'include',
                 });

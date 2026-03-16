@@ -53,7 +53,7 @@ export const TaskPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             const params = new URLSearchParams({ status: statusFilter });
             if (priorityFilter !== 'ALL') params.append('priority', priorityFilter);
             if (timelineFilter !== 'ALL') params.append('timeline', timelineFilter);
-            const res = await fetch(`${DAEMON_URL}/tasks?${params.toString()}`).catch(() => null);
+            const res = await fetch(`${DAEMON_URL}/api/v1/tasks?${params.toString()}`).catch(() => null);
             if (res && res.ok) setTasks(await res.json());
         } catch (e) { }
     }, [statusFilter, priorityFilter, timelineFilter]);
@@ -63,7 +63,7 @@ export const TaskPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     const handleAddTask = async () => {
         if (!newTaskDesc.trim()) return;
         try {
-            await fetch(`${DAEMON_URL}/tasks`, {
+            await fetch(`${DAEMON_URL}/api/v1/tasks`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ description: newTaskDesc, completed: false, priority: newTaskPriority, due_date: newTaskDue || null })
             });
@@ -73,7 +73,7 @@ export const TaskPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
     const executeUpdate = async (task: TaskItem, updates: Partial<TaskItem>) => {
         try {
-            await fetch(`${DAEMON_URL}/tasks/${task.index}`, {
+            await fetch(`${DAEMON_URL}/api/v1/tasks/${task.index}`, {
                 method: 'PUT', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ description: updates.description ?? task.description, completed: updates.completed ?? task.completed, priority: updates.priority ?? task.priority, due_date: updates.due_date ?? task.due_date })
             });
@@ -83,7 +83,7 @@ export const TaskPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     };
 
     const handleDeleteTask = async (index: number) => {
-        try { await fetch(`${DAEMON_URL}/tasks/${index}`, { method: 'DELETE' }); fetchTasks(); } catch (e) { console.error(e); }
+        try { await fetch(`${DAEMON_URL}/api/v1/tasks/${index}`, { method: 'DELETE' }); fetchTasks(); } catch (e) { console.error(e); }
     };
 
     const getPriorityStyle = (p: string): React.CSSProperties => {

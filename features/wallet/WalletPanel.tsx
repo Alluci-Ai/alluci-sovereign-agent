@@ -38,7 +38,7 @@ export const WalletPanel: React.FC = () => {
 
     const fetchDashboard = async () => {
         try {
-            const res = await fetch(`${DAEMON_URL}/api/wallet/dashboard`, {
+            const res = await fetch(`${DAEMON_URL}/api/v1/wallet/dashboard`, {
                 headers: { 'Authorization': `Bearer ${accessToken}` }
             });
             if (!res.ok) throw new Error('Failed to fetch wallet dashboard data');
@@ -73,7 +73,7 @@ export const WalletPanel: React.FC = () => {
                 setActiveTab('node');
                 // Trigger provisioning and start in background
                 try {
-                    await fetch(`${DAEMON_URL}/api/wallet/node/action`, {
+                    await fetch(`${DAEMON_URL}/api/v1/wallet/node/action`, {
                         method: 'POST',
                         headers: {
                             'Authorization': `Bearer ${accessToken}`,

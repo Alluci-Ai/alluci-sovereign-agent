@@ -18,7 +18,7 @@ export const SessionTimeseries: React.FC<SessionTimeseriesProps> = ({ sessionKey
         const fetchTimeseries = async () => {
             setLoading(true);
             try {
-                const res = await fetch(`${DAEMON_URL}/api/usage/sessions/${sessionKey}/timeseries`, {
+                const res = await fetch(`${DAEMON_URL}/api/v1/usage/sessions/${sessionKey}/timeseries`, {
                     headers: { 'Authorization': `Bearer ${accessToken}` },
                     credentials: 'include',
                 });

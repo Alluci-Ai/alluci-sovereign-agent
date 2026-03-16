@@ -22,7 +22,7 @@ export const NostrProfileForm: React.FC<NostrProfileFormProps> = ({ channelId })
     const handleSave = async () => {
         setSaving(true);
         try {
-            const res = await fetch(`${DAEMON_URL}/api/channels/nostr/profile`, {
+            const res = await fetch(`${DAEMON_URL}/api/v1/channels/nostr/profile`, {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${accessToken}`,

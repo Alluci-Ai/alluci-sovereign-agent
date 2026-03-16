@@ -23,7 +23,7 @@ export const WalletInvoice: React.FC = () => {
 
     const fetchCurrencies = async () => {
         try {
-            const res = await fetch(`${DAEMON_URL}/api/wallet/currencies`, {
+            const res = await fetch(`${DAEMON_URL}/api/v1/wallet/currencies`, {
                 headers: { 'Authorization': `Bearer ${accessToken}` }
             });
             if (res.ok) {
@@ -38,7 +38,7 @@ export const WalletInvoice: React.FC = () => {
     const handleGenerateAddress = async () => {
         setLoading(true);
         try {
-            const res = await fetch(`${DAEMON_URL}/api/wallet/address/new`, {
+            const res = await fetch(`${DAEMON_URL}/api/v1/wallet/address/new`, {
                 headers: { 'Authorization': `Bearer ${accessToken}` }
             });
             const data = await res.json();

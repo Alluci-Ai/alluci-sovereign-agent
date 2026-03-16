@@ -126,7 +126,7 @@ const IdentityForge: React.FC<{ onClose: () => void; onManifestUpdate?: (manifes
         try {
             const controller = new AbortController();
             const id = setTimeout(() => controller.abort(), 1000);
-            const res = await fetch(`${DAEMON_URL}/soul/manifest`, {
+            const res = await fetch(`${DAEMON_URL}/api/v1/soul/manifest`, {
                 headers: token ? { 'Authorization': `Bearer ${token}` } : {},
                 signal: controller.signal
             });
@@ -177,7 +177,7 @@ const IdentityForge: React.FC<{ onClose: () => void; onManifestUpdate?: (manifes
         setSaving(true);
         const token = localStorage.getItem('alluci_daemon_token');
         try {
-            const res = await fetch(`${DAEMON_URL}/soul/manifest`, {
+            const res = await fetch(`${DAEMON_URL}/api/v1/soul/manifest`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
                 body: JSON.stringify(manifest)

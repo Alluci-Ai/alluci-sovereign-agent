@@ -24,11 +24,11 @@ export const ConfigPanel: React.FC = () => {
             setLoading(true);
             try {
                 const [cfgRes, schemaRes] = await Promise.all([
-                    fetch(`${DAEMON_URL}/api/config`, {
+                    fetch(`${DAEMON_URL}/api/v1/config`, {
                         headers: { 'Authorization': `Bearer ${accessToken}` },
                         credentials: 'include'
                     }),
-                    fetch(`${DAEMON_URL}/api/config/schema`, {
+                    fetch(`${DAEMON_URL}/api/v1/config/schema`, {
                         headers: { 'Authorization': `Bearer ${accessToken}` },
                         credentials: 'include'
                     })
@@ -55,7 +55,7 @@ export const ConfigPanel: React.FC = () => {
         try {
             const payload = mode === 'raw' ? JSON.parse(rawJson) : config;
 
-            const res = await fetch(`${DAEMON_URL}/api/config`, { // Maps to PUT /api/config update endpoint
+            const res = await fetch(`${DAEMON_URL}/api/v1/config`, { // Maps to PUT /api/v1/config update endpoint
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${accessToken}`,

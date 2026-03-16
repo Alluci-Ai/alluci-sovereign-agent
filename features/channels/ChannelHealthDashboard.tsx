@@ -11,7 +11,7 @@ export const ChannelHealthDashboard: React.FC = () => {
     useEffect(() => {
         const fetchHealth = async () => {
             try {
-                const res = await fetch(`${DAEMON_URL}/api/channels/status`, {
+                const res = await fetch(`${DAEMON_URL}/api/v1/channels/status`, {
                     headers: { 'Authorization': `Bearer ${accessToken}` },
                     credentials: 'include'
                 });

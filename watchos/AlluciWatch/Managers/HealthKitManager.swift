@@ -103,8 +103,7 @@ class HealthKitManager: ObservableObject {
         
         return TelemetrySample(
             hr: hr > 0 ? hr : nil,
-            hrv: hrv > 0 ? hrv : nil,
-            timestamp: ISO8601DateFormatter().string(from: Date())
+            hrv: hrv > 0 ? hrv : nil
         )
     }
 }

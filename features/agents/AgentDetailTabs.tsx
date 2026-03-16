@@ -23,7 +23,7 @@ export const AgentDetailTabs: React.FC<AgentDetailProps> = ({ agentId, onBack })
     useEffect(() => {
         const load = async () => {
             try {
-                const res = await fetch(`${DAEMON_URL}/api/agents/${agentId}`, {
+                const res = await fetch(`${DAEMON_URL}/api/v1/agents/${agentId}`, {
                     headers: { 'Authorization': `Bearer ${accessToken}` },
                     credentials: 'include'
                 });

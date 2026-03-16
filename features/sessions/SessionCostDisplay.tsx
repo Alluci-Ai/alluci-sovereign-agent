@@ -27,7 +27,7 @@ export const SessionCostDisplay: React.FC = () => {
     useEffect(() => {
         const fetchCosts = async () => {
             try {
-                const res = await fetch(`${DAEMON_URL}/api/usage/sessions/${activeSessionKey}/timeseries`, {
+                const res = await fetch(`${DAEMON_URL}/api/v1/usage/sessions/${activeSessionKey}/timeseries`, {
                     headers: { 'Authorization': `Bearer ${accessToken}` },
                     credentials: 'include',
                 });

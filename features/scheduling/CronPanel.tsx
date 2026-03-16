@@ -46,7 +46,7 @@ export const CronPanel: React.FC = () => {
 
     const fetchJobs = useCallback(async () => {
         try {
-            const res = await fetch(`${DAEMON_URL}/api/cron/jobs`, {
+            const res = await fetch(`${DAEMON_URL}/api/v1/cron/jobs`, {
                 headers: { 'Authorization': `Bearer ${accessToken}` },
                 credentials: 'include'
             });
@@ -68,7 +68,7 @@ export const CronPanel: React.FC = () => {
     const handleQuickAdd = async () => {
         if (!newName.trim() || !newValue.trim()) return;
         try {
-            const res = await fetch(`${DAEMON_URL}/api/cron/jobs`, {
+            const res = await fetch(`${DAEMON_URL}/api/v1/cron/jobs`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -96,7 +96,7 @@ export const CronPanel: React.FC = () => {
 
     const toggleEnable = async (job: CronJob) => {
         try {
-            await fetch(`${DAEMON_URL}/api/cron/jobs/${job.id}`, {
+            await fetch(`${DAEMON_URL}/api/v1/cron/jobs/${job.id}`, {
                 method: 'PUT',
                 headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({ enabled: !job.enabled }),
@@ -109,7 +109,7 @@ export const CronPanel: React.FC = () => {
 
     const forceRun = async (id: number) => {
         try {
-            await fetch(`${DAEMON_URL}/api/cron/jobs/${id}/run`, {
+            await fetch(`${DAEMON_URL}/api/v1/cron/jobs/${id}/run`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${accessToken}` },
                 credentials: 'include'
@@ -121,7 +121,7 @@ export const CronPanel: React.FC = () => {
     const deleteJob = async (id: number) => {
         if (!confirm('Delete this scheduled job?')) return;
         try {
-            await fetch(`${DAEMON_URL}/api/cron/jobs/${id}`, {
+            await fetch(`${DAEMON_URL}/api/v1/cron/jobs/${id}`, {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${accessToken}` },
                 credentials: 'include'

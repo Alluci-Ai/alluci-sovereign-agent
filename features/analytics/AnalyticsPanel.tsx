@@ -41,14 +41,14 @@ export const AnalyticsPanel: React.FC = () => {
             if (endDate) params.append('end', endDate);
 
             // Fetch summary
-            const sumRes = await fetch(`${DAEMON_URL}/api/usage/summary?${params}`, {
+            const sumRes = await fetch(`${DAEMON_URL}/api/v1/usage/summary?${params}`, {
                 headers: { 'Authorization': `Bearer ${accessToken}` },
                 credentials: 'include',
             });
             if (sumRes.ok) setSummary(await sumRes.json());
 
             // Fetch sessions
-            const sesRes = await fetch(`${DAEMON_URL}/api/usage/sessions?${params}&limit=1000`, {
+            const sesRes = await fetch(`${DAEMON_URL}/api/v1/usage/sessions?${params}&limit=1000`, {
                 headers: { 'Authorization': `Bearer ${accessToken}` },
                 credentials: 'include',
             });
@@ -208,7 +208,7 @@ export const AnalyticsPanel: React.FC = () => {
                             <button
                                 className="px-3 py-1.5 text-sm bg-glass-2 hover:bg-glass-3 border border-glass-edge rounded-lg transition-colors flex items-center gap-2"
                                 onClick={() => {
-                                    window.open(`${DAEMON_URL}/api/usage/sessions/export/csv?start=${startDate}&end=${endDate}&token=${accessToken}`, '_blank');
+                                    window.open(`${DAEMON_URL}/api/v1/usage/sessions/export/csv?start=${startDate}&end=${endDate}&token=${accessToken}`, '_blank');
                                 }}
                             >
                                 <span>Export CSV</span>

@@ -23,7 +23,7 @@ export const SessionsPanel: React.FC = () => {
         const tId = setTimeout(() => controller.abort(), 5000); // 5s timeout
 
         try {
-            const res = await fetch(`${DAEMON_URL}/api/sessions`, {
+            const res = await fetch(`${DAEMON_URL}/api/v1/sessions`, {
                 headers: { 'Authorization': `Bearer ${accessToken}` },
                 credentials: 'include',
                 signal: controller.signal

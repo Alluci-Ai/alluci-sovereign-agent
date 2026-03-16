@@ -12,7 +12,7 @@ export const WhatsAppQRPairer: React.FC = () => {
 
     const checkStatus = async () => {
         try {
-            const res = await fetch(`${DAEMON_URL}/api/channels/whatsapp/status`, {
+            const res = await fetch(`${DAEMON_URL}/api/v1/channels/whatsapp/status`, {
                 headers: { 'Authorization': `Bearer ${accessToken}` },
                 credentials: 'include'
             });

@@ -53,7 +53,7 @@ export const TaskDetailDrawer: React.FC<Props> = ({ task, runId, onClose, onRetr
   const handleRetry = async () => {
     setRetrying(true);
     try {
-      await fetch(`${DAEMON_URL}/api/dag/runs/${runId}/tasks/${task.task_dag_id}/retry`, {
+      await fetch(`${DAEMON_URL}/api/v1/dag/runs/${runId}/tasks/${task.task_dag_id}/retry`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${accessToken}` },
         credentials: 'include',

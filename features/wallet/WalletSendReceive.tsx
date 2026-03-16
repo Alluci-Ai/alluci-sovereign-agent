@@ -47,7 +47,7 @@ export const WalletSendReceive: React.FC<WalletSendReceiveProps> = ({ onTransact
     const fetchEstimate = async () => {
         setEstimating(true);
         try {
-            const res = await fetch(`${DAEMON_URL}/api/wallet/convert/estimate`, {
+            const res = await fetch(`${DAEMON_URL}/api/v1/wallet/convert/estimate`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -75,7 +75,7 @@ export const WalletSendReceive: React.FC<WalletSendReceiveProps> = ({ onTransact
 
     const fetchCurrencies = async () => {
         try {
-            const res = await fetch(`${DAEMON_URL}/api/wallet/currencies`, {
+            const res = await fetch(`${DAEMON_URL}/api/v1/wallet/currencies`, {
                 headers: { 'Authorization': `Bearer ${accessToken}` }
             });
             if (res.ok) {
@@ -93,7 +93,7 @@ export const WalletSendReceive: React.FC<WalletSendReceiveProps> = ({ onTransact
         setResult(null);
 
         try {
-            const res = await fetch(`${DAEMON_URL}/api/wallet/send`, {
+            const res = await fetch(`${DAEMON_URL}/api/v1/wallet/send`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -128,7 +128,7 @@ export const WalletSendReceive: React.FC<WalletSendReceiveProps> = ({ onTransact
         setResult(null);
 
         try {
-            const res = await fetch(`${DAEMON_URL}/api/wallet/convert`, {
+            const res = await fetch(`${DAEMON_URL}/api/v1/wallet/convert`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

@@ -21,7 +21,7 @@ export const PerSkillKeyInput: React.FC<PerSkillKeyInputProps> = ({ skillId, key
         const fetchKey = async () => {
             try {
                 // If it exists in vault it might return masked
-                const res = await fetch(`${DAEMON_URL}/api/skills/${skillId}/keys/${keyName}`, {
+                const res = await fetch(`${DAEMON_URL}/api/v1/skills/${skillId}/keys/${keyName}`, {
                     headers: { 'Authorization': `Bearer ${accessToken}` },
                     credentials: 'include'
                 });
@@ -43,7 +43,7 @@ export const PerSkillKeyInput: React.FC<PerSkillKeyInputProps> = ({ skillId, key
         setSaving(true);
         setStatus('IDLE');
         try {
-            const res = await fetch(`${DAEMON_URL}/api/skills/${skillId}/keys`, {
+            const res = await fetch(`${DAEMON_URL}/api/v1/skills/${skillId}/keys`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name: keyName, value }),

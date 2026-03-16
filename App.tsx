@@ -302,7 +302,7 @@ const App: React.FC = () => {
 
   const saveApiKeysToDaemon = async (keys: ApiManifoldKeys) => {
     try {
-      const res = await fetch(`${DAEMON_URL}/api/vault/keys`, {
+      const res = await fetch(`${DAEMON_URL}/api/v1/vault/keys`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(keys),
@@ -324,12 +324,12 @@ const App: React.FC = () => {
 
     const loadInitialData = async () => {
       try {
-        const res = await fetch(`${DAEMON_URL}/api/vault/keys`, { credentials: 'include' });
+        const res = await fetch(`${DAEMON_URL}/api/v1/vault/keys`, { credentials: 'include' });
         if (res.ok) {
           const keys = await res.json();
           if (keys && Object.keys(keys).length > 0) setApiKeys(keys);
         }
-        const soulRes = await fetch(`${DAEMON_URL}/soul/manifest`, { credentials: 'include' });
+        const soulRes = await fetch(`${DAEMON_URL}/api/v1/soul/manifest`, { credentials: 'include' });
         if (soulRes.ok) {
           const manifest = await soulRes.json();
           if (manifest) {
@@ -352,7 +352,7 @@ const App: React.FC = () => {
   const fetchSkills = useCallback(async () => {
     const core = skillVerifier.current.getManifests();
     try {
-      const res = await fetch(`${DAEMON_URL}/skills`, { credentials: 'include' });
+      const res = await fetch(`${DAEMON_URL}/api/v1/skills`, { credentials: 'include' });
       if (res.ok) {
         const custom = await res.json();
         const combined = [...core];
@@ -403,7 +403,7 @@ const App: React.FC = () => {
   };
 
   const disconnectBridge = async (id: string) => {
-    await fetch(`${DAEMON_URL}/api/channels/${id}/toggle`, {
+    await fetch(`${DAEMON_URL}/api/v1/channels/${id}/toggle`, {
       method: 'PUT',
       headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled: false })

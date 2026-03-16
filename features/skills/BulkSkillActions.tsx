@@ -17,7 +17,7 @@ export const BulkSkillActions: React.FC<BulkSkillActionsProps> = ({ agentId, onC
         if (!confirm(`Are you sure you want to execute ${action.toUpperCase()} across all bindings on this agent?`)) return;
         setLoading(true);
         try {
-            await fetch(`${DAEMON_URL}/api/agents/${agentId}/skills/${action}`, {
+            await fetch(`${DAEMON_URL}/api/v1/agents/${agentId}/skills/${action}`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${accessToken}` },
                 credentials: 'include'

@@ -93,7 +93,7 @@ const ApiWizard: React.FC<ApiWizardProps> = ({ isOpen, onClose, apiKeys, onSave 
     const handleDaemonLogin = async () => {
         setIsAuthenticating(true); setAuthError("");
         try {
-            const res = await fetch(`${DAEMON_URL}/auth/login`, {
+            const res = await fetch(`${DAEMON_URL}/api/v1/auth/login`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ key: masterKey }), credentials: 'include'
             });

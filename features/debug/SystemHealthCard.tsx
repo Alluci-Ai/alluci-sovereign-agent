@@ -19,7 +19,7 @@ export const SystemHealthCard: React.FC = () => {
     const checkHealth = async () => {
         setLoading(true);
         try {
-            const res = await fetch(`${DAEMON_URL}/api/system/health`, {
+            const res = await fetch(`${DAEMON_URL}/api/v1/system/health`, {
                 headers: { 'Authorization': `Bearer ${accessToken}` },
                 credentials: 'include'
             });

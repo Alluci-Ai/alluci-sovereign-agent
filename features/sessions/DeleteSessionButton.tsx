@@ -26,7 +26,7 @@ export const DeleteSessionButton: React.FC<DeleteSessionButtonProps> = ({ sessio
 
         setIsDeleting(true);
         try {
-            const res = await fetch(`${DAEMON_URL}/api/sessions/${sessionKey}`, {
+            const res = await fetch(`${DAEMON_URL}/api/v1/sessions/${sessionKey}`, {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${accessToken}` },
                 credentials: 'include',
