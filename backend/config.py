@@ -109,23 +109,11 @@ class Settings(BaseSettings):
     WHATSAPP_VERIFY_TOKEN: Optional[str] = None
     WHATSAPP_APP_SECRET: Optional[str] = None
     
-    # Instagram / Meta Business
-    INSTAGRAM_CLIENT_ID: Optional[str] = None
-    INSTAGRAM_CLIENT_SECRET: Optional[str] = None
+    # Meta / Instagram / Facebook Additional
     META_APP_SECRET: Optional[str] = None
     META_VERIFY_TOKEN: Optional[str] = None
-    
-    # Facebook Messenger
-    FACEBOOK_CLIENT_ID: Optional[str] = None
-    FACEBOOK_CLIENT_SECRET: Optional[str] = None
-    
-    # X (Twitter)
-    TWITTER_CLIENT_ID: Optional[str] = None
-    TWITTER_CLIENT_SECRET: Optional[str] = None
-    
-    # MS Teams / Graph API
-    MSTEAMS_CLIENT_ID: Optional[str] = None
-    MSTEAMS_CLIENT_SECRET: Optional[str] = None
+
+    # MS Teams Bot
     MSTEAMS_BOT_APP_ID: Optional[str] = None
     
     # WeCom (Enterprise WeChat)

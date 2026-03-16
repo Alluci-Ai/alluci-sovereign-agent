@@ -9,6 +9,7 @@ from ..models import DAGTask, TaskStatus, TaskRecord
 from ..adapters.registry import AdapterRegistry
 from .errors import AdapterNotFoundError
 from ..logging_config import get_logger
+from opentelemetry import trace
 
 logger = get_logger("Engine.Executor")
 

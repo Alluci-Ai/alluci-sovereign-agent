@@ -8,7 +8,7 @@ import email
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from .base import BridgeAdapter
 
 class EmailBridge(BridgeAdapter):
