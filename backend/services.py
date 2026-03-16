@@ -150,6 +150,35 @@ async def init_services(app_instance):
     # 20. Channel Adapter Registry
     await _init_channels(vault_root)
 
+    # Start background token refresh loops for OAuth bridges
+    from .config import settings as cfg
+    oauth_refresh_config = {
+        "slack":       {"token_url": "https://slack.com/api/tooling.tokens.rotate",
+                        "client_id": getattr(cfg,"SLACK_CLIENT_ID",""),
+                        "client_secret": getattr(cfg,"SLACK_CLIENT_SECRET","")},
+        "discord":     {"token_url": "https://discord.com/api/oauth2/token",
+                        "client_id": getattr(cfg,"DISCORD_CLIENT_ID",""),
+                        "client_secret": getattr(cfg,"DISCORD_CLIENT_SECRET","")},
+        "google_chat": {"token_url": "https://oauth2.googleapis.com/token",
+                        "client_id": getattr(cfg,"GOOGLE_CLIENT_ID",""),
+                        "client_secret": getattr(cfg,"GOOGLE_CLIENT_SECRET","")},
+        "msteams":     {"token_url": "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+                        "client_id": getattr(cfg,"MSTEAMS_CLIENT_ID",""),
+                        "client_secret": getattr(cfg,"MSTEAMS_CLIENT_SECRET","")},
+    }
+    for bridge_id, ocfg in oauth_refresh_config.items():
+        adapter = channel_registry.get(bridge_id)
+        if adapter and adapter.is_connected and ocfg["client_id"]:
+            asyncio.create_task(
+                adapter._token_refresh_loop(
+                    get_creds_fn=lambda b=bridge_id: vault.retrieve_connection_secret(b,"default"),
+                    set_creds_fn=lambda c,b=bridge_id: vault.store_connection_secret(b,"default",c),
+                    token_url=ocfg["token_url"],
+                    client_id=ocfg["client_id"],
+                    client_secret=ocfg["client_secret"],
+                ), name=f"refresh_{bridge_id}")
+            logger.info(f"[ SERVICES ] Token refresh loop started for {bridge_id}")
+
     # 21. Background Services
     await orchestrator.start_background_services()
 
