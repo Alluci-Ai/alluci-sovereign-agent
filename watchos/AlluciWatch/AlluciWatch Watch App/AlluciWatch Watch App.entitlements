@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+
+    <!-- Required: basic HealthKit read access -->
+    <key>com.apple.developer.healthkit</key>
+    <true/>
+
+    <!-- Required: specifies which HealthKit data types the app accesses.
+         An empty array means all types declared in Info.plist typesToRead
+         are permitted. Populate with specific type identifiers if you want
+         to restrict access at the entitlement level. -->
+    <key>com.apple.developer.healthkit.access</key>
+    <array/>
+
+    <!-- Required for Task A6: allows HealthKit to wake the app in the
+         background when new samples arrive for observed types.
+         Without this key, HKObserverQuery only fires in the foreground. -->
+    <key>com.apple.developer.healthkit.background-delivery</key>
+    <true/>
+
+</dict>
+</plist>
