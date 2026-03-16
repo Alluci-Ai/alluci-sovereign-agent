@@ -10,19 +10,19 @@ logger = get_logger("MemoryRouter")
 
 router = APIRouter(tags=["Sovereign Memory"])
 
-@router.get("/api/memory", dependencies=[Depends(verify_authenticated)])
+@router.get("/memory", dependencies=[Depends(verify_authenticated)])
 async def list_memory(limit: int = 50, offset: int = 0):
     if not services.memory:
         raise HTTPException(status_code=503, detail="Memory manager not ready")
     return await services.memory.list_entries(limit=limit, offset=offset)
 
-@router.get("/api/memory/search", dependencies=[Depends(verify_authenticated)])
+@router.get("/memory/search", dependencies=[Depends(verify_authenticated)])
 async def search_memory(q: str = Query(...), limit: int = 10):
     if not services.memory:
         raise HTTPException(status_code=503, detail="Memory manager not ready")
     return await services.memory.search(q, limit=limit)
 
-@router.post("/api/memory/store", dependencies=[Depends(verify_authenticated)])
+@router.post("/memory/store", dependencies=[Depends(verify_authenticated)])
 async def store_memory(data: Dict[str, Any] = Body(...)):
     if not services.memory:
         raise HTTPException(status_code=503, detail="Memory manager not ready")
@@ -30,13 +30,13 @@ async def store_memory(data: Dict[str, Any] = Body(...)):
     metadata = data.get("metadata", {})
     return await services.memory.store(content=content, metadata=metadata)
 
-@router.get("/api/memory/stats", dependencies=[Depends(verify_authenticated)])
+@router.get("/memory/stats", dependencies=[Depends(verify_authenticated)])
 async def get_memory_stats():
     if not services.memory:
         raise HTTPException(status_code=503, detail="Memory manager not ready")
     return await services.memory.get_stats()
 
-@router.delete("/api/memory/{entry_id}", dependencies=[Depends(verify_authenticated)])
+@router.delete("/memory/{entry_id}", dependencies=[Depends(verify_authenticated)])
 async def delete_memory_entry(entry_id: str):
     if not services.memory:
         raise HTTPException(status_code=503, detail="Memory manager not ready")

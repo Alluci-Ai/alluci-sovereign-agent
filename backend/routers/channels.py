@@ -17,7 +17,7 @@ logger = get_logger("ChannelsRouter")
 
 router = APIRouter(tags=["Bridge Channels"])
 
-@router.get("/api/channels", dependencies=[Depends(verify_authenticated)])
+@router.get("/channels", dependencies=[Depends(verify_authenticated)])
 async def list_channels():
     # Summarize all available communication manifolds
     return [
@@ -25,14 +25,14 @@ async def list_channels():
         for cid, adapter in services.channel_registry.items()
     ]
 
-@router.get("/api/channels/{channel_id}/config", dependencies=[Depends(verify_authenticated)])
+@router.get("/channels/{channel_id}/config", dependencies=[Depends(verify_authenticated)])
 async def get_channel_config(channel_id: str):
     adapter = services.channel_registry.get(channel_id)
     if not adapter:
         raise HTTPException(status_code=404, detail="Channel not found")
     return getattr(adapter, "config", {})
 
-@router.put("/api/channels/{channel_id}/config", dependencies=[Depends(verify_authenticated)])
+@router.put("/channels/{channel_id}/config", dependencies=[Depends(verify_authenticated)])
 async def update_channel_config(channel_id: str, config: Dict[str, Any] = Body(...)):
     adapter = services.channel_registry.get(channel_id)
     if not adapter:
@@ -41,7 +41,7 @@ async def update_channel_config(channel_id: str, config: Dict[str, Any] = Body(.
         return await adapter.update_config(config)
     raise HTTPException(status_code=501, detail="Config update not supported for this channel")
 
-@router.post("/api/channels/{channel_id}/connect", dependencies=[Depends(verify_authenticated)])
+@router.post("/channels/{channel_id}/connect", dependencies=[Depends(verify_authenticated)])
 async def connect_channel(channel_id: str):
     adapter = services.channel_registry.get(channel_id)
     if not adapter:
@@ -54,13 +54,13 @@ async def connect_channel(channel_id: str):
 
 # --- iWatch (HealthKit) Routes ---
 
-@router.get("/api/channels/iwatch/status", dependencies=[Depends(verify_authenticated)])
+@router.get("/channels/iwatch/status", dependencies=[Depends(verify_authenticated)])
 async def iwatch_status():
     adapter = services.channel_registry.get("iwatch")
     if not adapter: return {"status": "unloaded"}
     return {"status": "connected" if getattr(adapter, "is_connected", False) else "paired"}
 
-@router.get("/api/channels/iwatch/pairing-qr", dependencies=[Depends(verify_authenticated)])
+@router.get("/channels/iwatch/pairing-qr", dependencies=[Depends(verify_authenticated)])
 async def iwatch_pairing_qr():
     """Generate TOTP seed and QR payload for Watch pairing."""
     adapter = services.channel_registry.get("iwatch")
@@ -69,7 +69,7 @@ async def iwatch_pairing_qr():
     daemon_url = os.getenv("DAEMON_PUBLIC_URL", "http://localhost:8000").rstrip("/")
     return await adapter.generate_pairing_qr(daemon_url)
 
-@router.post("/api/channels/iwatch/pair")
+@router.post("/channels/iwatch/pair")
 async def iwatch_pair(data: Dict[str, str] = Body(...)):
     """Verify TOTP code and issue a device session token."""
     adapter = services.channel_registry.get("iwatch")
@@ -81,7 +81,7 @@ async def iwatch_pair(data: Dict[str, str] = Body(...)):
         raise HTTPException(status_code=400, detail="code and device_id required.")
     return await adapter.submit_pairing_code(code, device_id)
 
-@router.post("/api/bridge/iwatch/biometrics")
+@router.post("/channels/iwatch/biometrics")
 async def ingest_iwatch_biometrics(request: Request):
     """Ingest HealthKit telemetry from Apple Watch with device or user token."""
     adapter = services.channel_registry.get("iwatch")
@@ -125,7 +125,7 @@ async def ingest_iwatch_biometrics(request: Request):
         "resonance": services.ace.current_state.get("physical_vitality") if services.ace else None,
     }
 
-@router.get("/api/bridge/iwatch/telemetry", dependencies=[Depends(verify_authenticated)])
+@router.get("/channels/iwatch/telemetry", dependencies=[Depends(verify_authenticated)])
 async def get_iwatch_telemetry(limit: int = Query(20, ge=1, le=200)):
     """Retrieve recent telemetry samples from the iWatch bridge buffer."""
     adapter = services.channel_registry.get("iwatch")
@@ -135,7 +135,7 @@ async def get_iwatch_telemetry(limit: int = Query(20, ge=1, le=200)):
 
 # --- WeChat (WeCom) Routes ---
 
-@router.get("/api/channels/wechat/qr-init", dependencies=[Depends(verify_authenticated)])
+@router.get("/channels/wechat/qr-init", dependencies=[Depends(verify_authenticated)])
 async def wechat_qr_init():
     """Generate WeCom OAuth QR URL for workspace login."""
     adapter = services.channel_registry.get("wechat")
@@ -150,7 +150,7 @@ _VALID_BRIDGE_IDS = frozenset([
     "msteams", "facebook", "instagram", "x", "wechat",
 ])
 
-@router.get("/api/oauth/{bridge_id}/callback")
+@router.get("/oauth/{bridge_id}/callback")
 async def oauth_callback(bridge_id: str, code: str = Query(None), state: str = Query(None), error: str = Query(None)):
     """Generic OAuth callback endpoint for all OAuth-based bridges."""
     import structlog
@@ -225,7 +225,7 @@ async def oauth_callback(bridge_id: str, code: str = Query(None), state: str = Q
             logger.error("Callback error", error=str(e))
             return _make_response(False, str(e))
 
-@router.get("/api/webhook/wechat")
+@router.get("/webhook/wechat")
 async def wechat_webhook_verify(msg_signature: str = Query(...), timestamp: str = Query(...), nonce: str = Query(...), echostr: str = Query("")):
     adapter = services.channel_registry.get("wechat")
     if not adapter: raise HTTPException(503)
@@ -233,7 +233,7 @@ async def wechat_webhook_verify(msg_signature: str = Query(...), timestamp: str 
     if result: return PlainTextResponse(result)
     raise HTTPException(403)
 
-@router.post("/api/webhook/wechat")
+@router.post("/webhook/wechat")
 async def wechat_webhook_post(request: Request, msg_signature: str = Query(...), timestamp: str = Query(...), nonce: str = Query(...)):
     adapter = services.channel_registry.get("wechat")
     if not adapter: return "<xml><Content>ok</Content></xml>"
@@ -245,7 +245,7 @@ async def wechat_webhook_post(request: Request, msg_signature: str = Query(...),
 
 # --- Slack OAuth & Webhook ---
 
-@router.get("/api/oauth/slack/start", dependencies=[Depends(verify_authenticated)])
+@router.get("/oauth/slack/start", dependencies=[Depends(verify_authenticated)])
 async def slack_oauth_start():
     adapter = services.channel_registry.get("slack")
     if not adapter: raise HTTPException(503)
@@ -256,7 +256,7 @@ async def slack_oauth_start():
     await oauth_store.store_state(state, code_verifier)
     return {"authorize_url": authorize_url, "state": state}
 
-@router.post("/api/webhook/slack")
+@router.post("/webhook/slack")
 async def slack_webhook(request: Request):
     body = await request.body()
     ts = request.headers.get("X-Slack-Request-Timestamp")
@@ -268,7 +268,7 @@ async def slack_webhook(request: Request):
 
 # --- WhatsApp Webhooks ---
 
-@router.get("/api/webhook/whatsapp")
+@router.get("/webhook/whatsapp")
 async def whatsapp_webhook_verify(mode: str = Query(None, alias="hub.mode"), token: str = Query(None, alias="hub.verify_token"), challenge: str = Query(None, alias="hub.challenge")):
     adapter = services.channel_registry.get("whatsapp")
     if not adapter: raise HTTPException(503)
@@ -276,7 +276,7 @@ async def whatsapp_webhook_verify(mode: str = Query(None, alias="hub.mode"), tok
     if result: return PlainTextResponse(result)
     raise HTTPException(403)
 
-@router.post("/api/webhook/whatsapp")
+@router.post("/webhook/whatsapp")
 async def whatsapp_webhook_post(request: Request):
     raw_body = await request.body()
     sig = request.headers.get("X-Hub-Signature-256", "")
@@ -288,7 +288,7 @@ async def whatsapp_webhook_post(request: Request):
 
 # --- Instagram OAuth & Webhook ---
 
-@router.get("/api/oauth/instagram/start", dependencies=[Depends(verify_authenticated)])
+@router.get("/oauth/instagram/start", dependencies=[Depends(verify_authenticated)])
 async def instagram_oauth_start():
     adapter = services.channel_registry.get("instagram")
     if not adapter: raise HTTPException(503)
@@ -299,7 +299,7 @@ async def instagram_oauth_start():
     await oauth_store.store_state(state, {"redirect_uri": redirect_uri})
     return {"authorize_url": url, "state": state}
 
-@router.get("/api/webhook/instagram")
+@router.get("/webhook/instagram")
 async def instagram_webhook_verify(mode: str = Query(None, alias="hub.mode"), token: str = Query(None, alias="hub.verify_token"), challenge: str = Query(None, alias="hub.challenge")):
     adapter = services.channel_registry.get("instagram")
     if not adapter: raise HTTPException(503)
@@ -307,7 +307,7 @@ async def instagram_webhook_verify(mode: str = Query(None, alias="hub.mode"), to
     if result: return PlainTextResponse(result)
     raise HTTPException(403)
 
-@router.post("/api/webhook/instagram")
+@router.post("/webhook/instagram")
 async def instagram_webhook_post(request: Request):
     raw_body = await request.body()
     sig = request.headers.get("X-Hub-Signature-256", "")
@@ -319,7 +319,7 @@ async def instagram_webhook_post(request: Request):
 
 # --- Facebook OAuth & Webhook ---
 
-@router.get("/api/oauth/facebook/start", dependencies=[Depends(verify_authenticated)])
+@router.get("/oauth/facebook/start", dependencies=[Depends(verify_authenticated)])
 async def facebook_oauth_start():
     adapter = services.channel_registry.get("facebook")
     if not adapter: raise HTTPException(503)
@@ -330,7 +330,7 @@ async def facebook_oauth_start():
     await oauth_store.store_state(state, {"redirect_uri": redirect_uri})
     return {"authorize_url": url, "state": state}
 
-@router.get("/api/webhook/facebook")
+@router.get("/webhook/facebook")
 async def facebook_webhook_verify(mode: str = Query(None, alias="hub.mode"), token: str = Query(None, alias="hub.verify_token"), challenge: str = Query(None, alias="hub.challenge")):
     adapter = services.channel_registry.get("facebook")
     if not adapter: raise HTTPException(503)
@@ -338,7 +338,7 @@ async def facebook_webhook_verify(mode: str = Query(None, alias="hub.mode"), tok
     if result: return PlainTextResponse(result)
     raise HTTPException(403)
 
-@router.post("/api/webhook/facebook")
+@router.post("/webhook/facebook")
 async def facebook_webhook_post(request: Request):
     raw_body = await request.body()
     sig = request.headers.get("X-Hub-Signature-256", "")
@@ -350,7 +350,7 @@ async def facebook_webhook_post(request: Request):
 
 # --- X (Twitter) OAuth ---
 
-@router.get("/api/oauth/x/start", dependencies=[Depends(verify_authenticated)])
+@router.get("/oauth/x/start", dependencies=[Depends(verify_authenticated)])
 async def x_oauth_start():
     adapter = services.channel_registry.get("x")
     if not adapter: raise HTTPException(503)
@@ -363,7 +363,7 @@ async def x_oauth_start():
 
 # --- MS Teams (Graph) OAuth & Webhook ---
 
-@router.get("/api/oauth/msteams/start", dependencies=[Depends(verify_authenticated)])
+@router.get("/oauth/msteams/start", dependencies=[Depends(verify_authenticated)])
 async def msteams_oauth_start():
     adapter = services.channel_registry.get("msteams")
     if not adapter: raise HTTPException(503)
@@ -374,7 +374,7 @@ async def msteams_oauth_start():
     await oauth_store.store_state(state, {"redirect_uri": redirect_uri})
     return {"authorize_url": url, "state": state}
 
-@router.post("/api/webhook/msteams")
+@router.post("/webhook/msteams")
 async def msteams_bot_activity(request: Request):
     auth = request.headers.get("Authorization", "")
     adapter = services.channel_registry.get("msteams")
@@ -385,7 +385,7 @@ async def msteams_bot_activity(request: Request):
 
 # --- Telegram Webhook (FIX-005) ---
 
-@router.post("/api/webhook/telegram/{token}")
+@router.post("/webhook/telegram/{token}")
 async def telegram_webhook(token: str, update: Dict[str, Any] = Body(...)):
     """Receives inbound updates from Telegram Bot API."""
     adapter = services.channel_registry.get("telegram")
@@ -410,7 +410,7 @@ async def telegram_webhook(token: str, update: Dict[str, Any] = Body(...)):
 
 # --- Google Chat Routes ---
 
-@router.post("/api/webhook/google_chat")
+@router.post("/webhook/google_chat")
 async def google_chat_event(request: Request):
     auth = request.headers.get("Authorization", "")
     adapter = services.channel_registry.get("google_chat")
@@ -423,13 +423,13 @@ async def google_chat_event(request: Request):
 
 # --- iCloud & WebChat Utilities ---
 
-@router.post("/api/channels/icloud/2fa")
+@router.post("/channels/icloud/2fa")
 async def icloud_2fa(data: Dict[str, str] = Body(...)):
     adapter = services.channel_registry.get("icloud")
     if hasattr(adapter, "submit_2fa"): return await adapter.submit_2fa(data.get("code"))
     raise HTTPException(status_code=501)
 
-@router.post("/api/channels/webchat/session/{id}/capture")
+@router.post("/channels/webchat/session/{id}/capture")
 async def webchat_session_capture(id: str, data: Dict[str, Any] = Body(...)):
     adapter = services.channel_registry.get("webchat")
     if hasattr(adapter, "capture_session"): return await adapter.capture_session(id, data)

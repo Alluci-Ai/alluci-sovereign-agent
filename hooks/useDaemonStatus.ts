@@ -15,7 +15,7 @@ export const useDaemonStatus = () => {
                 const headers: any = {};
                 if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
 
-                const res = await fetch(`${DAEMON_URL}/status`, {
+                const res = await fetch(`${DAEMON_URL}/api/v1/status`, {
                     signal: controller.signal,
                     headers
                 });
@@ -29,7 +29,7 @@ export const useDaemonStatus = () => {
                         if (data.latest_version !== undefined) setLatestVersion(data.latest_version);
 
                         // Also check onboarding check
-                        const obRes = await fetch(`${DAEMON_URL}/api/onboarding/status`, { signal: controller.signal });
+                        const obRes = await fetch(`${DAEMON_URL}/api/v1/onboarding/status`, { signal: controller.signal });
                         if (obRes.ok) {
                             const obData = await obRes.json();
                             setNeedsOnboarding(obData.needs_onboarding);

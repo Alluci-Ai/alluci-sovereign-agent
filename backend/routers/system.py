@@ -21,7 +21,7 @@ async def health_check():
     """Public Kubernetes-style liveness probe."""
     return {"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()}
 
-@router.get("/api/system/health", dependencies=[Depends(verify_authenticated)])
+@router.get("/system/health", dependencies=[Depends(verify_authenticated)])
 async def get_detailed_health():
     """Runs diagnostic checks across primary modules for the Health dashboard."""
     import time
@@ -93,13 +93,13 @@ async def readiness_check():
 
     return {"status": "ready", "checks": checks}
 
-@router.get("/api/system/ready", dependencies=[Depends(verify_authenticated)])
+@router.get("/system/ready", dependencies=[Depends(verify_authenticated)])
 async def api_readiness_check():
     """Protected readiness check."""
     return await readiness_check()
 
 @router.get("/status", dependencies=[Depends(verify_authenticated)])
-@router.get("/api/system/status", dependencies=[Depends(verify_authenticated)])
+@router.get("/system/status", dependencies=[Depends(verify_authenticated)])
 async def get_system_status():
     """High-level system status and resource metrics."""
     import psutil
@@ -126,12 +126,12 @@ async def get_prometheus_metrics():
     from ..metrics import metrics
     return metrics.generate_latest()
 
-@router.get("/api/audit/ledger", dependencies=[Depends(verify_authenticated)])
+@router.get("/audit/ledger", dependencies=[Depends(verify_authenticated)])
 async def get_audit_ledger(limit: int = 50, offset: int = 0, status: Optional[str] = None):
     from ..security.audit_ledger import read_audit_log
     return await read_audit_log(limit=limit, offset=offset, status=status)
 
-@router.post("/api/audit/entry", dependencies=[Depends(verify_authenticated)])
+@router.post("/audit/entry", dependencies=[Depends(verify_authenticated)])
 async def add_audit_entry(entry: AuditEntry):
     from ..security.audit_ledger import sync_audit_entry
     return await sync_audit_entry(entry)

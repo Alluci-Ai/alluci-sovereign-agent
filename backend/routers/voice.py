@@ -9,7 +9,7 @@ logger = get_logger("VoiceRouter")
 
 router = APIRouter(tags=["Voice & Audio"])
 
-@router.post("/api/voice/transcribe", dependencies=[Depends(verify_authenticated)])
+@router.post("/voice/transcribe", dependencies=[Depends(verify_authenticated)])
 async def transcribe_voice(file: UploadFile = File(...)):
     """Transcribes audio using local Whisper bridge (P1-007)."""
     if not services.local_inference:
@@ -19,7 +19,7 @@ async def transcribe_voice(file: UploadFile = File(...)):
     text = await services.local_inference.transcribe(audio_data)
     return {"status": "SUCCESS", "text": text}
 
-@router.get("/api/voice/synthesise", dependencies=[Depends(verify_authenticated)])
+@router.get("/voice/synthesise", dependencies=[Depends(verify_authenticated)])
 async def synthesise_voice(text: str = Query(...)):
     """Synthesise text to speech using local Piper bridge (P1-007)."""
     if not services.local_inference:

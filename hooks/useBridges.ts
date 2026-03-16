@@ -29,7 +29,7 @@ export const useBridges = (
     const handleSaveApiKeys = async (newKeys: any, DAEMON_URL: string, geminiServiceRef: any) => {
         setApiKeys(newKeys);
         try {
-            const res = await fetch(`${DAEMON_URL}/api/vault/keys`, {
+            const res = await fetch(`${DAEMON_URL}/api/v1/vault/keys`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(newKeys),

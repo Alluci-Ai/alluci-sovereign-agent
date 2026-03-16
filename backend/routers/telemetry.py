@@ -10,7 +10,7 @@ logger = get_logger("TelemetryRouter")
 
 router = APIRouter(tags=["Telemetry"])
 
-@router.post("/api/telemetry", dependencies=[Depends(verify_authenticated)])
+@router.post("/telemetry", dependencies=[Depends(verify_authenticated)])
 async def post_telemetry(data: TelemetryData):
     """
     Ingests biometric telemetry from companion devices (Apple Watch, etc.)

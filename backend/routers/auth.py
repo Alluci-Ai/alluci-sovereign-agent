@@ -85,7 +85,7 @@ async def verusid_callback(response: Response, payload: Dict[str, str] = Body(..
     
     raise HTTPException(status_code=401, detail="VerusID signature verification failed")
 
-@router.get("/api/wallet/login/status/{challenge_id}")
+@router.get("/wallet/login/status/{challenge_id}")
 async def get_wallet_login_status(challenge_id: str):
     """Polls for the result of a specific login challenge."""
     result = await verus_auth.get_login_status(challenge_id)
@@ -166,7 +166,7 @@ async def verify_webauthn_response(response: Response, payload: Dict[str, Any] =
             type="public-key",
         )
 
-        verify_registration_response(
+        verification = verify_registration_response(
             credential=credential,
             expected_challenge=expected_challenge,
             expected_rp_id=rp_id,

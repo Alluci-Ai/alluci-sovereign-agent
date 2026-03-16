@@ -15,7 +15,7 @@ export const usePolytopeAPI = () => {
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const response = await fetch(`${DAEMON_URL}/objective/execute`, {
+      const response = await fetch(`${DAEMON_URL}/api/v1/objective/execute`, {
         method: 'POST',
         headers: headers,
         body: JSON.stringify({ objective }),
@@ -37,7 +37,7 @@ export const usePolytopeAPI = () => {
 
   const getStatus = useCallback(async () => {
     try {
-      const response = await fetch(`${DAEMON_URL}/system/status`);
+      const response = await fetch(`${DAEMON_URL}/api/v1/system/status`);
       return await response.json();
     } catch (err) {
       return null;

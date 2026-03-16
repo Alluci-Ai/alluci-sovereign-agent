@@ -32,14 +32,14 @@ async def rotate_vault_keys(payload: Dict[str, str] = Body(...)):
     await log_system_event("VAULT_ROTATE", "All Active Vaults Cryptographically Rotated", "SUCCESS")
     return {"status": "success", "message": "All Active Vaults Cryptographically Rotated"}
 
-@router.post("/api/vault/flush", dependencies=[Depends(verify_authenticated)])
+@router.post("/vault/flush", dependencies=[Depends(verify_authenticated)])
 async def flush_vault():
     if not services.vault:
         raise HTTPException(status_code=503, detail="Vault not ready")
     await services.vault.flush_cache()
     return {"status": "success", "message": "Cache flushed."}
 
-@router.post("/api/check-health", dependencies=[Depends(verify_authenticated)])
+@router.post("/check-health", dependencies=[Depends(verify_authenticated)])
 async def check_health():
     """Triggers a health check across all model manifolds."""
     if not services.router:
@@ -50,7 +50,7 @@ async def check_health():
             await services.vault.update_vault_status(provider, status)
     return {"status": "success", "results": results}
 
-@router.get("/api/vault/keys", dependencies=[Depends(verify_authenticated)])
+@router.get("/vault/keys", dependencies=[Depends(verify_authenticated)])
 async def get_vault_keys():
     """Retrieves masked API keys for UI display. Prevents raw secret exposure."""
     if not services.vault:
@@ -68,7 +68,7 @@ async def get_vault_keys():
         logger.error(f"Failed to retrieve vault keys: {e}")
         return {}
 
-@router.post("/api/vault/keys", dependencies=[Depends(verify_authenticated), Depends(RateLimiter(times=settings.RATE_LIMIT_PER_MINUTE, seconds=60))])
+@router.post("/vault/keys", dependencies=[Depends(verify_authenticated), Depends(RateLimiter(times=settings.RATE_LIMIT_PER_MINUTE, seconds=60))])
 async def save_vault_keys(new_keys: Dict[str, Any] = Body(...)):
     """Persists API keys, merging with existing values to preserve masked secrets."""
     if not services.vault:

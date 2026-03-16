@@ -14,7 +14,7 @@ logger = get_logger("SessionsRouter")
 
 router = APIRouter(tags=["Sessions & Agents"])
 
-@router.get("/api/session", dependencies=[Depends(verify_authenticated)])
+@router.get("/session", dependencies=[Depends(verify_authenticated)])
 async def get_current_session():
     """Returns the current user context (soul manifest + bridge connections) for frontend hydration."""
     try:
@@ -30,7 +30,7 @@ async def get_current_session():
         logger.error(f"Failed to get session: {e}")
         raise HTTPException(status_code=500, detail="Internal session error")
 
-@router.get("/api/sessions", dependencies=[Depends(verify_authenticated)])
+@router.get("/sessions", dependencies=[Depends(verify_authenticated)])
 async def list_sessions(
     start: Optional[str] = Query(None),
     end: Optional[str] = Query(None),
@@ -43,7 +43,7 @@ async def list_sessions(
     e_date = date.fromisoformat(end) if end else None
     return services.usage_tracker.get_sessions(start=s_date, end=e_date, limit=limit)
 
-@router.get("/api/sessions/{session_key}/config", dependencies=[Depends(verify_authenticated)])
+@router.get("/sessions/{session_key}/config", dependencies=[Depends(verify_authenticated)])
 async def get_session_config(session_key: str):
     """Get per-session configuration overrides."""
     with Session(db_engine) as session:
@@ -53,7 +53,7 @@ async def get_session_config(session_key: str):
             return {"session_key": session_key, "overrides": {}}
         return config
 
-@router.get("/api/agents", dependencies=[Depends(verify_authenticated)])
+@router.get("/agents", dependencies=[Depends(verify_authenticated)])
 async def get_agents():
     """Returns the agent constellation configuration."""
     return {
@@ -64,7 +64,7 @@ async def get_agents():
         ]
     }
 
-@router.post("/api/agents/delegate", dependencies=[Depends(verify_authenticated)])
+@router.post("/agents/delegate", dependencies=[Depends(verify_authenticated)])
 async def delegate_to_agent(agent_id: str = Body(...), task: str = Body(...)):
     """Delegates a task to a virtual agent in the constellation."""
     if not services.orchestrator:

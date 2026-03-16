@@ -20,6 +20,27 @@ class CredentialStore:
         # In-memory cache: credential_id -> credential_data dict
         self._cache: Dict[str, Dict[str, Any]] = {}
 
+    async def load_from_vault(self):
+        """Initializes the cache from the vault if available."""
+        from .. import services
+        if services.vault:
+            try:
+                creds = await services.vault.retrieve_secret("webauthn_credentials")
+                if creds:
+                    self._cache = creds
+                    logger.info(f"[WEBAUTHN] Loaded {len(creds)} credentials from vault.")
+            except Exception as e:
+                logger.error(f"Failed to load credentials from vault: {e}")
+
+    async def _persist(self):
+        """Persists the current cache to the vault."""
+        from .. import services
+        if services.vault:
+            try:
+                await services.vault.store_secret("webauthn_credentials", self._cache)
+            except Exception as e:
+                logger.error(f"Failed to persist credentials to vault: {e}")
+
     async def store_credential(
         self,
         credential_id: str,
@@ -34,10 +55,14 @@ class CredentialStore:
             "sign_count": sign_count,
             "user_handle": user_handle,
         }
-        logger.info(f"[WEBAUTHN] Credential stored: {credential_id[:16]}...")
+        await self._persist()
+        logger.info(f"[WEBAUTHN] Credential stored and vaulted: {credential_id[:16]}...")
 
     async def get_credential(self, credential_id: str) -> Optional[Dict[str, Any]]:
         """Retrieve a stored credential by ID."""
+        if not self._cache:
+            await self.load_from_vault()
+            
         cred = self._cache.get(credential_id)
         if cred:
             # Deserialize public_key hex back to bytes
@@ -48,6 +73,7 @@ class CredentialStore:
         """Update the sign counter after successful authentication."""
         if credential_id in self._cache:
             self._cache[credential_id]["sign_count"] = new_count
+            await self._persist()
 
     def list_credentials(self) -> list:
         """Return all registered credential IDs."""

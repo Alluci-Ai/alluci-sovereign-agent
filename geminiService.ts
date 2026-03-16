@@ -103,7 +103,7 @@ export class AlluciGeminiService {
    */
   private async getApiKeyFromBackend(): Promise<string> {
     try {
-      const res = await fetch(`${this.DAEMON_URL}/api/gemini/proxy`, {
+      const res = await fetch(`${this.DAEMON_URL}/api/v1/gemini/proxy`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -120,7 +120,7 @@ export class AlluciGeminiService {
 
   private async checkSession(): Promise<boolean> {
     try {
-      const res = await fetch(`${this.DAEMON_URL}/health`, { credentials: 'include' });
+      const res = await fetch(`${this.DAEMON_URL}/api/v1/health`, { credentials: 'include' });
       return res.ok;
     } catch {
       return false;
@@ -146,7 +146,7 @@ export class AlluciGeminiService {
 
     const ai = new GoogleGenAI({ apiKey });
     this.sessionPromise = ai.live.connect({
-      model: 'gemini-2.5-flash-native-audio-preview-12-2025',
+      model: 'gemini-2.5-pro-preview-05-06',
       callbacks: {
         onopen: async () => {
           callbacks.onOpen?.();
@@ -244,7 +244,7 @@ export class AlluciGeminiService {
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const response = await fetch(`${this.DAEMON_URL}/objective/execute`, {
+      const response = await fetch(`${this.DAEMON_URL}/api/v1/objective/execute`, {
         method: 'POST',
         headers: headers,
         body: JSON.stringify(payload),
@@ -271,7 +271,7 @@ export class AlluciGeminiService {
     const token = this.getAuthToken();
     if (token) {
       try {
-        const response = await fetch(`${this.DAEMON_URL}/api/gemini/proxy`, {
+        const response = await fetch(`${this.DAEMON_URL}/api/v1/gemini/proxy`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -303,7 +303,7 @@ export class AlluciGeminiService {
     };
 
     let response: GenerateContentResponse = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-1.5-flash',
       contents: currentContents,
       config
     });

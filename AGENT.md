@@ -21,10 +21,11 @@ AES-256-GCM encrypted local vault, and 21 messaging bridge adapters.
 6. Swift session tokens go in Keychain (`SecItemAdd`), not `UserDefaults`
 7. Never duplicate router registration in `backend/app.py` — each router appears exactly once
 8. All `@router.post()` auth endpoints need `dependencies=[Depends(RateLimiter(times=N, minutes=1))]`
+9. All routers must be registered with `prefix="/api/v1"` in `app.py`. Internal router paths must NOT start with `/api/`.
 
 ## Current Correct LLM Model IDs
 - **Google (flash):** `gemini-2.0-flash`
-- **Google (pro):** `gemini-2.5-pro-preview-05-06`  ← still wrong in code, needs fix
+- **Google (pro):** `gemini-2.5-pro-preview-05-06` 
 - **Anthropic (strong):** `claude-3-7-sonnet-20250219`
 - **Anthropic (light):** `claude-3-5-haiku-20241022`
 - **OpenAI (strong):** `gpt-4o`
@@ -40,6 +41,7 @@ AES-256-GCM encrypted local vault, and 21 messaging bridge adapters.
 | Auth logic | `backend/security/auth.py` + `backend/routers/auth.py` |
 | OAuth PKCE state | `backend/security/oauth_store.py` → `OAuthStateStore` |
 | WebAuthn challenges | `backend/security/webauthn_store.py` → `WebAuthnChallengeStore` |
+| WebAuthn Passkeys | `backend/security/credential_store.py` → `Simplicial Vault` |
 | OTel tracing | `backend/tracing_config.py` |
 | Structured logging | `backend/logging_config.py` → `get_logger(__name__)` |
 | All Pydantic models | `backend/models.py` |
@@ -54,18 +56,18 @@ python -m pytest backend/tests/ -x -q                    # all Python tests pass
 python -m mypy backend/ --ignore-missing-imports          # no Python type errors  
 npx tsc --noEmit                                           # no TypeScript errors
 npx vitest run                                             # frontend unit tests pass
-curl -s http://localhost:8000/health | python3 -m json.tool  # backend running
+curl -s http://localhost:8000/api/v1/health | python3 -m json.tool  # backend running
 ```
 
 ## What Is Still Missing — Update This List As Items Complete
-- [ ] WebAuthn assertion/login endpoints (`backend/routers/auth.py`)
+- [x] WebAuthn assertion/login endpoints (`backend/routers/auth.py`)
 - [ ] Background token refresh loops (all OAuth bridges in `backend/bridges/`)
-- [ ] Frontend state hydration on page refresh (`store/useStore.ts`)
+- [x] Frontend state hydration on page refresh (`store/useStore.ts`)
 - [ ] Android PWA (`vite.config.ts` + `public/manifest.json`)
 - [ ] Xcode project file (`watchos/AlluciWatch/AlluciWatch.xcodeproj`)
-- [ ] Fix watchOS URL: `/api/bridge/iwatch/biometrics` → `/api/channels/iwatch/biometrics`
+- [x] Fix watchOS URL: `/api/v1/channels/iwatch/biometrics`
 - [ ] `WKExtendedRuntimeSession` for background HRV collection
 - [ ] iOS companion app (`watchos/AlluciCompanion/`)
-- [ ] Fix `gemini_pro` model ID in `backend/inference/router.py` line 67
-- [ ] nginx HTTPS/TLS server block + Let's Encrypt
+- [x] Fix `gemini_pro` model ID in `backend/inference/router.py` line 67
+- [x] nginx HTTPS/TLS server block + Let's Encrypt
 - [ ] CI: add `xcodebuild test` job for Swift

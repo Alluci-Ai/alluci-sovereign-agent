@@ -375,7 +375,7 @@ export const useStore = create<AppState>((set) => ({
         if (!document.cookie.includes('alluci_session=1')) return;
         
         try {
-            const res = await fetch(`${DAEMON_URL}/api/session`, { credentials: 'include' });
+            const res = await fetch(`${DAEMON_URL}/api/v1/session`, { credentials: 'include' });
             if (res.ok) {
                 const data = await res.json();
                 if (data.status === 'SUCCESS') {

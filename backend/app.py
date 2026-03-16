@@ -40,6 +40,10 @@ async def lifespan(app: FastAPI):
         _oauth_store_module.oauth_store = OAuthStateStore(services.redis_client)
         logger.info("[ OAUTH ] State store backed by Redis.")
         
+        from .security.credential_store import credential_store
+        await credential_store.load_from_vault()
+        logger.info("[ WEBAUTHN ] Credentials loaded from vault.")
+        
     yield
     await services.shutdown_services()
 

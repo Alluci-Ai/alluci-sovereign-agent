@@ -4,7 +4,7 @@ const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
 export async function saveBridgeCredentials(
     id: string, creds: Record<string, any>, token: string
 ): Promise<boolean> {
-    const res = await fetch(`${DAEMON_URL}/api/channels/${id}/config`, {
+    const res = await fetch(`${DAEMON_URL}/api/v1/channels/${id}/config`, {
         method: 'PUT',
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -17,7 +17,7 @@ export async function saveBridgeCredentials(
 export async function activateBridge(
     id: string, token: string
 ): Promise<{ connected: boolean; alias?: string; profileImg?: string; error?: string }> {
-    const res = await fetch(`${DAEMON_URL}/api/channels/${id}/connect`, {
+    const res = await fetch(`${DAEMON_URL}/api/v1/channels/${id}/connect`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         credentials: 'include',

@@ -8,7 +8,7 @@ from ..security.auth import verify_authenticated
 
 router = APIRouter(tags=["DAG & Pipeline Runs"])
 
-@router.get("/api/dag/runs", dependencies=[Depends(verify_authenticated)])
+@router.get("/dag/runs", dependencies=[Depends(verify_authenticated)])
 async def list_dag_runs(status: Optional[str] = None, limit: int = 20, offset: int = 0):
     with Session(db_engine) as session:
         stmt = select(Run).order_by(desc(Run.created_at)).offset(offset).limit(limit)

@@ -3,6 +3,7 @@ import Foundation
 struct TelemetrySample: Codable {
     let hr: Int?
     let hrv: Int?
+    let gsr: Float?
     let respiratory_rate: Float?
     let stress_score: Float?
     let energy_level: Float?
@@ -15,6 +16,7 @@ struct TelemetrySample: Codable {
     init(
         hr: Int? = nil,
         hrv: Int? = nil,
+        gsr: Float? = nil,
         respiratory_rate: Float? = nil,
         stress_score: Float? = nil,
         energy_level: Float? = nil,
@@ -25,6 +27,7 @@ struct TelemetrySample: Codable {
     ) {
         self.hr = hr
         self.hrv = hrv
+        self.gsr = gsr
         self.respiratory_rate = respiratory_rate
         self.stress_score = stress_score
         self.energy_level = energy_level

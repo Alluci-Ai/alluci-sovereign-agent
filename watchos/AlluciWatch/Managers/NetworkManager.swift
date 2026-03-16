@@ -19,7 +19,7 @@ class NetworkManager: ObservableObject {
     }
     
     func pair(url: String, deviceID: String, code: String) async throws {
-        guard let requestURL = URL(string: "\(url)/api/channels/iwatch/pair") else {
+        guard let requestURL = URL(string: "\(url)/api/v1/channels/iwatch/pair") else {
             throw URLError(.badURL)
         }
         
@@ -56,7 +56,7 @@ class NetworkManager: ObservableObject {
     }
     
     func sendTelemetry(samples: [TelemetrySample]) async throws {
-        guard let token = sessionToken, let url = URL(string: "\(baseURL)/api/channels/iwatch/biometrics") else {
+        guard let token = sessionToken, let url = URL(string: "\(baseURL)/api/v1/channels/iwatch/biometrics") else {
             return
         }
         
