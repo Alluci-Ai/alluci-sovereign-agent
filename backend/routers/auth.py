@@ -43,6 +43,7 @@ async def login(response: Response, payload: LoginRequest):
 @router.post("/auth/logout")
 async def logout(response: Response):
     response.delete_cookie(settings.AUTH_COOKIE_NAME)
+    response.delete_cookie("alluci_session")
     return {"status": "SUCCESS", "message": "Logged out."}
 
 @router.get("/auth/verusid/challenge")

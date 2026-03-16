@@ -57,9 +57,11 @@ struct ContentView: View {
     func toggleMonitoring() {
         isMonitoring.toggle()
         if isMonitoring {
-            hk.startHeartRateQuery { hr in
+            hk.startBackgroundCollection { _ in
                 sendUpdate()
             }
+        } else {
+            hk.stopBackgroundCollection()
         }
     }
     
