@@ -63,3 +63,31 @@ class MetricsTracker:
 
 metrics = MetricsTracker()
 
+
+# ── FastAPI Router ─────────────────────────────────────────────────────────────
+
+from fastapi import APIRouter
+from fastapi.responses import PlainTextResponse
+
+metrics_router = APIRouter(tags=["Observability"])
+
+
+@metrics_router.get(
+    "/metrics",
+    response_class=PlainTextResponse,
+    include_in_schema=False,
+    summary="Prometheus metrics scrape endpoint",
+)
+async def prometheus_metrics() -> PlainTextResponse:
+    """
+    Exposes application metrics in Prometheus text format (version 0.0.4).
+    Scrape this endpoint with Prometheus or any compatible collector.
+
+    Note: For full Prometheus integration with labels and histograms, install
+    prometheus-client and update MetricsTracker to use Counter/Gauge/Histogram types.
+    The current implementation uses in-memory counters that reset on restart.
+    """
+    content = metrics.get_metrics_text()
+    return PlainTextResponse(content=content, media_type="text/plain; version=0.0.4; charset=utf-8")
+
+

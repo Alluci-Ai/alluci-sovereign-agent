@@ -25,9 +25,34 @@ class WebAdapter(Adapter):
             return f"Unknown web action: {action}"
 
     async def _search(self, query: str) -> str:
-        if not query: return "No query provided."
-        # Generic placeholder for search (e.g., DuckDuckGo)
-        return f"Search result for '{query}': (Mock Search Result: Alluci is a sovereign agent.)"
+        """
+        Performs a real web search via WebSearchAdapter (DDG fallback, no API key required).
+        Falls back to a descriptive error string on failure — never returns mock data.
+        """
+        if not query:
+            return "No query provided."
+
+        try:
+            from .web_search import WebSearchAdapter
+            # Use DDG as the provider so no API key is required
+            adapter = WebSearchAdapter(provider="ddg")
+            result = await adapter.execute(query)
+
+            if result.get("status") == "success":
+                items = result.get("results", [])
+                if not items:
+                    return f"Web search returned no results for: {query}"
+                lines = [
+                    f"{r.get('title', 'No title')}: {r.get('snippet', '')} ({r.get('link', '')})"
+                    for r in items
+                ]
+                return "\n".join(lines)
+            else:
+                return f"Web search failed: {result.get('message', 'unknown error')}"
+
+        except Exception as e:
+            logger.error(f"WebAdapter._search error: {e}")
+            return f"Web search unavailable: {e}"
 
     async def _fetch(self, url: str) -> str:
         if not url: return "No URL provided."

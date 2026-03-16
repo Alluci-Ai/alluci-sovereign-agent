@@ -93,6 +93,10 @@ app.include_router(config.router, prefix="/api/v1")
 app.include_router(soul.router, prefix="/api/v1")
 app.include_router(exec_approval.router, prefix="/api/v1")
 
+# Observability — /api/v1/metrics (Prometheus scrape endpoint)
+from .metrics import metrics_router
+app.include_router(metrics_router, prefix="/api/v1")
+
 from fastapi.responses import RedirectResponse
 
 @app.api_route("/api/{path:path}",
