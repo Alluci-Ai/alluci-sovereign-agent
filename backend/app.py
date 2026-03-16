@@ -83,6 +83,9 @@ app.include_router(goals.router, prefix="/api/v1")
 app.include_router(sop.router, prefix="/api/v1")
 app.include_router(vault.router, prefix="/api/v1")
 app.include_router(channels.router, prefix="/api/v1")
+# Also mount at /api (without /v1) so test_phase0 route assertions pass
+# and legacy frontend code calling /api/channels/... continues to work.
+app.include_router(channels.router, prefix="/api")
 app.include_router(voice.router, prefix="/api/v1")
 app.include_router(crons.router, prefix="/api/v1")
 app.include_router(wallet.router, prefix="/api/v1")

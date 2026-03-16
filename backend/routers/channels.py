@@ -50,6 +50,178 @@ async def connect_channel(channel_id: str):
         return await adapter.connect()
     raise HTTPException(status_code=501, detail="Direct connect not supported")
 
+# ── Core Channel Dispatch Routes ─────────────────────────────────────────────
+# These are the primary routes called by the frontend (bridgeManager.ts) and
+# asserted by test_phase0.py. They must exist at both /api/v1/channels/... and
+# /api/channels/... (the latter satisfied by dual router registration in app.py).
+
+@router.post("/channels/{channel_id}/send", dependencies=[Depends(verify_authenticated)])
+async def channel_send(channel_id: str, payload: Dict[str, Any] = Body(...)):
+    """
+    Send a message through a bridge.
+    Body: { "recipient": str, "content": str }
+    """
+    adapter = services.channel_registry.get(channel_id)
+    if not adapter:
+        raise HTTPException(status_code=404, detail=f"Channel '{channel_id}' not found.")
+    if not getattr(adapter, "is_connected", False):
+        raise HTTPException(status_code=503, detail=f"Channel '{channel_id}' is not connected.")
+
+    recipient = payload.get("recipient", "")
+    content = payload.get("content", "")
+
+    if not content:
+        raise HTTPException(status_code=400, detail="'content' is required.")
+
+    try:
+        result = await adapter.send(recipient, content)
+        return {"status": "ok", "channel_id": channel_id, "result": result}
+    except Exception as e:
+        logger.error(f"channel_send [{channel_id}] failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/channels/{channel_id}/upload", dependencies=[Depends(verify_authenticated)])
+async def channel_upload(channel_id: str, payload: Dict[str, Any] = Body(...)):
+    """
+    Upload a file through a bridge (e.g., GDrive, Slack).
+    Body: { "file_data": str (base64 or URL), "file_name": str }
+    """
+    adapter = services.channel_registry.get(channel_id)
+    if not adapter:
+        raise HTTPException(status_code=404, detail=f"Channel '{channel_id}' not found.")
+    if not hasattr(adapter, "upload"):
+        raise HTTPException(status_code=501, detail=f"Channel '{channel_id}' does not support file upload.")
+
+    try:
+        result = await adapter.upload(
+            payload.get("file_data"),
+            payload.get("file_name", "untitled"),
+        )
+        return {"status": "ok", "channel_id": channel_id, "result": result}
+    except Exception as e:
+        logger.error(f"channel_upload [{channel_id}] failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/channels/{channel_id}/health", dependencies=[Depends(verify_authenticated)])
+async def channel_health(channel_id: str):
+    """
+    Returns the real-time connection health of a specific bridge.
+    Used by BridgeCenter frontend to show live status indicators.
+    """
+    adapter = services.channel_registry.get(channel_id)
+    if not adapter:
+        raise HTTPException(status_code=404, detail=f"Channel '{channel_id}' not found.")
+
+    health = {
+        "channel_id": channel_id,
+        "is_connected": getattr(adapter, "is_connected", False),
+        "last_activity": getattr(adapter, "last_activity", None),
+        "last_error": getattr(adapter, "last_error", None),
+        "protocol": channel_id.upper(),
+    }
+
+    # Attempt live integrity check if supported (with timeout to avoid stalling)
+    if hasattr(adapter, "validate_integrity"):
+        try:
+            health["integrity"] = await asyncio.wait_for(
+                adapter.validate_integrity(), timeout=5.0
+            )
+        except Exception as e:
+            health["integrity"] = False
+            health["integrity_error"] = str(e)
+
+    return health
+
+
+@router.get("/channels/{channel_id}/unread", dependencies=[Depends(verify_authenticated)])
+async def channel_unread(channel_id: str, limit: int = 10):
+    """
+    Fetch unread messages from a bridge's inbox.
+    Used by the agent's inbound message polling logic.
+    """
+    adapter = services.channel_registry.get(channel_id)
+    if not adapter:
+        raise HTTPException(status_code=404, detail=f"Channel '{channel_id}' not found.")
+    if not hasattr(adapter, "fetch_unread"):
+        return []
+
+    try:
+        messages = await adapter.fetch_unread(limit=limit)
+        return messages or []
+    except Exception as e:
+        logger.error(f"channel_unread [{channel_id}] failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/channels/{channel_id}/social", dependencies=[Depends(verify_authenticated)])
+async def channel_social_task(channel_id: str, payload: Dict[str, Any] = Body(...)):
+    """
+    Execute a social/automation task on a bridge (post, like, follow, etc.).
+    Body: { "task": str, "params": dict }
+    """
+    adapter = services.channel_registry.get(channel_id)
+    if not adapter:
+        raise HTTPException(status_code=404, detail=f"Channel '{channel_id}' not found.")
+
+    task_name = payload.get("task", "")
+    params = payload.get("params", {})
+
+    if hasattr(adapter, "execute_social_task"):
+        try:
+            result = await adapter.execute_social_task(task_name, params)
+            return {"status": "ok", "channel_id": channel_id, "result": result}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    # Generic fallback: treat as a send task
+    if task_name == "send" and "recipient" in params:
+        return await channel_send(channel_id, params)
+
+    raise HTTPException(status_code=501, detail=f"Social tasks not supported for '{channel_id}'.")
+
+
+@router.post("/channels/{channel_id}/enterprise", dependencies=[Depends(verify_authenticated)])
+async def channel_enterprise_task(channel_id: str, payload: Dict[str, Any] = Body(...)):
+    """
+    Execute an enterprise automation task (calendar, CRM, ticket, etc.).
+    Delegates to the bridge's enterprise task handler if available,
+    otherwise forwards to the social task handler as a unified endpoint.
+    Body: { "task": str, "params": dict }
+    """
+    adapter = services.channel_registry.get(channel_id)
+    if not adapter:
+        raise HTTPException(status_code=404, detail=f"Channel '{channel_id}' not found.")
+
+    if hasattr(adapter, "execute_enterprise_task"):
+        try:
+            result = await adapter.execute_enterprise_task(
+                payload.get("task", ""), payload.get("params", {})
+            )
+            return {"status": "ok", "channel_id": channel_id, "result": result}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    # Delegate to social handler (unified task dispatch)
+    return await channel_social_task(channel_id, payload)
+
+
+# ── Bulk Health Check ─────────────────────────────────────────────────────────
+
+@router.get("/channels/health/all", dependencies=[Depends(verify_authenticated)])
+async def all_channels_health():
+    """Returns connection health for every registered bridge simultaneously."""
+    return {
+        channel_id: {
+            "is_connected": getattr(adapter, "is_connected", False),
+            "last_activity": getattr(adapter, "last_activity", None),
+            "last_error": getattr(adapter, "last_error", None),
+        }
+        for channel_id, adapter in services.channel_registry.items()
+    }
+
+
 # --- Specialized Channel Routes ---
 
 # --- iWatch (HealthKit) Routes ---

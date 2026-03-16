@@ -1,7 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 from backend.app import app
-from backend.oauth_config import OAUTH_CONFIGS
+from backend.security.oauth_config import OAUTH_CONFIG as OAUTH_CONFIGS
 
 client = TestClient(app)
 
