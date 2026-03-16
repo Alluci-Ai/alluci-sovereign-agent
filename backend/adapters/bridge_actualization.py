@@ -157,20 +157,22 @@ class BridgeActualizationAdapter(Adapter):
 
     async def _handle_oauth_flow(self, bridge_id: str, account_id: str, payload: Dict[str, Any]):
         """Exchanges an OAuth code for tokens using the generic OAuthHandler."""
-        from ..oauth_config import OAUTH_CONFIGS
+        from ..security.oauth_config import get_provider_config
         
         # Check if OAuth is configured for this bridge
-        if bridge_id.lower() not in OAUTH_CONFIGS:
+        config = get_provider_config(bridge_id.lower())
+        if not config:
             raise AdapterError(f"OAuth not configured for bridge: {bridge_id}")
             
-        config = OAUTH_CONFIGS[bridge_id.lower()]
+        client_id = os.getenv(config["client_id_env"])
+        client_secret = os.getenv(config.get("client_secret_env", ""))
         
         return await self.oauth_handler.exchange_code(
             bridge_id=bridge_id,
             account_id=account_id,
             token_url=config["token_url"],
-            client_id=config["client_id"],
-            client_secret=config.get("client_secret"),
+            client_id=client_id,
+            client_secret=client_secret,
             code=payload.get("code"),
             redirect_uri=payload.get("redirect_uri"),
             code_verifier=payload.get("code_verifier")

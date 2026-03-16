@@ -351,10 +351,10 @@ class MSTeamsBridge(BridgeAdapter):
 
         normalized = {
             "id":         payload.get("id"),
-            "from":       sender_id,
+            "from_id":    sender_id,
+            "chat_id":    convo.get("id"),
             "from_name":  payload.get("from", {}).get("name"),
             "body":       payload.get("text", ""),
-            "channel_id": convo.get("id"),
             "team_id":    channel_data.get("team", {}).get("id"),
             "protocol":   "MSTEAMS",
             "timestamp":  payload.get("localTimestamp")
@@ -393,6 +393,8 @@ class MSTeamsBridge(BridgeAdapter):
             return [
                 {
                     "id":        c["id"],
+                    "from_id":   c.get("lastMessagePreview", {}).get("from", {}).get("user", {}).get("id"),
+                    "chat_id":   c["id"],
                     "body":      c.get("lastMessagePreview", {}).get("body", {}).get("content", ""),
                     "timestamp": c.get("lastMessagePreview", {}).get("createdDateTime"),
                     "protocol":  "MSTEAMS",

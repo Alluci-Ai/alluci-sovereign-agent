@@ -319,10 +319,11 @@ class IMessageBridge(BridgeAdapter):
     # ── Supporting Methods ───────────────────────────────────────────────────
 
     async def validate_integrity(self) -> bool:
-        if not self.is_macos:
-            return False
-        perms = await self.check_permission()
-        return bool(perms.get("full_disk_access"))
+        if not self.is_macos: return False
+        # Efficient permission check: if we can read the DB, we have FDA.
+        # Avoid osascript in the routine integrity check to save CPU.
+        db_path = os.path.expanduser("~/Library/Messages/chat.db")
+        return os.path.exists(db_path) and os.access(db_path, os.R_OK)
 
     def get_health(self) -> Dict[str, Any]:
         h = super().get_health()

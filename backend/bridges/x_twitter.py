@@ -360,7 +360,8 @@ class XBridge(BridgeAdapter):
             author    = users.get(author_id, {})
             await self._dispatch_inbound({
                 "id":        tweet["id"],
-                "from":      author_id,
+                "from_id":   author_id,
+                "chat_id":   tweet["id"], # Mentions are essentially their own chat context
                 "username":  author.get("username", ""),
                 "body":      tweet["text"],
                 "type":      "mention",
@@ -392,7 +393,8 @@ class XBridge(BridgeAdapter):
                 continue  # Skip own messages
             await self._dispatch_inbound({
                 "id":        event["id"],
-                "from":      sender_id,
+                "from_id":   sender_id,
+                "chat_id":   sender_id,
                 "body":      event.get("text", ""),
                 "type":      "dm",
                 "protocol":  "X",

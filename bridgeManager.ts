@@ -11,14 +11,15 @@ export class BridgeManager {
   private vaults: Map<string, SimplicialVault> = new Map();
   private verusIdentity: string | null = null;
   private manifoldIntegrity: number = 1.0;
-  private accessToken: string | null = null;
+  private access_token: string | null = null;
+  private logger: any;
 
   constructor(security: SovereignSecurityManager) {
     this.security = security;
   }
 
   setAccessToken(token: string | null) {
-    this.accessToken = token;
+    this.access_token = token;
   }
 
   /**
@@ -71,15 +72,22 @@ export class BridgeManager {
    * Sends encrypted pulses via the iMessage Secure Tunnel.
    */
   async sendMessage(bridgeId: string, recipient: string, text: string): Promise<boolean> {
-    const res = await fetch(`/api/channels/${bridgeId}/send`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${this.accessToken}`
-      },
-      body: JSON.stringify({ recipient, content: text })
-    });
-    return res.ok;
+    try {
+      const res = await fetch(`/api/v1/channels/${bridgeId}/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ recipient, content: text })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        this.logger?.error(`sendMessage failed [${bridgeId}]: ${err.detail}`);
+      }
+      return res.ok;
+    } catch (e) {
+      this.logger?.error(`sendMessage network error [${bridgeId}]: ${e}`);
+      return false;
+    }
   }
 
   /**
@@ -87,54 +95,61 @@ export class BridgeManager {
    * Sovereign file operations for the Cloud Manifold.
    */
   async uploadToCloud(bridgeId: string, fileData: string, fileName: string): Promise<boolean> {
-    const res = await fetch(`/api/channels/${bridgeId}/upload`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${this.accessToken}`
-      },
-      body: JSON.stringify({ file_data: fileData, file_name: fileName })
-    });
-    return res.ok;
+    try {
+      const res = await fetch(`/api/v1/channels/${bridgeId}/upload`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ file_data: fileData, file_name: fileName })
+      });
+      return res.ok;
+    } catch (e) {
+      return false;
+    }
   }
 
-  async retrieveFromCloud(bridgeId: string, query: string): Promise<any[]> {
-    const res = await fetch(`/api/channels/${bridgeId}/search?q=${encodeURIComponent(query)}`, {
-      headers: {
-        "Authorization": `Bearer ${this.accessToken}`
-      }
-    });
-    if (res.ok) return await res.json();
-    return [];
+  async retrieveFromCloud(bridgeId: string, fileId: string): Promise<string | null> {
+    try {
+      const res = await fetch(`/api/v1/channels/${bridgeId}/retrieve/${encodeURIComponent(fileId)}`, {
+        credentials: 'include'
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.content ?? null;
+    } catch (e) {
+      return null;
+    }
   }
 
   /**
    * [ SOCIAL_MANIFOLD_ACTUALIZATION ]
    * Executes targeted sovereign actions across the social manifold.
    */
-  async executeSocialTask(bridgeId: string, taskType: 'SEND_MESSAGE' | 'POST_UPDATE' | 'SYNC_FEED' | 'REPLY', payload: any): Promise<boolean> {
-    const res = await fetch(`/api/channels/${bridgeId}/social`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${this.accessToken}`
-      },
-      body: JSON.stringify({ type: taskType, payload })
-    });
-    return res.ok;
+  async executeSocialTask(bridgeId: string, task: string, params: Record<string, unknown>): Promise<boolean> {
+    try {
+      const res = await fetch(`/api/v1/channels/${bridgeId}/task`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ task, params })
+      });
+      return res.ok;
+    } catch (e) {
+      return false;
+    }
   }
 
   /**
    * [ ENTERPRISE_CORE_ACTUALIZATION ]
    * Executes workspace-level sovereign actions across Slack, Teams, and G-Suite.
    */
-  async executeEnterpriseTask(bridgeId: string, taskType: 'SEND_MESSAGE' | 'DRAFT_EMAIL' | 'SEND_EMAIL' | 'SEARCH_FILES' | 'SYNC_CALENDAR' | 'VAULT_FILE', payload: any): Promise<boolean> {
-    const res = await fetch(`/api/channels/${bridgeId}/enterprise`, {
+  async executeEnterpriseTask(bridgeId: string, taskType: string, payload: any): Promise<boolean> {
+    const res = await fetch(`/api/v1/channels/${bridgeId}/enterprise`, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${this.accessToken}`
+        "Content-Type": "application/json"
       },
+      credentials: 'include',
       body: JSON.stringify({ type: taskType, payload })
     });
     return res.ok;

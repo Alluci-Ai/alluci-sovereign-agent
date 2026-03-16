@@ -101,6 +101,31 @@ class GmailBridge(BridgeAdapter):
     async def send_message(self, recipient: str, content: str) -> Dict[str, Any]:
         return await self.send(recipient, content)
 
+    def _extract_body(self, payload: Dict[str, Any]) -> str:
+        """Recursively extract and decode message body from Gmail payload."""
+        if "parts" in payload:
+            bodies = []
+            for part in payload["parts"]:
+                bodies.append(self._extract_body(part))
+            return "".join(bodies)
+        
+        # Only process text/plain or text/html if no parts, or let parts recurrence handle it
+        mime_type = payload.get("mimeType", "")
+        if "text" not in mime_type and payload.get("parts"):
+            return ""
+
+        body_data = payload.get("body", {}).get("data", "")
+        if body_data:
+            try:
+                # urlsafe_b64decode handles padding for us if we use the right library or just add it
+                missing_padding = len(body_data) % 4
+                if missing_padding:
+                    body_data += '=' * (4 - missing_padding)
+                return base64.urlsafe_b64decode(body_data).decode("utf-8", errors="replace")
+            except Exception:
+                return ""
+        return ""
+
     async def fetch_unread(self, limit: int = 10) -> List[Dict[str, Any]]:
         await self._ensure_auth()
         token = self.credentials.get("access_token")
@@ -133,8 +158,9 @@ class GmailBridge(BridgeAdapter):
                     
                     parsed = {
                         "id": m["id"],
-                        "from": sender,
-                        "body": snippet,
+                        "from_id": sender,
+                        "chat_id": m["id"],
+                        "body": self._extract_body(data.get("payload", {})) or snippet,
                         "timestamp": datetime.fromtimestamp(timestamp_ms/1000, timezone.utc).isoformat(),
                         "protocol": "GMAIL",
                         "account_id": self.email_address

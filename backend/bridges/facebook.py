@@ -266,11 +266,12 @@ class FacebookBridge(BridgeAdapter):
                     body, media = self._extract_content(msg)
                     await self._dispatch_inbound({
                         "id":         msg.get("mid"),
-                        "from":       sender_id,
+                        "from_id":    sender_id,
+                        "chat_id":    sender_id,
                         "body":       body,
                         "media":      media,
                         "type":       "message",
-                        "timestamp":  event.get("timestamp"),
+                        "timestamp":  datetime.fromtimestamp(int(event.get("timestamp", 0)) / 1000, tz=timezone.utc).isoformat() if event.get("timestamp") else datetime.now(timezone.utc).isoformat(),
                         "account_id": entry.get("id"),
                         "protocol":   "FACEBOOK",
                     })

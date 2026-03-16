@@ -9,8 +9,19 @@ from ..security.verusid_auth import verus_auth
 from fastapi_limiter.depends import RateLimiter
 from ..logging_config import get_logger
 from ..security.credential_store import credential_store
+from ..security.oauth_config import get_provider_config, get_client_credentials
+from ..security.oauth_store import oauth_store
+import secrets
+import os
+import urllib.parse
 
 logger = get_logger("AuthRouter")
+
+from ..security.oauth_config import get_provider_config, get_client_credentials
+from ..security.oauth_store import oauth_store
+import secrets
+import os
+import urllib.parse
 
 router = APIRouter(tags=["Authentication"])
 
@@ -364,3 +375,44 @@ async def verify_webauthn_assertion(
     except Exception as e:
         logger.warning(f"[WEBAUTHN] Assertion failed: {e}")
         raise HTTPException(status_code=401, detail=f"Assertion failed: {type(e).__name__}")
+
+@router.get("/auth/oauth/authorize", dependencies=[Depends(verify_authenticated)])
+async def oauth_authorize(provider_id: str = Query(...)):
+    """Starts an OAuth 2.0 flow for a specific provider."""
+    provider = get_provider_config(provider_id)
+    if not provider:
+        raise HTTPException(status_code=404, detail=f"Provider {provider_id} not found")
+    
+    client_id, _ = get_client_credentials(provider_id)
+    if not client_id:
+        raise HTTPException(status_code=500, detail=f"Client ID for {provider_id} not configured")
+        
+    state = secrets.token_urlsafe(32)
+    daemon_url = os.getenv("DAEMON_PUBLIC_URL", "http://localhost:8000").rstrip("/")
+    redirect_uri = f"{daemon_url}{provider['redirect_path']}"
+    
+    params = {
+        "client_id": client_id,
+        "redirect_uri": redirect_uri,
+        "response_type": "code",
+        "scope": " ".join(provider["scopes"]),
+        "state": state,
+    }
+    
+    if provider.get("extra_params"):
+        params.update(provider["extra_params"])
+        
+    if provider.get("pkce"):
+        from ..security.oauth_handler import OAuthHandler
+        verifier, challenge = OAuthHandler.generate_pkce_pair()
+        params.update({
+            "code_challenge": challenge,
+            "code_challenge_method": "S256"
+        })
+        await oauth_store.store_state(state, {"verifier": verifier, "redirect_uri": redirect_uri})
+    else:
+        await oauth_store.store_state(state, {"redirect_uri": redirect_uri})
+        
+    authorize_url = f"{provider['auth_url']}?{urllib.parse.urlencode(params)}"
+    return {"authorize_url": authorize_url, "state": state}
+

@@ -270,7 +270,12 @@ class IWatchBridge(BridgeAdapter):
         return self.get_recent_telemetry(limit)
 
     async def validate_integrity(self) -> bool:
-        return self.is_connected
+        if not self.is_connected: return False
+        import platform
+        if platform.system() != "Darwin": return True
+        # Optimized Darwin check: verify access to MobileSync to ensure perms exist
+        sync_path = os.path.expanduser("~/Library/Application Support/MobileSync")
+        return os.path.exists(sync_path)
 
     def get_health(self) -> Dict[str, Any]:
         h = super().get_health()

@@ -155,13 +155,23 @@ class TelegramBridge(BridgeAdapter):
         """Background loop for Telegram long-polling."""
         while self.is_connected and not self.webhook_url:
             try:
-                messages = await self.fetch_unread(limit=20)
-                for msg in messages:
-                    await self._dispatch_inbound(msg)
+                res = await self.client.post(
+                    f"{self.api_url}{self.bot_token}/getUpdates",
+                    json={
+                        "offset": self._update_offset,
+                        "timeout": 30,
+                        "allowed_updates": ["message", "callback_query"]
+                    },
+                    timeout=35.0
+                )
+                data = res.json()
+                if data.get("ok"):
+                    for update in data["result"]:
+                        self._update_offset = update["update_id"] + 1
+                        await self._handle_update(update)
             except Exception as e:
                 self.logger.error(f"Telegram poll error: {e}")
-                await asyncio.sleep(10)
-            await asyncio.sleep(1)
+                await asyncio.sleep(5)
 
     async def validate_integrity(self) -> bool:
         """Verify the connection by fetching bot details."""
@@ -227,14 +237,32 @@ class TelegramBridge(BridgeAdapter):
         self.last_activity = datetime.now(timezone.utc).isoformat()
         self._save_accounts()
 
+    async def _handle_update(self, update: Dict[str, Any]):
+        """Unified entry point for incoming updates."""
+        msg = update.get("message") or update.get("edited_message")
+        if msg:
+            parsed = self._parse_inbound(msg)
+            self._track_account(msg)
+            await self._dispatch_inbound(parsed)
+            
+        cbq = update.get("callback_query")
+        if cbq:
+            # Handle callback button clicks
+            text = cbq.get("data", "")
+            msg = cbq.get("message", {})
+            parsed = {
+                "id": cbq["id"],
+                "from_id": str(cbq["from"]["id"]),
+                "chat_id": str(msg.get("chat", {}).get("id")),
+                "body": text,
+                "type": "callback",
+                "protocol": "TELEGRAM"
+            }
+            await self._dispatch_inbound(parsed)
+
     async def process_webhook(self, update: Dict[str, Any]):
         """Entry point for incoming webhook updates."""
-        msg = update.get("message") or update.get("edited_message")
-        if not msg: return
-        
-        parsed = self._parse_inbound(msg)
-        self._track_account(msg)
-        await self._dispatch_inbound(parsed)
+        await self._handle_update(update)
 
     def get_health(self) -> Dict[str, Any]:
         """Health reporting (standardized + telegram specific)."""

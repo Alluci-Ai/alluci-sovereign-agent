@@ -309,10 +309,10 @@ class GoogleChatBridge(BridgeAdapter):
 
             normalized = {
                 "id":          msg.get("name"),
-                "from":        sender.get("name"),
+                "from_id":     sender.get("name"),
+                "chat_id":     space.get("name"),
                 "from_name":   sender.get("displayName"),
                 "body":        body,
-                "space":       space.get("name"),
                 "thread":      msg.get("thread", {}).get("name"),
                 "protocol":    "GCHAT",
                 "timestamp":   msg.get("createTime"),
@@ -330,13 +330,13 @@ class GoogleChatBridge(BridgeAdapter):
             )
             normalized = {
                 "id":        msg.get("name"),
-                "from":      payload.get("user", {}).get("name"),
+                "from_id":   payload.get("user", {}).get("name"),
+                "chat_id":   space.get("name"),
                 "body":      f"[Card Action: {action.get('actionMethodName')}]",
-                "space":     space.get("name"),
                 "protocol":  "GCHAT",
                 "type":      "card_click",
                 "action":    action,
-                "timestamp": str(int(time.time())),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
             await self._dispatch_inbound(normalized)
             return normalized

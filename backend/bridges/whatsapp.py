@@ -301,14 +301,14 @@ class WhatsAppBridge(BridgeAdapter):
 
                         normalized = {
                             "id":         msg.get("id"),
-                            "from":       sender,
+                            "from_id":    sender,
+                            "chat_id":    sender,
                             "body":       body,
                             "type":       msg_type,
-                            "timestamp":  msg.get("timestamp"),
+                            "timestamp":  datetime.fromtimestamp(int(msg.get("timestamp", 0)), tz=timezone.utc).isoformat() if msg.get("timestamp") else datetime.now(timezone.utc).isoformat(),
                             "account_id": self.phone_number_id,
                             "protocol":   "WHATSAPP",
                             "media":      media_info or None,
-                            "raw":        msg,
                         }
                         results.append(normalized)
                         await self._dispatch_inbound(normalized)
