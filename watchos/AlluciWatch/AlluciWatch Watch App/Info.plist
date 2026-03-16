@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+
+    <!-- App identity -->
+    <key>CFBundleDevelopmentRegion</key>
+    <string>$(DEVELOPMENT_LANGUAGE)</string>
+
+    <key>CFBundleDisplayName</key>
+    <string>Alluci</string>
+
+    <key>CFBundleExecutable</key>
+    <string>$(EXECUTABLE_NAME)</string>
+
+    <key>CFBundleIdentifier</key>
+    <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+
+    <key>CFBundleName</key>
+    <string>$(PRODUCT_NAME)</string>
+
+    <key>CFBundlePackageType</key>
+    <string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
+
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+
+    <key>CFBundleVersion</key>
+    <string>1</string>
+
+    <!-- Required: HealthKit privacy usage descriptions.
+         Apple's privacy framework reads these strings and displays them
+         in the system permission dialog when requestAuthorization is called.
+         Without both keys the app crashes immediately at the authorization call. -->
+
+    <!-- Shown when requesting READ access to health data -->
+    <key>NSHealthShareUsageDescription</key>
+    <string>Alluci reads Heart Rate and HRV to adapt your AI agent to
+your physiological state in real time.</string>
+
+    <!-- Shown when requesting WRITE access (we request none, but the
+         key must still be present or the system authorization call fails) -->
+    <key>NSHealthUpdateUsageDescription</key>
+    <string>Alluci does not write health data.</string>
+
+    <!-- watchOS app marker -->
+    <key>WKWatchKitApp</key>
+    <true/>
+
+</dict>
+</plist>
