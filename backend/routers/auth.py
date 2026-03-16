@@ -4,7 +4,7 @@ from typing import Dict, Any
 import hmac
 from ..config import settings
 from ..models import LoginRequest
-from ..security.auth import create_access_token
+from ..security.auth import create_access_token, verify_authenticated
 from ..security.verusid_auth import verus_auth
 from fastapi_limiter.depends import RateLimiter
 from ..logging_config import get_logger
