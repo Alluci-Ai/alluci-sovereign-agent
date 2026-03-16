@@ -126,6 +126,12 @@ async def init_services(app_instance):
     orchestrator.ws_gateway = ws_gw
     router.ws_gateway = ws_gw
 
+    # Register MemoryAdapter with the live MemoryManager instance.
+    # Must happen after orchestrator (and thus adapter_registry) is created.
+    from .adapters.memory_adapter import MemoryAdapter
+    orchestrator.adapter_registry.register(MemoryAdapter(memory))
+    logger.info("[ ADAPTERS ] MemoryAdapter registered — memory_search/memory_store tools active.")
+
     # 14. Self-Update Manager
     await updater.start()
 

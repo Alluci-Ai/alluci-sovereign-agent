@@ -20,10 +20,20 @@ class DocumentIngestAdapter(Adapter):
         self.memory_manager = memory_manager
         self.logger = get_logger("DocumentIngestAdapter")
 
-    async def execute(self, file_path: str) -> Dict[str, Any]:
+    async def execute(self, args: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Reads a document, chunks it, and stores it in memory.
+        Reads a document, chunks it, and stores each chunk in long-term memory.
+
+        args:
+            file_path (str): Absolute or relative path to the file to ingest.
+                             Also accepted as 'path' for convenience.
         """
+        # Accept both 'file_path' and 'path' keys for flexibility
+        file_path = args.get("file_path") or args.get("path") if isinstance(args, dict) else str(args)
+
+        if not file_path:
+            return {"status": "error", "message": "No 'file_path' provided in args."}
+
         try:
             if not os.path.exists(file_path):
                 return {"status": "error", "message": f"File not found: {file_path}"}
@@ -34,34 +44,48 @@ class DocumentIngestAdapter(Adapter):
             if ext == ".pdf":
                 reader = PdfReader(file_path)
                 for page in reader.pages:
-                    text += page.extract_text() + "\n"
+                    extracted = page.extract_text()
+                    if extracted:
+                        text += extracted + "\n"
             elif ext == ".docx":
                 doc = Document(file_path)
                 for para in doc.paragraphs:
-                    text += para.text + "\n"
+                    if para.text.strip():
+                        text += para.text + "\n"
             elif ext == ".txt":
                 with open(file_path, "r", encoding="utf-8") as f:
                     text = f.read()
             else:
-                return {"status": "error", "message": f"Unsupported file type: {ext}"}
+                return {"status": "error", "message": f"Unsupported file type: {ext}. Supported: .pdf, .docx, .txt"}
 
-            # Simple chunking (e.g., by paragraph or 1000 characters)
+            if not text.strip():
+                return {"status": "error", "message": f"No extractable text found in {file_path}"}
+
             chunks = self._chunk_text(text)
+            filename = os.path.basename(file_path)
+
             for i, chunk in enumerate(chunks):
-                chunk_id = f"{os.path.basename(file_path)}_{i}"
+                # store(content, metadata) — content is the chunk text, metadata is the provenance
                 await self.memory_manager.store(
-                    chunk_id, 
-                    chunk, 
-                    {"source": file_path, "type": ext[1:]}
+                    content=chunk,
+                    metadata={
+                        "source": file_path,
+                        "filename": filename,
+                        "file_type": ext[1:],
+                        "chunk_index": i,
+                        "total_chunks": len(chunks),
+                    },
                 )
 
+            self.logger.info(f"[ DOC_INGEST ] Ingested {len(chunks)} chunks from '{filename}'")
             return {
                 "status": "success",
-                "message": f"Ingested {len(chunks)} chunks from {file_path}",
-                "chunks_count": len(chunks)
+                "message": f"Ingested {len(chunks)} chunks from {filename}",
+                "chunks_count": len(chunks),
+                "file_path": file_path,
             }
         except Exception as e:
-            self.logger.error(f"Document ingestion failed: {e}")
+            self.logger.error(f"Document ingestion failed for '{file_path}': {e}")
             return {"status": "error", "message": str(e)}
 
     def _chunk_text(self, text: str, chunk_size: int = 1000) -> List[str]:

@@ -1,5 +1,6 @@
 
 import os
+import asyncio
 import logging
 from ..logging_config import get_logger
 from typing import List, Dict, Any, Optional
@@ -43,68 +44,78 @@ class MemoryManager:
             self.fts_manager = FTSMemoryManager(self.persist_directory)
             self.collection = None
 
-    async def store(self, content: str, metadata: Dict[str, Any] = None):
+    async def store(self, content: str, metadata: Dict[str, Any] = None) -> str:
         """Stores a new memory fragment with semantic embeddings or FTS."""
         if self.lite_mode:
             return await self.fts_manager.store(content, metadata)
-        
+
         import uuid
         mem_id = str(uuid.uuid4())
-        meta = metadata or {}
-        meta["timestamp"] = datetime.now().isoformat()
-        
-        # In a real system, we'd use a local embedding model (e.g., SentenceTransformers)
-        # ChromaDB by default uses 'all-MiniLM-L6-v2' if no embedding function is provided.
-        # This will download the model on first use (~80MB).
-        
-        self.collection.add(
+        meta = {**(metadata or {}), "timestamp": datetime.now().isoformat()}
+
+        # ChromaDB is synchronous and CPU/IO-bound — run in thread pool to avoid
+        # blocking the asyncio event loop. ChromaDB uses 'all-MiniLM-L6-v2' by default
+        # (downloads ~80MB on first use if not already cached).
+        await asyncio.to_thread(
+            self.collection.add,
             documents=[content],
             metadatas=[meta],
-            ids=[mem_id]
+            ids=[mem_id],
         )
-        logger.info(f"[ MEMORY ] Stored memory fragment: {mem_id[:8]}...")
+        logger.info(f"[ MEMORY ] Stored fragment: {mem_id[:8]}...")
         return mem_id
 
     async def search(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
-        """Performs semantic search or keyword search across the memory manifold."""
+        """Performs semantic search across the memory manifold."""
         if self.lite_mode:
             return await self.fts_manager.search(query, limit)
-            
-        results = self.collection.query(
+
+        results = await asyncio.to_thread(
+            self.collection.query,
             query_texts=[query],
-            n_results=limit
+            n_results=limit,
         )
-        
+
         memories = []
-        if results["documents"]:
-            for i in range(len(results["documents"][0])):
-                memories.append({
-                    "id": results["ids"][0][i],
-                    "content": results["documents"][0][i],
-                    "metadata": results["metadatas"][0][i],
-                    "distance": results["distances"][0][i]
-                })
+        docs = results.get("documents", [[]])[0]
+        ids = results.get("ids", [[]])[0]
+        metas = results.get("metadatas", [[]])[0]
+        dists = results.get("distances", [[None] * len(docs)])[0]
+
+        for doc, mem_id, meta, dist in zip(docs, ids, metas, dists):
+            memories.append({
+                "id": mem_id,
+                "content": doc,
+                "metadata": meta,
+                "distance": dist,
+            })
         return memories
 
     async def get_recent(self, limit: int = 100) -> List[Dict[str, Any]]:
-        """Retrieves recent memories (raw get)."""
+        """Retrieves recent memories (raw get, no semantic ranking)."""
         if self.lite_mode:
             return await self.fts_manager.get_recent(limit)
-            
-        results = self.collection.get(limit=limit)
+
+        results = await asyncio.to_thread(self.collection.get, limit=limit)
+
         memories = []
-        if results["documents"]:
-            for i in range(len(results["documents"])):
-                memories.append({
-                    "id": results["ids"][i],
-                    "content": results["documents"][i],
-                    "metadata": results["metadatas"][i]
-                })
+        docs = results.get("documents") or []
+        ids = results.get("ids") or []
+        metas = results.get("metadatas") or []
+
+        for doc, mem_id, meta in zip(docs, ids, metas):
+            memories.append({"id": mem_id, "content": doc, "metadata": meta})
         return memories
 
-    async def delete(self, memory_id: str):
+    async def delete(self, memory_id: str) -> bool:
+        """Delete a specific memory fragment by its ID."""
         if self.lite_mode:
-            return await self.fts_manager.delete(memory_id)
-            
-        self.collection.delete(ids=[memory_id])
-        logger.info(f"[ MEMORY ] Deleted memory fragment: {memory_id}")
+            return await self.fts_manager.delete(memory_id) if hasattr(self.fts_manager, "delete") else False
+
+        try:
+            await asyncio.to_thread(self.collection.delete, ids=[memory_id])
+            logger.info(f"[ MEMORY ] Deleted fragment: {memory_id}")
+            return True
+        except Exception as e:
+            logger.error(f"[ MEMORY ] Delete failed for {memory_id}: {e}")
+            return False
