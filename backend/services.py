@@ -206,6 +206,10 @@ async def _init_channels(vault_root: str):
     from .bridges.msteams import MSTeamsBridge
     from .bridges.wechat import WeChatBridge
     from .bridges.iwatch import IWatchBridge
+    from .bridges.icloud import ICloudBridge
+    from .bridges.gmail import GmailBridge
+    from .bridges.gdrive import GDriveBridge
+    from .bridges.webchat import WebChatBridge
 
     async def broadcast_bridge_event(event: str, data: Any):
         if ws_gw:
@@ -226,6 +230,10 @@ async def _init_channels(vault_root: str):
     channel_registry["msteams"] = MSTeamsBridge("msteams", vault_root, vault_manager=vault)
     channel_registry["wechat"] = WeChatBridge("wechat", vault_root, vault_manager=vault)
     channel_registry["iwatch"] = IWatchBridge("iwatch", vault_root, vault_manager=vault)
+    channel_registry["icloud"] = ICloudBridge("icloud", vault_root, vault_manager=vault)
+    channel_registry["gmail"] = GmailBridge("gmail", vault_root, vault_manager=vault)
+    channel_registry["gdrive"] = GDriveBridge("gdrive", vault_root, vault_manager=vault)
+    channel_registry["webchat"] = WebChatBridge("webchat", vault_root, vault_manager=vault)
 
     for ch_name, adapter in channel_registry.items():
         if hasattr(adapter, "on_event"):

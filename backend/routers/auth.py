@@ -23,7 +23,14 @@ import secrets
 import os
 import urllib.parse
 
+from fastapi_csrf_protect import CsrfProtect
 router = APIRouter(tags=["Authentication"])
+
+@router.get("/auth/csrf-token")
+async def get_csrf_token(csrf_protect: CsrfProtect = Depends()):
+    """Generates a CSRF token for the frontend to include in subsequent mutations."""
+    token, result = csrf_protect.generate_csrf_tokens()
+    return {"status": "SUCCESS", "token": token}
 
 @router.post("/auth/login", dependencies=[Depends(RateLimiter(times=5, minutes=1))])
 async def login(response: Response, payload: LoginRequest):

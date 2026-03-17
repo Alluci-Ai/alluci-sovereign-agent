@@ -91,7 +91,7 @@ class GuardrailScanner:
             return True, ""
         except Exception as e:
             self.logger.error(f"Guardrail input scan failed: {e}")
-            return True, "" # Fallback to open
+            return False, "Guardrail internal error: blocking input for safety."
 
     async def scan_output(self, text: str, active_secrets: List[str] = None) -> Tuple[bool, str]:
         """
@@ -120,4 +120,4 @@ class GuardrailScanner:
             return True, ""
         except Exception as e:
             self.logger.error(f"Guardrail output scan failed: {e}")
-            return True, ""
+            return False, "Sovereign Safety Gate: Output rejected due to scanner failure."

@@ -1,15 +1,26 @@
 
 import logging
 import contextlib
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, Response, Depends
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, Response, Depends, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi_limiter.depends import RateLimiter
+from secure import Secure
+
 from .config import settings
 from .logging_config import get_logger
 
 logger = get_logger("PolytopeApp")
 from . import services
 from .routers import auth, objectives, telemetry, system, vault, channels, voice, crons, wallet, sessions, config, soul, exec_approval, tasks, dag, websockets, memory, goals, sop
+from .security import csrf # Initialize CSRF config
+from .engine.errors import AdapterError
+
+@app.exception_handler(AdapterError)
+async def adapter_exception_handler(request: Request, exc: AdapterError):
+    return JSONResponse(
+        status_code=500,
+        content={"status": "error", "message": f"Tool Execution Failed: {str(exc)}"},
+    )
 
 async def global_rate_limit(request: Request, response: Response):
     """
@@ -73,6 +84,17 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# SEC-002: Security Headers (HSTS, NoSniff, XSS Protection)
+secure_headers = Secure.with_default_headers()
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    secure_headers.framework.fastapi(response)
+    # Custom HSTS for production
+    if settings.APP_ENV == "production":
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
 
 # Register Routers (Versioned API)
 app.include_router(auth.router, prefix="/api/v1")

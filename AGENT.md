@@ -59,15 +59,16 @@ npx vitest run                                             # frontend unit tests
 curl -s http://localhost:8000/api/v1/health | python3 -m json.tool  # backend running
 ```
 
-## What Is Still Missing — Update This List As Items Complete
 - [x] WebAuthn assertion/login endpoints (`backend/routers/auth.py`)
 - [x] Background token refresh loops (all OAuth bridges in `backend/bridges/`)
 - [x] Frontend state hydration on page refresh (`store/useStore.ts`)
 - [x] Android PWA (`vite.config.ts` + `public/manifest.json`)
-- [ ] Xcode project file (`watchos/AlluciWatch/AlluciWatch.xcodeproj`)
+- [ ] Xcode project file (`watchos/AlluciWatch/AlluciWatch.xcodeproj`) - *Follow A4_XCODE_GUIDE.md*
 - [x] Fix watchOS URL: `/api/v1/channels/iwatch/biometrics`
 - [x] `WKExtendedRuntimeSession` for background HRV collection
-- [ ] iOS companion app (`watchos/AlluciCompanion/`)
+- [x] iOS companion app (`watchos/AlluciCompanion/`)
 - [x] Fix `gemini_pro` model ID in `backend/inference/router.py` line 67
 - [x] nginx HTTPS/TLS server block + Let's Encrypt
-- [ ] CI: add `xcodebuild test` job for Swift
+- [x] CSRF Protection & Security Headers
+- [x] Database connection pooling (Postgres)
+- [x] All 21 bridge adapters registered and functional

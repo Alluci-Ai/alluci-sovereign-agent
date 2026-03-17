@@ -19,12 +19,25 @@ if "sqlite" in db_url:
     connect_args["check_same_thread"] = False
 
 # Create the primary sync engine
-engine = create_engine(
-    db_url,
-    connect_args=connect_args,
-    pool_pre_ping=True,
-    echo=False,
-)
+if "sqlite" in db_url:
+    engine = create_engine(
+        db_url,
+        connect_args=connect_args,
+        pool_pre_ping=True,
+        echo=False,
+    )
+else:
+    # Production pooling for Postgres
+    engine = create_engine(
+        db_url,
+        connect_args=connect_args,
+        pool_size=10,
+        max_overflow=20,
+        pool_timeout=30,
+        pool_recycle=1800,
+        pool_pre_ping=True,
+        echo=False,
+    )
 
 def _enable_wal_mode():
     """Enable Write-Ahead Logging for SQLite — crucial for concurrent bridge activity."""
