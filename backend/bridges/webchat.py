@@ -18,7 +18,6 @@ class WebChatBridge(BridgeAdapter):
         self.browser = None
         self.context = None
         self.playwright = None
-        self.state_file = os.path.join(self.vault_path, "state.json")
 
     async def connect(self, credentials: Dict[str, Any]) -> bool:
         self.target_url = credentials.get("target_url")
@@ -26,12 +25,12 @@ class WebChatBridge(BridgeAdapter):
             self.logger.error("No target_url provided for WebChatBridge.")
             return False
             
-        # Check if we have a saved state
-        if os.path.exists(self.state_file):
-            self.is_connected = True
-            self.logger.info(f"WebChat session ready for {self.target_url} (with saved state)")
+        # Check if we have a saved state in the vault
+        state = await self.vault_manager.retrieve_connection_secret(self.bridge_id, "playwright_state")
+        self.is_connected = state is not None
+        if self.is_connected:
+            self.logger.info(f"WebChat session ready for {self.target_url} (vault state active)")
         else:
-            self.is_connected = False
             self.logger.info(f"WebChat session ready for {self.target_url} (pending capture)")
         
         return True
@@ -41,10 +40,12 @@ class WebChatBridge(BridgeAdapter):
             self.playwright = await async_playwright().start()
             self.browser = await self.playwright.chromium.launch(headless=True)
             
-            # Load context with state if exists
+            # Load context with state from vault if exists
             storage_state = None
-            if os.path.exists(self.state_file):
-                storage_state = self.state_file
+            state = await self.vault_manager.retrieve_connection_secret(self.bridge_id, "playwright_state")
+            if state:
+                # Playwright expects a path or a dict
+                storage_state = state
                 
             self.context = await self.browser.new_context(storage_state=storage_state)
 
@@ -56,14 +57,14 @@ class WebChatBridge(BridgeAdapter):
             
             # Launch non-headless so user can see it
             browser = await self.playwright.chromium.launch(headless=False)
-            context = await browser.new_context()
+            
+            # Load existing state if available
+            state = await self.vault_manager.retrieve_connection_secret(self.bridge_id, "playwright_state")
+            context = await browser.new_context(storage_state=state)
+            
             page = await context.new_page()
             await page.goto(url)
             
-            # We don't close it yet; the user needs it to log in.
-            # In a real production environment, we'd need to track this browser instance.
-            # For a local sovereign agent, this is sufficient to let the user log in.
-            # We'll store it so we can capture it later.
             self.browser = browser
             self.context = context
             return {"status": "SUCCESS", "message": "Browser launched. Please log in."}
@@ -78,8 +79,9 @@ class WebChatBridge(BridgeAdapter):
         
         try:
             state = await self.context.storage_state()
-            with open(self.state_file, "w") as f:
-                json.dump(state, f)
+            # Store in vault (AES-256 encrypted)
+            await self.vault_manager.store_connection_secret(self.bridge_id, "playwright_state", state)
+            
             self.is_connected = True
             
             # Close browser after capture
@@ -109,8 +111,6 @@ class WebChatBridge(BridgeAdapter):
     async def send(self, recipient: str, content: str, **kwargs) -> Dict[str, Any]:
         """
         Generic send for WebChat. 
-        Highly site-specific logic normally belongs in a specialized bridge, 
-        but we provide a generic 'type into selector' fallback.
         """
         if not self.is_connected:
             return {"status": "failed", "error": "Not connected"}
@@ -123,8 +123,11 @@ class WebChatBridge(BridgeAdapter):
             await page.wait_for_selector(selector, timeout=10000)
             await page.fill(selector, content)
             await page.keyboard.press("Enter")
-            # Save state after interaction in case of new cookies/tokens
-            await self.context.storage_state(path=self.state_file)
+            
+            # Save state into vault after interaction in case of new cookies/tokens
+            state = await self.context.storage_state()
+            await self.vault_manager.store_connection_secret(self.bridge_id, "playwright_state", state)
+            
             return {"status": "success"}
         except Exception as e:
             self.logger.error(f"WebChat send failed: {e}")
@@ -136,11 +139,11 @@ class WebChatBridge(BridgeAdapter):
         return await self.send(recipient, content)
 
     async def fetch_unread(self, limit: int = 10) -> List[Dict[str, Any]]:
-        # Generic unread fetch is hard without specific selector logic
         return []
 
     async def validate_integrity(self) -> bool:
-        return self.is_connected and os.path.exists(self.state_file)
+        state = await self.vault_manager.retrieve_connection_secret(self.bridge_id, "playwright_state")
+        return self.is_connected and state is not None
 
     async def disconnect(self):
         if self.browser:

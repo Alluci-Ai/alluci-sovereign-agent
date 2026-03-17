@@ -1,3 +1,9 @@
+try:
+    import torch
+    HAS_TORCH = True
+except ImportError:
+    HAS_TORCH = False
+
 import pytest
 import asyncio
 import os
@@ -37,6 +43,8 @@ async def test_full_phase1_flow(monkeypatch, tmp_path):
     orchestrator = ExecutiveOrchestrator(router, vault, ace, settings, vault_root=vroot)
     orchestrator.ppn = MagicMock()
     # PPN Return: G, D, B, Points, Phi, Budget, Coherence, Shift
+    if not HAS_TORCH:
+        pytest.skip("PyTorch not installed")
     import torch
     orchestrator.ppn.return_value = (MagicMock(), MagicMock(), torch.tensor([1,1,1]), MagicMock(), 0.1, 0.1, 0.9, 0.0)
     orchestrator.ppn.extract_simplex_counts.return_value = (10, 20, 10)

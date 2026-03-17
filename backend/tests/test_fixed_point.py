@@ -1,4 +1,5 @@
-import torch
+import pytest
+torch = pytest.importorskip("torch")
 from backend.inference.ppn import PPNEmbeddingModule
 
 def test_fixed_point_normalization():

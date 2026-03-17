@@ -1,4 +1,8 @@
-import torch
+try:
+    import torch
+    HAS_TORCH = True
+except ImportError:
+    HAS_TORCH = False
 import pytest
 from backend.ace.affect_kernel import AffectKernel, AffectiveState
 
@@ -46,6 +50,7 @@ def test_affect_kernel_clamping():
     val = kernel.apply(10.0, state)
     assert -16.0 <= val <= 16.0 # 32767 / 2048 approx 15.99
 
+@pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
 def test_affect_kernel_tensor():
     kernel = AffectKernel()
     state = AffectiveState(valence=512.0, arousal=0.0, tension=1024.0)

@@ -77,5 +77,6 @@ prometheus-client==0.20.0
 fastapi-csrf-protect==1.0.7
 secure==1.0.1
 zeroconf==0.148.0
+--extra-index-url https://download.pytorch.org/whl/cpu
 torch>=2.0.0
 PyYAML>=6.0.0

@@ -1,4 +1,5 @@
-import torch
+import pytest
+torch = pytest.importorskip("torch")
 from backend.inference.kcm import KCMGeodesicCost
 
 def test_kcm_cost_basic():

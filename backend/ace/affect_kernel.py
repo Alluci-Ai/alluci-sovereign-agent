@@ -1,5 +1,9 @@
 from dataclasses import dataclass
-import torch
+try:
+    import torch
+    HAS_TORCH = True
+except ImportError:
+    HAS_TORCH = False
 
 
 @dataclass
@@ -50,8 +54,10 @@ class AffectKernel:
 
         return final / float(self.SCALE)
 
-    def apply_tensor(self, t: torch.Tensor, state: AffectiveState) -> torch.Tensor:
+    def apply_tensor(self, t: 'torch.Tensor', state: AffectiveState) -> 'torch.Tensor':
         """Batch-apply deformation to an entire embedding tensor."""
+        if not HAS_TORCH:
+            raise ImportError("PyTorch required for apply_tensor. Install 'torch' to enable tensor deformation.")
         # Optimization: use vectorized torch operations if possible, 
         # but the spec provides a scalar loop for precision matching with C++ ref.
         # However, for performance on tensors, we should vectorize.
