@@ -17,12 +17,12 @@ def test_bridge_endpoints_registered():
     # We can't easily test the full flow without a real token, 
     # but we can check if the routes exist.
     routes = [route.path for route in app.routes]
-    assert "/api/channels/{channel_id}/send" in routes
-    assert "/api/channels/{channel_id}/upload" in routes
-    assert "/api/channels/{channel_id}/health" in routes
-    assert "/api/channels/{channel_id}/unread" in routes
-    assert "/api/channels/{channel_id}/social" in routes
-    assert "/api/channels/{channel_id}/enterprise" in routes
+    assert "/api/v1/channels/{channel_id}/send" in routes
+    assert "/api/v1/channels/{channel_id}/upload" in routes
+    assert "/api/v1/channels/{channel_id}/health" in routes
+    assert "/api/v1/channels/{channel_id}/unread" in routes
+    assert "/api/v1/channels/{channel_id}/social" in routes
+    assert "/api/v1/channels/{channel_id}/enterprise" in routes
 
 def test_bridge_actualization_mapping(monkeypatch):
     from unittest.mock import MagicMock

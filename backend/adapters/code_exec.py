@@ -17,10 +17,12 @@ class CodeExecAdapter(Adapter):
         self.timeout = timeout
         self.logger = get_logger("CodeExecAdapter")
 
-    async def execute(self, code: str, language: str = "python") -> Dict[str, Any]:
+    async def execute(self, args: Dict[str, Any]) -> Dict[str, Any]:
         """
         Executes code and captures output.
         """
+        code = args.get("code", "")
+        language = args.get("language", "python")
         try:
             if language == "python":
                 cmd = ["python3", "-c", code]

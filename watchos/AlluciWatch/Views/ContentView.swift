@@ -57,9 +57,9 @@ struct ContentView: View {
     func toggleMonitoring() {
         isMonitoring.toggle()
         if isMonitoring {
-            hk.startBackgroundCollection { _ in
-                sendUpdate()
-            }
+            hk.startBackgroundCollection()
+            // In background mode, let's trigger an immediate update
+            sendUpdate()
         } else {
             hk.stopBackgroundCollection()
         }

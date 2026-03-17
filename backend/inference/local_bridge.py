@@ -62,18 +62,16 @@ class LocalInferenceBridge:
     async def transcribe(self, audio_data: bytes) -> str:
         """
         Transcribes a chunk of audio using whisper.cpp.
-        In a full implementation, this would pipe to a long-running whisper process.
-        For now, we use a temporary file approach for stability.
+        Uses a temporary file to avoid race conditions in multi-user environments.
         """
-        tmp_wav = "/tmp/aspiration_chunk.wav"
-        with open(tmp_wav, "wb") as f:
-            f.write(audio_data)
+        import tempfile
+        
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+            tmp.write(audio_data)
+            tmp_wav = tmp.name
             
         cmd = [self.whisper_path, "-m", "models/ggml-small.en.bin", "-f", tmp_wav, "-otxt"]
-        if self.is_apple_silicon:
-            # Metal is usually auto-enabled in recent whisper.cpp builds on Mac
-            pass
-            
+        
         try:
             process = await asyncio.create_subprocess_exec(
                 *cmd,
@@ -86,11 +84,16 @@ class LocalInferenceBridge:
                 txt_path = tmp_wav + ".txt"
                 if os.path.exists(txt_path):
                     with open(txt_path, "r") as f:
-                        return f.read().strip()
+                        result = f.read().strip()
+                    os.remove(txt_path)
+                    return result
             return ""
         except Exception as e:
             logger.error(f"Whisper ASR Error: {e}")
             return ""
+        finally:
+            if os.path.exists(tmp_wav):
+                os.remove(tmp_wav)
 
     async def chat_ollama(self, prompt: str, model: str = None) -> AsyncGenerator[str, None]:
         """

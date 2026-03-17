@@ -42,7 +42,9 @@ async def lifespan(app: FastAPI):
         
         from .security.credential_store import credential_store
         await credential_store.load_from_vault()
-        logger.info("[ WEBAUTHN ] Credentials loaded from vault.")
+        from .security.verusid_auth import verus_auth
+        verus_auth._redis = services.redis_client
+        logger.info("[ VERUSID ] Challenge store backed by Redis.")
         
     yield
     await services.shutdown_services()
@@ -83,9 +85,6 @@ app.include_router(goals.router, prefix="/api/v1")
 app.include_router(sop.router, prefix="/api/v1")
 app.include_router(vault.router, prefix="/api/v1")
 app.include_router(channels.router, prefix="/api/v1")
-# Also mount at /api (without /v1) so test_phase0 route assertions pass
-# and legacy frontend code calling /api/channels/... continues to work.
-app.include_router(channels.router, prefix="/api")
 app.include_router(voice.router, prefix="/api/v1")
 app.include_router(crons.router, prefix="/api/v1")
 app.include_router(wallet.router, prefix="/api/v1")

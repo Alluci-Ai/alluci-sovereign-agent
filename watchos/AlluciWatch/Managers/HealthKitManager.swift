@@ -30,14 +30,27 @@ class HealthKitManager: ObservableObject {
     
     func startBackgroundCollection() {
         // 1. Start Heart Rate Observer Query
-        startHeartRateQuery { _ in }
+        startHeartRateQuery { hr in
+            // Handle update if needed
+        }
         
         // 2. Start HRV Anchored Object Query
         startHRVQuery()
         
-        // 3. Keep app alive in background
-        runtimeSession = WKExtendedRuntimeSession()
-        runtimeSession?.start()
+        // 3. Keep app alive in background — extended session
+        if runtimeSession == nil {
+            runtimeSession = WKExtendedRuntimeSession()
+            runtimeSession?.start()
+        }
+    }
+    
+    func stopBackgroundCollection() {
+        // Stop extended session
+        runtimeSession?.invalidate()
+        runtimeSession = nil
+        
+        // Note: HealthKit observer queries continue but with less frequency
+        // if the app is truly suspended.
     }
     
     func startHeartRateQuery(onUpdate: @escaping (Int) -> Void) {

@@ -50,6 +50,31 @@ async def connect_channel(channel_id: str):
         return await adapter.connect()
     raise HTTPException(status_code=501, detail="Direct connect not supported")
 
+@router.put("/channels/{channel_id}/toggle", dependencies=[Depends(verify_authenticated)])
+async def toggle_channel(channel_id: str):
+    """
+    Connect or disconnect a bridge channel.
+    Called by App.tsx [disconnectBridge]
+    """
+    adapter = services.channel_registry.get(channel_id)
+    if not adapter:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    
+    if getattr(adapter, "is_connected", False):
+        if hasattr(adapter, "disconnect"):
+            await adapter.disconnect()
+            return {"status": "SUCCESS", "message": f"Disconnected {channel_id}"}
+        else:
+            # Fallback for adapters that don't have explicit disconnect
+            setattr(adapter, "is_connected", False)
+            return {"status": "SUCCESS", "message": f"Disabled {channel_id} (simulated)"}
+    else:
+        if hasattr(adapter, "connect"):
+            await adapter.connect()
+            return {"status": "SUCCESS", "message": f"Connected {channel_id}"}
+        else:
+            raise HTTPException(status_code=501, detail="Connect not supported")
+
 # ── Core Channel Dispatch Routes ─────────────────────────────────────────────
 # These are the primary routes called by the frontend (bridgeManager.ts) and
 # asserted by test_phase0.py. They must exist at both /api/v1/channels/... and

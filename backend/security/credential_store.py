@@ -75,8 +75,10 @@ class CredentialStore:
             self._cache[credential_id]["sign_count"] = new_count
             await self._persist()
 
-    def list_credentials(self) -> list:
-        """Return all registered credential IDs."""
+    async def list_credentials(self) -> list:
+        """Return all registered credential IDs, ensuring cache is loaded."""
+        if not self._cache:
+            await self.load_from_vault()
         return list(self._cache.keys())
 
 

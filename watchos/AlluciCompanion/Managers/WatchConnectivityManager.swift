@@ -25,10 +25,18 @@ class WatchConnectivityManager: NSObject, ObservableObject, WCSessionDelegate {
         session.activate()
     }
     
+    private let sender = TelemetrySender()
+    
     func session(_ session: WCSession, didReceiveMessage message: [String : Any]) {
         if let hr = message["hr"] as? Int, let hrv = message["hrv"] as? Int {
+            let sample = TelemetrySample(hr: hr, hrv: hrv)
             DispatchQueue.main.async {
-                self.lastReceivedVitals = TelemetrySample(hr: hr, hrv: hrv)
+                self.lastReceivedVitals = sample
+            }
+            
+            // Forward to backend
+            Task {
+                await sender.sendTelemetry(sample: sample)
             }
         }
     }
