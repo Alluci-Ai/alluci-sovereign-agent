@@ -3,6 +3,7 @@ from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Depends
 from ..models import TaskRecord as TaskRecordModel, TaskUpdate
 from ..security.auth import verify_authenticated
+from fastapi_csrf_protect import CsrfProtect
 from .. import services
 
 router = APIRouter(tags=["Task Management"])
@@ -13,13 +14,13 @@ async def get_tasks(status: str = "all", priority: str = None, timeline: str = N
         raise HTTPException(status_code=503, detail="Task manager not ready")
     return await services.task_manager.get_tasks(status, priority, timeline)
 
-@router.post("/tasks", dependencies=[Depends(verify_authenticated)])
+@router.post("/tasks", dependencies=[Depends(verify_authenticated), Depends(CsrfProtect().validate_csrf_in_cookies)])
 async def add_task(task: TaskUpdate):
     if not services.task_manager:
         raise HTTPException(status_code=503, detail="Task manager not ready")
     return await services.task_manager.add_task(task)
 
-@router.put("/tasks/{index}", dependencies=[Depends(verify_authenticated)])
+@router.put("/tasks/{index}", dependencies=[Depends(verify_authenticated), Depends(CsrfProtect().validate_csrf_in_cookies)])
 async def update_task(index: int, task: TaskUpdate):
     if not services.task_manager:
         raise HTTPException(status_code=503, detail="Task manager not ready")
@@ -28,7 +29,7 @@ async def update_task(index: int, task: TaskUpdate):
         raise HTTPException(status_code=404, detail="Task not found")
     return result
 
-@router.delete("/tasks/{index}", dependencies=[Depends(verify_authenticated)])
+@router.delete("/tasks/{index}", dependencies=[Depends(verify_authenticated), Depends(CsrfProtect().validate_csrf_in_cookies)])
 async def delete_task(index: int):
     if not services.task_manager:
         raise HTTPException(status_code=503, detail="Task manager not ready")

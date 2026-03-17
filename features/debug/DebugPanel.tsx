@@ -46,7 +46,6 @@ export const DebugPanel: React.FC = () => {
                     if (res.ok) {
                         const data = await res.json();
                         setStats(data.security_audit); // Contains summary
-                        // Usually audit ledger array is returned somewhere else or here, mock it falling back to summary for now
                         setAuditLedger(data.security_audit?.full_ledger || []);
                     }
                 } catch (err) {

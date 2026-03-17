@@ -1,4 +1,4 @@
-
+import os
 import logging
 from ..logging_config import get_logger
 from typing import Dict, Any, Callable
@@ -20,6 +20,9 @@ from ..bridges.webchat import WebChatBridge
 from ..bridges.wechat import WeChatBridge
 from ..bridges.iphone import IPhoneBridge
 from ..bridges.iwatch import IWatchBridge
+from ..bridges.signal import SignalBridge
+from ..bridges.google_chat import GoogleChatBridge
+from ..bridges.nostr import NostrBridge
 from ..engine.errors import AdapterError
 from ..security.vault import VaultManager
 from ..security.oauth_handler import OAuthHandler
@@ -66,7 +69,10 @@ class BridgeActualizationAdapter(Adapter):
             "imessage": IMessageBridge,
             "whatsapp": WhatsAppBridge,
             "iphone": IPhoneBridge,
-            "iwatch": IWatchBridge
+            "iwatch": IWatchBridge,
+            "signal": SignalBridge,
+            "google_chat": GoogleChatBridge,
+            "nostr": NostrBridge
         }
 
     async def execute(self, args: Dict[str, Any]) -> Any:
@@ -220,7 +226,6 @@ class BridgeActualizationAdapter(Adapter):
         if action == "start":
             relay_url = payload.get("relay_url")
             if relay_url:
-                import os
                 os.environ["TUNNEL_RELAY_URL"] = relay_url
             
             await self.tunnel_handler.start()

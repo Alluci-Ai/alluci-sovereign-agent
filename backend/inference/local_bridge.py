@@ -70,7 +70,12 @@ class LocalInferenceBridge:
             tmp.write(audio_data)
             tmp_wav = tmp.name
             
-        cmd = [self.whisper_path, "-m", "models/ggml-small.en.bin", "-f", tmp_wav, "-otxt"]
+        model_path = "models/ggml-small.en.bin"
+        if not os.path.exists(model_path):
+            logger.error(f"Whisper model missing at {model_path}. Transcribe failed.")
+            return ""
+            
+        cmd = [self.whisper_path, "-m", model_path, "-f", tmp_wav, "-otxt"]
         
         try:
             process = await asyncio.create_subprocess_exec(
@@ -146,6 +151,10 @@ class LocalInferenceBridge:
         """
         Synthesizes speech using Piper TTS.
         """
+        if not os.path.exists(self.voice_model):
+            logger.error(f"Piper model missing at {self.voice_model}. Synthesis failed.")
+            return b""
+            
         cmd = [
             self.piper_path,
             "--model", self.voice_model,

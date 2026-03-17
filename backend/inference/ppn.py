@@ -183,8 +183,21 @@ class PPNEmbeddingModule(nn.Module):
         coherence, h_norm, delta_b_norm = self.compute_coherence(G, B_curr, self._prev_betti)
         self._prev_betti = B_curr.detach().clone()
 
-        # 10. Placeholder for topic_shift (Sprint 3)
+        # 10. Topic Shift Detection (Sprint 3)
+        # Calculates semantic distance between current and previous latent state.
         topic_shift = False
+        if self._prev_D_t is not None:
+             # Flatten and compute cosine similarity of the deformation shift
+             # Low similarity (~0) implies a large structural change in the representation manifold.
+             curr_flat = D_t.view(-1)
+             prev_flat = self._prev_D_t.view(-1)
+             if curr_flat.norm() > 0 and prev_flat.norm() > 0:
+                 cos_sim = torch.nn.functional.cosine_similarity(curr_flat, prev_flat, dim=0).item()
+                 # Threshold 0.3 for a "Topic Shift"
+                 if cos_sim < 0.3:
+                     topic_shift = True
+                     logger = getattr(self, "logger", None)
+                     if logger: logger.info(f"🚨 [PPN]: Topic shift detected (sim={cos_sim:.4f})")
 
         return G, D_t, B_pred, final_config, phi_total, budget_used, coherence, h_norm, delta_b_norm, topic_shift
 

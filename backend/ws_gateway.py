@@ -287,9 +287,11 @@ class JsonRpcGateway:
         vault = self._service_refs.get("vault")
         audit_ledger = await vault.retrieve_secret("audit_ledger") or [] if vault else []
         
-        # Real-time Integrity Check (P1-S02)
+        # T-10: VDXF Integrity Hash (SHA256 of Audit Ledger as state-invariance proxy)
+        import hashlib
+        integrity_hash = hashlib.sha256(json.dumps(audit_ledger, sort_keys=True).encode()).hexdigest()
         integrity_ok = True
-        integrity_hash = "0x" + "0" * 40 # Placeholder for actual VDXF root hash
+        
         if vault and vault.vdxf:
             vault_state = await vault._get_full_vault_state()
             integrity_ok = await vault.vdxf.verify_integrity(vault_state)

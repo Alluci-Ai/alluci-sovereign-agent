@@ -210,6 +210,8 @@ async def _init_channels(vault_root: str):
     from .bridges.gmail import GmailBridge
     from .bridges.gdrive import GDriveBridge
     from .bridges.webchat import WebChatBridge
+    from .bridges.iphone import IPhoneBridge
+    from .bridges.verus_wallet import VerusWalletBridge
 
     async def broadcast_bridge_event(event: str, data: Any):
         if ws_gw:
@@ -234,6 +236,8 @@ async def _init_channels(vault_root: str):
     channel_registry["gmail"] = GmailBridge("gmail", vault_root, vault_manager=vault)
     channel_registry["gdrive"] = GDriveBridge("gdrive", vault_root, vault_manager=vault)
     channel_registry["webchat"] = WebChatBridge("webchat", vault_root, vault_manager=vault)
+    channel_registry["iphone"] = IPhoneBridge("iphone", vault_root, vault_manager=vault)
+    channel_registry["verus_wallet"] = VerusWalletBridge("verus_wallet", vault_root, vault_manager=vault)
 
     for ch_name, adapter in channel_registry.items():
         if hasattr(adapter, "on_event"):

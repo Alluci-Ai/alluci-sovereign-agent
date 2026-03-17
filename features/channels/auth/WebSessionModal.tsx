@@ -3,6 +3,7 @@ import { Connection } from '../../../types';
 import { SharedModalShell } from './SharedModalShell';
 import { activateBridge, saveBridgeCredentials } from '../../../lib/bridgeAuth';
 import { useStore } from '../../../store/useStore';
+import { DAEMON_URL } from '../../../usePolytopeAPI';
 
 export const WebSessionModal: React.FC<{
     connection: Connection;
@@ -27,8 +28,16 @@ export const WebSessionModal: React.FC<{
         setIsLoading(true);
         setError(null);
         try {
-            // Simulate firing headless chromium via playwright in the backend
-            await new Promise(r => setTimeout(r, 1500));
+            const res = await fetch(`${DAEMON_URL}/api/v1/channels/webchat/launch`, {
+                method: 'POST',
+                headers: { 
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ url: targetUrl }),
+                credentials: 'include'
+            });
+            if (!res.ok) throw new Error(await res.text());
             setIsLaunched(true);
         } catch (e: any) {
             setError(e.message || "Failed to launch browser instance");
@@ -41,15 +50,23 @@ export const WebSessionModal: React.FC<{
         setIsLoading(true);
         setError(null);
         try {
-            // Simulate capturing the storage_state and saving it AES-256
-            await new Promise(r => setTimeout(r, 1000));
+            const token = localStorage.getItem('alluci_daemon_token');
+            // Call real backend capture endpoint
+            // No more playwright_mock_!
+            const res = await fetch(`${DAEMON_URL}/api/channels/webchat/session/active/capture`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ 
+                    target_url: targetUrl,
+                    session_name: sessionName || 'Default Session'
+                })
+            });
 
-            const creds = {
-                target_url: targetUrl,
-                session_name: sessionName || 'Default Session',
-                session_id: 'playwright_mock_' + Date.now(),
-                captured_at: new Date().toISOString()
-            };
+            if (!res.ok) throw new Error(await res.text());
+            const creds = await res.json();
 
             const saved = await saveBridgeCredentials(bridgeId, creds, accessToken || "");
             if (!saved) throw new Error("Failed to secure browser session tokens");

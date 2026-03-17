@@ -3,6 +3,7 @@ import { Connection } from '../../../types';
 import { SharedModalShell } from './SharedModalShell';
 import { activateBridge, saveBridgeCredentials } from '../../../lib/bridgeAuth';
 import { useStore } from '../../../store/useStore';
+import { DAEMON_URL } from '../../../usePolytopeAPI';
 
 export const SecureTunnelModal: React.FC<{
     connection: Connection;
@@ -28,9 +29,16 @@ export const SecureTunnelModal: React.FC<{
         setIsLoading(true);
         setError(null);
         try {
-            // Simulate /api/channels/imessage/permission ping
-            await new Promise(r => setTimeout(r, 1200));
-            setHasCheckedPerms(true);
+            const res = await fetch(`${DAEMON_URL}/api/v1/channels/imessage/permission`, {
+                headers: { 'Authorization': `Bearer ${accessToken}` },
+                credentials: 'include'
+            });
+            const data = await res.json();
+            if (data.granted) {
+                setHasCheckedPerms(true);
+            } else {
+                setError(data.error || "Permission denied.");
+            }
         } catch (e) {
             setError("Failed to verify macOS permissions.");
         } finally {

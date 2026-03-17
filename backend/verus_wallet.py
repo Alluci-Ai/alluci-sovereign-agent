@@ -429,10 +429,10 @@ class VerusWalletService:
                     "from_currency": from_currency,
                     "to_currency": to_currency,
                     "amount": amount,
-                    "estimated_return": amount * 0.995,  # Mocked 0.5% AMM slippage/fee
+                    "estimated_return": amount,  # Actual rate calculated at block inclusion
                     "estimated": True,
                     "converters": len(converters),
-                    "note": "Exact rate determined at block inclusion time (MEV-resistant)",
+                    "note": "Exact rate including slippage and fees determined at block inclusion time (MEV-resistant)",
                 }
             return {"error": "No converters found for this pair"}
         except Exception as e:

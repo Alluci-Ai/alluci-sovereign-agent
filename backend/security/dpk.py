@@ -87,6 +87,18 @@ class DiscreteProjectionKernel:
             logger.error(f"[DPK] TOPOLOGY ERROR: Euler Mismatch. {chi} vs {betti_chi}")
             return False
         
+        # Coherence Gate (T-12 Fallback)
+        # If coherence drops below 0.3, the manifold is considered too fragmented to authorize.
+        if current.coherence < 0.3:
+            logger.error(f"[DPK] FRAGMENTATION ERROR: Low Coherence ({current.coherence:.3f}). Execution Blocked.")
+            return False
+
+        # Budget Gate
+        # Lipschitz budget exceeding 0.9 implies dangerous representation drift.
+        if current.budget_used > 0.9:
+            logger.warning(f"[DPK] BUDGET EXCEEDED: Lipschitz Drift ({current.budget_used:.3f}).")
+            return False
+
         if self.initialized and current.affective_tension_psi < 0.8:
             topology_shift = sum(abs(current.betti[i] - self.prev_state.betti[i]) for i in range(4))
             if topology_shift > self.TEARING_THRESHOLD * 10.0:

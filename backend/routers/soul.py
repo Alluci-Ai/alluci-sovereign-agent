@@ -7,6 +7,7 @@ from ..security.auth import verify_authenticated
 from ..models import SoulManifest, SoulPreferences
 from .. import services
 from fastapi_limiter.depends import RateLimiter
+from fastapi_csrf_protect import CsrfProtect
 from ..config import settings
 
 logger = get_logger("SoulRouter")
@@ -23,7 +24,7 @@ async def get_soul_manifest():
             return manifest
     return SoulManifest()
 
-@router.put("/soul/manifest", dependencies=[Depends(verify_authenticated), Depends(RateLimiter(times=settings.RATE_LIMIT_PER_MINUTE, seconds=60))])
+@router.put("/soul/manifest", dependencies=[Depends(verify_authenticated), Depends(RateLimiter(times=settings.RATE_LIMIT_PER_MINUTE, seconds=60)), Depends(CsrfProtect().validate_csrf_in_cookies)])
 async def update_soul_manifest(manifest: SoulManifest):
     """Updates the Soul Manifest."""
     if services.vault:
@@ -31,7 +32,7 @@ async def update_soul_manifest(manifest: SoulManifest):
         return {"status": "SUCCESS"}
     raise HTTPException(status_code=503, detail="Vault not ready")
 
-@router.post("/soul/preview", dependencies=[Depends(verify_authenticated), Depends(RateLimiter(times=5, seconds=60))])
+@router.post("/soul/preview", dependencies=[Depends(verify_authenticated), Depends(RateLimiter(times=5, seconds=60)), Depends(CsrfProtect().validate_csrf_in_cookies)])
 async def preview_soul_response(prompt: str = Body(...)):
     """Previews how the current soul manifest would respond to a prompt."""
     if not services.orchestrator:

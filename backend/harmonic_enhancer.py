@@ -167,7 +167,7 @@ class HarmonicAssistant:
         if ikigai_deficit:
             logger.info("PROTOCOL: Ikigai Alignment Triggered (Mapping Joy -> Love)")
 
-    def rank_actions(self, tasks: List[Any]) -> List[Any]:
+    def rank_actions(self, tasks: List[Any], psi: float = 0.5) -> List[Any]:
         """
         Enriches and sorts tasks based on Harmonic Priority Score.
         Tasks are expected to be DAGTask objects or dicts.
@@ -194,8 +194,11 @@ class HarmonicAssistant:
             # Novelty (Simulated by Prime check again for now, or random)
             novelty = 1.0 if W > 0.8 else 0.2
             
-            # Base Impact (Placeholder)
-            base_impact = 1.0
+            # Base Impact (T-10): Dynamic weighting based on relevance and tension
+            # Semantic relevance proxy: description length and keyword matching
+            desc_len = len(t_desc)
+            semantic_relevance = min(1.0, desc_len / 300.0) 
+            base_impact = (semantic_relevance * 0.7) + (psi * 0.3)
             
             # P = clamp(...) * FocusPenalty
             raw_p = (base_impact * 0.5) + (combined_score * 0.3) + (novelty * 0.2)

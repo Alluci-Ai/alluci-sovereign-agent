@@ -59,18 +59,7 @@ export const SessionsPanel: React.FC = () => {
     const handleNewSession = () => {
         const newKey = crypto.randomUUID();
         setActiveSessionKey(newKey);
-        // Add to local state immediately for UX
-        const stub = {
-            session_key: newKey,
-            agent_name: "New Sovereign Session",
-            channel_type: "internal",
-            total_input: 0,
-            total_output: 0,
-            total_cost: 0,
-            models: ["auto"],
-            thinking_level: "MEDIUM"
-        };
-        setSessions([stub, ...sessions]);
+        // Removed stub injection to ensure only real backend sessions are tracked
     };
 
     return (

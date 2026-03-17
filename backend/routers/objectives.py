@@ -9,12 +9,13 @@ from ..database import engine as db_engine
 from ..models import ObjectiveRequest, Run, TaskRecord as TaskRecordModel, TaskUpdate
 from ..security.auth import verify_authenticated
 from ..security.utils import sanitize_input
+from fastapi_csrf_protect import CsrfProtect
 from .. import services
 from fastapi_limiter.depends import RateLimiter
 
 router = APIRouter(tags=["Objectives & Tasks"])
 
-@router.post("/objective/execute", dependencies=[Depends(verify_authenticated), Depends(RateLimiter(times=settings.RATE_LIMIT_PER_MINUTE, seconds=60))])
+@router.post("/objective/execute", dependencies=[Depends(verify_authenticated), Depends(RateLimiter(times=settings.RATE_LIMIT_PER_MINUTE, seconds=60)), Depends(CsrfProtect().validate_csrf_in_cookies)])
 async def execute_objective(req: ObjectiveRequest):
     if not services.orchestrator:
         raise HTTPException(status_code=503, detail="Orchestrator not ready")

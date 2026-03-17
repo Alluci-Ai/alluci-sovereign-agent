@@ -4,6 +4,7 @@ import { SharedModalShell } from './SharedModalShell';
 import { activateBridge, saveBridgeCredentials } from '../../../lib/bridgeAuth';
 import { useStore } from '../../../store/useStore';
 import { adminService } from '../../../adminService';
+import { DAEMON_URL } from '../../../usePolytopeAPI';
 
 export const QRSyncModal: React.FC<{
     connection: Connection;
@@ -71,14 +72,14 @@ export const QRSyncModal: React.FC<{
                     if (!waPhoneId || !waToken) throw new Error("Cloud API fields required.");
                     creds = { phone_number_id: waPhoneId, access_token: waToken, session_type: 'cloud' };
                 } else {
-                    creds = { session_type: 'qr', session: 'mock_base64_session' };
+                    creds = { session_type: 'qr' };
                 }
             } else if (bridgeId === 'wechat') {
                 if (!wechatQr) {
                     await handleWechatInit();
                     return;
                 }
-                creds = { app_id: wechatAppId, app_secret: wechatAppSecret, openid: "mock_openid" };
+                creds = { app_id: wechatAppId, app_secret: wechatAppSecret };
             }
 
             const saved = await saveBridgeCredentials(bridgeId, creds, accessToken || "");

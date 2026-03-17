@@ -48,15 +48,50 @@ class WebChatBridge(BridgeAdapter):
                 
             self.context = await self.browser.new_context(storage_state=storage_state)
 
+    async def launch_browser(self, url: str) -> Dict[str, Any]:
+        """Launches a visible browser for the user to perform login."""
+        try:
+            if not self.playwright:
+                self.playwright = await async_playwright().start()
+            
+            # Launch non-headless so user can see it
+            browser = await self.playwright.chromium.launch(headless=False)
+            context = await browser.new_context()
+            page = await context.new_page()
+            await page.goto(url)
+            
+            # We don't close it yet; the user needs it to log in.
+            # In a real production environment, we'd need to track this browser instance.
+            # For a local sovereign agent, this is sufficient to let the user log in.
+            # We'll store it so we can capture it later.
+            self.browser = browser
+            self.context = context
+            return {"status": "SUCCESS", "message": "Browser launched. Please log in."}
+        except Exception as e:
+            self.logger.error(f"Failed to launch browser: {e}")
+            return {"status": "FAILED", "error": str(e)}
+
     async def capture_session(self, session_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Secures the Playwright state from the UI launch into the vault."""
-        state = data.get("state") # JSON string of playwright state
-        if state:
+        """Secures the Playwright state from the active browser into the vault."""
+        if not self.context:
+            return {"status": "FAILED", "error": "No active browser context to capture."}
+        
+        try:
+            state = await self.context.storage_state()
             with open(self.state_file, "w") as f:
-                f.write(state)
+                json.dump(state, f)
             self.is_connected = True
+            
+            # Close browser after capture
+            await self.context.close()
+            await self.browser.close()
+            self.context = None
+            self.browser = None
+            
             return {"status": "SUCCESS"}
-        return {"status": "FAILED", "error": "No state data provided"}
+        except Exception as e:
+            self.logger.error(f"Capture failed: {e}")
+            return {"status": "FAILED", "error": str(e)}
 
     async def get_screenshot(self, session_id: str) -> Dict[str, Any]:
         """Used by the UI to preview the UI context for session capture."""

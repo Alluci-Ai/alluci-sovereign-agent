@@ -1,7 +1,7 @@
 
 import { useState, useCallback } from 'react';
 
-const DAEMON_URL = 'http://localhost:8000';
+export const DAEMON_URL = 'http://localhost:8000';
 
 export const usePolytopeAPI = () => {
   const [isBusy, setIsBusy] = useState(false);
@@ -35,14 +35,47 @@ export const usePolytopeAPI = () => {
     }
   }, []);
 
-  const getStatus = useCallback(async () => {
+  const getAgentSubscriptions = useCallback(async (agentId: string) => {
     try {
-      const response = await fetch(`${DAEMON_URL}/api/v1/system/status`);
+      const response = await fetch(`${DAEMON_URL}/api/v1/agents/${agentId}/subscriptions`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('alluci_daemon_token')}` }
+      });
       return await response.json();
     } catch (err) {
-      return null;
+      console.error("Failed to fetch subscriptions:", err);
+      return [];
     }
   }, []);
 
-  return { executeObjective, getStatus, isBusy };
+  const updateAgentSubscription = useCallback(async (agentId: string, channelId: string, isActive: boolean) => {
+    try {
+      const response = await fetch(`${DAEMON_URL}/api/v1/agents/${agentId}/subscriptions`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('alluci_daemon_token')}`
+        },
+        body: JSON.stringify({ channel_id: channelId, is_active: isActive }),
+      });
+      return await response.json();
+    } catch (err) {
+      console.error("Failed to update subscription:", err);
+      return { status: "ERROR" };
+    }
+  }, []);
+
+  const deleteAgentSubscription = useCallback(async (agentId: string, channelId: string) => {
+    try {
+      const response = await fetch(`${DAEMON_URL}/api/v1/agents/${agentId}/subscriptions/${channelId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('alluci_daemon_token')}` }
+      });
+      return await response.json();
+    } catch (err) {
+      console.error("Failed to delete subscription:", err);
+      return { status: "ERROR" };
+    }
+  }, []);
+
+  return { executeObjective, getStatus, getAgentSubscriptions, updateAgentSubscription, deleteAgentSubscription, isBusy };
 };

@@ -1,7 +1,8 @@
 
 import logging
 import contextlib
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, Response, Depends, JSONResponse
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, Response, Depends
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi_limiter.depends import RateLimiter
 from secure import Secure

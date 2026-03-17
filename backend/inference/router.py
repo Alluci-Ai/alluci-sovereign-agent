@@ -1,6 +1,6 @@
-
 import json
 import logging
+import asyncio
 from ..logging_config import get_logger
 import math
 import httpx
@@ -45,6 +45,7 @@ except ImportError:
     COHERE_AVAILABLE = False
 
 try:
+    import aioboto3
     import boto3
     BOTO3_AVAILABLE = True
 except ImportError:
@@ -151,16 +152,15 @@ class ModelRouter:
             self.cohere_client = cohere.AsyncClient(api_key=settings.COHERE_API_KEY)
             self.logger.info("Cohere client initialized (failover 7).")
 
-        # Failover 8: AWS Bedrock
-        self.bedrock_runtime = None
+        # Failover 8: AWS Bedrock (async via aioboto3)
+        self.bedrock_session = None
         if BOTO3_AVAILABLE and getattr(settings, "AWS_ACCESS_KEY_ID", None):
-            self.bedrock_runtime = boto3.client(
-                service_name='bedrock-runtime',
-                region_name=getattr(settings, "AWS_REGION", "us-east-1"),
+            self.bedrock_session = aioboto3.Session(
                 aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-                aws_secret_access_key=getattr(settings, "AWS_SECRET_ACCESS_KEY", None)
+                aws_secret_access_key=getattr(settings, "AWS_SECRET_ACCESS_KEY", None),
+                region_name=getattr(settings, "AWS_REGION", "us-east-1"),
             )
-            self.logger.info("AWS Bedrock runtime initialized (failover 8).")
+            self.logger.info("AWS Bedrock session initialized via aioboto3 (failover 8).")
 
     async def _gemini_request(self, prompt: str, use_pro: bool = False, json_mode: bool = False) -> str:
         """Primary inference via Gemini."""
@@ -244,26 +244,31 @@ class ModelRouter:
         return response.text
 
     async def _bedrock_request(self, prompt: str, use_strong: bool = False) -> str:
-        """Failover 8: AWS Bedrock."""
-        if not self.bedrock_runtime:
+        """Failover 8: AWS Bedrock — fully async via aioboto3."""
+        if not self.bedrock_session:
             raise RuntimeError("AWS Bedrock not configured")
-        
-        # Using Anthropic Claude 3 Sonnet/Haiku via Bedrock
-        model_id = "anthropic.claude-3-sonnet-20240229-v1:0" if use_strong else "anthropic.claude-3-haiku-20240307-v1:0"
+
+        model_id = (
+            "anthropic.claude-3-sonnet-20240229-v1:0"
+            if use_strong
+            else "anthropic.claude-3-haiku-20240307-v1:0"
+        )
         body = json.dumps({
             "anthropic_version": "bedrock-2023-05-31",
             "max_tokens": 4096,
             "messages": [{"role": "user", "content": prompt}]
-        })
-        
-        response = await self.bedrock_runtime.invoke_model(
-            body=body,
-            modelId=model_id,
-            accept="application/json",
-            contentType="application/json"
-        )
-        response_body = json.loads(response.get('body').read())
-        return response_body['content'][0]['text']
+        }).encode("utf-8")
+
+        async with self.bedrock_session.client("bedrock-runtime") as client:
+            response = await client.invoke_model(
+                body=body,
+                modelId=model_id,
+                accept="application/json",
+                contentType="application/json",
+            )
+            response_body = await response["body"].read()
+            data = json.loads(response_body)
+            return data["content"][0]["text"]
 
     async def _notify_fallback(self, model_name: str):
         """Broadcasts a fallback event to connected clients."""
@@ -445,7 +450,7 @@ class ModelRouter:
                     self.logger.warning(f"Cohere failed: {e}")
 
             # Attempt 9: AWS Bedrock
-            if self.bedrock_runtime:
+            if self.bedrock_session:
                 try:
                     await self._notify_fallback("AWS Bedrock (Claude 3)")
                     res = await self._bedrock_request(prompt, use_strong=use_strong)
@@ -736,5 +741,14 @@ class ModelRouter:
             except Exception as e:
                 self.logger.error(f"OpenRouter health check failed: {e}")
                 results["openrouter"] = {"status": "UNSTABLE", "error": type(e).__name__}
+
+        # 8. AWS Bedrock
+        if self.bedrock_session:
+            try:
+                await self._bedrock_request(test_prompt, use_strong=False)
+                results["bedrock"] = {"status": "HEALTHY"}
+            except Exception as e:
+                self.logger.error(f"Bedrock health check failed: {e}")
+                results["bedrock"] = {"status": "UNSTABLE", "error": type(e).__name__}
 
         return results

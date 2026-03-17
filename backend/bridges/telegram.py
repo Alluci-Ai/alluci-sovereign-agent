@@ -75,7 +75,8 @@ class TelegramBridge(BridgeAdapter):
             try:
                 await self.client.get(f"{self.api_url}{self.bot_token}/deleteWebhook")
                 self.logger.info("Telegram: Webhook cleared, entering long-polling mode.")
-            except: pass
+            except Exception as e:
+                self.logger.warning(f"Telegram: Webhook clear failed (polling mode): {e}")
             # Start background long-polling loop
             asyncio.create_task(self._poll_loop())
 
@@ -179,14 +180,17 @@ class TelegramBridge(BridgeAdapter):
         try:
             res = await self.client.get(f"{self.api_url}{self.bot_token}/getMe")
             return res.json().get("ok", False)
-        except: return False
+        except Exception as e:
+            self.last_error = f"Integrity check failed: {e}"
+            return False
 
     async def disconnect(self):
         """Clean up webhook and shutdown."""
         if self.is_connected and self.webhook_url:
             try:
                 await self.client.get(f"{self.api_url}{self.bot_token}/deleteWebhook")
-            except: pass
+            except Exception as e:
+                self.logger.warning(f"Telegram: Webhook delete failed on disconnect: {e}")
         await super().disconnect()
 
     def _parse_inbound(self, msg: Dict[str, Any]) -> Dict[str, Any]:
@@ -280,14 +284,17 @@ class TelegramBridge(BridgeAdapter):
             try:
                 with open(path, "r") as f:
                     self.accounts = json.load(f)
-            except: self.accounts = {}
+            except Exception as e:
+                self.logger.error(f"Telegram: Failed to load accounts: {e}")
+                self.accounts = {}
 
     def _save_accounts(self):
         path = os.path.join(self.vault_path, "accounts.json")
         try:
             with open(path, "w") as f:
                 json.dump(self.accounts, f)
-        except: pass
+        except Exception as e:
+            self.logger.error(f"Telegram: Failed to save accounts: {e}")
 
     def _persist_to_vault(self, box: str, data: Dict[str, Any]):
         path = os.path.join(self.vault_path, f"{box}.jsonl")

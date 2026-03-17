@@ -1,6 +1,7 @@
 
 import subprocess
 import logging
+import os
 from ..logging_config import get_logger
 from typing import Dict, Any
 from .base import Adapter
@@ -35,11 +36,14 @@ class ShellAdapter(Adapter):
         def preexec():
             # Import inside preexec for isolation if needed
             import resource
-            # CPU time limit (soft, hard) in seconds
-            resource.setrlimit(resource.RLIMIT_CPU, (timeout, timeout + 5))
-            # Memory limit (soft, hard) in bytes (e.g., 512MB)
-            mem_limit = 512 * 1024 * 1024
-            resource.setrlimit(resource.RLIMIT_AS, (mem_limit, mem_limit))
+            try:
+                # CPU time limit (soft, hard) in seconds
+                resource.setrlimit(resource.RLIMIT_CPU, (timeout, timeout + 5))
+                # Memory limit (soft, hard) in bytes (e.g., 512MB)
+                mem_limit = 512 * 1024 * 1024
+                resource.setrlimit(resource.RLIMIT_AS, (mem_limit, mem_limit))
+            except Exception as e:
+                logging.debug(f"[PREEXEC] Failed to set resource limits: {e}")
 
         try:
             # P1-005: Resource Limits implemented via preexec_fn and timeout

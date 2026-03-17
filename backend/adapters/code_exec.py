@@ -1,6 +1,7 @@
 
 import subprocess
 import logging
+import os
 from ..logging_config import get_logger
 from typing import Dict, Any, Optional
 from .base import Adapter
@@ -31,11 +32,26 @@ class CodeExecAdapter(Adapter):
             else:
                 return {"status": "error", "message": f"Unsupported language: {language}"}
 
+            def preexec():
+                import resource
+                # Max 512 MB virtual memory
+                mem_limit = 512 * 1024 * 1024
+                try:
+                    resource.setrlimit(resource.RLIMIT_AS, (mem_limit, mem_limit))
+                except Exception as e:
+                    logging.debug(f"[PREEXEC] Failed to set RLIMIT_AS: {e}")
+                # Max CPU time
+                try:
+                    resource.setrlimit(resource.RLIMIT_CPU, (self.timeout, self.timeout + 5))
+                except Exception as e:
+                    logging.debug(f"[PREEXEC] Failed to set RLIMIT_CPU: {e}")
+
             process = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                text=True
+                text=True,
+                preexec_fn=preexec if hasattr(os, "setpgrp") else None
             )
             
             stdout, stderr = process.communicate(timeout=self.timeout)

@@ -8,6 +8,7 @@ from sqlmodel import Session, select
 from ..security.auth import verify_authenticated
 from ..database import engine as db_engine
 from ..models import SessionConfig
+from fastapi_csrf_protect import CsrfProtect
 from .. import services
 
 logger = get_logger("SessionsRouter")
@@ -64,7 +65,7 @@ async def get_agents():
         ]
     }
 
-@router.post("/agents/delegate", dependencies=[Depends(verify_authenticated)])
+@router.post("/agents/delegate", dependencies=[Depends(verify_authenticated), Depends(CsrfProtect().validate_csrf_in_cookies)])
 async def delegate_to_agent(agent_id: str = Body(...), task: str = Body(...)):
     """Delegates a task to a virtual agent in the constellation."""
     if not services.orchestrator:

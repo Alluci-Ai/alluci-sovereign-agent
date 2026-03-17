@@ -72,15 +72,70 @@ class GoalsEngine:
 
     async def evaluate_progress(self, goal_id: int):
         """
-        Skeleton for autonomous goal fulfillment evaluation.
-        In the future, this will use the Router to analyze TaskRecord results 
-        related to this goal and update 'metric_current'.
+        Calculates goal progress using the LLM to analyze completed task evidence.
+        Sets 'metric_current' based on the percentage of objective completion.
         """
+        from ..inference.router import ModelRouter
+        from ..config import settings
+        from ..models import TaskRecord
+
         goal = await self.get_goal(goal_id)
-        if not goal: return None
-        
+        if not goal:
+            return None
+
         logger.info(f"🎯 [GOAL_EVAL]: Evaluating progress for '{goal.title}'")
-        # Placeholder for actual LLM-based evaluation
+
+        # 1. Gather evidence (all tasks for this goal)
+        with Session(self.engine) as session:
+            tasks = session.exec(select(TaskRecord).where(TaskRecord.goal_id == goal_id)).all()
+
+        if not tasks:
+            logger.info("[GOAL_EVAL]: No tasks found for this goal.")
+            return goal.metric_current
+
+        # 2. Format evidence for the LLM
+        evidence = "\n".join([
+            f"- Task: {t.title}\n  Result: {t.result or 'In progress'}\n  Status: {t.status}"
+            for t in tasks
+        ])
+
+        prompt = f"""
+        SYSTEM: You are the Sovereign Goal Auditor.
+        OBJECTIVE: "{goal.title}"
+        DESCRIPTION: "{goal.description}"
+        
+        TASK EVIDENCE:
+        {evidence}
+        
+        INSTRUCTION:
+        Based on the results of the tasks above, what percentage of the overall goal objective is complete?
+        Consider if the tasks successfully fulfilled the requirements described in the goal.
+        
+        OUTPUT: 
+        Return ONLY a JSON object with the "percentage" (float 0.0-100.0) and "reasoning" (string).
+        """
+
+        # 3. Request LLM evaluation
+        try:
+            router = ModelRouter(settings)
+            res = await router.get_response(prompt, complexity="MEDIUM")
+            import json
+            import re
+            
+            # Extract JSON from potential Markdown formatting
+            json_match = re.search(r'\{.*\}', res, re.DOTALL)
+            if json_match:
+                data = json.loads(json_match.group())
+                percentage = float(data.get("percentage", goal.metric_current))
+                
+                # 4. Persist updated progress
+                await self.update_goal(goal_id, progress=percentage)
+                logger.info(f"🎯 [GOAL_EVAL]: Updated progress for '{goal.title}' to {percentage}%")
+                return percentage
+        except Exception as e:
+            logger.error(f"[GOAL_EVAL]: LLM evaluation failed: {e}", exc_info=True)
+            return goal.metric_current
+
         return goal.metric_current
 
 # Global Singleton

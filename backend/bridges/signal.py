@@ -93,8 +93,8 @@ class SignalBridge(BridgeAdapter):
         if os.path.exists(self._socket_path):
             try:
                 os.remove(self._socket_path)
-            except OSError:
-                pass
+            except OSError as e:
+                self.logger.warning(f"[SIGNAL] Stale socket remove failed: {e}")
 
         try:
             self._daemon_process = await asyncio.create_subprocess_exec(

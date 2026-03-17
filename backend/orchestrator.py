@@ -444,7 +444,7 @@ class ExecutiveOrchestrator:
             # --- Harmonic Ranking Hook ---
             # Prioritize tasks based on Topological and Lattice dynamics
             task_list = list(tasks.values())
-            ranked_list = self.harmonic.rank_actions(task_list)
+            ranked_list = self.harmonic.rank_actions(task_list, psi=psi)
             
             # Log the ranking for observability
             self.logger.info(f"Harmonic Ranking Applied: {[t.id for t in ranked_list]}")

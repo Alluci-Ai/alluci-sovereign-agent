@@ -301,6 +301,27 @@ class DiscordGuildMapping(SQLModel, table=True):
     default_channel_id: Optional[str] = None
     enabled: bool = True
 
+class AgentChannelSubscription(SQLModel, table=True):
+    """
+    Persists per-agent channel subscription state.
+    Controls which bridge channels an agent is permitted to read/write.
+    """
+    __tablename__ = "agent_channel_subscription"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    agent_id: str = Field(index=True, nullable=False)
+    channel_id: str = Field(nullable=False)       # e.g. "telegram", "whatsapp"
+    is_active: bool = Field(default=False, nullable=False)
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    class Config:
+        # Enforce unique (agent_id, channel_id) pairs at the ORM level
+        # The migration also enforces this as a DB-level unique constraint.
+        pass
+
 class MessageLog(SQLModel, table=True):
     """Full transcript record for sessions (Sovereign Spec §5.1)."""
     __tablename__ = "message_log"

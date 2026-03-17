@@ -22,13 +22,7 @@ export const ToolProfileEditor: React.FC<ToolProfileEditorProps> = ({ agentId })
                 if (res.ok) {
                     const data = await res.json();
 
-                    // Mock padding data natively over default routes until real tools return
-                    const mock_tools = data.tools.length > 0 ? data.tools : [
-                        { name: "WebBrowser", description: "VFS scoped browser DOM engine", enabled: true, params: "{ \"headless\": true }" },
-                        { name: "TerminalExecutor", description: "Direct restricted container bash mapping", enabled: false, params: "{ \"timeout_ms\": 5000 }" }
-                    ];
-
-                    setTools(mock_tools);
+                    setTools(data.tools || []);
                 }
             } catch (err) {
                 console.error('Failed fetching agent tools', err);
