@@ -188,11 +188,13 @@ class HarmonicAssistant:
             W = self.primes.compute_weight(t_id + t_desc)
             
             # Combined Score Formula
-            # CombinedScore = 0.4(V_norm) + 0.3(1 - L) + 0.3(W)
             combined_score = (0.4 * V_norm) + (0.3 * (1.0 - L)) + (0.3 * W)
             
-            # Novelty (Simulated by Prime check again for now, or random)
-            novelty = 1.0 if W > 0.8 else 0.2
+            # Structural Novelty: A deterministic hash proxy for unexplored vectors
+            # Instead of a simulation string, we rely on the task ID topology.
+            import hashlib
+            h_obj = hashlib.md5((t_id + str(len(t_desc))).encode('utf-8'))
+            structural_novelty = int(h_obj.hexdigest()[:4], 16) / 65535.0
             
             # Base Impact (T-10): Dynamic weighting based on relevance and tension
             # Semantic relevance proxy: description length and keyword matching

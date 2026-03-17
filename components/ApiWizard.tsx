@@ -36,39 +36,28 @@ const CATEGORIES = [
 
 const DEFAULT_PROVIDERS = {
     llm: [
-        { id: 'openai', label: 'OpenAI (GPT-5.1 & o1)' },
-        { id: 'anthropic', label: 'Anthropic (Claude 4.5 / 4.6)' },
-        { id: 'googleCloud', label: 'Google Cloud (Gemini 3)' },
-        { id: 'kimi', label: 'Kimi (Open Source Model)' },
-        { id: 'ollama', label: 'Ollama (Local LLM)' },
-        { id: 'groq', label: 'Groq (High-Speed LPU)' }
+        { id: 'openai', label: 'OpenAI (GPT-4o & GPT-o1)' },
+        { id: 'anthropic', label: 'Anthropic (Claude 3.7)' },
+        { id: 'googleCloud', label: 'Google Cloud (Gemini 2.5)' },
+        { id: 'kimi', label: 'Moonshot (Kimi k2.5)' },
+        { id: 'groq', label: 'Groq (LPU Inference)' },
+        { id: 'deepseek', label: 'DeepSeek (R1 / Chat)' },
+        { id: 'openrouter', label: 'OpenRouter' },
+        { id: 'lmStudio', label: 'LM Studio (Local)' },
+        { id: 'together', label: 'Together AI' },
+        { id: 'cohere', label: 'Cohere (Command R+)' },
+        { id: 'aws', label: 'AWS Bedrock' }
     ],
     audio: [
-        { id: 'openaiRealtime', label: 'OpenAI Realtime API' },
-        { id: 'elevenLabsAgents', label: 'ElevenLabs (Agents API)' },
-        { id: 'retellAi', label: 'Retell AI (Telephony)' },
-        { id: 'inworldAi', label: 'Inworld AI (Character)' }
+        { id: 'elevenLabs', label: 'ElevenLabs (Voice Synthesis)' }
     ],
     music: [
-        { id: 'suno', label: 'Suno API (Vocals/Melody)' },
-        { id: 'elevenLabsMusic', label: 'ElevenLabs Music API' },
-        { id: 'stableAudio', label: 'Stable Audio' },
-        { id: 'soundverse', label: 'Soundverse' },
-        { id: 'lyria', label: 'Lyria (High-res realtime)' }
     ],
     image: [
-        { id: 'openaiDalle', label: 'OpenAI (DALL·E 3)' },
-        { id: 'falAi', label: 'Fal.ai (Ultra-fast)' },
-        { id: 'midjourney', label: 'Midjourney (Alpha API)' },
-        { id: 'nanoBanana', label: 'Nano Banana' },
-        { id: 'adobeFirefly', label: 'Adobe Firefly' }
+        { id: 'midjourney', label: 'Midjourney (ImagineAPI)' }
     ],
     video: [
-        { id: 'runway', label: 'Runway (Gen-4.5)' },
-        { id: 'luma', label: 'Luma Dream Machine' },
-        { id: 'googleFlow', label: 'Google Flow' },
-        { id: 'heygen', label: 'HeyGen / Synthesia' },
-        { id: 'livepeer', label: 'Livepeer (Decentralized)' }
+        { id: 'runway', label: 'RunwayML (Gen-3)' }
     ]
 };
 

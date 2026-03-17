@@ -70,9 +70,8 @@ async def toggle_channel(channel_id: str, request: Request, csrf_protect: CsrfPr
             await adapter.disconnect()
             return {"status": "SUCCESS", "message": f"Disconnected {channel_id}"}
         else:
-            # Fallback for adapters that don't have explicit disconnect
-            setattr(adapter, "is_connected", False)
-            return {"status": "SUCCESS", "message": f"Disabled {channel_id} (simulated)"}
+            # V5: Reject simulated disconnects. If the bridge cannot disconnect, fail strictly.
+            raise HTTPException(status_code=501, detail=f"Disconnect not supported by adapter '{channel_id}'")
     else:
         if hasattr(adapter, "connect"):
             await adapter.connect()

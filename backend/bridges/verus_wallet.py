@@ -64,23 +64,21 @@ class VerusWalletBridge(BridgeAdapter):
 
     async def send(self, to: str, content: str, **kwargs) -> bool:
         """Sends a message (VDXF) or funds via the bridge."""
-        # For now, treat content as amount if numeric, or memo if string
+        # For now, treat content as amount if numeric
         try:
             amount = float(content)
             res = await self.service.send(to, amount)
             return res.get("success", False)
         except ValueError:
-            # If not a number, maybe it's a memo for a 0-value send or identity update
-            # Stubs for messaging parity
-            logger.info(f"VerusWalletBridge: Messaging '{content}' to {to} (Stub)")
-            return True
+            # If not a number, raise an error instead of logging a stub
+            raise NotImplementedError("VerusID VDXF messaging is not yet fully implemented and cannot process non-fund transfers.")
 
     async def fetch_unread(self) -> List[Dict[str, Any]]:
-        """VerusID messaging (VDXF) inbox stub."""
-        return []
+        """VerusID messaging (VDXF) inbox."""
+        raise NotImplementedError("Fetching unread VDXF messages is not yet implemented.")
 
     async def mark_read(self, entry_id: str) -> bool:
-        return True
+        raise NotImplementedError("Marking VDXF messages read is not yet implemented.")
 
     async def check_health(self) -> bool:
         dashboard = await self.service.get_dashboard()

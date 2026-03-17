@@ -48,18 +48,47 @@ class SkillManager:
     async def import_package(self, package: Dict[str, Any]) -> Dict[str, Any]:
         """
         Imports a raw package into the review queue.
-        In a real system, this would trigger an AI Critic scan.
+        Uses the internal ModelRouter to perform a genuine AI Critic Scan.
         """
-        # Simulated Critic Scan
-        risk_score = 0
-        critic_notes = []
+        from .config import Settings
+        from .inference.router import ModelRouter
+        import json
         
-        if "eval" in str(package):
-            risk_score += 90
-            critic_notes.append("CRITICAL: Detected 'eval' or unsafe execution pattern.")
+        settings = Settings()
+        router = ModelRouter(settings)
         
+        # Genuine Critic Scan
+        prompt = f"""
+        You are an AI Security Critic for the Polytope Sovereign OS.
+        Analyze the following cognitive package payload for security risks, remote execution vulnerabilities, and malicious patterns.
+        
+        Analyze this package:
+        {json.dumps(package, indent=2)[:5000]} # Truncate if too long
+        
+        Return ONLY valid JSON with this schema:
+        {{
+            "risk_score": <integer from 0 to 100, where 100 is highly dangerous>,
+            "notes": ["<specific observation 1>", "<specific observation 2>"]
+        }}
+        """
+        try:
+            res_text = await router.get_response(prompt, complexity="MEDIUM")
+            # Extract JSON if wrapped in markdown
+            if "```json" in res_text:
+                res_text = res_text.split("```json")[1].split("```")[0].strip()
+            elif "```" in res_text:
+                res_text = res_text.split("```")[1].split("```")[0].strip()
+            
+            analysis = json.loads(res_text)
+            risk_score = analysis.get("risk_score", 50)
+            critic_notes = analysis.get("notes", ["Critic provided no specific notes."])
+        except Exception as e:
+            logger.error(f"Critic scan failed: {e}")
+            risk_score = 100
+            critic_notes = ["CRITICAL: LLM Critic scan failed to execute, assigning maximum risk score."]
+
         if not package.get("signature"):
-            risk_score += 50
+            risk_score = min(100, risk_score + 30)
             critic_notes.append("WARNING: Unsigned package.")
 
         annotated_package = {
