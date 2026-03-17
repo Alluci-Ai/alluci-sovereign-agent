@@ -1,5 +1,5 @@
 
-from fastapi import APIRouter, HTTPException, Depends, Query, Body, Response
+from fastapi import APIRouter, HTTPException, Depends, Query, Body, Response, Request
 from typing import Dict, Any
 import hmac
 from ..config import settings
@@ -27,10 +27,22 @@ from fastapi_csrf_protect import CsrfProtect
 router = APIRouter(tags=["Authentication"])
 
 @router.get("/auth/csrf-token")
-async def get_csrf_token(csrf_protect: CsrfProtect = Depends()):
-    """Generates a CSRF token for the frontend to include in subsequent mutations."""
-    token, result = csrf_protect.generate_csrf_tokens()
-    return {"status": "SUCCESS", "token": token}
+async def get_csrf_token(request: Request, response: Response, csrf_protect: CsrfProtect = Depends()):
+    """
+    Generates a CSRF token pair.
+    Returns the token for use in X-CSRF-Token header.
+    Also sets the signed token in a cookie for double-submit validation.
+    """
+    csrf_token, signed_token = csrf_protect.generate_csrf_tokens()
+    # Set the signed token in an HTTP-only cookie
+    response.set_cookie(
+        key="fastapi-csrf-token",
+        value=signed_token,
+        httponly=True,
+        samesite=settings.AUTH_COOKIE_SAMESITE,
+        secure=settings.APP_ENV != "development",
+    )
+    return {"status": "SUCCESS", "csrf_token": csrf_token}
 
 @router.post("/auth/login", dependencies=[Depends(RateLimiter(times=5, minutes=1))])
 async def login(response: Response, payload: LoginRequest):

@@ -8,30 +8,80 @@ from .base import Adapter
 
 logger = get_logger("Adapters.Shell")
 
+# Commands blocked when they appear as the FIRST word (direct invocation)
+SHELL_DENYLIST_FIRST_WORD = {
+    "mkfs", "fdisk", "parted", "shred",
+    "shutdown", "reboot", "halt", "poweroff", "init",
+    "useradd", "userdel", "groupadd", "visudo",
+    "passwd",
+}
+
+# Patterns blocked anywhere in the command string (substring match, case-insensitive)
+SHELL_DENYLIST_PATTERNS = [
+    "rm -rf /",
+    "rm -rf ~",
+    "rm -fr /",
+    "rm -fr ~",
+    "rm --no-preserve-root",
+    "> /dev/sda",
+    "> /dev/nvme",
+    "dd if=/dev/zero",
+    "dd if=/dev/urandom of=/dev/",
+    ":(){ :|:& };:",
+    ":(){",
+    "fork bomb",
+    "wget -O- | sh",
+    "wget -O- | bash",
+    "curl -s | sh",
+    "curl -s | bash",
+    "curl | sh",
+    "curl | bash",
+    "chmod -R 777 /",
+    "chmod 777 /",
+    "echo '' > /etc/passwd",
+    "cat /etc/shadow",
+    "cat ~/.polytope",
+    "cat ~/.ssh/id",
+    "> /etc/",
+    "truncate -s 0 /etc/",
+    # Interpreter-wrapped dangerous commands
+    "bash -c \"rm",
+    "bash -c 'rm",
+    "sh -c \"rm",
+    "sh -c 'rm",
+    "python3 -c \"import os",
+    "python -c \"import os",
+    "perl -e \"system",
+    "ruby -e \"system",
+]
+
 class ShellAdapter(Adapter):
     @property
     def name(self) -> str:
         return "shell"
 
-    SHELL_DENYLIST = {
-        "rm", "mkfs", "dd", "format", "shred", "fdisk", "parted",
-        "shutdown", "reboot", "halt", "poweroff", "init", "systemctl",
-        "chmod", "chown", "passwd", "useradd", "userdel", "groupadd",
-        "visudo", "mv", "cp", "wget", "curl"
-    }
-
     async def execute(self, args: Dict[str, Any]) -> Any:
         command = args.get("command", "")
         if not command:
             return "No command provided."
+
+        command = str(command).strip()
         
-        # 1. Security Check: Denylist
-        cmd_base = command.split()[0].split("/")[-1] if command else ""
-        if cmd_base in self.SHELL_DENYLIST:
-            return f"Error: Command '{cmd_base}' is denylisted for security."
+        # Security Check 1: First-word blocklist
+        cmd_base = command.split()[0].split("/")[-1] if command.split() else ""
+        if cmd_base in SHELL_DENYLIST_FIRST_WORD:
+            logger.warning(f"ShellAdapter BLOCKED first-word: '{cmd_base}'")
+            return f"Error: Command '{cmd_base}' is blocked by security policy."
+
+        # Security Check 2: Substring pattern blocklist (catches interpreter wrapping)
+        cmd_lower = command.lower()
+        for pattern in SHELL_DENYLIST_PATTERNS:
+            if pattern.lower() in cmd_lower:
+                logger.warning(f"ShellAdapter BLOCKED pattern: '{pattern}'")
+                return f"Error: Command matches blocked pattern: '{pattern}'"
         
-        # 2. Resource Limits & Timeout (Max 120s)
-        timeout = min(args.get("timeout", 30), 120)
+        # 3. Resource Limits & Timeout (Max 120s)
+        timeout = min(int(args.get("timeout", 30)), 120)
         
         def preexec():
             # Import inside preexec for isolation if needed

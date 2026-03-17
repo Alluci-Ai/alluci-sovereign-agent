@@ -1,6 +1,6 @@
-
 import { Connection, AuthType, AutonomyLevel } from './types';
 import { SovereignSecurityManager, SimplicialVault } from './alluciCore';
+import { getCsrfToken } from './csrfStore';
 
 /**
  * [ BRIDGE_REGISTRY ]
@@ -73,9 +73,13 @@ export class BridgeManager {
    */
   async sendMessage(bridgeId: string, recipient: string, text: string): Promise<boolean> {
     try {
-      const res = await fetch(`/api/v1/channels/${bridgeId}/send`, {
+      const daemonUrl = import.meta.env?.VITE_DAEMON_URL || 'http://localhost:8000';
+      const res = await fetch(`${daemonUrl}/api/v1/channels/${bridgeId}/send`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': await getCsrfToken(daemonUrl, this.access_token) || ''
+        },
         credentials: 'include',
         body: JSON.stringify({ recipient, content: text })
       });
@@ -96,9 +100,13 @@ export class BridgeManager {
    */
   async uploadToCloud(bridgeId: string, fileData: string, fileName: string): Promise<boolean> {
     try {
-      const res = await fetch(`/api/v1/channels/${bridgeId}/upload`, {
+      const daemonUrl = import.meta.env?.VITE_DAEMON_URL || 'http://localhost:8000';
+      const res = await fetch(`${daemonUrl}/api/v1/channels/${bridgeId}/upload`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': await getCsrfToken(daemonUrl, this.access_token) || ''
+        },
         credentials: 'include',
         body: JSON.stringify({ file_data: fileData, file_name: fileName })
       });
@@ -127,9 +135,13 @@ export class BridgeManager {
    */
   async executeSocialTask(bridgeId: string, task: string, params: Record<string, unknown>): Promise<boolean> {
     try {
-      const res = await fetch(`/api/v1/channels/${bridgeId}/task`, {
+      const daemonUrl = import.meta.env?.VITE_DAEMON_URL || 'http://localhost:8000';
+      const res = await fetch(`${daemonUrl}/api/v1/channels/${bridgeId}/task`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': await getCsrfToken(daemonUrl, this.access_token) || ''
+        },
         credentials: 'include',
         body: JSON.stringify({ task, params })
       });
@@ -144,10 +156,12 @@ export class BridgeManager {
    * Executes workspace-level sovereign actions across Slack, Teams, and G-Suite.
    */
   async executeEnterpriseTask(bridgeId: string, taskType: string, payload: any): Promise<boolean> {
-    const res = await fetch(`/api/v1/channels/${bridgeId}/enterprise`, {
+    const daemonUrl = import.meta.env?.VITE_DAEMON_URL || 'http://localhost:8000';
+    const res = await fetch(`${daemonUrl}/api/v1/channels/${bridgeId}/enterprise`, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "X-CSRF-Token": await getCsrfToken(daemonUrl, this.access_token) || ''
       },
       credentials: 'include',
       body: JSON.stringify({ type: taskType, payload })

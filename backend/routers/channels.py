@@ -34,8 +34,9 @@ async def get_channel_config(channel_id: str):
         raise HTTPException(status_code=404, detail="Channel not found")
     return getattr(adapter, "config", {})
 
-@router.put("/channels/{channel_id}/config", dependencies=[Depends(verify_authenticated), Depends(CsrfProtect().validate_csrf_in_cookies)])
-async def update_channel_config(channel_id: str, config: Dict[str, Any] = Body(...)):
+@router.put("/channels/{channel_id}/config", dependencies=[Depends(verify_authenticated)])
+async def update_channel_config(channel_id: str, request: Request, csrf_protect: CsrfProtect = Depends(), config: Dict[str, Any] = Body(...)):
+    await csrf_protect.validate_csrf(request)
     adapter = services.channel_registry.get(channel_id)
     if not adapter:
         raise HTTPException(status_code=404, detail="Channel not found")
@@ -43,8 +44,9 @@ async def update_channel_config(channel_id: str, config: Dict[str, Any] = Body(.
         return await adapter.update_config(config)
     raise HTTPException(status_code=501, detail="Config update not supported for this channel")
 
-@router.post("/channels/{channel_id}/connect", dependencies=[Depends(verify_authenticated), Depends(CsrfProtect().validate_csrf_in_cookies)])
-async def connect_channel(channel_id: str):
+@router.post("/channels/{channel_id}/connect", dependencies=[Depends(verify_authenticated)])
+async def connect_channel(channel_id: str, request: Request, csrf_protect: CsrfProtect = Depends()):
+    await csrf_protect.validate_csrf(request)
     adapter = services.channel_registry.get(channel_id)
     if not adapter:
         raise HTTPException(status_code=404, detail="Channel not found")
@@ -52,8 +54,9 @@ async def connect_channel(channel_id: str):
         return await adapter.connect()
     raise HTTPException(status_code=501, detail="Direct connect not supported")
 
-@router.put("/channels/{channel_id}/toggle", dependencies=[Depends(verify_authenticated), Depends(CsrfProtect().validate_csrf_in_cookies)])
-async def toggle_channel(channel_id: str):
+@router.put("/channels/{channel_id}/toggle", dependencies=[Depends(verify_authenticated)])
+async def toggle_channel(channel_id: str, request: Request, csrf_protect: CsrfProtect = Depends()):
+    await csrf_protect.validate_csrf(request)
     """
     Connect or disconnect a bridge channel.
     Called by App.tsx [disconnectBridge]
@@ -82,8 +85,9 @@ async def toggle_channel(channel_id: str):
 # asserted by test_phase0.py. They must exist at both /api/v1/channels/... and
 # /api/channels/... (the latter satisfied by dual router registration in app.py).
 
-@router.post("/channels/{channel_id}/send", dependencies=[Depends(verify_authenticated), Depends(CsrfProtect().validate_csrf_in_cookies)])
-async def channel_send(channel_id: str, payload: Dict[str, Any] = Body(...)):
+@router.post("/channels/{channel_id}/send", dependencies=[Depends(verify_authenticated)])
+async def channel_send(channel_id: str, request: Request, csrf_protect: CsrfProtect = Depends(), payload: Dict[str, Any] = Body(...)):
+    await csrf_protect.validate_csrf(request)
     """
     Send a message through a bridge.
     Body: { "recipient": str, "content": str }
@@ -108,8 +112,9 @@ async def channel_send(channel_id: str, payload: Dict[str, Any] = Body(...)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/channels/{channel_id}/upload", dependencies=[Depends(verify_authenticated), Depends(CsrfProtect().validate_csrf_in_cookies)])
-async def channel_upload(channel_id: str, payload: Dict[str, Any] = Body(...)):
+@router.post("/channels/{channel_id}/upload", dependencies=[Depends(verify_authenticated)])
+async def channel_upload(channel_id: str, request: Request, csrf_protect: CsrfProtect = Depends(), payload: Dict[str, Any] = Body(...)):
+    await csrf_protect.validate_csrf(request)
     """
     Upload a file through a bridge (e.g., GDrive, Slack).
     Body: { "file_data": str (base64 or URL), "file_name": str }
@@ -182,8 +187,9 @@ async def channel_unread(channel_id: str, limit: int = 10):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/channels/{channel_id}/social", dependencies=[Depends(verify_authenticated), Depends(CsrfProtect().validate_csrf_in_cookies)])
-async def channel_social_task(channel_id: str, payload: Dict[str, Any] = Body(...)):
+@router.post("/channels/{channel_id}/social", dependencies=[Depends(verify_authenticated)])
+async def channel_social_task(channel_id: str, request: Request, csrf_protect: CsrfProtect = Depends(), payload: Dict[str, Any] = Body(...)):
+    await csrf_protect.validate_csrf(request)
     """
     Execute a social/automation task on a bridge (post, like, follow, etc.).
     Body: { "task": str, "params": dict }
@@ -209,8 +215,9 @@ async def channel_social_task(channel_id: str, payload: Dict[str, Any] = Body(..
     raise HTTPException(status_code=501, detail=f"Social tasks not supported for '{channel_id}'.")
 
 
-@router.post("/channels/{channel_id}/enterprise", dependencies=[Depends(verify_authenticated), Depends(CsrfProtect().validate_csrf_in_cookies)])
-async def channel_enterprise_task(channel_id: str, payload: Dict[str, Any] = Body(...)):
+@router.post("/channels/{channel_id}/enterprise", dependencies=[Depends(verify_authenticated)])
+async def channel_enterprise_task(channel_id: str, request: Request, csrf_protect: CsrfProtect = Depends(), payload: Dict[str, Any] = Body(...)):
+    await csrf_protect.validate_csrf(request)
     """
     Execute an enterprise automation task (calendar, CRM, ticket, etc.).
     Delegates to the bridge's enterprise task handler if available,
@@ -268,8 +275,9 @@ async def iwatch_pairing_qr():
     daemon_url = os.getenv("DAEMON_PUBLIC_URL", "http://localhost:8000").rstrip("/")
     return await adapter.generate_pairing_qr(daemon_url)
 
-@router.post("/channels/iwatch/pair", dependencies=[Depends(CsrfProtect().validate_csrf_in_cookies)])
-async def iwatch_pair(data: Dict[str, str] = Body(...)):
+@router.post("/channels/iwatch/pair")
+async def iwatch_pair(request: Request, csrf_protect: CsrfProtect = Depends(), data: Dict[str, str] = Body(...)):
+    await csrf_protect.validate_csrf(request)
     """Verify TOTP code and issue a device session token."""
     adapter = services.channel_registry.get("iwatch")
     if not adapter:
@@ -280,8 +288,9 @@ async def iwatch_pair(data: Dict[str, str] = Body(...)):
         raise HTTPException(status_code=400, detail="code and device_id required.")
     return await adapter.submit_pairing_code(code, device_id)
 
-@router.post("/channels/iwatch/biometrics", dependencies=[Depends(CsrfProtect().validate_csrf_in_cookies)])
-async def ingest_iwatch_biometrics(request: Request):
+@router.post("/channels/iwatch/biometrics")
+async def ingest_iwatch_biometrics(request: Request, csrf_protect: CsrfProtect = Depends()):
+    await csrf_protect.validate_csrf(request)
     """Ingest HealthKit telemetry from Apple Watch with device or user token."""
     adapter = services.channel_registry.get("iwatch")
     if not adapter:
@@ -639,8 +648,9 @@ async def icloud_imessage_permission():
             return {"status": "FAILED", "granted": False, "error": str(e)}
     return {"status": "FAILED", "granted": False, "error": "chat.db not found (Is iMessage enabled?)"}
 
-@router.post("/channels/webchat/launch", dependencies=[Depends(verify_authenticated), Depends(CsrfProtect().validate_csrf_in_cookies)])
-async def webchat_launch(data: Dict[str, str] = Body(...)):
+@router.post("/channels/webchat/launch", dependencies=[Depends(verify_authenticated)])
+async def webchat_launch(request: Request, csrf_protect: CsrfProtect = Depends(), data: Dict[str, str] = Body(...)):
+    await csrf_protect.validate_csrf(request)
     """Triggers the backend Playwright browser to open for user login."""
     adapter = services.channel_registry.get("webchat")
     url = data.get("url")
@@ -649,14 +659,16 @@ async def webchat_launch(data: Dict[str, str] = Body(...)):
         return await adapter.launch_browser(url)
     raise HTTPException(status_code=501)
 
-@router.post("/channels/icloud/2fa", dependencies=[Depends(verify_authenticated), Depends(CsrfProtect().validate_csrf_in_cookies)])
-async def icloud_2fa(data: Dict[str, str] = Body(...)):
+@router.post("/channels/icloud/2fa", dependencies=[Depends(verify_authenticated)])
+async def icloud_2fa(request: Request, csrf_protect: CsrfProtect = Depends(), data: Dict[str, str] = Body(...)):
+    await csrf_protect.validate_csrf(request)
     adapter = services.channel_registry.get("icloud")
     if hasattr(adapter, "submit_2fa"): return await adapter.submit_2fa(data.get("code"))
     raise HTTPException(status_code=501)
 
-@router.post("/channels/webchat/session/{id}/capture", dependencies=[Depends(verify_authenticated), Depends(CsrfProtect().validate_csrf_in_cookies)])
-async def webchat_session_capture(id: str, data: Dict[str, Any] = Body(...)):
+@router.post("/channels/webchat/session/{id}/capture", dependencies=[Depends(verify_authenticated)])
+async def webchat_session_capture(id: str, request: Request, csrf_protect: CsrfProtect = Depends(), data: Dict[str, Any] = Body(...)):
+    await csrf_protect.validate_csrf(request)
     adapter = services.channel_registry.get("webchat")
     if hasattr(adapter, "capture_session"): return await adapter.capture_session(id, data)
     raise HTTPException(status_code=501)
@@ -670,8 +682,9 @@ async def get_agent_subscriptions(agent_id: str, session=Depends(get_session)):
     results = session.exec(statement).all()
     return results
 
-@router.put("/agents/{agent_id}/subscriptions", dependencies=[Depends(verify_authenticated), Depends(CsrfProtect().validate_csrf_in_cookies)])
-async def update_agent_subscription(agent_id: str, sub: Dict[str, Any] = Body(...), session=Depends(get_session)):
+@router.put("/agents/{agent_id}/subscriptions", dependencies=[Depends(verify_authenticated)])
+async def update_agent_subscription(agent_id: str, request: Request, csrf_protect: CsrfProtect = Depends(), sub: Dict[str, Any] = Body(...), session=Depends(get_session)):
+    await csrf_protect.validate_csrf(request)
     """Upsert an agent's subscription to a specific channel."""
     channel_id = sub.get("channel_id")
     is_active = sub.get("is_active", False)
@@ -700,8 +713,9 @@ async def update_agent_subscription(agent_id: str, sub: Dict[str, Any] = Body(..
     session.commit()
     return {"status": "SUCCESS"}
 
-@router.delete("/agents/{agent_id}/subscriptions/{channel_id}", dependencies=[Depends(verify_authenticated), Depends(CsrfProtect().validate_csrf_in_cookies)])
-async def delete_agent_subscription(agent_id: str, channel_id: str, session=Depends(get_session)):
+@router.delete("/agents/{agent_id}/subscriptions/{channel_id}", dependencies=[Depends(verify_authenticated)])
+async def delete_agent_subscription(agent_id: str, channel_id: str, request: Request, csrf_protect: CsrfProtect = Depends(), session=Depends(get_session)):
+    await csrf_protect.validate_csrf(request)
     """Remove an agent's subscription record."""
     statement = select(AgentChannelSubscription).where(
         AgentChannelSubscription.agent_id == agent_id,

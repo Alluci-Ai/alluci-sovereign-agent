@@ -68,6 +68,11 @@ async def init_services(app_instance):
             from fastapi_limiter import FastAPILimiter
             await FastAPILimiter.init(redis_client)
             logger.info(f"[ CACHE ]: Redis distributed rate limiter online: {settings.REDIS_URL}")
+
+            # Wire Redis into VerusID auth for persistent challenge storage
+            from .security.verusid_auth import verus_auth as _verus_auth
+            _verus_auth._redis = redis_client
+            logger.info("[ VERUSID ] Redis-backed challenge store active.")
         except Exception as e:
             logger.error(f"[ CACHE ]: Redis initialization failed — rate limiting DISABLED: {e}")
             metrics.increment_counter("redis_init_failures_total")

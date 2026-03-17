@@ -1,5 +1,5 @@
-
 import { useState, useCallback } from 'react';
+import { getCsrfToken } from './csrfStore';
 
 export const DAEMON_URL = 'http://localhost:8000';
 
@@ -17,7 +17,10 @@ export const usePolytopeAPI = () => {
 
       const response = await fetch(`${DAEMON_URL}/api/v1/objective/execute`, {
         method: 'POST',
-        headers: headers,
+        headers: {
+          ...headers,
+          'X-CSRF-Token': await getCsrfToken(DAEMON_URL, token) || ''
+        },
         body: JSON.stringify({ objective }),
       });
       
@@ -49,11 +52,13 @@ export const usePolytopeAPI = () => {
 
   const updateAgentSubscription = useCallback(async (agentId: string, channelId: string, isActive: boolean) => {
     try {
+      const token = localStorage.getItem('alluci_daemon_token');
       const response = await fetch(`${DAEMON_URL}/api/v1/agents/${agentId}/subscriptions`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('alluci_daemon_token')}`
+          'Authorization': `Bearer ${token}`,
+          'X-CSRF-Token': await getCsrfToken(DAEMON_URL, token) || ''
         },
         body: JSON.stringify({ channel_id: channelId, is_active: isActive }),
       });
@@ -66,14 +71,26 @@ export const usePolytopeAPI = () => {
 
   const deleteAgentSubscription = useCallback(async (agentId: string, channelId: string) => {
     try {
+      const token = localStorage.getItem('alluci_daemon_token');
       const response = await fetch(`${DAEMON_URL}/api/v1/agents/${agentId}/subscriptions/${channelId}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('alluci_daemon_token')}` }
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'X-CSRF-Token': await getCsrfToken(DAEMON_URL, token) || ''
+        }
       });
       return await response.json();
     } catch (err) {
       console.error("Failed to delete subscription:", err);
       return { status: "ERROR" };
+    }
+  }, []);
+  const getStatus = useCallback(async () => {
+    try {
+      const response = await fetch(`${DAEMON_URL}/health`);
+      return await response.json();
+    } catch (err) {
+      return { status: "DOWN" };
     }
   }, []);
 
