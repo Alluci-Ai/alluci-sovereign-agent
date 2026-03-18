@@ -135,9 +135,9 @@ Alluci empowers you to act across your entire digital life from a single, secure
 Alluci coordinates across a secure multi-bridge ecosystem, providing unified access to state-of-the-art tools:
 
 #### 1. LLM_REASONING_&_LOGIC
-- **OpenAI**: GPT-4o & o1 for deep strategic planning.
-- **Anthropic**: Claude 3.7 Sonnet for nuanced context and coding.
-- **Google Cloud**: Gemini 2.0 Flash for massive context and speed.
+- **OpenAI**: GPT for deep strategic planning.
+- **Anthropic**: Claude for nuanced context and coding.
+- **Google Cloud**: Gemini for massive context and speed.
 - **Groq**: LPU-powered high-speed tactical execution.
 
 #### 2. CONVERSATIONAL_AUDIO
