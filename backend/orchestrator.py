@@ -57,7 +57,7 @@ class ExecutiveOrchestrator:
         self.harmonic = HarmonicAssistant() # Harmonic Enhancer Integration
         self.ace = ace
         
-        self.ppn = PPNEmbeddingModule(input_dim=384, latent_dim=384) 
+        self.ppn = PPNEmbeddingModule(input_dim=384, hidden_dim=384) 
         self.dpk = DiscreteProjectionKernel()
         self.avl = AVLGate()
         self.entropy_monitor = EntropySpikeDetector()

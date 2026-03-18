@@ -63,6 +63,7 @@ class Settings(BaseSettings):
     # Security & Sovereignty
     POLYTOPE_MASTER_KEY: str
     JWT_SECRET_KEY: str  # Separate key for JWT signing — never reuse the vault master key
+    CSRF_SECRET_KEY: str  # Separate key for CSRF token signing
     VERUS_ID_IDENTITY: Optional[str] = None
     VERUS_ID_PRIVATE_KEY: Optional[str] = None
     
@@ -255,6 +256,15 @@ class Settings(BaseSettings):
         if not v or "PLACEHOLDER" in v:
             logger.critical("🚨 FATAL: JWT_SECRET_KEY must be set and distinct from POLYTOPE_MASTER_KEY.")
             sys.exit(1)
+        return v
+
+    @field_validator("CSRF_SECRET_KEY")
+    @classmethod
+    def csrf_key_must_be_distinct(cls, v, info):
+        jwt_key = info.data.get("JWT_SECRET_KEY", "")
+        master = info.data.get("POLYTOPE_MASTER_KEY", "")
+        if v == jwt_key or v == master:
+            raise ValueError("CSRF_SECRET_KEY must differ from JWT and vault keys.")
         return v
 
     @field_validator("GEMINI_API_KEY")

@@ -13,7 +13,8 @@ from typing import Dict, Any, Set, Optional, List
 
 # Conditional imports for platform-specific or optional dependencies
 try:
-    import keyring
+    # import keyring
+    keyring = None
 except ImportError:
     keyring = None
 
