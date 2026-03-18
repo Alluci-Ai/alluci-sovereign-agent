@@ -10,7 +10,7 @@ logger = get_logger("VoiceRouter")
 
 router = APIRouter(tags=["Voice & Audio"])
 
-@router.post("/voice/transcribe", dependencies=[Depends(verify_authenticated), Depends(CsrfProtect().validate_csrf_in_cookies)])
+@router.post("/voice/transcribe", dependencies=[Depends(verify_authenticated), Depends(CsrfProtect().validate_csrf)])
 async def transcribe_voice(file: UploadFile = File(...)):
     """Transcribes audio using local Whisper bridge (P1-007)."""
     if not services.local_inference:

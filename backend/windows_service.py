@@ -1,5 +1,12 @@
-import os
 import sys
+
+if sys.platform != "win32":
+    raise ImportError(
+        "windows_service.py is Windows-only. "
+        "Use `uvicorn backend.app:app` on Linux/macOS."
+    )
+
+import os
 import win32serviceutil
 import win32service
 import win32event

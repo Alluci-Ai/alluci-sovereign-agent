@@ -11,6 +11,7 @@ import {
   ApiManifoldKeys
 } from './types';
 import { INITIAL_CONNECTIONS } from './components/constants';
+import { getCsrfToken } from './csrfStore';
 
 // Layout Components
 import SystemHeader from './features/system/SystemHeader';
@@ -302,9 +303,13 @@ const App: React.FC = () => {
 
   const saveApiKeysToDaemon = async (keys: ApiManifoldKeys) => {
     try {
+      const csrfToken = await getCsrfToken(DAEMON_URL, accessToken);
       const res = await fetch(`${DAEMON_URL}/api/v1/vault/keys`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
+        },
         body: JSON.stringify(keys),
         credentials: 'include'
       });
@@ -403,10 +408,16 @@ const App: React.FC = () => {
   };
 
   const disconnectBridge = async (id: string) => {
+    const csrfToken = await getCsrfToken(DAEMON_URL, accessToken);
     await fetch(`${DAEMON_URL}/api/v1/channels/${id}/toggle`, {
       method: 'PUT',
-      headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ enabled: false })
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
+      },
+      body: JSON.stringify({ enabled: false }),
+      credentials: 'include',
     });
     setConnections(prev => prev.map(c =>
       c.id === id ? { ...c, status: 'DISCONNECTED', accountAlias: undefined, profileImg: undefined } : c

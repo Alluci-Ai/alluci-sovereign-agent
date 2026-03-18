@@ -15,7 +15,7 @@ async def list_goals(status: Optional[str] = Query(None)):
         raise HTTPException(status_code=503, detail="Goals engine not ready")
     return await services.goal_engine.list_goals(status=status)
 
-@router.post("/", dependencies=[Depends(verify_authenticated), Depends(CsrfProtect().validate_csrf_in_cookies)])
+@router.post("/", dependencies=[Depends(verify_authenticated), Depends(CsrfProtect().validate_csrf)])
 async def create_goal(
     title: str = Body(...), 
     description: str = Body(...), 
@@ -37,7 +37,7 @@ async def get_goal(goal_id: int):
         raise HTTPException(status_code=404, detail="Goal not found")
     return goal
 
-@router.patch("/{goal_id}", dependencies=[Depends(verify_authenticated), Depends(CsrfProtect().validate_csrf_in_cookies)])
+@router.patch("/{goal_id}", dependencies=[Depends(verify_authenticated), Depends(CsrfProtect().validate_csrf)])
 async def update_goal(
     goal_id: int, 
     status: Optional[str] = Body(None), 
@@ -51,7 +51,7 @@ async def update_goal(
         raise HTTPException(status_code=404, detail="Goal not found")
     return {"status": "UPDATED"}
 
-@router.delete("/{goal_id}", dependencies=[Depends(verify_authenticated), Depends(CsrfProtect().validate_csrf_in_cookies)])
+@router.delete("/{goal_id}", dependencies=[Depends(verify_authenticated), Depends(CsrfProtect().validate_csrf)])
 async def delete_goal(goal_id: int):
     """Delete a goal."""
     if not services.goal_engine:

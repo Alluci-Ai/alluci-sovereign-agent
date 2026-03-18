@@ -16,12 +16,6 @@ from .routers import auth, objectives, telemetry, system, vault, channels, voice
 from .security import csrf # Initialize CSRF config
 from .engine.errors import AdapterError
 
-@app.exception_handler(AdapterError)
-async def adapter_exception_handler(request: Request, exc: AdapterError):
-    return JSONResponse(
-        status_code=500,
-        content={"status": "error", "message": f"Tool Execution Failed: {str(exc)}"},
-    )
 
 async def global_rate_limit(request: Request, response: Response):
     """
@@ -68,6 +62,16 @@ app = FastAPI(
     lifespan=lifespan,
     dependencies=[Depends(global_rate_limit)]
 )
+
+# ── Exception Handlers ──────────────────────────────────────────────────────
+
+@app.exception_handler(AdapterError)
+async def adapter_exception_handler(request: Request, exc: AdapterError):
+    """Returns a structured JSON error when a tool adapter fails."""
+    return JSONResponse(
+        status_code=500,
+        content={"status": "error", "message": f"Tool Execution Failed: {str(exc)}"},
+    )
 
 @app.get("/health", include_in_schema=False)
 async def root_health():

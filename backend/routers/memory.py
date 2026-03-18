@@ -23,7 +23,7 @@ async def search_memory(q: str = Query(...), limit: int = 10):
         raise HTTPException(status_code=503, detail="Memory manager not ready")
     return await services.memory.search(q, limit=limit)
 
-@router.post("/memory/store", dependencies=[Depends(verify_authenticated), Depends(CsrfProtect().validate_csrf_in_cookies)])
+@router.post("/memory/store", dependencies=[Depends(verify_authenticated), Depends(CsrfProtect().validate_csrf)])
 async def store_memory(data: Dict[str, Any] = Body(...)):
     if not services.memory:
         raise HTTPException(status_code=503, detail="Memory manager not ready")
@@ -37,7 +37,7 @@ async def get_memory_stats():
         raise HTTPException(status_code=503, detail="Memory manager not ready")
     return await services.memory.get_stats()
 
-@router.delete("/memory/{entry_id}", dependencies=[Depends(verify_authenticated), Depends(CsrfProtect().validate_csrf_in_cookies)])
+@router.delete("/memory/{entry_id}", dependencies=[Depends(verify_authenticated), Depends(CsrfProtect().validate_csrf)])
 async def delete_memory_entry(entry_id: str):
     if not services.memory:
         raise HTTPException(status_code=503, detail="Memory manager not ready")

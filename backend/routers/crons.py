@@ -28,14 +28,14 @@ async def get_cron_job(job_id: int):
         raise HTTPException(status_code=404, detail="Job not found")
     return job
 
-@router.post("/cron/jobs", dependencies=[Depends(verify_authenticated), Depends(CsrfProtect().validate_csrf_in_cookies)])
+@router.post("/cron/jobs", dependencies=[Depends(verify_authenticated), Depends(CsrfProtect().validate_csrf)])
 async def create_cron_job(data: Dict[str, Any] = Body(...)):
     """Create a new scheduled task."""
     if not services.cron_engine:
         raise HTTPException(status_code=503, detail="Cron engine not initialized")
     return await services.cron_engine.create_job(data)
 
-@router.delete("/cron/jobs/{job_id}", dependencies=[Depends(verify_authenticated), Depends(CsrfProtect().validate_csrf_in_cookies)])
+@router.delete("/cron/jobs/{job_id}", dependencies=[Depends(verify_authenticated), Depends(CsrfProtect().validate_csrf)])
 async def delete_cron_job(job_id: int):
     """Remove a scheduled task."""
     if not services.cron_engine:

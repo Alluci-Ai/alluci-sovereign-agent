@@ -65,7 +65,7 @@ async def get_agents():
         ]
     }
 
-@router.post("/agents/delegate", dependencies=[Depends(verify_authenticated), Depends(CsrfProtect().validate_csrf_in_cookies)])
+@router.post("/agents/delegate", dependencies=[Depends(verify_authenticated), Depends(CsrfProtect().validate_csrf)])
 async def delegate_to_agent(agent_id: str = Body(...), task: str = Body(...)):
     """Delegates a task to a virtual agent in the constellation."""
     if not services.orchestrator:
