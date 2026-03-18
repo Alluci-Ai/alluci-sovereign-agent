@@ -7,7 +7,7 @@ class TelemetrySender: ObservableObject {
     private let keychainAccount = "sessionToken"
     
     func sendTelemetry(sample: TelemetrySample) async {
-        guard let baseURL = defaults.string(forKey: "baseURL"),
+        guard let baseURL = loadBaseURLFromKeychain(),
               let token = loadTokenFromKeychain(),
               let url = URL(string: "\(baseURL)/api/v1/channels/iwatch/biometrics") else {
             return
@@ -45,6 +45,24 @@ class TelemetrySender: ObservableObject {
         
         if status == errSecSuccess, let data = dataTypeRef as? Data, let token = String(data: data, encoding: .utf8) {
             return token
+        }
+        return nil
+    }
+    
+    private func loadBaseURLFromKeychain() -> String? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: keychainService,
+            kSecAttrAccount as String: "baseURL",
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        
+        var dataTypeRef: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &dataTypeRef)
+        
+        if status == errSecSuccess, let data = dataTypeRef as? Data, let urlStr = String(data: data, encoding: .utf8) {
+            return urlStr
         }
         return nil
     }

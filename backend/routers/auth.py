@@ -71,7 +71,8 @@ async def login(response: Response, payload: LoginRequest):
     raise HTTPException(status_code=401, detail="Invalid Sovereign Master Key")
 
 @router.post("/auth/logout")
-async def logout(response: Response):
+async def logout(response: Response, request: Request, csrf_protect: CsrfProtect = Depends()):
+    await csrf_protect.validate_csrf(request)
     response.delete_cookie(settings.AUTH_COOKIE_NAME)
     response.delete_cookie("alluci_session")
     return {"status": "SUCCESS", "message": "Logged out."}

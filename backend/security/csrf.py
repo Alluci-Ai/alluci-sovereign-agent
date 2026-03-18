@@ -4,7 +4,7 @@ from ..config import settings
 
 class CsrfSettings(BaseModel):
     auth_cookie_name: str = settings.AUTH_COOKIE_NAME
-    csrf_secret: str = settings.JWT_SECRET_KEY  # Re-using JWT secret for CSRF signing
+    csrf_secret: str = settings.CSRF_SECRET_KEY
     csrf_cookie_samesite: str = settings.AUTH_COOKIE_SAMESITE
     csrf_cookie_secure: bool = settings.APP_ENV != "development"
 

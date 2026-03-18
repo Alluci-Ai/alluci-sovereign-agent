@@ -111,6 +111,10 @@ class DiscreteProjectionKernel:
 
     def authorize_execution(self, state: PolytopeState) -> bool:
         """Entry point for authorization, routes to native or python."""
+        return self.validate_manifold_integrity(state)
+        
+    def validate_manifold_integrity(self, state: PolytopeState) -> bool:
+        """Alias for authorize_execution, used directly by some benchmarks and internal gates."""
         if self.native_lib and self.native_instance:
             native_state = NativePolytopeState(
                 signature_hash=state.signature_hash,

@@ -1,5 +1,5 @@
 # AGENT.md — Read This First, Every Session
-# Last updated: 2026-03-15
+# Last updated: 2026-03-18
 
 ## What This Codebase Is
 Alluci Sovereign Agent: self-hosted AI executive assistant with biometric-aware autonomy, 
@@ -23,9 +23,12 @@ AES-256-GCM encrypted local vault, and 21 messaging bridge adapters.
 8. All `@router.post()` auth endpoints need `dependencies=[Depends(RateLimiter(times=N, minutes=1))]`
 9. All routers must be registered with `prefix="/api/v1"` in `app.py`. Internal router paths must NOT start with `/api/`.
 
+# REQUIRED keys (app will not start without these):
+#   POLYTOPE_MASTER_KEY, JWT_SECRET_KEY, CSRF_SECRET_KEY
+
 ## Current Correct LLM Model IDs
 - **Google (flash):** `gemini-2.0-flash`
-- **Google (pro):** `gemini-2.5-pro-preview-05-06` 
+- **Google (pro)::** `gemini-2.5-pro-preview-05-06` 
 - **Anthropic (strong):** `claude-3-7-sonnet-20250219`
 - **Anthropic (light):** `claude-3-5-haiku-20241022`
 - **OpenAI (strong):** `gpt-4o`
@@ -39,6 +42,7 @@ AES-256-GCM encrypted local vault, and 21 messaging bridge adapters.
 | Bridge adapters | `backend/bridges/{name}.py` |
 | Vault operations | `backend/security/vault.py` → `VaultManager` |
 | Auth logic | `backend/security/auth.py` + `backend/routers/auth.py` |
+| CSRF Settings & Key | `backend/security/csrf.py` & `.env` (`CSRF_SECRET_KEY`) |
 | OAuth PKCE state | `backend/security/oauth_store.py` → `OAuthStateStore` |
 | WebAuthn challenges | `backend/security/webauthn_store.py` → `WebAuthnChallengeStore` |
 | WebAuthn Passkeys | `backend/security/credential_store.py` → `Simplicial Vault` |
@@ -63,7 +67,8 @@ curl -s http://localhost:8000/api/v1/health | python3 -m json.tool  # backend ru
 - [x] Background token refresh loops (all OAuth bridges in `backend/bridges/`)
 - [x] Frontend state hydration on page refresh (`store/useStore.ts`)
 - [x] Android PWA (`vite.config.ts` + `public/manifest.json`)
-- [ ] Xcode project file (`watchos/AlluciWatch/AlluciWatch.xcodeproj`) - *Follow A4_XCODE_GUIDE.md*
+- [x] Xcode project file (`watchos/AlluciWatch/AlluciWatch.xcodeproj`) - *Follow A4_XCODE_GUIDE.md*
+- [x] Windows MSIX build script
 - [x] Fix watchOS URL: `/api/v1/channels/iwatch/biometrics`
 - [x] `WKExtendedRuntimeSession` for background HRV collection
 - [x] iOS companion app (`watchos/AlluciCompanion/`)
@@ -72,3 +77,7 @@ curl -s http://localhost:8000/api/v1/health | python3 -m json.tool  # backend ru
 - [x] CSRF Protection & Security Headers
 - [x] Database connection pooling (Postgres)
 - [x] All 21 bridge adapters registered and functional
+- [x] Sprint 1.1: Add CSRF_SECRET_KEY configuration and validators
+- [x] Sprint 1.2: Fill CSRF coverage gaps across routers
+- [x] Sprint 1.3: Fix Alembic target_metadata
+- [x] Sprint 1.4: Fix TelemetrySender UserDefaults keychain read
