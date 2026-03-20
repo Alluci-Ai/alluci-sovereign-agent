@@ -323,6 +323,45 @@ class AgentChannelSubscription(SQLModel, table=True):
         # The migration also enforces this as a DB-level unique constraint.
         pass
 
+class AgentRecord(SQLModel, table=True):
+    """
+    Persistent sovereign agent entity.
+    Each agent has its own identity, soul manifest subset, heartbeat orders,
+    and can be routed tasks independently by the orchestrator.
+    """
+    __tablename__ = "agent_record"
+
+    id: str = Field(primary_key=True)                    # UUID string
+    name: str = Field(nullable=False)
+    description: Optional[str] = Field(default=None)
+    model: str = Field(default="gpt-4o")                  # Primary LLM
+    fallback_chain: str = Field(default="gemini-flash,claude-haiku")
+    status: str = Field(default="ACTIVE")                 # ACTIVE | PAUSED | DRAFT
+    system_prompt: Optional[str] = Field(default=None)    # Agent-specific system prompt
+    heartbeat_orders: Optional[str] = Field(default=None) # JSON array of HeartbeatOrder
+    soul_manifest_override: Optional[str] = Field(default=None)  # JSON partial override
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: Optional[datetime] = Field(default=None)
+
+
+class HeartbeatOrderRecord(SQLModel, table=True):
+    """
+    Persistent record of each heartbeat order execution outcome.
+    Used for: last-fired display in UI, cooldown enforcement,
+    outcome tracking, and PCL signal history.
+    """
+    __tablename__ = "heartbeat_order_record"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    order_id: str = Field(index=True)           # HeartbeatOrder.id
+    agent_id: Optional[str] = Field(default=None, index=True)  # None = root agent
+    fired_at: float = Field(default_factory=time.time, index=True)
+    probe_type: str = Field(default="")
+    action_type: str = Field(default="")
+    outcome: str = Field(default="success")     # "success" | "skipped" | "failed" | "no_change"
+    detail: Optional[str] = Field(default=None) # Short outcome description
+    signal_stored: bool = Field(default=False)  # True if pcl_signal was stored to H-LSM
+
 # ─── H-LSM Memory Models ──────────────────────────────────────────────────────
 
 class HLSMEpisodicEntry(SQLModel, table=True):
@@ -368,6 +407,59 @@ class HLSMWorkingEntry(SQLModel, table=True):
     source: str = Field(default="conversation")
     created_at: float = Field(default_factory=lambda: time.time())
     expires_at: float = Field(default_factory=lambda: time.time() + 3600.0)  # 1h TTL
+
+class PCLOpportunity(SQLModel, table=True):
+    """
+    Persisted record of every opportunity detected by the PCL.
+    Used for deduplication, cooldown enforcement, and outcome tracking.
+    Stores the last N opportunities per detector for pattern analysis.
+    """
+    __tablename__ = "pcl_opportunity"
+
+    id: str = Field(primary_key=True)          # Deterministic ID: sha256(detector+condition)[:16]
+    detector_name: str = Field(index=True)
+    title: str
+    description: str = Field(default="")
+    priority: int = Field(default=3)           # 1=critical, 5=low
+    confidence: float = Field(default=0.0)
+    recommended_action: str = Field(default="notify")  # execute|notify|defer
+    objective: str = Field(default="")
+    notification_body: str = Field(default="")
+    autonomy_level: str = Field(default="RESTRICTED")
+    requires_approval: bool = Field(default=False)
+    cooldown_minutes: int = Field(default=60)
+    affects_goal_id: Optional[int] = Field(default=None)
+
+    # Outcome tracking
+    actioned: bool = Field(default=False)
+    actioned_at: Optional[float] = Field(default=None)
+    outcome: Optional[str] = Field(default=None)    # "success"|"failure"|"ignored"|"deferred"
+    user_engaged: Optional[bool] = Field(default=None)
+
+    # Lifecycle
+    detected_at: float = Field(default_factory=lambda: time.time())
+    cycle_number: int = Field(default=0)
+
+
+class PCLWorldModelSnapshot(SQLModel, table=True):
+    """
+    Lightweight snapshot of each world model for observability.
+    Stores the last 48 hours of world model states (auto-pruned).
+    Used by the PCL dashboard and for pattern analysis.
+    """
+    __tablename__ = "pcl_world_snapshot"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    cycle_number: int = Field(index=True)
+    built_at: float = Field(default_factory=lambda: time.time(), index=True)
+    active_goals_count: int = Field(default=0)
+    goals_at_risk_count: int = Field(default=0)
+    current_psi: float = Field(default=0.0)
+    current_flow_mode: str = Field(default="STANDARD")
+    pending_bridge_messages: int = Field(default=0)
+    opportunities_detected: int = Field(default=0)
+    opportunities_actioned: int = Field(default=0)
+    cycle_duration_ms: float = Field(default=0.0)
 
 class MessageLog(SQLModel, table=True):
     """Full transcript record for sessions (Sovereign Spec §5.1)."""

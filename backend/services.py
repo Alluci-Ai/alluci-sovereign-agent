@@ -27,6 +27,7 @@ from .log_streamer import log_buffer
 from .device_manager import DeviceManager
 from .goals.engine import goal_engine as goal_engine_instance
 from .sop.engine import sop_engine as sop_engine_instance
+from .pcl import ProactiveCognitionLoop
 from .logging_config import get_logger
 
 logger = get_logger("PolytopeServices")
@@ -52,13 +53,14 @@ scanner: Optional[GuardrailScanner] = None
 device_manager: Optional[DeviceManager] = None
 goal_engine = goal_engine_instance
 sop_engine = sop_engine_instance
+pcl: Optional[ProactiveCognitionLoop] = None
 updater = updater_instance
 channel_registry: Dict[str, Any] = {}
 
 async def init_services(app_instance):
     global vault, router, ace, orchestrator, task_manager, skill_manager, sovereign_identity
     global local_inference, ws_gw, usage_tracker, cron_engine, config_editor, exec_approval
-    global memory, hlsm_manager, redis_client, scanner, device_manager
+    global memory, hlsm_manager, redis_client, scanner, device_manager, pcl
 
     logger.info("[ SERVICES ] Initializing global system components...")
 
@@ -158,6 +160,11 @@ async def init_services(app_instance):
         hlsm_manager=hlsm_manager,      # H-LSM (new)
     )
 
+    # Wire H-LSM into Heartbeat for pcl_signal and log_only actions
+    if orchestrator and orchestrator.heartbeat and hlsm_manager:
+        orchestrator.heartbeat.inject_hlsm(hlsm_manager)
+        logger.info("[ HB ] H-LSM injected into HeartbeatDaemon")
+
     # 10. Task Manager
     task_manager = TaskManager()
 
@@ -236,6 +243,20 @@ async def init_services(app_instance):
 
     # 21. Background Services
     await orchestrator.start_background_services()
+
+    # 22. Proactive Cognition Loop (PCL)
+    pcl = ProactiveCognitionLoop(
+        db_engine=db_engine,
+        orchestrator=orchestrator,
+        ace_engine=ace,
+        goal_engine=goal_engine,
+        hlsm_manager=hlsm_manager,
+        ws_gateway=ws_gw,
+        channel_registry=channel_registry,
+        settings=settings,
+    )
+    await pcl.start()
+    logger.info("[ PCL ] Proactive Cognition Loop running.")
 
     logger.info("[ SERVICES ] All core systems actualized.")
 
@@ -331,6 +352,9 @@ async def shutdown_services():
     if hlsm_manager:
         await hlsm_manager.stop_consolidation_loop()
         logger.info("[ HLSM ] Consolidation loop stopped")
+    if pcl:
+        await pcl.stop()
+        logger.info("[ PCL ] Proactive Cognition Loop stopped")
     if cron_engine: await cron_engine.stop()
     if orchestrator: await orchestrator.stop_background_services()
     if updater: await updater.stop()
