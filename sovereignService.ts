@@ -74,4 +74,39 @@ export class AlluciSovereignService {
         this.socket?.close();
         this.socket = null;
     }
+
+    // ─── H-LSM Memory REST API ──────────────────────────────────────────────
+
+    private async _fetch(path: string, options: RequestInit = {}) {
+        const token = localStorage.getItem('polytope_token');
+        const headers = {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            ...(options.headers || {}),
+        };
+        const resp = await fetch(`${this.DAEMON_URL}${path}`, { ...options, headers });
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+            throw new Error(err.detail || `Request failed: ${resp.status}`);
+        }
+        return resp.json();
+    }
+
+    async getMemoryStats() {
+        return this._fetch('/memory/stats');
+    }
+
+    async listMemories(limit: number = 50, offset: number = 0) {
+        return this._fetch(`/memory?limit=${limit}&offset=${offset}`);
+    }
+
+    async consolidateMemory() {
+        return this._fetch('/memory/consolidate', { method: 'POST' });
+    }
+
+    async deleteMemory(id: string) {
+        return this._fetch(`/memory/${id}`, { method: 'DELETE' });
+    }
 }
+
+export const sovereignService = new AlluciSovereignService();

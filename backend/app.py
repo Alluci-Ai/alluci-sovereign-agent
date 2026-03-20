@@ -4,7 +4,6 @@ import contextlib
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, Response, Depends
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi_limiter.depends import RateLimiter
 from secure import Secure
 
 from .config import settings
@@ -12,6 +11,17 @@ from .logging_config import get_logger
 
 logger = get_logger("PolytopeApp")
 from . import services
+from fastapi_limiter.depends import RateLimiter
+
+# Monkeypatch RateLimiter to skip if services.redis_client is not initialized
+# This prevents crashes on systems without Redis while allowing us to keep
+# RateLimiter dependencies throughout the router files.
+_original_limiter_call = RateLimiter.__call__
+async def _safe_limiter_call(self, request: Request, response: Response):
+    if not services.redis_client:
+        return
+    return await _original_limiter_call(self, request, response)
+RateLimiter.__call__ = _safe_limiter_call
 from .routers import auth, objectives, telemetry, system, vault, channels, voice, crons, wallet, sessions, config, soul, exec_approval, tasks, dag, websockets, memory, goals, sop
 from .security import csrf # Initialize CSRF config
 from .engine.errors import AdapterError
@@ -25,12 +35,14 @@ async def global_rate_limit(request: Request, response: Response):
     if services.redis_client:
         return await RateLimiter(times=settings.RATE_LIMIT_PER_MINUTE, seconds=60)(request, response)
 
+from .logging_config import configure_logging
+from .tracing_config import configure_tracing
+
+# global initialization outside lifespan to avoid recursive instrumentation hooks
+configure_logging(app_env=settings.APP_ENV)
+
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
-    from .logging_config import configure_logging
-    from .tracing_config import configure_tracing
-    configure_logging(app_env=settings.APP_ENV)
-    configure_tracing(app=app)
     logger.info("[ POLYTOPE_DAEMON ] Booting up...")
     await services.init_services(app)
     
@@ -62,6 +74,10 @@ app = FastAPI(
     lifespan=lifespan,
     dependencies=[Depends(global_rate_limit)]
 )
+
+# Instrument after app instance is created
+configure_tracing(app=app)
+
 
 # ── Exception Handlers ──────────────────────────────────────────────────────
 
@@ -95,7 +111,7 @@ secure_headers = Secure.with_default_headers()
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     response = await call_next(request)
-    secure_headers.framework.fastapi(response)
+    secure_headers.set_headers(response)
     # Custom HSTS for production
     if settings.APP_ENV == "production":
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"

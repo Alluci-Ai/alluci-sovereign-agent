@@ -1,193 +1,161 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { useStore } from '../../store/useStore';
-import { Search, Plus, Trash2, FileText, Database, Info, Upload } from 'lucide-react';
-
-const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
+import { Search, Trash2, FileText, Database, Info, Layers, Zap } from 'lucide-react';
+import { HLSMStats } from '../../components/Memory/HLSMStats';
+import { ConsolidationTrigger } from '../../components/Memory/ConsolidationTrigger';
+import { sovereignService } from '../../sovereignService';
 
 export const MemoryPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     const { accessToken } = useStore();
     const [memories, setMemories] = useState<any[]>([]);
-    const [stats, setStats] = useState<any>(null);
     const [searchQuery, setSearchQuery] = useState('');
-    const [isIngesting, setIsIngesting] = useState(false);
-    const [ingestPath, setIngestPath] = useState('');
+    const [loading, setLoading] = useState(false);
 
     const fetchMemories = useCallback(async () => {
+        setLoading(true);
         try {
-            const res = await fetch(`${DAEMON_URL}/api/v1/memory?limit=50`, {
-                headers: { 'Authorization': `Bearer ${accessToken}` }
-            });
-            if (res.ok) {
-                const data = await res.json();
-                // ChromaDB response format: { ids: [], documents: [], metadatas: [] }
-                const formatted = (data.ids || []).map((id: string, i: number) => ({
-                    id,
-                    content: data.documents[i],
-                    metadata: data.metadatas[i]
-                }));
-                setMemories(formatted);
-            }
-        } catch (e) { console.error("Failed to fetch memories", e); }
-    }, [accessToken]);
-
-    const fetchStats = useCallback(async () => {
-        try {
-            const res = await fetch(`${DAEMON_URL}/api/v1/memory/stats`, {
-                headers: { 'Authorization': `Bearer ${accessToken}` }
-            });
-            if (res.ok) setStats(await res.json());
-        } catch (e) { }
-    }, [accessToken]);
+            const data = await sovereignService.listMemories(50, 0);
+            setMemories(data.entries || []);
+        } catch (e) { 
+            console.error("Failed to fetch memories", e); 
+        } finally {
+            setLoading(false);
+        }
+    }, []);
 
     useEffect(() => {
         fetchMemories();
-        fetchStats();
-    }, [fetchMemories, fetchStats]);
+    }, [fetchMemories]);
 
     const handleSearch = async () => {
         if (!searchQuery.trim()) {
             fetchMemories();
             return;
         }
+        setLoading(true);
         try {
-            const res = await fetch(`${DAEMON_URL}/api/v1/memory/search?q=${encodeURIComponent(searchQuery)}`, {
-                headers: { 'Authorization': `Bearer ${accessToken}` }
-            });
-            if (res.ok) setMemories(await res.json());
-        } catch (e) { }
+            // Re-using the same search API which now routes to H-LSM
+            const results = await (sovereignService as any)._fetch(`/memory/search?q=${encodeURIComponent(searchQuery)}`);
+            // Format H-LSM retrieval results like the list entries for the UI
+            setMemories(results.map((r: any) => ({
+                id: r.id,
+                content: r.content,
+                source: r.source,
+                tier: r.tier || 1,
+                retention_score: r.retention_score || 1.0,
+                created_at: Date.now() / 1000
+            })));
+        } catch (e) {
+            console.error("Search failed", e);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleDelete = async (id: string) => {
         try {
-            const res = await fetch(`${DAEMON_URL}/api/v1/memory/${id}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${accessToken}` }
-            });
-            if (res.ok) {
+            const res = await sovereignService.deleteMemory(id);
+            if (res.status === "SUCCESS") {
                 setMemories(prev => prev.filter(m => m.id !== id));
-                fetchStats();
             }
-        } catch (e) { }
-    };
-
-    const handleIngest = async () => {
-        if (!ingestPath.trim()) return;
-        setIsIngesting(true);
-        try {
-            const res = await fetch(`${DAEMON_URL}/api/v1/memory/ingest`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(ingestPath)
-            });
-            if (res.ok) {
-                setIngestPath('');
-                fetchMemories();
-                fetchStats();
-            }
-        } catch (e) { }
-        setIsIngesting(false);
+        } catch (e) {
+            console.error("Delete failed", e);
+        }
     };
 
     return (
-        <div style={{
-            maxWidth: 800, width: '100%', margin: '0 auto',
-            display: 'flex', flexDirection: 'column', height: '100%',
-        }}>
-            {/* Header / Stats */}
-            <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div className="flex flex-col h-full max-w-4xl mx-auto w-full space-y-6 overflow-hidden">
+            {/* H-LSM Header */}
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                 <div>
-                    <h3 style={{ fontSize: 24, fontWeight: 700, letterSpacing: '-0.02em', marginBottom: 4 }}>Semantic Memory</h3>
-                    <p style={{ fontSize: 13, color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)' }}>
-                        CHROMA_PERSISTENT_COLLECTION: {stats?.name || 'Loading...'}
+                    <div className="flex items-center gap-2 mb-1">
+                        <Layers size={20} className="text-emerald-500" />
+                        <h3 className="text-2xl font-bold tracking-tight text-white">Hierarchical Long-Short Manifold</h3>
+                    </div>
+                    <p className="text-xs font-mono text-zinc-500 uppercase tracking-widest">
+                        Tiered Cognitive Memory (L0: Working | L1: Episodic | L2: Semantic)
                     </p>
                 </div>
-                {stats && (
-                    <div className="glass-card" style={{ padding: '8px 16px', display: 'flex', gap: 16 }}>
-                        <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: 10, color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>Vectors</div>
-                            <div style={{ fontSize: 18, fontWeight: 600 }}>{stats.count}</div>
-                        </div>
-                        <div style={{ width: 1, background: 'var(--separator)' }} />
-                        <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: 10, color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>Space</div>
-                            <div style={{ fontSize: 18, fontWeight: 600 }}>Cosine</div>
-                        </div>
-                    </div>
-                )}
             </div>
 
-            {/* Ingestion & Search Bar */}
-            <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
-                <div style={{ flex: 1, position: 'relative' }}>
-                    <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }} />
+            {/* Stats Dashboard */}
+            <div className="glass-card p-6 bg-zinc-950/40 border-zinc-800/50">
+               <HLSMStats />
+            </div>
+
+            {/* Control Strip */}
+            <div className="flex flex-col md:flex-row gap-4 items-center">
+                <div className="relative flex-1 group">
+                    <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600 group-focus-within:text-emerald-500 transition-colors" />
                     <input
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                        placeholder="Search semantic memory..."
-                        className="glass-input"
-                        style={{ paddingLeft: 38, width: '100%' }}
+                        placeholder="Search manifold content..."
+                        className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-3 pl-12 pr-4 text-sm text-white focus:outline-none focus:border-emerald-500/50 focus:bg-zinc-900/80 transition-all font-mono"
                     />
                 </div>
-                <div style={{ display: 'flex', gap: 8, background: 'var(--fill-quaternary)', borderRadius: 12, padding: 4, border: '1px solid var(--separator)' }}>
-                    <input
-                        value={ingestPath}
-                        onChange={(e) => setIngestPath(e.target.value)}
-                        placeholder="Path to PDF/DOCX/TXT..."
-                        className="glass-input"
-                        style={{ width: 200, fontSize: 12, border: 'none', background: 'transparent' }}
-                    />
-                    <button
-                        onClick={handleIngest}
-                        disabled={isIngesting}
-                        className="glass-btn glass-btn--primary"
-                        style={{ fontSize: 11, padding: '4px 12px' }}
-                    >
-                        {isIngesting ? 'Ingesting...' : 'Ingest'}
-                    </button>
+                <div className="w-full md:w-auto">
+                    <ConsolidationTrigger onComplete={fetchMemories} />
                 </div>
             </div>
 
-            {/* Memory List */}
-            <div style={{ flex: 1, overflowY: 'auto' }} className="scrollbar-hide">
+            {/* Memory Stream */}
+            <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
                 {memories.length === 0 ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 64, opacity: 0.3 }}>
-                        <Database size={48} strokeWidth={1} style={{ marginBottom: 16 }} />
-                        <p>Long-term memory is currently empty.</p>
+                    <div className="flex flex-col items-center justify-center py-20 opacity-20 text-zinc-400">
+                        <Database size={48} strokeWidth={1} className="mb-4" />
+                        <p className="font-mono text-xs uppercase tracking-widest">Manifold Void — No active memories</p>
                     </div>
                 ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div className="space-y-3">
                         {memories.map((m) => (
-                            <div key={m.id} className="glass-card" style={{ padding: 16 }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                                        <FileText size={14} className="text-accent" />
-                                        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)' }}>
-                                            {m.id}
+                            <div key={m.id} className="group glass-card p-4 hover:border-emerald-900/40 transition-all bg-zinc-900/20 relative overflow-hidden">
+                                {/* Tier Indicator */}
+                                <div className={`absolute top-0 left-0 w-1 h-full ${
+                                    m.tier === 0 ? 'bg-zinc-600' : 
+                                    m.tier === 2 ? 'bg-emerald-500' : 'bg-blue-500'
+                                }`} />
+
+                                <div className="flex justify-between items-start mb-2">
+                                    <div className="flex items-center gap-3">
+                                        <div className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-tighter ${
+                                            m.tier === 0 ? 'bg-zinc-800 text-zinc-400' :
+                                            m.tier === 2 ? 'bg-emerald-900/30 text-emerald-400' : 'bg-blue-900/30 text-blue-400'
+                                        }`}>
+                                            Tier {m.tier || 1} {m.tier === 0 ? 'Working' : m.tier === 2 ? 'Semantic' : 'Episodic'}
+                                        </div>
+                                        <span className="text-[10px] text-zinc-600 font-mono">
+                                            ID: {m.id.substring(0, 12)}...
                                         </span>
                                     </div>
-                                    <button onClick={() => handleDelete(m.id)} className="hover:text-accent-danger transition-colors opacity-50 hover:opacity-100">
+                                    <button 
+                                        onClick={() => handleDelete(m.id)} 
+                                        className="text-zinc-600 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 p-1"
+                                    >
                                         <Trash2 size={14} />
                                     </button>
                                 </div>
-                                <p style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--text-primary)' }}>
+
+                                <p className="text-sm leading-relaxed text-zinc-300 mb-3 pl-2">
                                     {m.content}
                                 </p>
-                                {m.metadata && (
-                                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--separator)', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                                        {Object.entries(m.metadata).map(([k, v]: [string, any]) => (
-                                            <div key={k} style={{ display: 'flex', gap: 4, alignItems: 'center', fontSize: 10, color: 'var(--text-tertiary)' }}>
-                                                <Info size={10} />
-                                                <span style={{ fontWeight: 600 }}>{k}:</span>
-                                                <span>{String(v)}</span>
-                                            </div>
-                                        ))}
+
+                                <div className="flex items-center gap-4 text-[10px] font-mono text-zinc-600 px-2 mt-2">
+                                    <div className="flex items-center gap-1">
+                                        <Zap size={10} className="text-yellow-600" />
+                                        <span>RETENTION: {(m.retention_score * 100).toFixed(1)}%</span>
                                     </div>
-                                )}
+                                    <div className="flex items-center gap-1">
+                                        <Info size={10} />
+                                        <span>SOURCE: {m.source || 'TRANSCRIPT'}</span>
+                                    </div>
+                                    {m.created_at && (
+                                        <div className="ml-auto opacity-50">
+                                            {new Date(m.created_at * 1000).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         ))}
                     </div>

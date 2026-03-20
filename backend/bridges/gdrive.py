@@ -10,8 +10,8 @@ class GDriveBridge(BridgeAdapter):
     Sovereign Google Drive Bridge.
     Supports drive.file scope for reading/writing agent-specific files.
     """
-    def __init__(self, bridge_id: str, vault_root: str):
-        super().__init__(bridge_id, vault_root)
+    def __init__(self, bridge_id: str, vault_root: str, vault_manager: Optional[Any] = None):
+        super().__init__(bridge_id, vault_root, vault_manager)
         self.version = "v3"
         self.base_url = f"https://www.googleapis.com/drive/{self.version}"
         self.email_address: Optional[str] = None

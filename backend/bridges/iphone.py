@@ -124,3 +124,9 @@ class IPhoneBridge(BridgeAdapter, ServiceListener):
         if self.zc:
             self.zc.close()
         await super().disconnect()
+
+    async def fetch_unread(self, limit: int = 10) -> List[Dict[str, Any]]:
+        return []
+
+    async def validate_integrity(self) -> bool:
+        return self.is_connected

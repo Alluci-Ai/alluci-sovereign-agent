@@ -4,6 +4,7 @@ from typing import List, Dict, Any, Optional
 from enum import Enum
 from pydantic import BaseModel
 from sqlmodel import SQLModel, Field, Relationship, Column, JSON
+import time
 
 # --- Enums ---
 class TaskStatus(str, Enum):
@@ -321,6 +322,52 @@ class AgentChannelSubscription(SQLModel, table=True):
         # Enforce unique (agent_id, channel_id) pairs at the ORM level
         # The migration also enforces this as a DB-level unique constraint.
         pass
+
+# ─── H-LSM Memory Models ──────────────────────────────────────────────────────
+
+class HLSMEpisodicEntry(SQLModel, table=True):
+    """
+    L1 Episodic Memory tier — session-scoped facts and task outcomes.
+    Stored in the primary SQL database (SQLite dev / PostgreSQL prod).
+    Searchable via FTS5 (SQLite) or full-text index (PostgreSQL).
+    Promoted to L2 ChromaDB when access_count >= PROMOTION_THRESHOLD.
+    """
+    __tablename__ = "hlsm_episodic"
+
+    id: str = Field(primary_key=True)                          # UUID string
+    content: str = Field(nullable=False)                       # Memory text
+    source: str = Field(default="task_result", index=True)     # Origin type
+    session_key: str = Field(default="", index=True)           # Originating session
+    objective_hash: str = Field(default="", index=True)        # SHA256[:16] of objective
+    psi_at_encoding: float = Field(default=0.0)                # ψ at write time
+    valence_at_encoding: float = Field(default=0.5)            # Valence at write time
+    topological_importance: float = Field(default=1.0)         # Φ importance weight
+    betti_1_support: float = Field(default=0.0)                # Topological loop support
+    access_count: int = Field(default=0)                       # Retrieval frequency
+    last_accessed: float = Field(default_factory=lambda: time.time())  # Unix ts
+    created_at: float = Field(default_factory=lambda: time.time())     # Unix ts
+    retention_score: float = Field(default=1.0)                # Decay score ∈ [0,1]
+    promoted_to_l2: bool = Field(default=False)                # Already in ChromaDB?
+
+    # Extra metadata as JSON string (SQLModel/SQLite compatible)
+    extra_metadata: Optional[str] = Field(default=None)        # JSON string
+
+
+class HLSMWorkingEntry(SQLModel, table=True):
+    """
+    L0 Working Memory tier — current session context window.
+    Redis-backed in production (see HLSMManager). This SQLModel table
+    provides a persistent fallback when Redis is unavailable (LITE_MODE).
+    TTL is enforced by the manager, not a database trigger.
+    """
+    __tablename__ = "hlsm_working"
+
+    id: str = Field(primary_key=True)
+    session_key: str = Field(nullable=False, index=True)
+    content: str = Field(nullable=False)
+    source: str = Field(default="conversation")
+    created_at: float = Field(default_factory=lambda: time.time())
+    expires_at: float = Field(default_factory=lambda: time.time() + 3600.0)  # 1h TTL
 
 class MessageLog(SQLModel, table=True):
     """Full transcript record for sessions (Sovereign Spec §5.1)."""

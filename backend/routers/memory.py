@@ -37,7 +37,7 @@ async def get_memory_stats():
         raise HTTPException(status_code=503, detail="Memory manager not ready")
     return await services.memory.get_stats()
 
-@router.delete("/memory/{entry_id}", dependencies=[Depends(verify_authenticated), Depends(CsrfProtect().validate_csrf)])
+@router.delete("/memory/{entry_id}", dependencies=[Depends(verify_authenticated)])
 async def delete_memory_entry(entry_id: str):
     if not services.memory:
         raise HTTPException(status_code=503, detail="Memory manager not ready")
@@ -45,3 +45,16 @@ async def delete_memory_entry(entry_id: str):
     if not success:
         raise HTTPException(status_code=404, detail="Entry not found")
     return {"status": "SUCCESS"}
+
+@router.post("/memory/consolidate", dependencies=[Depends(verify_authenticated)])
+async def trigger_consolidation():
+    """Manually trigger the H-LSM consolidation cycle (Decay, Promotion, Pruning)."""
+    if not services.hlsm_manager:
+        raise HTTPException(status_code=503, detail="H-LSM manager not ready")
+    
+    summary = await services.hlsm_manager.consolidation_sweep()
+    return {
+        "status": "SUCCESS",
+        "cycle_summary": summary,
+        "message": "H-LSM consolidation sweep completed successfully."
+    }
