@@ -135,3 +135,32 @@ async def get_audit_ledger(limit: int = 50, offset: int = 0, status: Optional[st
 async def add_audit_entry(entry: AuditEntry):
     from ..security.audit_ledger import sync_audit_entry
     return await sync_audit_entry(entry)
+
+
+@router.get("/system/pcl/status", dependencies=[Depends(verify_authenticated)])
+async def get_pcl_status():
+    """Retrieve detailed PCL engine status, recent opportunities, and cycles."""
+    if not services.pcl:
+        raise HTTPException(status_code=503, detail="PCL engine not initialized")
+    return await services.pcl.get_status()
+
+
+@router.post("/system/pcl/cycle", dependencies=[Depends(verify_authenticated)])
+async def trigger_pcl_cycle():
+    """Manually trigger a PCL cognitive cycle immediately."""
+    if not services.pcl:
+        raise HTTPException(status_code=503, detail="PCL engine not initialized")
+    return await services.pcl.run_cycle()
+
+
+@router.get("/system/pcl/opportunities", dependencies=[Depends(verify_authenticated)])
+async def get_pcl_opportunities(limit: int = 50, actioned: Optional[bool] = None):
+    """Retrieve historical PCL opportunities from the database."""
+    from sqlmodel import col
+    from ..models import PCLOpportunity
+    with Session(db_engine) as session:
+        query = select(PCLOpportunity)
+        if actioned is not None:
+            query = query.where(PCLOpportunity.actioned == actioned)
+        query = query.order_by(col(PCLOpportunity.detected_at).desc()).limit(limit)
+        return session.exec(query).all()

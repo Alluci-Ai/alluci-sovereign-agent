@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { PolytopeIdentity } from './Identity';
 import PersonalityField from './PersonalityField';
 import { SoulPreferences, SoulHumor, SoulConciseness, SoulManifest, SkillManifest } from '../types';
+import { HeartbeatOrderEditor, HeartbeatOrder } from '../features/heartbeat/HeartbeatOrderEditor';
 import SkillBuilderWizard from './SkillBuilderWizard';
 import { SKILL_DATABASE } from '../knowledge';
 
@@ -112,6 +113,31 @@ const TagInput: React.FC<{
     );
 };
 
+function parseHeartbeatOrders(raw: any): HeartbeatOrder[] {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (trimmed.startsWith('[')) {
+      try { return JSON.parse(trimmed); } catch { }
+    }
+    // Legacy markdown migration
+    return raw.split('\n')
+      .filter(l => l.trim().startsWith('- [x]'))
+      .map(l => ({
+        id: Math.random().toString(36).slice(2, 10),
+        label: l.replace('- [x]', '').trim(),
+        active: true,
+        probe_type: 'task_deadline' as const,
+        probe_config: { path: 'TASKS.md' },
+        action_type: 'execute_objective' as const,
+        action_config: { objective_template: '{label}' },
+        interval_minutes: 15,
+      }));
+  }
+  return [];
+}
+
 const IdentityForge: React.FC<{ onClose: () => void; onManifestUpdate?: (manifest: SoulManifest) => void }> = ({ onClose, onManifestUpdate }) => {
     const [tab, setTab] = useState<'IDENTITY' | 'COGNITION'>('IDENTITY');
     const [manifest, setManifest] = useState<SoulManifest | null>(null);
@@ -120,6 +146,7 @@ const IdentityForge: React.FC<{ onClose: () => void; onManifestUpdate?: (manifes
     const [saving, setSaving] = useState(false);
     const [isSkillPickerOpen, setIsSkillPickerOpen] = useState(false);
     const [selectedSkillsForIngest, setSelectedSkillsForIngest] = useState<string[]>([]);
+    const [heartbeatHistory, setHeartbeatHistory] = useState<Record<string, any[]>>({});
 
     const fetchManifest = async () => {
         const token = localStorage.getItem('alluci_daemon_token');
@@ -159,6 +186,24 @@ const IdentityForge: React.FC<{ onClose: () => void; onManifestUpdate?: (manifes
     };
 
     useEffect(() => { fetchManifest(); }, []);
+
+    // Fetch order history on mount
+    useEffect(() => {
+      const token = localStorage.getItem('alluci_daemon_token');
+      fetch(`${DAEMON_URL}/api/v1/heartbeat/history?limit=50`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      })
+        .then(r => r.ok ? r.json() : { history: [] })
+        .then(data => {
+          const grouped: Record<string, any[]> = {};
+          for (const record of data.history || []) {
+            if (!grouped[record.order_id]) grouped[record.order_id] = [];
+            grouped[record.order_id].push(record);
+          }
+          setHeartbeatHistory(grouped);
+        })
+        .catch(() => {});
+    }, []);
 
     const updateManifest = (key: keyof SoulManifest, val: any) => {
         if (!manifest) return;
@@ -302,8 +347,15 @@ const IdentityForge: React.FC<{ onClose: () => void; onManifestUpdate?: (manifes
                                     <textarea className="glass-input" value={manifest.identityCore} onChange={e => updateManifest('identityCore', e.target.value)} style={{ minHeight: 64, resize: 'vertical', fontSize: 13 }} />
                                 </div>
                                 <div>
-                                    <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', display: 'block', marginBottom: 4, textTransform: 'uppercase' }}>Heartbeat Orders</label>
-                                    <textarea className="glass-input" value={manifest.heartbeat || ''} onChange={e => updateManifest('heartbeat', e.target.value)} placeholder="- [x] Monitor..." style={{ minHeight: 48, resize: 'vertical', fontSize: 13 }} />
+                                    <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)',
+                                      display: 'block', marginBottom: 8, textTransform: 'uppercase' }}>
+                                      Heartbeat Orders
+                                    </label>
+                                    <HeartbeatOrderEditor
+                                      orders={parseHeartbeatOrders(manifest.heartbeat)}
+                                      onChange={orders => updateManifest('heartbeat', JSON.stringify(orders))}
+                                      orderHistory={heartbeatHistory}
+                                    />
                                 </div>
                                 <div>
                                     <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', display: 'block', marginBottom: 4, textTransform: 'uppercase' }}>Voice Profile</label>

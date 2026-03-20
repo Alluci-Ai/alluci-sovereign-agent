@@ -170,6 +170,12 @@ class Settings(BaseSettings):
     CRITIC_THRESHOLD: float = 0.75
     MAX_CONCURRENT_TASKS: int = 5
 
+    # Proactive Cognition Loop (PCL)
+    PCL_ENABLED: bool = True
+    PCL_CYCLE_INTERVAL: int = 300
+    PCL_QUIET_START_HOUR: int = 22
+    PCL_QUIET_END_HOUR: int = 7
+
     # Verus RPC Settings
     VERUS_RPC_HOST: str = "127.0.0.1"
     VERUS_RPC_PORT: int = 27486
