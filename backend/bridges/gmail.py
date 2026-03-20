@@ -13,8 +13,8 @@ class GmailBridge(BridgeAdapter):
     Sovereign Gmail Bridge using Google REST API.
     Supports offline access tokens and MIME parsing.
     """
-    def __init__(self, bridge_id: str, vault_root: str):
-        super().__init__(bridge_id, vault_root)
+    def __init__(self, bridge_id: str, vault_root: str, vault_manager: Optional[Any] = None):
+        super().__init__(bridge_id, vault_root, vault_manager)
         self.email_address: Optional[str] = None
         self._poll_task: Optional[asyncio.Task] = None
 

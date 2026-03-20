@@ -13,6 +13,7 @@ from .security.guardrail import GuardrailScanner
 from .ace.engine import AffectiveEngine
 from .skill_manager import SkillManager
 from .memory.manager import MemoryManager
+from .memory.hlsm_manager import HLSMManager
 from .analytics import UsageTracker
 from .orchestrator import ExecutiveOrchestrator
 from .tasks import TaskManager
@@ -45,6 +46,7 @@ cron_engine: Optional[CronEngine] = None
 config_editor: Optional[ConfigEditor] = None
 exec_approval: Optional[ExecApprovalManager] = None
 memory: Optional[MemoryManager] = None
+hlsm_manager: Optional[HLSMManager] = None
 redis_client: Optional[redis.Redis] = None
 scanner: Optional[GuardrailScanner] = None
 device_manager: Optional[DeviceManager] = None
@@ -56,7 +58,7 @@ channel_registry: Dict[str, Any] = {}
 async def init_services(app_instance):
     global vault, router, ace, orchestrator, task_manager, skill_manager, sovereign_identity
     global local_inference, ws_gw, usage_tracker, cron_engine, config_editor, exec_approval
-    global memory, redis_client, scanner, device_manager
+    global memory, hlsm_manager, redis_client, scanner, device_manager
 
     logger.info("[ SERVICES ] Initializing global system components...")
 
@@ -75,6 +77,7 @@ async def init_services(app_instance):
             logger.info("[ VERUSID ] Redis-backed challenge store active.")
         except Exception as e:
             logger.error(f"[ CACHE ]: Redis initialization failed — rate limiting DISABLED: {e}")
+            redis_client = None
             metrics.increment_counter("redis_init_failures_total")
     else:
         logger.warning("[ CACHE ]: REDIS_URL not configured. Rate limiting is INACTIVE.")
@@ -99,18 +102,60 @@ async def init_services(app_instance):
     # 6. Skill Manager
     skill_manager = SkillManager(vault)
 
-    # 7. Persistent Memory
-    memory = MemoryManager()
+    # 7. Persistent H-LSM Memory System
+    # Initialize the three-tier Hierarchical Long-Short Manifold manager.
+    # L0 backed by Redis (if available), L1 by SQL, L2 by ChromaDB.
+    global hlsm_manager, memory
+
+    # Build ChromaDB collection for L2 semantic tier
+    chroma_collection = None
+    lite_mode = getattr(settings, "LITE_MODE", False)
+    if not lite_mode:
+        try:
+            import chromadb
+            persist_dir = os.path.expanduser("~/.polytope/memory")
+            os.makedirs(persist_dir, mode=0o700, exist_ok=True)
+            chroma_client = chromadb.PersistentClient(path=persist_dir)
+            chroma_collection = chroma_client.get_or_create_collection(
+                name="hlsm_semantic",
+                metadata={"hnsw:space": "cosine"},
+            )
+            logger.info(f"[ HLSM ] ChromaDB L2 collection initialized at {persist_dir}")
+        except ImportError:
+            logger.warning("[ HLSM ] chromadb not found — L2 semantic tier disabled")
+        except Exception as e:
+            logger.error(f"[ HLSM ] ChromaDB initialization failed: {e} — L2 disabled")
+
+    # Instantiate the H-LSM manager
+    hlsm_manager = HLSMManager(
+        db_engine=db_engine,
+        redis_client=redis_client,       # None if Redis unavailable — L0 falls back to SQL
+        chroma_collection=chroma_collection,
+        settings=settings,
+    )
+
+    # Start the background consolidation loop
+    await hlsm_manager.start_consolidation_loop()
+
+    # Backwards-compat: assign to `memory` so existing code still works
+    memory = hlsm_manager
+    logger.info("[ HLSM ] H-LSM memory system online: L0+L1+L2 active")
 
     # 8. Usage & Cost Analytics
     usage_tracker = UsageTracker(db_engine)
 
     # 9. Executive Orchestrator
     orchestrator = ExecutiveOrchestrator(
-        router, vault, ace, settings, 
-        skill_manager=skill_manager, 
+        router=router,
+        vault=vault,
+        ace=ace,
+        skill_manager=skill_manager,
         analytics=usage_tracker,
-        memory_manager=memory
+        settings=settings,
+        vault_root=vault_root,
+        approval_manager=exec_approval,
+        memory_manager=memory,          # Legacy compat
+        hlsm_manager=hlsm_manager,      # H-LSM (new)
     )
 
     # 10. Task Manager
@@ -131,11 +176,10 @@ async def init_services(app_instance):
     orchestrator.ws_gateway = ws_gw
     router.ws_gateway = ws_gw
 
-    # Register MemoryAdapter with the live MemoryManager instance.
-    # Must happen after orchestrator (and thus adapter_registry) is created.
-    from .adapters.memory_adapter import MemoryAdapter
-    orchestrator.adapter_registry.register(MemoryAdapter(memory))
-    logger.info("[ ADAPTERS ] MemoryAdapter registered — memory_search/memory_store tools active.")
+    # Register HLSMMemoryAdapter (replaces the old MemoryAdapter)
+    from .adapters.memory_adapter import HLSMMemoryAdapter
+    orchestrator.adapter_registry.register(HLSMMemoryAdapter(hlsm_manager))
+    logger.info("[ ADAPTERS ] HLSMMemoryAdapter registered — hlsm_search/hlsm_store/hlsm_recall tools active.")
 
     # 14. Self-Update Manager
     await updater.start()
@@ -284,6 +328,9 @@ async def _init_channels(vault_root: str):
 
 async def shutdown_services():
     logger.info("[ SERVICES ] Shutting down...")
+    if hlsm_manager:
+        await hlsm_manager.stop_consolidation_loop()
+        logger.info("[ HLSM ] Consolidation loop stopped")
     if cron_engine: await cron_engine.stop()
     if orchestrator: await orchestrator.stop_background_services()
     if updater: await updater.stop()

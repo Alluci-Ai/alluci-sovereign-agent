@@ -35,19 +35,21 @@ from .inference.ppn import PPNEmbeddingModule
 from .inference.holoid import HoloidConsensus
 
 from .logging_config import get_logger
+from .memory.hlsm_manager import HLSMManager, HLSMContext
 
 class ExecutiveOrchestrator:
     def __init__(self, router: ModelRouter, vault: VaultManager, ace: AffectiveEngine, 
                  settings: Settings, skill_manager: SkillManager = None, 
                  approval_manager=None, analytics=None, vault_root: str = None,
-                 memory_manager = None):
+                 memory_manager=None, hlsm_manager=None):
         self.settings = settings
         self.logger = get_logger("ExecutiveOrchestrator")
         self.vault = vault
         self.skill_manager = skill_manager
         self.approval_manager = approval_manager
         self.analytics = analytics
-        self.memory = memory_manager
+        self.memory = memory_manager      # Legacy MemoryManager (kept for adapters)
+        self.hlsm = hlsm_manager          # H-LSM manager (new)
         
         # Sub-systems
         self.identity = SovereignIdentity(settings)
@@ -171,6 +173,22 @@ class ExecutiveOrchestrator:
             if not body:
                 return
 
+            # Encode inbound message to H-LSM working memory for session context
+            if self.hlsm and body:
+                try:
+                    psi_val = 0.0
+                    if self.ace:
+                        s = self.ace.get_affective_state()
+                        psi_val = min(1.0, float(s.tension) / 1024.0)
+                    await self.hlsm.encode_message(
+                        content=f"[{protocol}] From {sender}: {body}",
+                        session_key=session_key,
+                        source="inbound_message",
+                        psi=psi_val,
+                    )
+                except Exception as e:
+                    self.logger.debug(f"[Orchestrator] H-LSM message encode skipped: {e}")
+
                 self.logger.info(f"[Orchestrator] Inbound {protocol} message from {sender} (Account: {account_id}): {body[:50]}...")
             
             # 1. Record User Message to Log & Set Context
@@ -277,7 +295,43 @@ class ExecutiveOrchestrator:
                             context_parts.append(f"  Logic: {', '.join(s['logic'])}")
             except Exception:
                 pass
-                
+
+        # 3. H-LSM Memory Context (Hierarchical Long-Short Manifold)
+        # Retrieves relevant memories across all three tiers and injects
+        # them into the planning context for informed objective execution.
+        if self.hlsm:
+            try:
+                # Get current affective state for modulated retrieval
+                psi = 0.0
+                valence = 0.5
+                if self.ace:
+                    affective = self.ace.get_affective_state()
+                    psi = min(1.0, float(affective.tension) / 1024.0)
+                    valence = min(1.0, float(affective.valence) / 1024.0)
+
+                # Retrieve context from H-LSM (the objective is not yet known here,
+                # so we use the soul identity core as the retrieval seed)
+                retrieval_seed = "\n".join(context_parts[:3]) if context_parts else "agent execution"
+                memory_ctx = await self.hlsm.retrieve_context(
+                    objective=retrieval_seed,
+                    psi=psi,
+                    valence=valence,
+                    session_key=getattr(self, "_current_session_key", ""),
+                    max_per_tier=5,
+                )
+
+                memory_block = memory_ctx.to_prompt_block()
+                if memory_block:
+                    context_parts.append(memory_block)
+                    self.logger.debug(
+                        f"[Orchestrator] H-LSM context injected: "
+                        f"L0={len(memory_ctx.working_memories)}, "
+                        f"L1={len(memory_ctx.episodic_memories)}, "
+                        f"L2={len(memory_ctx.semantic_memories)}"
+                    )
+            except Exception as e:
+                self.logger.error(f"[Orchestrator] H-LSM retrieval failed (non-fatal): {e}", exc_info=True)
+
         return "\n".join(context_parts)
 
     def _perform_ppn_check(self, objective: str, autonomy: str) -> Tuple[bool, Optional[PolytopeState]]:
@@ -404,6 +458,10 @@ class ExecutiveOrchestrator:
 
         # 2. Create DB Run Record
         run_id = self._create_run_record(objective, autonomy)
+        
+        # Track current session key for H-LSM context scoping
+        session_key = getattr(self, "_current_session_key", f"sess_{int(time.time())}")
+        self._current_session_key = session_key
 
         # 3. Affective Gate
         if autonomy == "RESTRICTED" and self.ace.should_throttle():
@@ -567,6 +625,29 @@ class ExecutiveOrchestrator:
             "score": critic_score,
             "feedback": feedback
         }
+
+        # H-LSM Post-Execution Memory Formation
+        if self.hlsm:
+            try:
+                # Re-get affective state at completion time
+                final_psi = 0.0
+                final_valence = 0.5
+                if self.ace:
+                    final_state = self.ace.get_affective_state()
+                    final_psi = min(1.0, float(final_state.tension) / 1024.0)
+                    final_valence = min(1.0, float(final_state.valence) / 1024.0)
+
+                encoded = await self.hlsm.encode_from_execution(
+                    run_id=run_id,
+                    tasks=updated_tasks,
+                    objective=objective,
+                    session_key=getattr(self, "_current_session_key", ""),
+                    psi=final_psi,
+                    valence=final_valence,
+                )
+                self.logger.info(f"[Orchestrator] H-LSM encoded {encoded} memories from run {run_id}")
+            except Exception as e:
+                self.logger.error(f"[Orchestrator] H-LSM encoding failed (non-fatal): {e}", exc_info=True)
 
     async def execute_research(self, objective: str) -> Dict[str, Any]:
         """

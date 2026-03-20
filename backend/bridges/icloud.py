@@ -36,8 +36,8 @@ class ICloudBridge(BridgeAdapter):
     Persists session cookies so 2FA is only required on first connection.
     """
 
-    def __init__(self, bridge_id: str, vault_root: str):
-        super().__init__(bridge_id, vault_root)
+    def __init__(self, bridge_id: str, vault_root: str, vault_manager: Optional[Any] = None):
+        super().__init__(bridge_id, vault_root, vault_manager)
         self.api: Optional["PyiCloudService"] = None
         self._apple_id: Optional[str] = None
         self._cookie_dir: Optional[str] = None
