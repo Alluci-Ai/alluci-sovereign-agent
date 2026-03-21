@@ -10,7 +10,16 @@ from backend.pcl import (
     InterventionJudge
 )
 from backend.models import PCLOpportunity, PCLWorldModelSnapshot, GoalRecord
+from backend.config import settings
 
+@pytest.fixture
+def mock_settings():
+    s = MagicMock()
+    s.PCL_CYCLE_INTERVAL = 1.0
+    s.PCL_QUIET_START_HOUR = 22
+    s.PCL_QUIET_END_HOUR = 7
+    s.CRITIC_THRESHOLD = 0.75
+    return s
 @pytest.fixture
 def mock_db_engine():
     return MagicMock()
@@ -43,13 +52,14 @@ def mock_hlsm():
     return hlsm
 
 @pytest.fixture
-def pcl_engine(mock_db_engine, mock_orchestrator, mock_ace, mock_goal_engine, mock_hlsm):
+def pcl_engine(mock_db_engine, mock_orchestrator, mock_ace, mock_goal_engine, mock_hlsm, mock_settings):
     return ProactiveCognitionLoop(
         db_engine=mock_db_engine,
         orchestrator=mock_orchestrator,
         ace_engine=mock_ace,
         goal_engine=mock_goal_engine,
         hlsm_manager=mock_hlsm,
+        settings=mock_settings,
         cycle_interval=1.0
     )
 @pytest.mark.asyncio
@@ -123,8 +133,8 @@ async def test_unresolved_bridge_detector():
     assert opp.recommended_action == "execute"
 
 @pytest.mark.asyncio
-async def test_judge_intervention_logic(pcl_engine, mock_db_engine):
-    judge = InterventionJudge(mock_db_engine, quiet_start=22, quiet_end=7)
+async def test_judge_intervention_logic(pcl_engine, mock_db_engine, mock_settings):
+    judge = InterventionJudge(mock_db_engine, settings_obj=mock_settings)
     world = WorldModel(current_flow_mode="STANDARD")
     
     opp = Opportunity(
@@ -166,9 +176,13 @@ async def test_full_cycle_execution(pcl_engine, mock_orchestrator, mock_hlsm):
     ))
     
     # Mock persistence
-    pcl_engine._persist_opportunity = MagicMock()
+    pcl_engine._persist_opportunity = MagicMock(return_value=MagicMock(id="test_opt"))
     pcl_engine._update_opportunity_outcome = MagicMock()
     pcl_engine._persist_world_snapshot = MagicMock()
+    pcl_engine._prune_old_snapshots = MagicMock()
+    
+    # Mock judge to always pass for the cycle test
+    pcl_engine.judge.evaluate = MagicMock(return_value=(True, "mocked_pass"))
     
     summary = await pcl_engine.run_cycle()
     

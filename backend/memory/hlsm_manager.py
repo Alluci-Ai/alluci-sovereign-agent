@@ -326,7 +326,7 @@ class HLSMManager:
     async def l1_search(self, query: str, limit: int = 10) -> List[HLSMRetrievalResult]:
         """
         Full-text search across L1 episodic memories.
-        Updates access_count and last_accessed on retrieved entries.
+        Uses FTS5 for high-performance matching.
         """
         results = await asyncio.to_thread(self._l1_fts_search, query, limit)
         if results:
@@ -336,22 +336,34 @@ class HLSMManager:
 
     def _l1_fts_search(self, query: str, limit: int) -> List[HLSMRetrievalResult]:
         """
-        SQLite FTS5 or PostgreSQL LIKE search for episodic entries.
+        SQLite FTS5 MATCH or PostgreSQL ILIKE search for episodic entries.
         Returns entries sorted by retention × relevance.
         """
         now = time.time()
         results: List[HLSMRetrievalResult] = []
+        clean_query = query.replace("'", "''").strip()
 
         with Session(self.db_engine) as session:
-            # Use SQLModel/SQLAlchemy for cross-DB compatibility
-            # For SQLite: we do a LIKE search (FTS5 requires raw SQL)
-            # For PostgreSQL: same LIKE pattern works; consider adding a GIN index
             from sqlalchemy import text as sa_text
-
             db_url = str(self.db_engine.url)
+
             if "sqlite" in db_url:
-                # Try FTS5 first, fall back to LIKE
                 try:
+                    # High-performance FTS5 MATCH
+                    raw = session.exec(sa_text(
+                        "SELECT main.id, main.content, main.source, main.session_key, "
+                        "main.psi_at_encoding, main.topological_importance, "
+                        "main.betti_1_support, main.access_count, main.last_accessed, "
+                        "main.retention_score "
+                        "FROM hlsm_episodic main "
+                        "JOIN hlsm_episodic_fts fts ON main.id = fts.id "
+                        "WHERE hlsm_episodic_fts MATCH :q "
+                        "ORDER BY rank "
+                        "LIMIT :limit"
+                    ).bindparams(q=clean_query, limit=limit)).fetchall()
+                except Exception as e:
+                    logger.debug(f"[HLSM L1] FTS5 search failed: {e} - falling back to LIKE")
+                    # Fallback to standard LIKE
                     raw = session.exec(sa_text(
                         "SELECT id, content, source, session_key, psi_at_encoding, "
                         "topological_importance, betti_1_support, access_count, "
@@ -360,9 +372,7 @@ class HLSMManager:
                         "WHERE content LIKE :q "
                         "ORDER BY last_accessed DESC "
                         "LIMIT :limit"
-                    ).bindparams(q=f"%{query}%", limit=limit)).fetchall()
-                except Exception:
-                    raw = []
+                    ).bindparams(q=f"%{clean_query}%", limit=limit)).fetchall()
             else:
                 # PostgreSQL ILIKE
                 raw = session.exec(sa_text(
