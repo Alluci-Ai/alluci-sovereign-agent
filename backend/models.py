@@ -146,6 +146,7 @@ class GoalRecord(SQLModel, table=True):
     priority: str = Field(default="MEDIUM")
     metric_target: Optional[float] = None
     metric_current: float = 0.0
+    deadline: Optional[datetime] = Field(default=None)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: Optional[datetime] = None
 
@@ -322,45 +323,6 @@ class AgentChannelSubscription(SQLModel, table=True):
         # Enforce unique (agent_id, channel_id) pairs at the ORM level
         # The migration also enforces this as a DB-level unique constraint.
         pass
-
-class AgentRecord(SQLModel, table=True):
-    """
-    Persistent sovereign agent entity.
-    Each agent has its own identity, soul manifest subset, heartbeat orders,
-    and can be routed tasks independently by the orchestrator.
-    """
-    __tablename__ = "agent_record"
-
-    id: str = Field(primary_key=True)                    # UUID string
-    name: str = Field(nullable=False)
-    description: Optional[str] = Field(default=None)
-    model: str = Field(default="gpt-4o")                  # Primary LLM
-    fallback_chain: str = Field(default="gemini-flash,claude-haiku")
-    status: str = Field(default="ACTIVE")                 # ACTIVE | PAUSED | DRAFT
-    system_prompt: Optional[str] = Field(default=None)    # Agent-specific system prompt
-    heartbeat_orders: Optional[str] = Field(default=None) # JSON array of HeartbeatOrder
-    soul_manifest_override: Optional[str] = Field(default=None)  # JSON partial override
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: Optional[datetime] = Field(default=None)
-
-
-class HeartbeatOrderRecord(SQLModel, table=True):
-    """
-    Persistent record of each heartbeat order execution outcome.
-    Used for: last-fired display in UI, cooldown enforcement,
-    outcome tracking, and PCL signal history.
-    """
-    __tablename__ = "heartbeat_order_record"
-
-    id: Optional[int] = Field(default=None, primary_key=True)
-    order_id: str = Field(index=True)           # HeartbeatOrder.id
-    agent_id: Optional[str] = Field(default=None, index=True)  # None = root agent
-    fired_at: float = Field(default_factory=time.time, index=True)
-    probe_type: str = Field(default="")
-    action_type: str = Field(default="")
-    outcome: str = Field(default="success")     # "success" | "skipped" | "failed" | "no_change"
-    detail: Optional[str] = Field(default=None) # Short outcome description
-    signal_stored: bool = Field(default=False)  # True if pcl_signal was stored to H-LSM
 
 # ─── H-LSM Memory Models ──────────────────────────────────────────────────────
 

@@ -160,11 +160,6 @@ async def init_services(app_instance):
         hlsm_manager=hlsm_manager,      # H-LSM (new)
     )
 
-    # Wire H-LSM into Heartbeat for pcl_signal and log_only actions
-    if orchestrator and orchestrator.heartbeat and hlsm_manager:
-        orchestrator.heartbeat.inject_hlsm(hlsm_manager)
-        logger.info("[ HB ] H-LSM injected into HeartbeatDaemon")
-
     # 10. Task Manager
     task_manager = TaskManager()
 

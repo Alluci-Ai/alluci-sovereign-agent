@@ -92,7 +92,7 @@ class TestAuthEndpoints:
     @pytest.mark.integration
     def test_login_success_returns_bearer_token(self, app_client, mock_settings):
         """POST /auth/login with correct key returns access_token."""
-        res = app_client.post("/auth/login", json={"key": mock_settings.POLYTOPE_MASTER_KEY})
+        res = app_client.post("/api/v1/auth/login", json={"key": mock_settings.POLYTOPE_MASTER_KEY})
         assert res.status_code == 200
         body = res.json()
         assert "access_token" in body
@@ -102,24 +102,24 @@ class TestAuthEndpoints:
     @pytest.mark.integration
     def test_login_wrong_key_returns_401(self, app_client):
         """POST /auth/login with wrong key returns 401."""
-        res = app_client.post("/auth/login", json={"key": "completely-wrong-key"})
+        res = app_client.post("/api/v1/auth/login", json={"key": "completely-wrong-key"})
         assert res.status_code == 401
 
     @pytest.mark.integration
     def test_protected_endpoint_without_token_returns_401(self, app_client):
         """Protected endpoint without Authorization header returns 401."""
-        res = app_client.get("/api/system/health")
+        res = app_client.get("/api/v1/system/health")
         assert res.status_code == 401
 
     @pytest.mark.integration
     def test_protected_endpoint_with_valid_token_succeeds(self, app_client, auth_headers):
         """Protected endpoint with valid Bearer token returns 200."""
-        res = app_client.get("/api/system/health", headers=auth_headers)
+        res = app_client.get("/api/v1/system/health", headers=auth_headers)
         assert res.status_code == 200
 
     @pytest.mark.integration
     def test_malformed_bearer_token_returns_401(self, app_client):
         """Malformed token string returns 401."""
-        res = app_client.get("/api/system/health",
+        res = app_client.get("/api/v1/system/health",
                               headers={"Authorization": "Bearer not.a.real.token"})
         assert res.status_code == 401

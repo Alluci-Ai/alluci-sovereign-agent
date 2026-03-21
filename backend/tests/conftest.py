@@ -19,6 +19,16 @@ from datetime import datetime, timezone
 from typing import Generator, AsyncGenerator
 from unittest.mock import AsyncMock, MagicMock, patch
 from cryptography.fernet import Fernet
+from starlette.requests import Request
+from starlette.responses import Response
+
+# CRITICAL: Set environment variables BEFORE any backend modules are imported
+# so that module-level Pydantic settings evaluation captures the test values.
+os.environ["APP_ENV"] = "testing"
+os.environ["CSRF_SECRET_KEY"] = "test-csrf-secret-key-12345678"
+os.environ["POLYTOPE_MASTER_KEY"] = "test-polytope-master-key"
+os.environ["JWT_SECRET_KEY"] = "test-jwt-secret-key-12345678"
+os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 
 # Ensure backend importable from test runner
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -59,7 +69,20 @@ def temp_db():
         connect_args={"check_same_thread": False}
     )
     SQLModel.metadata.create_all(engine)
-    yield engine
+    
+    # Patch all direct module lookups to db_engine
+    with patch("backend.database.engine", engine), \
+         patch("backend.routers.system.db_engine", engine), \
+         patch("backend.routers.objectives.db_engine", engine), \
+         patch("backend.routers.dag.db_engine", engine), \
+         patch("backend.routers.sessions.db_engine", engine), \
+         patch("backend.security.audit_ledger.db_engine", engine), \
+         patch("backend.goals.engine.db_engine", engine), \
+         patch("backend.sop.engine.db_engine", engine), \
+         patch("backend.device_manager.db_engine", engine), \
+         patch("backend.orchestrator.db_engine", engine), \
+         patch("backend.models.engine", engine, create=True):
+        yield engine
 
     os.unlink(db_path)
 
@@ -86,6 +109,7 @@ def mock_settings():
     settings.APP_ENV = "testing"
     settings.POLYTOPE_MASTER_KEY = os.environ["POLYTOPE_MASTER_KEY"]
     settings.JWT_SECRET_KEY = os.environ["JWT_SECRET_KEY"]
+    settings.CSRF_SECRET_KEY = "dummy-csrf-secret-key-for-tests-12345"
     settings.GEMINI_API_KEY = "test-gemini-key"
     settings.OPENAI_API_KEY = None
     settings.ANTHROPIC_API_KEY = None
@@ -224,8 +248,7 @@ def app_client(mock_settings, temp_db):
     from fastapi.testclient import TestClient
     import backend.services as services
 
-    with patch("backend.config.load_settings", return_value=mock_settings), \
-         patch("backend.database.load_settings", return_value=mock_settings):
+    with patch("backend.config.load_settings", return_value=mock_settings):
 
         from backend.app import app
 
@@ -289,9 +312,31 @@ def app_client(mock_settings, temp_db):
         services.exec_approval = AsyncMock()
         services.exec_approval.get_pending = AsyncMock(return_value=[])
 
+        mock_csrf = MagicMock()
+        mock_csrf.validate_csrf = AsyncMock()
+        from fastapi_csrf_protect import CsrfProtect
+        app.dependency_overrides[CsrfProtect] = lambda: mock_csrf
+
         # Bypass RateLimiter since lifespan isn't run for TestClient
-        with patch('fastapi_limiter.depends.RateLimiter.__call__', new_callable=AsyncMock):
-            yield TestClient(app, raise_server_exceptions=False)
+        async def mock_rate_limit(self, request: Request, response: Response):
+            pass
+            
+        with patch('fastapi_limiter.depends.RateLimiter.__call__', new=mock_rate_limit):
+            client = TestClient(app, raise_server_exceptions=True)
+            
+            from itsdangerous import URLSafeTimedSerializer
+            serializer = URLSafeTimedSerializer("test-csrf-secret-key-12345678", salt="fastapi-csrf-token")
+            token = "test-token"
+            signed_token = serializer.dumps(token)
+            
+            # The cookie name we fixed to cookie_key in csrf.py is AUTH_COOKIE_NAME but the fastAPI csrf default is 'fastapi-csrf-token'
+            # Let's set both to be safe, but actually our settings override it to settings.AUTH_COOKIE_NAME which is 'alluci_daemon_token'
+            client.cookies.set("alluci_daemon_token", signed_token)
+            client.headers["X-CSRF-Token"] = token
+            
+            yield client
+            
+        app.dependency_overrides.pop(CsrfProtect, None)
 
         os.unlink(tasks_path)
 
@@ -303,7 +348,7 @@ def auth_headers(app_client, mock_settings):
     Use this in tests that require authentication.
     """
     response = app_client.post(
-        "/auth/login",
+        "/api/v1/auth/login",
         json={"key": mock_settings.POLYTOPE_MASTER_KEY}
     )
     assert response.status_code == 200, f"Auth failed: {response.text}"

@@ -75,8 +75,8 @@ class SignalBridge(BridgeAdapter):
         else:
             self._use_daemon = False
             self._listener_task = asyncio.create_task(self._polling_fallback())
-            self.logger.warning(
-                "[SIGNAL] Daemon unavailable — falling back to subprocess polling (high overhead)."
+            self.logger.info(
+                f"[SIGNAL] Daemon socket not found. Initialized polling fallback for {self.phone_number}."
             )
 
         self.is_connected = True

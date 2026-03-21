@@ -6,8 +6,7 @@ from datetime import datetime, timezone
 @pytest.fixture
 def wallet_client(mock_settings):
     """Create a test client with mocked wallet service and authentication."""
-    with patch('backend.config.load_settings', return_value=mock_settings), \
-         patch('backend.database.load_settings', return_value=mock_settings):
+    with patch('backend.config.load_settings', return_value=mock_settings):
         
         from backend.app import app
         import backend.app as app_module
@@ -22,7 +21,7 @@ class TestWalletAPI:
     """Tests for Phase 2 Wallet API routes."""
 
     def get_headers(self, client, mock_settings):
-        login_resp = client.post("/auth/login", json={"key": mock_settings.POLYTOPE_MASTER_KEY})
+        login_resp = client.post("/api/v1/auth/login", json={"key": mock_settings.POLYTOPE_MASTER_KEY})
         token = login_resp.json()["access_token"]
         return {"Authorization": f"Bearer {token}"}
 
