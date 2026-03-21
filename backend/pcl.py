@@ -111,9 +111,6 @@ class WorldModel:
     error_rate_trend: str = "stable"
     last_successful_run_hours_ago: Optional[float] = None
 
-    # Heartbeat domain
-    heartbeat_signals: List[Dict[str, Any]] = field(default_factory=list)
-
     # Meta
     built_at: float = field(default_factory=time.time)
     cycle_number: int = 0
@@ -159,7 +156,7 @@ class BaseDetector:
     """
     name: str = "base"
 
-    def detect(self, world: WorldModel) -> Optional[Opportunity]:
+    async def detect(self, world: WorldModel) -> Optional[Opportunity]:
         """
         Inspect the world model and return an Opportunity if a condition is met,
         or None if no action is warranted.
@@ -177,7 +174,7 @@ class GoalStallDetector(BaseDetector):
     name = "GoalStallDetector"
     STALL_HOURS = 48.0
 
-    def detect(self, world: WorldModel) -> Optional[Opportunity]:
+    async def detect(self, world: WorldModel) -> Optional[Opportunity]:
         stalled = [
             g for g in world.active_goals
             if g.days_since_update * 24 > self.STALL_HOURS
@@ -226,12 +223,12 @@ class GoalDeadlineDetector(BaseDetector):
     WARNING_HOURS = 72.0
     PROGRESS_THRESHOLD = 0.80   # 80% complete = not at risk
 
-    def detect(self, world: WorldModel) -> Optional[Opportunity]:
+    async def detect(self, world: WorldModel) -> Optional[Opportunity]:
         at_risk = [
             g for g in world.goals_at_risk
             if g.has_deadline
             and g.days_to_deadline is not None
-            and g.days_to_deadline * 24 <= self.WARNING_HOURS
+            and g.days_to_deadline <= (self.WARNING_HOURS / 24.0)
             and (g.metric_current / max(g.metric_target or 100, 1)) < self.PROGRESS_THRESHOLD
         ]
         if not at_risk:
@@ -271,47 +268,6 @@ class GoalDeadlineDetector(BaseDetector):
         )
 
 
-class HeartbeatSignalDetector(BaseDetector):
-    """
-    Detects structured signals emitted by the HeartbeatDaemon (e.g., from
-    URL fetch probes, file watches, or custom PCL signal actions).
-    Consumes entries from H-LSM L1 memory tagged with 'heartbeat_signal'.
-    """
-    name = "HeartbeatSignalDetector"
-
-    def detect(self, world: WorldModel) -> Optional[Opportunity]:
-        if not hasattr(world, 'heartbeat_signals') or not world.heartbeat_signals:
-            return None
-
-        # Filter signals that haven't been actioned (simple heuristic: priority <= 3)
-        signals = [s for s in world.heartbeat_signals if s.get("priority", 3) <= 3]
-        if not signals:
-            return None
-
-        # Pick the highest priority/most recent
-        sig = sorted(signals, key=lambda x: (x.get("priority", 3), -x.get("timestamp", 0)))[0]
-
-        label = sig.get("label", "Heartbeat Signal")
-        detail = sig.get("detail", "")
-        prio = sig.get("priority", 3)
-
-        condition_key = f"hb_sig:{sig.get('order_id', 'unknown')}:{sig.get('timestamp', 0)}"
-
-        return Opportunity(
-            id=Opportunity.make_id(self.name, condition_key),
-            detector_name=self.name,
-            title=f"Heartbeat: {label}",
-            description=f"Signal from heartbeat order '{label}': {detail}",
-            priority=prio,
-            confidence=0.98,  # High confidence as it's a direct system signal
-            recommended_action="execute" if prio <= 2 else "notify",
-            objective=f"Process heartbeat signal '{label}': {detail}. Take appropriate action based on the reported state.",
-            notification_body=f"💓 Heartbeat Alert [{label}]: {detail}",
-            autonomy_level="SEMI_AUTONOMOUS" if prio <= 2 else "RESTRICTED",
-            cooldown_minutes=30,
-        )
-
-
 class UnresolvedBridgeDetector(BaseDetector):
     """
     Detects inbound bridge messages that have not received an agent reply
@@ -321,7 +277,7 @@ class UnresolvedBridgeDetector(BaseDetector):
     name = "UnresolvedBridgeDetector"
     UNANSWERED_HOURS = 4.0
 
-    def detect(self, world: WorldModel) -> Optional[Opportunity]:
+    async def detect(self, world: WorldModel) -> Optional[Opportunity]:
         old_threads = [
             t for t in world.unanswered_threads
             if t.hours_unanswered >= self.UNANSWERED_HOURS
@@ -366,11 +322,14 @@ class RecurringTopicDetector(BaseDetector):
     name = "RecurringTopicDetector"
     MIN_OCCURRENCES = 3
 
-    def detect(self, world: WorldModel) -> Optional[Opportunity]:
+    async def detect(self, world: WorldModel) -> Optional[Opportunity]:
         if not world.recurring_topics:
             return None
 
-        topic = world.recurring_topics[0]  # Most frequent first
+        # Pick the most frequent topic
+        topic = world.recurring_topics[0]
+        
+        # Verify if this topic already has an active PCL opportunity to avoid noise
         condition_key = f"recurring_topic:{hashlib.sha256(topic.encode()).hexdigest()[:8]}"
         return Opportunity(
             id=Opportunity.make_id(self.name, condition_key),
@@ -400,7 +359,7 @@ class TaskFailurePatternDetector(BaseDetector):
     name = "TaskFailurePatternDetector"
     FAILURE_THRESHOLD = 3
 
-    def detect(self, world: WorldModel) -> Optional[Opportunity]:
+    async def detect(self, world: WorldModel) -> Optional[Opportunity]:
         if len(world.recent_failures) < self.FAILURE_THRESHOLD:
             return None
 
@@ -445,7 +404,7 @@ class MemoryGapDetector(BaseDetector):
     name = "MemoryGapDetector"
     GAP_DAYS = 7.0
 
-    def detect(self, world: WorldModel) -> Optional[Opportunity]:
+    async def detect(self, world: WorldModel) -> Optional[Opportunity]:
         forgotten = [
             g for g in world.active_goals
             if g.l1_memory_count == 0
@@ -487,7 +446,7 @@ class PeakOpportunityDetector(BaseDetector):
     """
     name = "PeakOpportunityDetector"
 
-    def detect(self, world: WorldModel) -> Optional[Opportunity]:
+    async def detect(self, world: WorldModel) -> Optional[Opportunity]:
         if world.current_flow_mode != "PEAK_PERFORMANCE":
             return None
 
@@ -675,7 +634,6 @@ class ProactiveCognitionLoop:
             RecurringTopicDetector(),
             MemoryGapDetector(),
             PeakOpportunityDetector(),
-            HeartbeatSignalDetector(),
         ]
 
         self.judge = InterventionJudge(db_engine)
@@ -742,7 +700,6 @@ class ProactiveCognitionLoop:
             self._observe_memory(world),
             self._observe_bridges(world),
             self._observe_system(world),
-            self._observe_heartbeat(world),
             return_exceptions=True,
         )
 
@@ -761,20 +718,11 @@ class ProactiveCognitionLoop:
                 else:
                     days_since = (now - goal.created_at.timestamp()) / 86400 if goal.created_at else 0
 
-                # Check if there's a deadline in the description or title
-                # (GoalRecord doesn't have a deadline field yet — extract from description)
-                has_deadline = False
+                # Use the new structured deadline field
+                has_deadline = goal.deadline is not None
                 days_to_deadline = None
-                import re
-                date_match = re.search(r'(\d{4}-\d{2}-\d{2})', goal.description or "")
-                if date_match:
-                    try:
-                        from datetime import datetime, timezone
-                        deadline = datetime.strptime(date_match.group(1), "%Y-%m-%d").replace(tzinfo=timezone.utc)
-                        days_to_deadline = (deadline.timestamp() - now) / 86400
-                        has_deadline = True
-                    except ValueError:
-                        pass
+                if has_deadline:
+                    days_to_deadline = (goal.deadline.timestamp() - now) / 86400
 
                 # Count L1 memory entries for this goal
                 l1_count = await self._count_l1_memories_for_goal(goal.title)
@@ -840,39 +788,20 @@ class ProactiveCognitionLoop:
                 if now - r.retention_score * 86400 < 86400  # rough 24h proxy
             ][:10]
 
-            # Detect recurring topics
+            # Detect recurring topics: extract first 50 chars of each entry
+            # and count near-duplicates by prefix similarity
             topic_counts: Dict[str, int] = {}
             for r in recent:
-                prefix = r.content[:50]
-                topic_counts[prefix] = topic_counts.get(prefix, 0) + 1
-            
-            world.recurring_topics = sorted(
-                [t for t, c in topic_counts.items() if c >= 2],
-                key=lambda x: topic_counts[x],
-                reverse=True
-            )
+                key = r.content[:60].lower().strip()
+                topic_counts[key] = topic_counts.get(key, 0) + 1
+
+            world.recurring_topics = [
+                topic for topic, count in topic_counts.items()
+                if count >= 3
+            ][:5]
+
         except Exception as e:
             logger.debug(f"[PCL] Memory observation failed: {e}")
-
-    async def _observe_heartbeat(self, world: WorldModel) -> None:
-        """Fetch recent heartbeat signals from H-LSM L1."""
-        if not self.hlsm:
-            return
-        try:
-            recent = await self.hlsm.l1_search("heartbeat_signal", limit=20)
-            now = time.time()
-            signals = []
-            for r in recent:
-                try:
-                    data = json.loads(r.content)
-                    if isinstance(data, dict) and data.get("type") == "heartbeat_signal":
-                        if now - r.timestamp < 3600:
-                            signals.append(data)
-                except (json.JSONDecodeError, TypeError):
-                    continue
-            world.heartbeat_signals = signals
-        except Exception as e:
-            logger.debug(f"[PCL] Heartbeat observation failed: {e}")
 
     async def _observe_bridges(self, world: WorldModel) -> None:
         """
@@ -953,7 +882,7 @@ class ProactiveCognitionLoop:
 
     # ─── Stage 3: DETECT ──────────────────────────────────────────────────────
 
-    def detect_opportunities(self, world: WorldModel) -> List[Opportunity]:
+    async def detect_opportunities(self, world: WorldModel) -> List[Opportunity]:
         """
         Stage 3: Run all detectors against the world model.
         Returns list of raw opportunities (not yet judged).
@@ -961,7 +890,7 @@ class ProactiveCognitionLoop:
         opportunities = []
         for detector in self.detectors:
             try:
-                result = detector.detect(world)
+                result = await detector.detect(world)
                 if result is not None:
                     opportunities.append(result)
                     logger.debug(
@@ -1194,7 +1123,7 @@ class ProactiveCognitionLoop:
         )
 
         # Stage 3: Detect
-        opportunities = self.detect_opportunities(world)
+        opportunities = await self.detect_opportunities(world)
         logger.info(f"[PCL] Detected {len(opportunities)} opportunities")
 
         # Stage 4: Judge

@@ -90,8 +90,9 @@ async def adapter_exception_handler(request: Request, exc: AdapterError):
     )
 
 @app.get("/health", include_in_schema=False)
-async def root_health():
-    return {"status": "healthy"}
+async def health_check():
+    from datetime import datetime, timezone
+    return {"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()}
 
 @app.get("/ready", include_in_schema=False)
 async def root_ready():

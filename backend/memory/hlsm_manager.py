@@ -71,6 +71,7 @@ class HLSMContext:
     episodic_memories: List[HLSMRetrievalResult] = field(default_factory=list)
     semantic_memories: List[HLSMRetrievalResult] = field(default_factory=list)
     total_chars: int = 0
+    total_tokens: int = 0
 
     def to_prompt_block(self) -> str:
         """
@@ -143,6 +144,15 @@ class HLSMManager:
             f"L1=SQL, "
             f"L2={'ChromaDB' if chroma_collection else 'disabled'}"
         )
+
+    def _get_token_count(self, text: str) -> int:
+        """
+        Returns estimated token count.
+        Uses words * 1.35 as a robust heuristic for English/Code mixture.
+        Replaces the brittle chars/4 approximation.
+        """
+        if not text: return 0
+        return int(len(text.split()) * 1.35)
 
     # ─── Embedding (lazy load) ─────────────────────────────────────────────────
 
@@ -620,7 +630,9 @@ class HLSMManager:
             episodic_memories=l1_results[:max_per_tier],
             semantic_memories=l2_results[:max_per_tier],
         )
-        ctx.total_chars = len(ctx.to_prompt_block())
+        prompt = ctx.to_prompt_block()
+        ctx.total_chars = len(prompt)
+        ctx.total_tokens = self._get_token_count(prompt)
 
         logger.info(
             f"[HLSM] Retrieved: L0={len(ctx.working_memories)}, "

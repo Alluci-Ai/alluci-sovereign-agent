@@ -9,8 +9,7 @@ from fastapi.testclient import TestClient
 @pytest.fixture
 def app_client(mock_settings):
     """Create a test client with mocked dependencies."""
-    with patch('backend.config.load_settings', return_value=mock_settings), \
-         patch('backend.database.load_settings', return_value=mock_settings):
+    with patch('backend.config.load_settings', return_value=mock_settings):
         
         # We need to patch the lifespan to avoid real initialization
         from backend.app import app
@@ -79,14 +78,14 @@ class TestAuthEndpoints:
     """Tests for authentication."""
 
     def test_login_success(self, app_client, mock_settings):
-        response = app_client.post("/auth/login", json={"key": mock_settings.POLYTOPE_MASTER_KEY})
+        response = app_client.post("/api/v1/auth/login", json={"key": mock_settings.POLYTOPE_MASTER_KEY})
         assert response.status_code == 200
         data = response.json()
         assert "access_token" in data
         assert data["token_type"] == "bearer"
 
     def test_login_failure(self, app_client):
-        response = app_client.post("/auth/login", json={"key": "wrong_key"})
+        response = app_client.post("/api/v1/auth/login", json={"key": "wrong_key"})
         assert response.status_code == 401
 
 
@@ -105,7 +104,7 @@ class TestInputSanitization:
 
     def test_injection_blocked(self, app_client, mock_settings):
         # Get auth token
-        login_resp = app_client.post("/auth/login", json={"key": mock_settings.POLYTOPE_MASTER_KEY})
+        login_resp = app_client.post("/api/v1/auth/login", json={"key": mock_settings.POLYTOPE_MASTER_KEY})
         token = login_resp.json()["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
@@ -117,7 +116,7 @@ class TestInputSanitization:
         assert response.status_code == 400
 
     def test_normal_input_passes(self, app_client, mock_settings):
-        login_resp = app_client.post("/auth/login", json={"key": mock_settings.POLYTOPE_MASTER_KEY})
+        login_resp = app_client.post("/api/v1/auth/login", json={"key": mock_settings.POLYTOPE_MASTER_KEY})
         token = login_resp.json()["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 

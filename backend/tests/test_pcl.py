@@ -52,13 +52,13 @@ def pcl_engine(mock_db_engine, mock_orchestrator, mock_ace, mock_goal_engine, mo
         hlsm_manager=mock_hlsm,
         cycle_interval=1.0
     )
-
 @pytest.mark.asyncio
 async def test_world_model_building(pcl_engine, mock_goal_engine):
     # Setup mock goals
+    from datetime import datetime, timezone
     mock_goal_engine.list_goals.return_value = [
         GoalRecord(
-            id=1, title="Test Goal", description="A deadline 2026-12-31",
+            id=1, title="Test Goal", deadline=datetime(2026, 12, 31, tzinfo=timezone.utc),
             priority="HIGH", status="active", metric_current=10, metric_target=100
         )
     ]
@@ -70,7 +70,8 @@ async def test_world_model_building(pcl_engine, mock_goal_engine):
     assert world.active_goals[0].has_deadline is True
     assert world.current_flow_mode == "STANDARD"
 
-def test_goal_stall_detector():
+@pytest.mark.asyncio
+async def test_goal_stall_detector():
     detector = GoalStallDetector()
     world = WorldModel()
     
@@ -78,18 +79,19 @@ def test_goal_stall_detector():
     world.active_goals = [
         MagicMock(id=1, title="Fresh", days_since_update=0.1, status="active", priority="HIGH", metric_current=0, metric_target=100)
     ]
-    assert detector.detect(world) is None
+    assert await detector.detect(world) is None
     
     # Stalled
     world.active_goals = [
         MagicMock(id=2, title="Stalled", days_since_update=3.0, status="active", priority="HIGH", metric_current=0, metric_target=100)
     ]
-    opp = detector.detect(world)
+    opp = await detector.detect(world)
     assert opp is not None
     assert "Goal stalled" in opp.title
     assert opp.affects_goal_id == 2
 
-def test_goal_deadline_detector():
+@pytest.mark.asyncio
+async def test_goal_deadline_detector():
     detector = GoalDeadlineDetector()
     world = WorldModel()
     
@@ -100,12 +102,13 @@ def test_goal_deadline_detector():
     )
     world.goals_at_risk = [goal]
     
-    opp = detector.detect(world)
+    opp = await detector.detect(world)
     assert opp is not None
     assert "Deadline approaching" in opp.title
     assert opp.recommended_action == "execute" # Urgent deadline -> execute
 
-def test_unresolved_bridge_detector():
+@pytest.mark.asyncio
+async def test_unresolved_bridge_detector():
     detector = UnresolvedBridgeDetector()
     world = WorldModel()
     
@@ -114,7 +117,7 @@ def test_unresolved_bridge_detector():
         BridgeThread(bridge_id="telegram", sender="Alice", last_message="Hello?", hours_unanswered=5.0)
     ]
     
-    opp = detector.detect(world)
+    opp = await detector.detect(world)
     assert opp is not None
     assert "Unanswered message" in opp.title
     assert opp.recommended_action == "execute"

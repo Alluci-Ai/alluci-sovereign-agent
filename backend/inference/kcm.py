@@ -18,9 +18,13 @@ class KCMGeodesicCost:
     PSI_HIGH_TENSION = 700
 
     def compute(self, betti_current, betti_goal, psi: float) -> float:
-        if not hasattr(torch, "sum"):
-             return 0.0
-        dist = torch.sum(torch.abs(betti_current.float() - betti_goal.float())).item()
+        # NumPy implementation for deterministic geodesic cost
+        if hasattr(betti_current, 'detach'):
+            betti_current = betti_current.detach().cpu().numpy()
+        if hasattr(betti_goal, 'detach'):
+            betti_goal = betti_goal.detach().cpu().numpy()
+            
+        dist = np.sum(np.abs(np.array(betti_current) - np.array(betti_goal)))
         cost = dist * (1.0 + psi)
         return float(cost)
 

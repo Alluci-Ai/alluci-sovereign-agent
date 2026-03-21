@@ -69,13 +69,7 @@ class ExecutiveOrchestrator:
         self.memory_decay = MemoryTopologyDecay()
         
         # Heartbeat System
-        self.heartbeat = HeartbeatDaemon(
-            orchestrator=self,
-            vault=vault,
-            db_engine=db_engine,
-            quiet_start=getattr(settings, "HB_QUIET_START", 22),
-            quiet_end=getattr(settings, "HB_QUIET_END", 7),
-        )
+        self.heartbeat = HeartbeatDaemon(self, vault)
         self.heartbeat_task = None
         self._ws_gateway = None
         self._active_runs: Dict[int, asyncio.Task] = {}

@@ -17,7 +17,7 @@ logger = get_logger("SystemRouter")
 router = APIRouter(tags=["System Status"])
 
 @router.get("/health")
-async def health_check():
+async def health():
     """Public Kubernetes-style liveness probe."""
     return {"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()}
 

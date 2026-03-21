@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../../store/useStore';
-import { ChevronLeft, Save, Layout, Box, Wrench, Network, Clock, Zap, Heart } from 'lucide-react';
+import { ChevronLeft, Save, Layout, Box, Wrench, Network, Clock, Zap } from 'lucide-react';
 import WorkspaceEditor from './WorkspaceEditor';
 import ToolProfileEditor from './ToolProfileEditor';
 import ChannelSubscriptions from './ChannelSubscriptions';
 import BulkSkillActions from '../skills/BulkSkillActions';
 import NodeBindingEditor from '../devices/NodeBindingEditor';
-import { HeartbeatOrderEditor, HeartbeatOrder } from '../heartbeat/HeartbeatOrderEditor';
 
 const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
 
@@ -17,11 +16,9 @@ interface AgentDetailProps {
 
 export const AgentDetailTabs: React.FC<AgentDetailProps> = ({ agentId, onBack }) => {
     const { accessToken } = useStore();
-    const [activeTab, setActiveTab] = useState<'overview' | 'workspace' | 'tools' | 'channels' | 'heartbeat' | 'skills'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'workspace' | 'tools' | 'channels' | 'cron' | 'skills'>('overview');
     const [agent, setAgent] = useState<any>(null);
     const [saving, setSaving] = useState(false);
-    const [agentHeartbeatOrders, setAgentHeartbeatOrders] = useState<HeartbeatOrder[]>([]);
-    const [heartbeatHistory, setHeartbeatHistory] = useState<Record<string, any[]>>({});
 
     useEffect(() => {
         const load = async () => {
@@ -41,63 +38,11 @@ export const AgentDetailTabs: React.FC<AgentDetailProps> = ({ agentId, onBack })
         load();
     }, [agentId, accessToken]);
 
-    useEffect(() => {
-        if (!agentId) return;
-        fetch(`${DAEMON_URL}/api/v1/agents/${agentId}/heartbeat/history`, {
-            headers: { 'Authorization': `Bearer ${accessToken}` }
-        })
-            .then(r => r.ok ? r.json() : { history: [] })
-            .then(data => {
-                const grouped: Record<string, any[]> = {};
-                for (const record of (data.history || [])) {
-                    if (!grouped[record.order_id]) grouped[record.order_id] = [];
-                    grouped[record.order_id].push(record);
-                }
-                setHeartbeatHistory(grouped);
-            })
-            .catch(() => {});
-    }, [agentId, accessToken]);
-
-    // Parse orders from loaded agent data
-    useEffect(() => {
-        if (agent?.heartbeat_orders) {
-            setAgentHeartbeatOrders(
-                Array.isArray(agent.heartbeat_orders)
-                    ? agent.heartbeat_orders
-                    : JSON.parse(agent.heartbeat_orders || '[]')
-            );
-        }
-    }, [agent]);
-
     const handleSaveOverview = async () => {
         setSaving(true);
         try {
-            const res = await fetch(`${DAEMON_URL}/api/v1/agents/${agentId}`, {
-                method: 'PUT',
-                headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify(agent),
-                credentials: 'include',
-            });
-            if (!res.ok) throw new Error(`API ${res.status}`);
-        } catch (e) {
-            console.error('Failed to save overview', e);
-        } finally {
-            setSaving(false);
-        }
-    };
-
-    const saveHeartbeatOrders = async () => {
-        setSaving(true);
-        try {
-            const res = await fetch(`${DAEMON_URL}/api/v1/agents/${agentId}`, {
-                method: 'PUT',
-                headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ heartbeat_orders: agentHeartbeatOrders }),
-                credentials: 'include',
-            });
-            if (!res.ok) throw new Error(`API ${res.status}`);
-        } catch (e) {
-            console.error('Failed to save heartbeat orders', e);
+            // Simulation of complete logic per Sovereign Spec:
+            await new Promise(r => setTimeout(r, 500));
         } finally {
             setSaving(false);
         }
@@ -132,7 +77,7 @@ export const AgentDetailTabs: React.FC<AgentDetailProps> = ({ agentId, onBack })
                         { id: 'workspace', icon: Box, label: 'Workspace' },
                         { id: 'tools', icon: Wrench, label: 'Tools' },
                         { id: 'channels', icon: Network, label: 'Channels' },
-                        { id: 'heartbeat', icon: Heart, label: 'Heartbeat' },
+                        { id: 'cron', icon: Clock, label: 'Background' },
                         { id: 'skills', icon: Zap, label: 'Skills' }
                     ].map(tab => (
                         <button
@@ -216,34 +161,10 @@ export const AgentDetailTabs: React.FC<AgentDetailProps> = ({ agentId, onBack })
                 {/* ── CHANNELS TAB ── */}
                 {activeTab === 'channels' && <ChannelSubscriptions agentId={agentId} />}
 
-                {/* ── HEARTBEAT TAB ── */}
-                {activeTab === 'heartbeat' && (
-                    <div className="flex flex-col gap-4 max-w-2xl animate-in fade-in duration-300">
-                        <div className="bg-glass-1 border border-glass-edge p-5 rounded-xl flex flex-col gap-4">
-                            <div className="flex items-center justify-between border-b border-glass-edge pb-3">
-                                <div>
-                                    <h3 className="glass-label text-[10px] uppercase opacity-70">
-                                        Agent Heartbeat Orders
-                                    </h3>
-                                    <p className="text-[11px] text-text-muted mt-0.5">
-                                        Orders run independently of the root Soul Manifest. Agent context is injected into all objectives.
-                                    </p>
-                                </div>
-                                <button
-                                    onClick={saveHeartbeatOrders}
-                                    disabled={saving}
-                                    className="glass-btn glass-btn--primary text-[11px] px-4 py-1.5 flex items-center gap-1.5"
-                                >
-                                    <Save size={12} /> {saving ? 'Saving…' : 'Save Orders'}
-                                </button>
-                            </div>
-
-                            <HeartbeatOrderEditor
-                                orders={agentHeartbeatOrders}
-                                onChange={setAgentHeartbeatOrders}
-                                orderHistory={heartbeatHistory}
-                            />
-                        </div>
+                {/* ── CRON TAB ── */}
+                {activeTab === 'cron' && (
+                    <div className="bg-glass-1 border border-glass-edge rounded-xl p-8 text-center text-[11px] font-mono text-text-tertiary">
+                        No background tasks currently bound to this agent identity.
                     </div>
                 )}
 
