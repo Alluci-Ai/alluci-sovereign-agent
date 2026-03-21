@@ -74,7 +74,7 @@ aioboto3>=12.0.0
 playwright==1.46.0
 duckduckgo-search>=6.0.0
 mss==9.0.1
-slack-sdk==3.31.0
+slack-sdk==3.41.0
 pypdf==4.3.1
 python-docx==1.1.2
 prometheus-client==0.20.0
