@@ -50,10 +50,10 @@ def get_system_ram_mb() -> int:
                     for line in f:
                         if "MemTotal" in line:
                             return int(line.split()[1]) // 1024
-            except Exception:
-                pass
-    except Exception:
-        pass
+            except Exception as e:
+                logger.debug(f"Fallback RAM detection failed: {e}")
+    except Exception as e:
+        logger.debug(f"psutil RAM detection failed: {e}")
     return 4096 # Assume 4GB if unsure
 
 class Settings(BaseSettings):

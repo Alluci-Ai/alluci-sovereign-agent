@@ -44,14 +44,15 @@ from .models import (
 
 logger = get_logger("PCL")
 
-# ─── Configuration ────────────────────────────────────────────────────────────
+from .config import settings
 
-PCL_CYCLE_INTERVAL: float = 300.0          # 5 minutes between cycles
-PCL_QUIET_START_HOUR: int = 22             # Quiet hours start (UTC)
-PCL_QUIET_END_HOUR: int = 7               # Quiet hours end (UTC)
-PCL_MAX_OPPORTUNITIES_PER_CYCLE: int = 3   # Max opportunities actioned per cycle
-PCL_SNAPSHOT_RETENTION_HOURS: float = 48.0 # How long to keep world model snapshots
-PCL_OPPORTUNITY_RETENTION_HOURS: float = 168.0  # 7 days
+# ─── Configuration (Fallbacks for missing settings) ───────────────────────────
+PCL_CYCLE_INTERVAL = getattr(settings, "PCL_CYCLE_INTERVAL", 300.0)
+PCL_QUIET_START_HOUR = getattr(settings, "PCL_QUIET_START_HOUR", 22)
+PCL_QUIET_END_HOUR = getattr(settings, "PCL_QUIET_END_HOUR", 7)
+PCL_MAX_OPPORTUNITIES_PER_CYCLE = 3
+PCL_SNAPSHOT_RETENTION_HOURS = 48.0
+PCL_OPPORTUNITY_RETENTION_HOURS = 168.0
 
 
 # ─── World Model Dataclasses ──────────────────────────────────────────────────
@@ -316,38 +317,50 @@ class UnresolvedBridgeDetector(BaseDetector):
 class RecurringTopicDetector(BaseDetector):
     """
     Detects topics that appear repeatedly in H-LSM episodic memory
-    without a corresponding resolution or closure signal.
-    Surfaces as a notification for the user to address.
+    using semantic vector similarity (L2) instead of brittle prefix matching.
     """
     name = "RecurringTopicDetector"
+    SIMILARITY_THRESHOLD = 0.85
     MIN_OCCURRENCES = 3
 
     async def detect(self, world: WorldModel) -> Optional[Opportunity]:
+        if not world.recent_learnings:
+            return None
+
+        # Pick the most recent substantive learning
+        candidate = world.recent_learnings[0]
+        if len(candidate) < 50:
+            return None
+
+        # Search memory for semantically similar topics
+        # Note: In a real production environment, we would use specialized 
+        # clustering, but for the Sovereign Agent, we use L2 lookups as a proxy.
+        # This requires the hlsm_manager to be available and async.
+        
+        # This detector now relies on the world model having 'recurring_topics' 
+        # which is populated by _observe_memory using more sophisticated logic.
         if not world.recurring_topics:
             return None
 
-        # Pick the most frequent topic
         topic = world.recurring_topics[0]
-        
-        # Verify if this topic already has an active PCL opportunity to avoid noise
         condition_key = f"recurring_topic:{hashlib.sha256(topic.encode()).hexdigest()[:8]}"
+        
         return Opportunity(
             id=Opportunity.make_id(self.name, condition_key),
             detector_name=self.name,
             title=f"Recurring pattern: {topic[:60]}",
             description=(
-                f"The topic '{topic}' has appeared {self.MIN_OCCURRENCES}+ times "
-                f"in recent memory without resolution. This may indicate an "
-                f"unresolved issue or recurring need."
+                f"The topic '{topic[:100]}...' has appeared repeatedly "
+                f"in recent memory. This may indicate an unresolved issue."
             ),
             priority=3,
-            confidence=0.70,
+            confidence=0.75,
             recommended_action="notify",
             notification_body=(
                 f"🔄 Pattern Detected: '{topic[:80]}' keeps coming up. "
                 f"Want me to address this systematically?"
             ),
-            cooldown_minutes=720,  # 12 hours
+            cooldown_minutes=720,
         )
 
 
@@ -494,11 +507,12 @@ class InterventionJudge:
     All five rules must pass. Returns (approved: bool, reason: str).
     """
 
-    def __init__(self, db_engine, quiet_start: int = PCL_QUIET_START_HOUR,
-                 quiet_end: int = PCL_QUIET_END_HOUR):
+    def __init__(self, db_engine, settings_obj=None):
         self.db_engine = db_engine
-        self.quiet_start = quiet_start
-        self.quiet_end = quiet_end
+        self.settings = settings_obj or settings
+        self.quiet_start = getattr(self.settings, "PCL_QUIET_START_HOUR", 22)
+        self.quiet_end = getattr(self.settings, "PCL_QUIET_END_HOUR", 7)
+        self.crit_threshold = getattr(self.settings, "CRITIC_THRESHOLD", 0.75)
 
     def evaluate(self, opp: Opportunity, world: WorldModel) -> Tuple[bool, str]:
         """Returns (approved, reason)."""
@@ -636,14 +650,17 @@ class ProactiveCognitionLoop:
             PeakOpportunityDetector(),
         ]
 
-        self.judge = InterventionJudge(db_engine)
+        self.judge = InterventionJudge(db_engine, settings_obj=self.settings)
         self._cycle_number: int = 0
         self._task: Optional[asyncio.Task] = None
         self._running: bool = False
 
+        # Use settings for cycle interval if available
+        self.cycle_interval = getattr(self.settings, "PCL_CYCLE_INTERVAL", cycle_interval)
+
         logger.info(
             f"[PCL] Initialized with {len(self.detectors)} detectors, "
-            f"cycle_interval={cycle_interval}s"
+            f"cycle_interval={self.cycle_interval}s"
         )
 
     # ─── Lifecycle ────────────────────────────────────────────────────────────
@@ -788,17 +805,29 @@ class ProactiveCognitionLoop:
                 if now - r.retention_score * 86400 < 86400  # rough 24h proxy
             ][:10]
 
-            # Detect recurring topics: extract first 50 chars of each entry
-            # and count near-duplicates by prefix similarity
-            topic_counts: Dict[str, int] = {}
-            for r in recent:
-                key = r.content[:60].lower().strip()
-                topic_counts[key] = topic_counts.get(key, 0) + 1
+            # Detect recurring topics: use L2 semantic search for pattern detection
+            recurring = []
+            seen_hashes = set()
+            
+            for r in recent[:15]: # Process top 15 recent memories
+                if len(r.content) < 40: continue
+                
+                # Check if we've already processed a similar topic in this cycle
+                content_hash = hashlib.sha256(r.content[:100].encode()).hexdigest()
+                if content_hash in seen_hashes: continue
 
-            world.recurring_topics = [
-                topic for topic, count in topic_counts.items()
-                if count >= 3
-            ][:5]
+                # Query L2 for similar memories across history
+                matches = await self.hlsm.l2_search(r.content[:200], limit=5)
+                # Count matches with high semantic similarity (>0.85)
+                high_sim_matches = [m for m in matches if m.relevance_score > 0.85]
+                
+                if len(high_sim_matches) >= 3:
+                    recurring.append(r.content[:100])
+                    # Mark similar hashes to avoid duplicate detection in same cycle
+                    for m in high_sim_matches:
+                        seen_hashes.add(hashlib.sha256(m.content[:100].encode()).hexdigest())
+
+            world.recurring_topics = recurring[:5]
 
         except Exception as e:
             logger.debug(f"[PCL] Memory observation failed: {e}")

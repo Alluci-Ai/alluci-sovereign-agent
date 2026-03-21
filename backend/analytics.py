@@ -193,14 +193,13 @@ class UsageTracker:
                 if s["last_turn"] is None or ts_str > s["last_turn"]:
                     s["last_turn"] = ts_str
             
-            # Simple duration estimation (seconds between first and last turn)
             if s["first_turn"] and s["last_turn"]:
                 try:
                     t1 = datetime.fromisoformat(s["first_turn"])
                     t2 = datetime.fromisoformat(s["last_turn"])
                     s["duration"] = int((t2 - t1).total_seconds())
-                except:
-                    pass
+                except Exception as e:
+                    logger.debug(f"[Analytics] Duration estimation failed for session {r.session_key}: {e}")
 
         session_list = []
         for s in sessions.values():
