@@ -77,7 +77,7 @@ mss==9.0.1
 slack-sdk==3.31.0
 pypdf==4.3.1
 python-docx==1.1.2
-prometheus-client==0.20.0
+prometheus-client==0.24.1
 tiktoken==0.7.0
 secure==0.3.0
 zeroconf==0.132.0
