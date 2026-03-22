@@ -40,7 +40,7 @@ async def get_csrf_token(request: Request, response: Response, csrf_protect: Csr
         value=signed_token,
         httponly=True,
         samesite=settings.AUTH_COOKIE_SAMESITE,
-        secure=settings.APP_ENV != "development",
+        secure=settings.AUTH_COOKIE_SECURE,
     )
     return {"status": "SUCCESS", "csrf_token": csrf_token}
 
@@ -54,7 +54,7 @@ async def login(response: Response, payload: LoginRequest):
             key=settings.AUTH_COOKIE_NAME,
             value=token,
             httponly=True,
-            secure=settings.APP_ENV != "development",
+            secure=settings.AUTH_COOKIE_SECURE,
             samesite=settings.AUTH_COOKIE_SAMESITE,
             max_age=86400  # 24 hours
         )
@@ -62,7 +62,7 @@ async def login(response: Response, payload: LoginRequest):
             key="alluci_session",
             value="1",
             httponly=False,
-            secure=settings.APP_ENV != "development",
+            secure=settings.AUTH_COOKIE_SECURE,
             samesite=settings.AUTH_COOKIE_SAMESITE,
             max_age=86400
         )
@@ -101,7 +101,7 @@ async def verusid_callback(response: Response, payload: Dict[str, str] = Body(..
             key=settings.AUTH_COOKIE_NAME,
             value=token,
             httponly=True,
-            secure=settings.APP_ENV != "development",
+            secure=settings.AUTH_COOKIE_SECURE,
             samesite=settings.AUTH_COOKIE_SAMESITE,
             max_age=86400
         )
@@ -109,7 +109,7 @@ async def verusid_callback(response: Response, payload: Dict[str, str] = Body(..
             key="alluci_session",
             value="1",
             httponly=False,
-            secure=settings.APP_ENV != "development",
+            secure=settings.AUTH_COOKIE_SECURE,
             samesite=settings.AUTH_COOKIE_SAMESITE,
             max_age=86400
         )
@@ -220,7 +220,7 @@ async def verify_webauthn_response(response: Response, payload: Dict[str, Any] =
             key=settings.AUTH_COOKIE_NAME,
             value=token,
             httponly=True,
-            secure=settings.APP_ENV != "development",
+            secure=settings.AUTH_COOKIE_SECURE,
             samesite=settings.AUTH_COOKIE_SAMESITE,
             max_age=86400
         )
@@ -228,7 +228,7 @@ async def verify_webauthn_response(response: Response, payload: Dict[str, Any] =
             key="alluci_session",
             value="1",
             httponly=False,
-            secure=settings.APP_ENV != "development",
+            secure=settings.AUTH_COOKIE_SECURE,
             samesite=settings.AUTH_COOKIE_SAMESITE,
             max_age=86400
         )
@@ -378,7 +378,7 @@ async def verify_webauthn_assertion(
             key=settings.AUTH_COOKIE_NAME,
             value=token,
             httponly=True,
-            secure=settings.APP_ENV != "development",
+            secure=settings.AUTH_COOKIE_SECURE,
             samesite=settings.AUTH_COOKIE_SAMESITE,
             max_age=86400,
         )
@@ -386,7 +386,7 @@ async def verify_webauthn_assertion(
             key="alluci_session",
             value="1",
             httponly=False,
-            secure=settings.APP_ENV != "development",
+            secure=settings.AUTH_COOKIE_SECURE,
             samesite=settings.AUTH_COOKIE_SAMESITE,
             max_age=86400
         )

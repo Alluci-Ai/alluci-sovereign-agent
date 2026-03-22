@@ -15,6 +15,10 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 3000,
       host: '0.0.0.0',
+      https: {
+        key: path.resolve(__dirname, 'certs/privkey.pem'),
+        cert: path.resolve(__dirname, 'certs/fullchain.pem'),
+      },
     },
     plugins: [
       react(),

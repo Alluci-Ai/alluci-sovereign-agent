@@ -213,6 +213,16 @@ class Settings(BaseSettings):
 
     AUTH_COOKIE_NAME: str = "alluci_daemon_token"
     AUTH_COOKIE_SAMESITE: str = "lax"  # Use 'lax' or 'strict' for local dev
+    AUTH_COOKIE_SECURE: Optional[bool] = None  # Auto-detected if None
+    
+    @field_validator("AUTH_COOKIE_SECURE", mode="before")
+    @classmethod
+    def auto_detect_secure(cls, v, info):
+        if v is not None:
+            return v
+        app_env = info.data.get("APP_ENV", os.getenv("APP_ENV", "development"))
+        # In production, ALWAYS secure. In dev, only if we explicitly want it.
+        return app_env == "production"
     
     # Execution Governance
     MAX_AUTONOMY_RETRIES: int = 3
