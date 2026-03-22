@@ -28,12 +28,12 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
 
-from .base import BridgeAdapter
+from .base import BridgeAdapter, UnofficialBridgeMixin
 
 GRAPH = "https://graph.facebook.com/v20.0"
 
 
-class InstagramBridge(BridgeAdapter):
+class InstagramBridge(BridgeAdapter, UnofficialBridgeMixin):
     """
     Production Instagram Bridge using Meta Graph API.
     Requires a Facebook Page connected to an Instagram Business/Creator account.
@@ -64,6 +64,7 @@ class InstagramBridge(BridgeAdapter):
     # ── Connection ────────────────────────────────────────────────────────────
 
     async def connect(self, credentials: Dict[str, Any]) -> bool:
+        self.validate_official_gate("INSTAGRAM")
         """
         Connect using stored credentials.
         credentials must contain page_access_token and page_id.

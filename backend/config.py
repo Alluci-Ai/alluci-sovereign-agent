@@ -90,6 +90,9 @@ class Settings(BaseSettings):
     
     LOG_LEVEL: str = Field(default="INFO")
 
+    # ── Bridge Configuration ──────────────────────────────────────────────────
+    UNOFFICIAL_BRIDGES_ENABLED: bool = False         # Gate for WeChat, Facebook, Instagram
+    
     # ── Local Inference ──────────────────────────────────────────────────────
     OLLAMA_URL: str = "http://localhost:11434"
     OLLAMA_MODEL_STRONG: str = "llama3.3:70b"

@@ -6,11 +6,13 @@ from ..models import TelemetryData
 from ..security.auth import verify_authenticated
 from .. import services
 
+from fastapi_csrf_protect import CsrfProtect
+
 logger = get_logger("TelemetryRouter")
 
 router = APIRouter(tags=["Telemetry"])
 
-@router.post("/telemetry", dependencies=[Depends(verify_authenticated)])
+@router.post("/telemetry", dependencies=[Depends(verify_authenticated), Depends(CsrfProtect().validate_csrf)])
 async def post_telemetry(data: TelemetryData):
     """
     Ingests biometric telemetry from companion devices (Apple Watch, etc.)

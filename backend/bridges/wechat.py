@@ -32,12 +32,12 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
-from .base import BridgeAdapter
+from .base import BridgeAdapter, UnofficialBridgeMixin
 
 WECOM_API = "https://qyapi.weixin.qq.com/cgi-bin"
 
 
-class WeChatBridge(BridgeAdapter):
+class WeChatBridge(BridgeAdapter, UnofficialBridgeMixin):
     """
     Production WeChat / WeCom Corporate Bridge.
     Uses WeCom (企业微信) Application API for enterprise messaging.
@@ -58,13 +58,8 @@ class WeChatBridge(BridgeAdapter):
     async def connect(self, credentials: Dict[str, Any]) -> bool:
         """
         Connect using WeCom Corp credentials.
-        credentials:
-            corp_id (str):     WeCom Enterprise Corp ID
-            corp_secret (str): WeCom Application Secret
-            agent_id (str):    Application Agent ID
-            token (str):       Callback verification token
-            encoding_aes_key (str): 43-char AES key for message encryption
         """
+        self.validate_official_gate("WECHAT/WECOM")
         self._corp_id     = credentials.get("corp_id")     or self._corp_id
         self._corp_secret = credentials.get("corp_secret") or self._corp_secret
         self._agent_id    = credentials.get("agent_id")    or self._agent_id

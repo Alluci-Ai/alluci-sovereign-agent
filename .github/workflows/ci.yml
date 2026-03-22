@@ -19,14 +19,42 @@ env:
 jobs:
 
   # ══════════════════════════════════════════════════════════════
+  # JOB 0: Native Kernel Build (Hardware-Bound Security)
+  # ══════════════════════════════════════════════════════════════
+  build-dpk-kernel:
+    name: Build DPK Native Kernel (C++)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build essentials
+        run: sudo apt-get update && sudo apt-get install -y g++ make
+      - name: Build and verify kernel
+        run: |
+          cd backend/security
+          make all
+          make verify
+      - name: Upload kernel artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dpk-kernel-linux
+          path: backend/security/libdpk.so
+
+  # ══════════════════════════════════════════════════════════════
   # JOB 1: Backend Smoke Tests (fast gate, <60s)
   # ══════════════════════════════════════════════════════════════
   smoke:
     name: Smoke Tests (Backend)
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    needs: build-dpk-kernel
     steps:
       - uses: actions/checkout@v4
+
+      - name: Download kernel artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dpk-kernel-linux
+          path: backend/security/
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
@@ -48,9 +76,15 @@ jobs:
     name: Backend Tests (Unit + Integration + Security)
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    needs: smoke
+    needs: [smoke, build-dpk-kernel]
     steps:
       - uses: actions/checkout@v4
+
+      - name: Download kernel artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dpk-kernel-linux
+          path: backend/security/
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
@@ -199,8 +233,15 @@ jobs:
     name: Docker Build Validation
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    needs: build-dpk-kernel
     steps:
       - uses: actions/checkout@v4
+
+      - name: Download kernel artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dpk-kernel-linux
+          path: backend/security/
 
       - name: Build backend Docker image
         run: docker build -f Dockerfile.backend -t alluci-backend:ci .

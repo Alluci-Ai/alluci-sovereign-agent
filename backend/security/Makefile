@@ -8,6 +8,7 @@ LDFLAGS = -shared
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
 	TARGET = libdpk.dylib
+	LDFLAGS += -Wl,-undefined,dynamic_lookup
 else
 	TARGET = libdpk.so
 endif
@@ -23,7 +24,10 @@ $(TARGET): $(OBJS)
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
+verify: $(TARGET)
+	@python3 -c "import ctypes; ctypes.CDLL('./$(TARGET)'); print('Verification successful: $(TARGET) loaded.');"
+
 clean:
 	rm -f $(OBJS) $(TARGET)
 
-.PHONY: all clean
+.PHONY: all clean verify

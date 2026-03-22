@@ -30,8 +30,8 @@ WORKDIR /app
 COPY backend/ ./backend/
 COPY TASKS.md HEARTBEAT.md ./
 
-# Compile Native Kernels (DPK)
-RUN make -C backend/security/
+# Compile and Verify Native Kernels (DPK)
+RUN make -C backend/security/ all verify
 
 # Create non-root user for security
 RUN useradd -m -r polytope && \

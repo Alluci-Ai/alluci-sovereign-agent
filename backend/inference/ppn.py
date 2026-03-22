@@ -25,7 +25,13 @@ class PPNEmbeddingModule:
     """
     [ PPN-002 ] Polytope Projection Network.
     Pure NumPy implementation for production stability and deterministic manifold geometry.
-    Replaces the previous torch-dependent stub.
+    
+    NOTE: The projection weights are FIXED (seed=42) to ensure a stable, 
+    reproducible manifold across sessions. This is a deterministic 
+    mapping, NOT a real-time learning model in this version.
+    
+    Topological attributes (Betti numbers) can be calculated using 'gudhi' 
+    if available; otherwise, heuristic approximations are used.
     """
     def __init__(self, input_dim=384, hidden_dim=384, manifold_dim=32):
         self.input_dim = input_dim
@@ -60,26 +66,41 @@ class PPNEmbeddingModule:
             coherence = (affect_state.valence + (1.0 - affect_state.arousal)) / 2.0
             coherence = np.clip(coherence, 0.1, 0.95)
             
-        # Homology Norm (h_norm): simulate topological density
+        # 4. Homology / Betti Numbers
+        if gudhi and x.shape[0] > 1:
+            # Real TDA calculation via Rips Complex
+            try:
+                rips = gudhi.RipsComplex(points=points, max_edge_distance=2.0)
+                simplex_tree = rips.create_simplex_tree(max_dimension=2)
+                persistence = simplex_tree.persistence()
+                # Betti numbers are the rank of the homology groups
+                # This is a simplified proxy for high-dimensional voids
+                betti_raw = simplex_tree.betti_numbers()
+                betti = np.pad(betti_raw, (0, 4 - len(betti_raw)), constant_values=0)[:4]
+            except Exception:
+                # Fallback to heuristic
+                b0, b1, b2, b3 = 1.0, float(np.sum(points > 0.1) % 5), float(np.sum(points < -0.1) % 3), 0.0
+                betti = np.array([b0, b1, b2, b3])
+        else:
+            # Heuristic: B0 is components, B1 is loops, B2 is voids.
+            b0 = 1.0
+            b1 = float(np.sum(points > 0.1) % 5)
+            b2 = float(np.sum(points < -0.1) % 3)
+            b3 = 0.0
+            betti = np.array([b0, b1, b2, b3])
+        
+        # 5. Pairwise Euclidean Distance Matrix (D)
+        # Calculates the real distance between points in the hidden manifold
+        if points.shape[0] > 1:
+            diff = points[:, np.newaxis, :] - points[np.newaxis, :, :]
+            d_matrix = np.sqrt(np.sum(diff**2, axis=-1))
+        else:
+            d_matrix = np.zeros((1, 1))
+        
+        # 6. Final Metrics
         h_norm = np.linalg.norm(points) / 10.0
-        
-        # Betti Numbers: [B0, B1, B2, B3]
-        # Heuristic: B0 is components (usually 1), B1 is loops, B2 is voids.
-        # Scaled by psi and variance.
-        b0 = 1.0
-        b1 = float(np.sum(points > 0.1) % 5)
-        b2 = float(np.sum(points < -0.1) % 3)
-        b3 = 0.0
-        betti = np.array([b0, b1, b2, b3])
-        
-        # Distance Matrix (D)
-        d_matrix = np.zeros((1, 1)) # Placeholder for distance matrix if needed
-        
-        # Budget
         budget = np.clip(h_norm * psi, 0.0, 1.0)
-        
-        # Delta Betti Norm
-        delta_b_norm = np.std(betti)
+        delta_b_norm = float(np.std(betti))
         
         # Simplex Graph (G) - Placeholder for connectivity
         g_graph = points.reshape(-1)

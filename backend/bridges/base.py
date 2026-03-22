@@ -193,11 +193,35 @@ class BridgeAdapter(ABC):
             # Check every 10 minutes
             await asyncio.sleep(600)
 
-    async def disconnect(self):
-        """Graceful teardown of the connection."""
-        if self._refresh_task:
-            self._refresh_task.cancel()
-        if self.client:
-            await self.client.aclose()
-        self.is_connected = False
-        self.session = None
+
+class UnofficialBridgeMixin:
+    """
+    Validation mixin for bridges that use unofficial/private APIs.
+    Enforces the UNOFFICIAL_BRIDGES_ENABLED gate and issues a ToS risk disclosure.
+    
+    If settings.UNOFFICIAL_BRIDGES_ENABLED is False, any attempt to connect
+    will raise a RuntimeError with a clear explanation of why it was blocked.
+    """
+    
+    def validate_official_gate(self, protocol_name: str):
+        """
+        Check if unofficial bridges are enabled in the global settings.
+        Raises RuntimeError if disabled.
+        """
+        from ..config import settings
+        if not getattr(settings, "UNOFFICIAL_BRIDGES_ENABLED", False):
+            msg = (
+                f"[{protocol_name}] Connection blocked. This bridge uses an unofficial "
+                "API that carries Terms of Service (ToS) risks. "
+                "To enable it, set UNOFFICIAL_BRIDGES_ENABLED=true in your .env file."
+            )
+            # Use self.logger if available (via BridgeAdapter)
+            if hasattr(self, "logger"):
+                self.logger.error(msg)
+            raise RuntimeError(msg)
+        
+        if hasattr(self, "logger"):
+            self.logger.warning(
+                f"[{protocol_name}] Unofficial bridge active. Reminder: Using private "
+                "APIs may violate platform Terms of Service and lead to account suspension."
+            )

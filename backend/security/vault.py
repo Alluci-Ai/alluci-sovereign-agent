@@ -11,14 +11,22 @@ import tempfile
 import logging
 from typing import Dict, Any, Set, Optional, List
 
-# Conditional imports for platform-specific or optional dependencies
+# ── Logger MUST be initialized before any conditional imports ─────────────────
+# The keyring import below may fail on environments without the package, and
+# its except block references logger. If logger is defined after that block,
+# Python raises NameError at module load time, preventing the app from starting.
+from ..logging_config import get_logger
+logger = get_logger("VaultManager")
+
+# ── Platform-specific optional dependencies ───────────────────────────────────
 try:
     import keyring
 except ImportError:
     keyring = None
     logger.warning(
         "[Vault] 'keyring' library not importable. "
-        "OS Keychain integration disabled — falling back to environment variable."
+        "OS Keychain integration disabled — falling back to environment variable. "
+        "Install 'keyring' to enable OS keychain integration."
     )
 
 try:
@@ -31,6 +39,7 @@ try:
 except ImportError:
     _signal = None
 
+# ── Cryptography ──────────────────────────────────────────────────────────────
 from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives import hashes, serialization
@@ -39,10 +48,7 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.backends import default_backend
 
 from ..config import settings
-from ..logging_config import get_logger
 from .vdxf_store import VDXFStore
-
-logger = get_logger("VaultManager")
 
 class VaultManager:
     def __init__(self, master_key: str, vault_root: Optional[str] = None):

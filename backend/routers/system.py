@@ -11,6 +11,7 @@ from ..database import engine as db_engine
 from ..models import SystemStatus, AuditEntry
 from ..security.auth import verify_authenticated
 from .. import services
+from fastapi_csrf_protect import CsrfProtect
 
 logger = get_logger("SystemRouter")
 
@@ -131,7 +132,7 @@ async def get_audit_ledger(limit: int = 50, offset: int = 0, status: Optional[st
     from ..security.audit_ledger import read_audit_log
     return await read_audit_log(limit=limit, offset=offset, status=status)
 
-@router.post("/audit/entry", dependencies=[Depends(verify_authenticated)])
+@router.post("/audit/entry", dependencies=[Depends(verify_authenticated), Depends(CsrfProtect().validate_csrf)])
 async def add_audit_entry(entry: AuditEntry):
     from ..security.audit_ledger import sync_audit_entry
     return await sync_audit_entry(entry)
@@ -145,7 +146,7 @@ async def get_pcl_status():
     return await services.pcl.get_status()
 
 
-@router.post("/system/pcl/cycle", dependencies=[Depends(verify_authenticated)])
+@router.post("/system/pcl/cycle", dependencies=[Depends(verify_authenticated), Depends(CsrfProtect().validate_csrf)])
 async def trigger_pcl_cycle():
     """Manually trigger a PCL cognitive cycle immediately."""
     if not services.pcl:

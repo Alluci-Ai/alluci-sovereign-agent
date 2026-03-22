@@ -51,12 +51,11 @@ class BridgeActualizationAdapter(Adapter):
         self._init_bridges()
 
     def _init_bridges(self):
+        from ..config import settings
         self.bridge_map = {
             "slack": SlackBridge,
             "telegram": TelegramBridge,
             "discord": DiscordBridge,
-            "facebook": FacebookBridge,
-            "instagram": InstagramBridge,
             "x": XBridge,
             "twitter": XBridge,
             "gmail": GmailBridge,
@@ -65,7 +64,6 @@ class BridgeActualizationAdapter(Adapter):
             "icloud": ICloudBridge,
             "msteams": MSTeamsBridge,
             "webchat": WebChatBridge,
-            "wechat": WeChatBridge,
             "imessage": IMessageBridge,
             "whatsapp": WhatsAppBridge,
             "iphone": IPhoneBridge,
@@ -74,6 +72,16 @@ class BridgeActualizationAdapter(Adapter):
             "google_chat": GoogleChatBridge,
             "nostr": NostrBridge
         }
+        
+        # Add high-risk/social bridges only if explicitly enabled (GAP-009)
+        if getattr(settings, "UNOFFICIAL_BRIDGES_ENABLED", False):
+            self.bridge_map.update({
+                "wechat": WeChatBridge,
+                "facebook": FacebookBridge,
+                "instagram": InstagramBridge,
+            })
+        else:
+            self.logger.info("[BridgeActualization] Unofficial social bridges (WeChat, FB, IG) are disabled.")
 
     async def execute(self, args: Dict[str, Any]) -> Any:
         bridge_type = args.get("bridge")

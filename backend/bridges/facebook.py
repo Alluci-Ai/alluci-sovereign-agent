@@ -16,12 +16,12 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
 
-from .base import BridgeAdapter
+from .base import BridgeAdapter, UnofficialBridgeMixin
 
 GRAPH = "https://graph.facebook.com/v20.0"
 
 
-class FacebookBridge(BridgeAdapter):
+class FacebookBridge(BridgeAdapter, UnofficialBridgeMixin):
     """
     Production Facebook Messenger Bridge.
     Uses Page Access Token with App Secret Proof on all outbound calls.
@@ -60,6 +60,7 @@ class FacebookBridge(BridgeAdapter):
     # ── Connection ────────────────────────────────────────────────────────────
 
     async def connect(self, credentials: Dict[str, Any]) -> bool:
+        self.validate_official_gate("FACEBOOK")
         self.page_access_token = credentials.get("page_access_token")
         self.page_id           = credentials.get("page_id")
         self.page_name         = credentials.get("page_name")

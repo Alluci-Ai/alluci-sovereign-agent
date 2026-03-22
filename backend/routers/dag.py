@@ -5,6 +5,7 @@ from sqlmodel import Session, select, desc
 from ..database import engine as db_engine
 from ..models import Run, TaskRecord as TaskRecordModel
 from ..security.auth import verify_authenticated
+from fastapi_csrf_protect import CsrfProtect
 
 router = APIRouter(tags=["DAG & Pipeline Runs"])
 

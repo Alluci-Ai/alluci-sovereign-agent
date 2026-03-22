@@ -152,17 +152,39 @@ class Opportunity:
 class BaseDetector:
     """
     Abstract base for all PCL detectors.
+
     Each detector inspects the world model and optionally returns an Opportunity.
     Detectors are pure functions of the world model — they never modify it.
+
+    Subclasses MUST override detect(). The base implementation is a documented
+    safe no-op: it logs a one-time warning and returns None so that unimplemented
+    or misconfigured detectors degrade gracefully without crashing the PCL daemon
+    or polluting the error log with stack traces.
+
+    To verify all registered detectors are properly implemented, call
+    ProactiveCognitionLoop._validate_detectors() after construction.
     """
+
     name: str = "base"
+    _warned: bool = False  # class-level flag to suppress repeated warnings
 
     async def detect(self, world: WorldModel) -> Optional[Opportunity]:
         """
-        Inspect the world model and return an Opportunity if a condition is met,
-        or None if no action is warranted.
+        Inspect the world model and return an Opportunity, or None.
+
+        Subclasses must override this method. This base implementation is a
+        safe no-op that emits a single warning per class to surface
+        misconfiguration during development without crashing in production.
         """
-        raise NotImplementedError
+        if not self.__class__._warned:
+            logger.warning(
+                "[PCL] Detector '%s' has not implemented detect(). "
+                "It will never fire. Override detect() in your subclass. "
+                "This warning will not repeat.",
+                self.__class__.__name__,
+            )
+            self.__class__._warned = True
+        return None
 
 
 # ─── Built-in Detectors ───────────────────────────────────────────────────────
@@ -743,6 +765,36 @@ class ProactiveCognitionLoop:
             f"cycle_interval={self.cycle_interval}s"
         )
 
+        # Validate all detectors implement detect() — surfaces misconfiguration at startup
+        self._validate_detectors()
+
+    def _validate_detectors(self) -> None:
+        """
+        Called at startup. Checks that every registered detector has overridden
+        detect(). Logs a WARNING (not an error) for any that have not, so
+        developers see the problem immediately without crashing the daemon.
+
+        This check is O(n) on detector count and runs once at boot — safe for
+        both development and production.
+        """
+        unimplemented = [
+            d for d in self.detectors
+            if type(d).detect is BaseDetector.detect
+        ]
+        if unimplemented:
+            names = ", ".join(d.__class__.__name__ for d in unimplemented)
+            logger.warning(
+                "[PCL] STARTUP WARNING: The following detectors are registered "
+                "but have not implemented detect() — they will never fire: %s. "
+                "Override detect() in each subclass to activate them.",
+                names,
+            )
+        else:
+            logger.info(
+                "[PCL] All %d detector(s) validated — detect() is implemented.",
+                len(self.detectors),
+            )
+
     # ─── Lifecycle ────────────────────────────────────────────────────────────
 
     async def start(self) -> None:
@@ -993,20 +1045,38 @@ class ProactiveCognitionLoop:
     async def detect_opportunities(self, world: WorldModel) -> List[Opportunity]:
         """
         Stage 3: Run all detectors against the world model.
-        Returns list of raw opportunities (not yet judged).
+        Returns list of raw Opportunities, sorted by priority then confidence.
+        Each detector runs in isolation — one failure does not affect others.
         """
-        opportunities = []
+        opportunities: List[Opportunity] = []
+
         for detector in self.detectors:
             try:
                 result = await detector.detect(world)
                 if result is not None:
                     opportunities.append(result)
                     logger.debug(
-                        f"[PCL] {detector.name} fired: '{result.title}' "
-                        f"(P{result.priority}, conf={result.confidence:.2f})"
+                        "[PCL] %s fired: '%s' (P%s, conf=%.2f)",
+                        detector.name,
+                        result.title,
+                        result.priority,
+                        result.confidence,
                     )
-            except Exception as e:
-                logger.error(f"[PCL] Detector {detector.name} error: {e}", exc_info=True)
+            except NotImplementedError:
+                # Detector subclass forgot to implement detect() — safe to skip.
+                # _validate_detectors() will have already warned at startup.
+                logger.warning(
+                    "[PCL] Detector %s raised NotImplementedError in detect(). "
+                    "Override detect() to activate this detector.",
+                    detector.name,
+                )
+            except Exception as exc:
+                logger.error(
+                    "[PCL] Detector %s raised an unexpected error: %s",
+                    detector.name,
+                    exc,
+                    exc_info=True,
+                )
 
         # Sort by priority (1=critical first) then confidence descending
         opportunities.sort(key=lambda o: (o.priority, -o.confidence))
