@@ -21,7 +21,7 @@ aiosqlite==0.20.0            # SQLite async support
 cryptography==43.0.0
 python-jose[cryptography]==3.3.0
 webauthn==2.1.0
-keyring==25.3.0              # OS Keychain integration for vault master key
+keyring==25.7.0              # OS Keychain integration for vault master key
 passlib[bcrypt]==1.7.4
 
 # ─── LLM Providers ────────────────────────────────────────────────────────────
