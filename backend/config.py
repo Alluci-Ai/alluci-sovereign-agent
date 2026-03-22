@@ -90,8 +90,29 @@ class Settings(BaseSettings):
     
     LOG_LEVEL: str = Field(default="INFO")
 
-    # ─── Inference Providers ──────────────────────────────────────────────────
-    LM_STUDIO_MODEL: str = Field(default="mixed-model-request")
+    # ── Local Inference ──────────────────────────────────────────────────────
+    OLLAMA_URL: str = "http://localhost:11434"
+    OLLAMA_MODEL_STRONG: str = "llama3.3:70b"
+    OLLAMA_MODEL_MEDIUM: str = "mistral:7b-instruct-v0.3-q4_K_M"
+    OLLAMA_MODEL_LIGHT: str = "phi3:mini"
+    OLLAMA_MODEL_LITE: str = "tinyllama:1.1b"       # LITE_MODE / < 2 GB RAM
+    OLLAMA_NUM_GPU: int = 35                         # GPU layers to offload (0 = CPU only)
+    OLLAMA_TIMEOUT_SECONDS: int = 120
+
+    LM_STUDIO_URL: str = "http://localhost:1234/v1"
+    LM_STUDIO_MODEL: str = "local-model"
+
+    # ── HuggingFace (optional) ────────────────────────────────────────────────
+    HUGGINGFACE_API_TOKEN: Optional[str] = None
+    HUGGINGFACE_MODEL_ID: str = "mistralai/Mistral-7B-Instruct-v0.3"
+    HUGGINGFACE_ENDPOINT_URL: Optional[str] = None  # Custom Inference Endpoint URL
+
+    # ── Sovereign Mode ────────────────────────────────────────────────────────
+    # When True: only Ollama, LM Studio, and HuggingFace are attempted.
+    # All cloud providers are skipped entirely.
+    SOVEREIGN_MODE: bool = False
+
+    # ── Cloud Providers ───────────────────────────────────────────────────────
     GEMINI_API_KEY: Optional[str] = None
     OPENAI_API_KEY: Optional[str] = None
     ANTHROPIC_API_KEY: Optional[str] = None
@@ -99,10 +120,10 @@ class Settings(BaseSettings):
     GROQ_API_KEY: Optional[str] = None
     DEEPSEEK_API_KEY: Optional[str] = None
     OPENROUTER_API_KEY: Optional[str] = None
-    LM_STUDIO_URL: str = "http://localhost:1234/v1"
     TOGETHER_API_KEY: Optional[str] = None
     ELEVENLABS_API_KEY: Optional[str] = None
     COHERE_API_KEY: Optional[str] = None
+    
     AWS_ACCESS_KEY_ID: Optional[str] = None
     AWS_SECRET_ACCESS_KEY: Optional[str] = None
     AWS_REGION: str = "us-east-1"
@@ -218,9 +239,8 @@ class Settings(BaseSettings):
     # Rate Limiting
     RATE_LIMIT_PER_MINUTE: int = 60
 
-    # Local Sovereign Inference
+    # Local Sovereign Inference (Audio & TTS)
     WHISPER_CPP_PATH: str = "whisper-cpp"
-    OLLAMA_URL: str = "http://localhost:11434"
     PIPER_PATH: str = "piper"
     PIPER_MODEL: str = "en_US-amy-medium.onnx"
 
