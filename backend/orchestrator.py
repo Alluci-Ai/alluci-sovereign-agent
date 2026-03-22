@@ -662,8 +662,13 @@ class ExecutiveOrchestrator:
         queries_json = await self.planner.router.get_response(plan_prompt, complexity="MEDIUM")
         try:
             queries = json.loads(queries_json)
-            if not isinstance(queries, list): queries = [objective]
-        except:
+            if not isinstance(queries, list):
+                queries = [objective]
+        except json.JSONDecodeError:
+            self.logger.debug(
+                "[Orchestrator] Research query decomposition returned non-JSON "
+                "— falling back to single query."
+            )
             queries = [objective]
 
         research_results = []

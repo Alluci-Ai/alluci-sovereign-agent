@@ -566,7 +566,13 @@ class HeartbeatDaemon:
     to avoid a circular import at construction time.
     """
 
-    def __init__(self, orchestrator, vault, interval_seconds: int = 900):
+    def __init__(
+        self,
+        orchestrator,
+        vault,
+        interval_seconds: int = 900,
+        db_engine=None
+    ):
         self.orchestrator = orchestrator
         self.vault = vault
         self.default_interval_minutes = interval_seconds // 60
@@ -574,6 +580,7 @@ class HeartbeatDaemon:
         self.quiet_end: int = 7          # UTC hour
         self.ws_gateway = None
         self._hlsm = None               # Injected by services.py after init
+        self.db_engine = db_engine      # Allow injection for tests
         self._running = False
         self._task: Optional[asyncio.Task] = None
         self.logger = get_logger("Heartbeat")
@@ -583,8 +590,10 @@ class HeartbeatDaemon:
         self._hlsm = hlsm
 
     def _get_db(self):
-        from .database import engine as db_engine
-        return db_engine
+        if self.db_engine:
+            return self.db_engine
+        from .database import engine as shared_engine
+        return shared_engine
 
     # ─── Lifecycle ────────────────────────────────────────────────────────────
 

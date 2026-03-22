@@ -928,40 +928,53 @@ class ProactiveCognitionLoop:
         if not self.hlsm:
             return
         try:
-            # 1. Fetch recent learnings (L1 memory)
-            # We also look for source='heartbeat_signal' specific entries
+            # 1. Fetch recent L1 episodic entries.
+            # l1_get_recent() returns List[HLSMRetrievalResult] — a dataclass,
+            # not a dict. Access fields with dot notation: .content, .source.
             learnings = await self.hlsm.l1_get_recent(limit=15)
+
+            # Build recent_learnings as strings for HeartbeatSignalDetector
+            # and RecurringTopicDetector to scan.
             world.recent_learnings = [
-                f"{m.get('content')} [source:{m.get('metadata', {}).get('source', 'unknown')}]"
+                f"{m.content} [source:{m.source}]"
                 for m in learnings
             ]
 
-            # Detect recurring topics: use L2 semantic search for pattern detection
-            recurring = []
-            seen_hashes = set()
-            
-            for r in recent[:15]: # Process top 15 recent memories
-                if len(r.content) < 40: continue
-                
-                # Check if we've already processed a similar topic in this cycle
-                content_hash = hashlib.sha256(r.content[:100].encode()).hexdigest()
-                if content_hash in seen_hashes: continue
+            # 2. Detect recurring topics via L2 semantic similarity search.
+            # Uses the same HLSMRetrievalResult objects from l1_get_recent()
+            # (assigned to 'learnings', NOT 'recent' — that was the old bug).
+            recurring: list = []
+            seen_hashes: set = set()
 
-                # Query L2 for similar memories across history
+            for r in learnings:  # ← was 'recent' — undefined variable; fixed
+                if len(r.content) < 40:
+                    continue
+
+                content_hash = hashlib.sha256(r.content[:100].encode()).hexdigest()
+                if content_hash in seen_hashes:
+                    continue
+
+                # Query L2 semantic store for conceptually similar memories
                 matches = await self.hlsm.l2_search(r.content[:200], limit=5)
-                # Count matches with high semantic similarity (>0.85)
-                high_sim_matches = [m for m in matches if m.relevance_score > 0.85]
-                
+
+                # Count matches with high semantic similarity (relevance_score > 0.85)
+                high_sim_matches = [
+                    m for m in matches if m.relevance_score > 0.85
+                ]
+
                 if len(high_sim_matches) >= 3:
                     recurring.append(r.content[:100])
-                    # Mark similar hashes to avoid duplicate detection in same cycle
                     for m in high_sim_matches:
-                        seen_hashes.add(hashlib.sha256(m.content[:100].encode()).hexdigest())
+                        seen_hashes.add(
+                            hashlib.sha256(m.content[:100].encode()).hexdigest()
+                        )
 
             world.recurring_topics = recurring[:5]
 
-        except Exception as e:
-            logger.debug(f"[PCL] Memory observation failed: {e}")
+        except Exception as exc:
+            logger.error(
+                "[PCL] _observe_memory failed: %s", exc, exc_info=True
+            )
 
     async def _observe_bridges(self, world: WorldModel) -> None:
         """

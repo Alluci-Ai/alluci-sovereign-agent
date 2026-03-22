@@ -70,7 +70,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Alluci Sovereign Agent",
     description="Sovereign Executive Assistant with Polytopic Manifolds",
-    version="2.1.0",
+    version="5.3.5",
     lifespan=lifespan,
     dependencies=[Depends(global_rate_limit)]
 )

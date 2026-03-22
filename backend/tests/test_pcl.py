@@ -189,3 +189,180 @@ async def test_full_cycle_execution(pcl_engine, mock_orchestrator, mock_hlsm):
     assert summary["opportunities_detected"] > 0
     assert summary["opportunities_actioned"] > 0
     assert mock_orchestrator.execute_objective.called or mock_hlsm.l1_store.called
+
+
+# ─── _observe_memory fix verification ─────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_observe_memory_uses_dataclass_attributes(pcl_engine, mock_hlsm):
+    """
+    Regression test for the two bugs fixed in F-01:
+      1. world.recent_learnings was built with m.get('content') on HLSMRetrievalResult
+         dataclasses → AttributeError.
+      2. The recurring-topic loop iterated over 'recent' (undefined) → NameError.
+    Both were silently swallowed by except Exception; this test forces them
+    to surface if the bugs regress.
+    """
+    from backend.memory.hlsm_manager import HLSMRetrievalResult
+
+    # Build mock return values as proper HLSMRetrievalResult dataclasses
+    entries = [
+        HLSMRetrievalResult(
+            id=f"mem_{i:02d}",
+            content=f"Memory entry {i}: sovereign agent processed goal number {i}",
+            tier=1,
+            source="task_result" if i % 2 == 0 else "heartbeat_signal",
+            relevance_score=0.9 - i * 0.05,
+            retention_score=0.8,
+        )
+        for i in range(5)
+    ]
+    mock_hlsm.l1_get_recent = AsyncMock(return_value=entries)
+    mock_hlsm.l2_search = AsyncMock(return_value=[])
+
+    world = WorldModel()
+    # This call should not raise AttributeError or NameError
+    await pcl_engine._observe_memory(world)
+
+    # Verify recent_learnings populated correctly with attribute access
+    assert len(world.recent_learnings) == 5
+    # Each entry should include the content and source (dot-accessed, not .get())
+    for i, entry in enumerate(entries):
+        assert entry.content in world.recent_learnings[i]
+        assert entry.source in world.recent_learnings[i]
+
+
+@pytest.mark.asyncio
+async def test_observe_memory_heartbeat_signals_surface_to_learnings(pcl_engine, mock_hlsm):
+    """
+    Verify that [PCL_SIGNAL] entries stored by heartbeat pcl_signal actions
+    appear in world.recent_learnings where HeartbeatSignalDetector can find them.
+    """
+    from backend.memory.hlsm_manager import HLSMRetrievalResult
+
+    pcl_signal_entry = HLSMRetrievalResult(
+        id="sig_001",
+        content="[PCL_SIGNAL] Check URL: content changed (priority=2, order_id=url_watch_01)",
+        tier=1,
+        source="heartbeat_signal",
+        relevance_score=0.95,
+        retention_score=0.90,
+    )
+    mock_hlsm.l1_get_recent = AsyncMock(return_value=[pcl_signal_entry])
+    mock_hlsm.l2_search = AsyncMock(return_value=[])
+
+    world = WorldModel()
+    await pcl_engine._observe_memory(world)
+
+    # The [PCL_SIGNAL] marker must appear in recent_learnings
+    assert any("[PCL_SIGNAL]" in entry for entry in world.recent_learnings), (
+        "PCL_SIGNAL entry not found in world.recent_learnings — "
+        "HeartbeatSignalDetector will be starved of data"
+    )
+
+
+@pytest.mark.asyncio
+async def test_observe_memory_recurring_topics_detected(pcl_engine, mock_hlsm):
+    """
+    Verify recurring topic detection via L2 semantic search works correctly
+    after the 'recent' variable NameError was fixed.
+    """
+    from backend.memory.hlsm_manager import HLSMRetrievalResult
+
+    # Long content entries that will be checked for L2 similarity
+    entries = [
+        HLSMRetrievalResult(
+            id=f"long_{i}",
+            content=f"The project deployment pipeline needs attention: CI failing on integration tests since Monday, blocking all releases. Step {i}",
+            tier=1, source="task_result",
+            relevance_score=0.85, retention_score=0.80,
+        )
+        for i in range(3)
+    ]
+
+    # L2 returns 3 high-similarity matches → should trigger recurring detection
+    high_sim_matches = [
+        HLSMRetrievalResult(
+            id=f"l2_match_{j}",
+            content=entries[0].content,
+            tier=2, source="task_result",
+            relevance_score=0.92,
+            retention_score=0.80,
+        )
+        for j in range(3)
+    ]
+    mock_hlsm.l1_get_recent = AsyncMock(return_value=entries)
+    mock_hlsm.l2_search = AsyncMock(return_value=high_sim_matches)
+
+    world = WorldModel()
+    await pcl_engine._observe_memory(world)
+
+    # Recurring topics should now be populated
+    assert len(world.recurring_topics) >= 1
+    assert any("deployment" in t.lower() or "project" in t.lower()
+               for t in world.recurring_topics)
+
+
+# ─── HeartbeatSignalDetector ──────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_heartbeat_signal_detector_fires_on_pcl_signal_entry():
+    from backend.pcl import HeartbeatSignalDetector
+    from backend.pcl import WorldModel
+
+    detector = HeartbeatSignalDetector()
+    world = WorldModel()
+    world.recent_learnings = [
+        "[PCL_SIGNAL] Check URL: Content changed at https://status.example.com (priority=2, order_id=url_watch_01) [source:heartbeat_signal]"
+    ]
+
+    opp = await detector.detect(world)
+    assert opp is not None
+    assert opp.detector_name == "HeartbeatSignalDetector"
+    assert opp.priority == 2
+    assert opp.recommended_action == "execute"  # P2 → execute
+    assert "Check URL" in opp.title or "Heartbeat signal" in opp.title
+
+
+@pytest.mark.asyncio
+async def test_heartbeat_signal_detector_p3_routes_to_notify():
+    from backend.pcl import HeartbeatSignalDetector, WorldModel
+
+    detector = HeartbeatSignalDetector()
+    world = WorldModel()
+    world.recent_learnings = [
+        "[PCL_SIGNAL] Monitor tasks: 2 items overdue (priority=3, order_id=task_watch_01) [source:heartbeat_signal]"
+    ]
+
+    opp = await detector.detect(world)
+    assert opp is not None
+    assert opp.priority == 3
+    assert opp.recommended_action == "notify"  # P3 → notify, not execute
+
+
+@pytest.mark.asyncio
+async def test_heartbeat_signal_detector_silent_without_signals():
+    from backend.pcl import HeartbeatSignalDetector, WorldModel
+
+    detector = HeartbeatSignalDetector()
+    world = WorldModel()
+    world.recent_learnings = [
+        "Regular memory entry: completed task A [source:task_result]",
+        "Another normal memory [source:orchestrator]",
+    ]
+
+    opp = await detector.detect(world)
+    assert opp is None
+
+
+@pytest.mark.asyncio
+async def test_heartbeat_signal_detector_in_registered_detectors(pcl_engine):
+    """HeartbeatSignalDetector must be registered in the PCL detector list."""
+    from backend.pcl import HeartbeatSignalDetector
+    names = [d.name for d in pcl_engine.detectors]
+    assert "HeartbeatSignalDetector" in names, (
+        f"HeartbeatSignalDetector not registered. Detectors: {names}"
+    )
+    assert len(names) == 8, (
+        f"Expected 8 detectors, got {len(names)}: {names}"
+    )
