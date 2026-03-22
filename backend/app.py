@@ -186,7 +186,14 @@ from fastapi.responses import RedirectResponse
     methods=["GET","POST","PUT","DELETE","PATCH","OPTIONS"],
     include_in_schema=False)
 async def legacy_api_redirect(path: str):
-    """Redirect unversioned /api/ paths to /api/v1/ for backward compat."""
+    """
+    Redirect unversioned /api/ paths to /api/v1/ for backward compat.
+    Guard prevents recursive /api/v1/v1/... loops.
+    """
+    if path.startswith("v1/") or path == "v1":
+        # This should have been caught by a router. If we're here, it's a 404.
+        return JSONResponse(status_code=404, content={"detail": "Not Found"})
+    
     return RedirectResponse(url=f"/api/v1/{path}", status_code=307)
 
 if __name__ == "__main__":

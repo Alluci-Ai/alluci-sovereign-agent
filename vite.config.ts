@@ -15,7 +15,22 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 3000,
       host: '0.0.0.0',
-      https: false,
+      proxy: {
+        '/api': {
+          target: env.VITE_DAEMON_URL || 'http://127.0.0.1:8000',
+          changeOrigin: true,
+          secure: false,
+        },
+        '/health': {
+          target: env.VITE_DAEMON_URL || 'http://127.0.0.1:8000',
+          changeOrigin: true,
+        },
+        '/ws': {
+          target: (env.VITE_DAEMON_URL || 'http://127.0.0.1:8000').replace('http', 'ws'),
+          ws: true,
+          changeOrigin: true,
+        }
+      },
     },
     plugins: [
       react(),
@@ -56,8 +71,9 @@ export default defineConfig(({ mode }) => {
       })
     ],
     define: {
-      // Only expose the daemon URL — API keys stay server-side
-      'import.meta.env.VITE_DAEMON_URL': JSON.stringify(env.VITE_DAEMON_URL || 'http://localhost:8000'),
+      // In dev and same-origin prod, empty string enables relative path proxying.
+      // If a separate CDN/Load Balancer is used, override via environment.
+      'import.meta.env.VITE_DAEMON_URL': JSON.stringify(env.VITE_DAEMON_URL || ''),
     },
     resolve: {
       alias: {

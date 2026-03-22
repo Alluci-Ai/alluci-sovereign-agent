@@ -51,7 +51,7 @@ export class AlluciGeminiService {
   private currentConnections: Connection[] = [];
   private currentSkills: SkillManifest[] = [];
   // Configurable daemon URL — no hardcoded localhost
-  private DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
+  private DAEMON_URL = import.meta.env.VITE_DAEMON_URL;
 
   constructor() { }
 

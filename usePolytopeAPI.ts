@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { getCsrfToken } from './csrfStore';
 
-export const DAEMON_URL = 'http://localhost:8000';
+export const DAEMON_URL = import.meta.env.VITE_DAEMON_URL;
 
 export const usePolytopeAPI = () => {
   const [isBusy, setIsBusy] = useState(false);
