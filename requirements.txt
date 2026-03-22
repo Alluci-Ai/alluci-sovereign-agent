@@ -1,4 +1,7 @@
-# requirements.txt — Alluci Sovereign Agent
+# requirements.txt — Alluci Sovereign Agent v5.2.1
+
+# ─── Tooling Standard ─────────────────────────────────────────────────────────
+--extra-index-url https://download.pytorch.org/whl/cpu
 
 # ─── Web Framework ────────────────────────────────────────────────────────────
 fastapi==0.115.0
@@ -7,7 +10,7 @@ python-multipart==0.0.9
 starlette==0.41.0
 
 # ─── Data Validation & Settings ───────────────────────────────────────────────
-pydantic==2.8.0
+pydantic==2.12.5
 pydantic-settings==2.4.0
 
 # ─── Database & Migrations ────────────────────────────────────────────────────
@@ -21,8 +24,9 @@ aiosqlite==0.20.0            # SQLite async support
 cryptography==43.0.0
 python-jose[cryptography]==3.3.0
 webauthn==2.1.0
-keyring==25.3.0              # OS Keychain integration for vault master key
+keyring==25.7.0              # OS Keychain integration for vault master key
 passlib[bcrypt]==1.7.4
+greenlet>=3.2.2              # Fixed conflict between playwright and gevent
 
 # ─── LLM Providers ────────────────────────────────────────────────────────────
 google-generativeai>=0.8.3
@@ -32,6 +36,7 @@ anthropic>=0.18.0
 cohere>=5.0.0
 huggingface_hub>=0.24.0     # HuggingFace Inference API (optional — needs HF token)
 httpx==0.27.0
+tiktoken==0.7.0
 
 # ─── Messaging & Bridge SDKs ──────────────────────────────────────────────────
 discord.py==2.3.2            # Discord bridge
@@ -39,14 +44,16 @@ python-telegram-bot==21.6    # Telegram bridge
 nostr-sdk==0.3.0             # Nostr bridge
 aiosmtplib==3.0.1            # Async SMTP for email bridge
 aioimaplib==1.1.0            # Async IMAP for email bridge
-pyicloud==1.0.0              # iCloud bridge
+pyicloud==1.1.0              # iCloud bridge (Updated for 1.1.0+)
 pycryptodome==3.20.0          # WeCom AES decryption
 pyotp==2.9.0                  # iWatch pairing
+slack-sdk==3.41.0
 
 # ─── Vector Memory ────────────────────────────────────────────────────────────
 chromadb==0.5.0
 sentence-transformers==3.0.1 # Embedding model (~80MB download on first use)
-numpy>=1.24.0                # Required for embedding operations (likely already present via torch)
+numpy>=1.24.0                # Required for embedding operations
+torch>=2.0.0
 
 # ─── Cache & Rate Limiting ────────────────────────────────────────────────────
 redis[hiredis]>=5.0.0,<6.0.0
@@ -60,6 +67,7 @@ opentelemetry-sdk==1.25.0
 opentelemetry-instrumentation-fastapi==0.46b0
 opentelemetry-instrumentation-httpx==0.46b0
 opentelemetry-exporter-otlp==1.25.0
+prometheus-client==0.24.1
 
 # ─── Async & System Utilities ─────────────────────────────────────────────────
 aiofiles==23.2.1
@@ -68,19 +76,16 @@ tenacity==8.5.0
 # ─── Windows Service (Windows-only) ──────────────────────────────────────────
 pywin32>=306; sys_platform == "win32"   # Windows Service support (windows_service.py)
 
-
 # ─── Browser Automation (screen_capture adapter) ──────────────────────────────
-playwright==1.46.0
+playwright>=1.58.0           # Updated to resolve greenlet conflicts
 duckduckgo-search>=6.0.0
 mss==9.0.1
-slack-sdk==3.31.0
 pypdf==4.3.1
 python-docx==1.1.2
-prometheus-client==0.20.0
-tiktoken==0.7.0
 secure==0.3.0
 zeroconf==0.132.0
 fastapi-csrf-protect==1.0.7
---extra-index-url https://download.pytorch.org/whl/cpu
-torch>=2.0.0
-PyYAML>=6.0.0
+
+# ─── Audio & TTS ─────────────────────────────────────────────────────────────
+whisper-cpp-python>=0.1.0     # Bridge to local whisper-cpp
+# piper-python usually handled via subprocess in our case
