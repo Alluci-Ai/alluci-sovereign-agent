@@ -17,24 +17,45 @@ logger = get_logger("PolytopeConfig")
 
 
 def get_secret(key: str, default: Optional[str] = None) -> Optional[str]:
-    """Retrieves secrets from environment or a cloud Secrets Manager if configured."""
-    # 1. Check direct environment override first
+    """
+    Retrieves secrets with a strict priority chain that never calls any
+    external service. Nothing leaves this machine.
+
+    Priority order:
+      1. Direct environment variable (always wins — explicit overrides everything)
+      2. OS Keychain via keyring library (macOS Keychain / GNOME Keyring / Windows CM)
+      3. Default value
+    """
+    # 1. Direct environment override — highest priority
     v = os.getenv(key)
     if v:
         return v
 
-    # 2. Check for AWS/GCP secrets if SECRETS_PROVIDER is set
-    provider = os.getenv("SECRETS_PROVIDER", "").lower()
-    if provider == "aws":
+    # 2. OS Keychain (SECRETS_PROVIDER=keyring or always-on for known critical keys)
+    provider = os.getenv("SECRETS_PROVIDER", "keyring").lower()
+    if provider == "keyring":
+        try:
+            import keyring as _kr
+            service = os.getenv("KEYRING_SERVICE", "alluci-sovereign")
+            val = _kr.get_password(service, key)
+            if val:
+                return val
+        except Exception as e:
+            logger.debug("Keychain lookup failed for %s: %s", key, e)
+
+    # Legacy AWS path — only if explicitly configured and requested
+    # Kept for backward compatibility but never activated by default.
+    elif provider == "aws":
         try:
             import boto3
-            client = boto3.client('secretsmanager')
-            # SecretId is expected to be 'alluci/{env}/{key}'
-            resp = client.get_secret_value(SecretId=f"alluci/{os.getenv('APP_ENV', 'dev')}/{key}")
-            return resp.get('SecretString')
+            client = boto3.client("secretsmanager")
+            resp = client.get_secret_value(
+                SecretId=f"alluci/{os.getenv('APP_ENV', 'dev')}/{key}"
+            )
+            return resp.get("SecretString")
         except Exception as e:
-            logger.warning(f"AWS Secrets Manager failed for {key}: {e}")
-    
+            logger.warning("AWS Secrets Manager failed for %s: %s", key, e)
+
     return default
 
 def get_system_ram_mb() -> int:

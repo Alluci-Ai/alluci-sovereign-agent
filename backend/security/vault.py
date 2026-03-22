@@ -13,10 +13,13 @@ from typing import Dict, Any, Set, Optional, List
 
 # Conditional imports for platform-specific or optional dependencies
 try:
-    # import keyring
-    keyring = None
+    import keyring
 except ImportError:
     keyring = None
+    logger.warning(
+        "[Vault] 'keyring' library not importable. "
+        "OS Keychain integration disabled — falling back to environment variable."
+    )
 
 try:
     import resource
@@ -149,7 +152,7 @@ class VaultManager:
         """
         system = platform.system()
         service_name = "alluci-sovereign"
-        username = "master-key"
+        username = "POLYTOPE_MASTER_KEY"
         
         if not keyring:
             logger.warning("keyring library not found. Falling back to environment.")
@@ -544,7 +547,7 @@ class VaultManager:
             if keyring:
                 try:
                     service_name = "alluci-sovereign"
-                    username = "master-key"
+                    username = "POLYTOPE_MASTER_KEY"
                     keyring.set_password(service_name, username, new_master_key)
                     logger.info("Master key updated in OS Keychain.")
                 except Exception as e:
