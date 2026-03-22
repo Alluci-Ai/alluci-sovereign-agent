@@ -25,10 +25,12 @@ keyring==25.3.0              # OS Keychain integration for vault master key
 passlib[bcrypt]==1.7.4
 
 # ─── LLM Providers ────────────────────────────────────────────────────────────
-google-generativeai==0.8.3
+google-generativeai>=0.8.3
 google-auth==2.34.0
-openai==1.40.0
-anthropic==0.34.0
+openai>=1.12.0
+anthropic>=0.18.0
+cohere>=5.0.0
+huggingface_hub>=0.24.0     # HuggingFace Inference API (optional — needs HF token)
 httpx==0.27.0
 
 # ─── Messaging & Bridge SDKs ──────────────────────────────────────────────────

@@ -1,10 +1,12 @@
 import json
 import logging
 import asyncio
-from ..logging_config import get_logger
+import os
 import math
 import httpx
-from typing import Literal, Dict, Any, List
+import platform
+from typing import Literal, Dict, Any, List, Optional
+from ..logging_config import get_logger
 
 logger = get_logger("ModelRouter")
 
@@ -27,17 +29,6 @@ try:
 except ImportError:
     ANTHROPIC_AVAILABLE = False
 
-# Specialized Multi-Modal Providers (Conceptual Stubs for Integration)
-GROQ_AVAILABLE = True
-ELEVENLABS_AVAILABLE = True
-SUNO_AVAILABLE = True
-MIDJOURNEY_AVAILABLE = True
-RUNWAY_AVAILABLE = True
-KIMI_AVAILABLE = True
-TOGETHER_AVAILABLE = True
-COHERE_AVAILABLE = True
-BOTO3_AVAILABLE = True
-
 try:
     import cohere
     COHERE_AVAILABLE = True
@@ -51,135 +42,285 @@ try:
 except ImportError:
     BOTO3_AVAILABLE = False
 
+HUGGINGFACE_AVAILABLE = False
+try:
+    import huggingface_hub
+    HUGGINGFACE_AVAILABLE = True
+except ImportError:
+    pass
+
 class ModelRouter:
     """
-    Routes inference requests with failover chain: Gemini → OpenAI → Anthropic.
+    Routes inference requests with failover chain: 
+    Tactical (Groq) → Local (Ollama) → Local Fallback (LM Studio) → Optional (HF) → Cloud Failovers.
     """
     def __init__(self, settings):
         self.logger = get_logger("ModelRouter")
         self.settings = settings
-        
-        # Primary: Gemini
+        self.ws_gateway = None
+
+        # ── LOCAL: Ollama (PRIMARY) ───────────────────────────────────────────
+        self.ollama_url = getattr(settings, "OLLAMA_URL", "http://localhost:11434")
+        self.ollama_ready = self._probe_ollama()
+        if self.ollama_ready:
+            self.logger.info("Ollama reachable at %s (PRIMARY)", self.ollama_url)
+        else:
+            self.logger.info("Ollama not reachable — will fall through to LM Studio")
+
+        # ── LOCAL: LM Studio (LOCAL FALLBACK) ─────────────────────────────────
+        self.lm_studio_client = None
+        lm_url = getattr(settings, "LM_STUDIO_URL", None)
+        if OPENAI_AVAILABLE and lm_url:
+            self.lm_studio_client = openai.AsyncOpenAI(
+                api_key="lm-studio",
+                base_url=lm_url,
+            )
+            self.logger.info("LM Studio client ready (local fallback 2).")
+
+        # ── OPTIONAL: HuggingFace ─────────────────────────────────────────────
+        self.hf_token = getattr(settings, "HUGGINGFACE_API_TOKEN", None)
+        self.hf_model_id = getattr(
+            settings, "HUGGINGFACE_MODEL_ID",
+            "mistralai/Mistral-7B-Instruct-v0.3"
+        )
+        self.hf_endpoint_url = getattr(settings, "HUGGINGFACE_ENDPOINT_URL", None)
+        self.hf_client = None
+        if self.hf_token and HUGGINGFACE_AVAILABLE:
+            from huggingface_hub import AsyncInferenceClient
+            self.hf_client = AsyncInferenceClient(
+                model=self.hf_endpoint_url or self.hf_model_id,
+                token=self.hf_token,
+            )
+            self.logger.info(
+                "HuggingFace Inference client ready (model=%s).", self.hf_model_id
+            )
+        elif self.hf_token and not HUGGINGFACE_AVAILABLE:
+            self.logger.warning(
+                "HUGGINGFACE_API_TOKEN is set but 'huggingface_hub' is not installed. "
+                "Run: pip install huggingface_hub"
+            )
+
+        # ── CLOUD PROVIDERS ───────────────────────────────────────────────────
+        sovereign = getattr(settings, "SOVEREIGN_MODE", False)
+        if sovereign:
+            self.logger.info(
+                "SOVEREIGN_MODE=True — cloud providers disabled, "
+                "local inference only."
+            )
+
+        # Primary cloud: Gemini
         self.gemini_flash = None
         self.gemini_pro = None
-        if GEMINI_AVAILABLE and settings.GEMINI_API_KEY:
+        if not sovereign and GEMINI_AVAILABLE and settings.GEMINI_API_KEY:
             genai.configure(api_key=settings.GEMINI_API_KEY)
             self.gemini_flash = genai.GenerativeModel("gemini-2.0-flash")
-            self.gemini_pro = genai.GenerativeModel("gemini-2.5-pro-preview-05-06") # Using 2.5 Pro for maximum reasoning stability
-            self.logger.info("Gemini models initialized (primary).")
+            self.gemini_pro = genai.GenerativeModel("gemini-2.5-pro-preview-05-06")
+            self.logger.info("Gemini models ready (cloud 1).")
 
-        # Failover 1: OpenAI / GitHub Models
+        # Cloud failover 2: OpenAI
         self.openai_client = None
-        if OPENAI_AVAILABLE and settings.OPENAI_API_KEY:
+        if not sovereign and OPENAI_AVAILABLE and settings.OPENAI_API_KEY:
             base_url = None
             if settings.OPENAI_API_KEY.startswith("github_pat_"):
                 base_url = "https://models.inference.ai.azure.com"
-                self.logger.info("Configuring OpenAI client for GitHub Models endpoint.")
-            
             self.openai_client = openai.AsyncOpenAI(
                 api_key=settings.OPENAI_API_KEY,
-                base_url=base_url
+                base_url=base_url,
             )
-            self.logger.info("OpenAI client initialized (failover 1).")
+            self.logger.info("OpenAI client ready (cloud 2).")
 
-        # Failover 2: Anthropic
+        # Cloud failover 3: Anthropic
         self.anthropic_client = None
-        if ANTHROPIC_AVAILABLE and settings.ANTHROPIC_API_KEY:
-            self.anthropic_client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
-            self.logger.info("Anthropic client initialized (failover 2).")
+        if not sovereign and ANTHROPIC_AVAILABLE and settings.ANTHROPIC_API_KEY:
+            self.anthropic_client = anthropic.AsyncAnthropic(
+                api_key=settings.ANTHROPIC_API_KEY
+            )
+            self.logger.info("Anthropic client ready (cloud 3).")
 
-        # Specialized: Groq (High-Speed LPU)
-        self.groq_api_key = getattr(settings, "GROQ_API_KEY", None)
+        # Groq — tactical KCM shortcut
+        self.groq_api_key = None if sovereign else getattr(settings, "GROQ_API_KEY", None)
 
-        # Specialized: ElevenLabs (Voice)
-        self.elevenlabs_api_key = getattr(settings, "ELEVENLABS_API_KEY", None)
-
-        # Specialized: Image/Video
-        self.midjourney_api_key = getattr(settings, "MIDJOURNEY_API_KEY", None)
-        self.runway_api_key = getattr(settings, "RUNWAY_API_KEY", None)
-
-        # Specialized: Kimi (NVIDIA NIM)
-        self.nvidia_nim_api_key = getattr(settings, "NVIDIA_NIM_API_KEY", None)
-
-        # Failover 3: DeepSeek (via GitHub Models or Direct)
+        # Cloud failover 4: DeepSeek
         self.deepseek_client = None
-        if OPENAI_AVAILABLE and settings.DEEPSEEK_API_KEY:
-            base_url = "https://api.deepseek.com" # Default
-            if settings.DEEPSEEK_API_KEY.startswith("github_pat_"):
-                base_url = "https://models.inference.ai.azure.com"
-                self.logger.info("Configuring DeepSeek client for GitHub Models endpoint.")
-            
+        if not sovereign and OPENAI_AVAILABLE and getattr(settings, "DEEPSEEK_API_KEY", None):
+            base_url = (
+                "https://models.inference.ai.azure.com"
+                if settings.DEEPSEEK_API_KEY.startswith("github_pat_")
+                else "https://api.deepseek.com"
+            )
             self.deepseek_client = openai.AsyncOpenAI(
                 api_key=settings.DEEPSEEK_API_KEY,
-                base_url=base_url
+                base_url=base_url,
             )
-            self.logger.info("DeepSeek client initialized (failover 3).")
 
-        # Failover 4: OpenRouter (Universal Adapter)
+        # Cloud failover 5: OpenRouter
         self.openrouter_client = None
-        if OPENAI_AVAILABLE and settings.OPENROUTER_API_KEY:
+        if not sovereign and OPENAI_AVAILABLE and getattr(settings, "OPENROUTER_API_KEY", None):
             self.openrouter_client = openai.AsyncOpenAI(
                 api_key=settings.OPENROUTER_API_KEY,
                 base_url="https://openrouter.ai/api/v1",
                 default_headers={
-                    "HTTP-Referer": "https://polytope.local", 
-                    "X-Title": "Polytope Sovereign OS"
-                }
+                    "HTTP-Referer": "https://polytope.local",
+                    "X-Title": "Polytope Sovereign OS",
+                },
             )
-            self.logger.info("OpenRouter client initialized (failover 4).")
 
-        # Failover 5: LM Studio (Local OpenAI-Compatible)
-        self.lm_studio_client = None
-        if OPENAI_AVAILABLE and getattr(settings, "LM_STUDIO_URL", None):
-            self.lm_studio_client = openai.AsyncOpenAI(
-                api_key="lm-studio", # Dummy key
-                base_url=settings.LM_STUDIO_URL
-            )
-            self.logger.info("LM Studio client initialized (failover 5).")
-
-        # Failover 6: Together AI
+        # Cloud failovers 6–8: Together, Cohere, Bedrock
         self.together_client = None
-        if OPENAI_AVAILABLE and getattr(settings, "TOGETHER_API_KEY", None):
+        if not sovereign and OPENAI_AVAILABLE and getattr(settings, "TOGETHER_API_KEY", None):
             self.together_client = openai.AsyncOpenAI(
                 api_key=settings.TOGETHER_API_KEY,
-                base_url="https://api.together.xyz/v1"
+                base_url="https://api.together.xyz/v1",
             )
-            self.logger.info("Together AI client initialized (failover 6).")
 
-        # Failover 7: Cohere
         self.cohere_client = None
-        if COHERE_AVAILABLE and getattr(settings, "COHERE_API_KEY", None):
-            self.cohere_client = cohere.AsyncClient(api_key=settings.COHERE_API_KEY)
-            self.logger.info("Cohere client initialized (failover 7).")
+        if not sovereign and COHERE_AVAILABLE and getattr(settings, "COHERE_API_KEY", None):
+            self.cohere_client = cohere.AsyncClient(
+                api_key=settings.COHERE_API_KEY
+            )
 
-        # Failover 8: AWS Bedrock (async via aioboto3)
         self.bedrock_session = None
-        if BOTO3_AVAILABLE and getattr(settings, "AWS_ACCESS_KEY_ID", None):
+        if (not sovereign and BOTO3_AVAILABLE
+                and getattr(settings, "AWS_ACCESS_KEY_ID", None)):
             self.bedrock_session = aioboto3.Session(
                 aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
                 aws_secret_access_key=getattr(settings, "AWS_SECRET_ACCESS_KEY", None),
                 region_name=getattr(settings, "AWS_REGION", "us-east-1"),
             )
-            self.logger.info("AWS Bedrock session initialized via aioboto3 (failover 8).")
+
+        # Kimi / NVIDIA NIM
+        self.nvidia_nim_api_key = (
+            None if sovereign
+            else getattr(settings, "NVIDIA_NIM_API_KEY", None)
+        )
+
+        # ElevenLabs, image, video — not affected by sovereign mode
+        self.elevenlabs_api_key = getattr(settings, "ELEVENLABS_API_KEY", None)
+        self.midjourney_api_key = getattr(settings, "MIDJOURNEY_API_KEY", None)
+        self.runway_api_key = getattr(settings, "RUNWAY_API_KEY", None)
+
+    def _probe_ollama(self) -> bool:
+        """Non-blocking TCP probe to check if Ollama daemon is listening."""
+        import socket
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(0.8)
+            host = self.ollama_url.replace("http://", "").replace("https://", "").split(":")[0]
+            # Use default 11434 if not specified in URL
+            port = 11434
+            if ":" in self.ollama_url.replace("://", ""):
+                 port = int(self.ollama_url.split(":")[-1])
+            s.connect((host, port))
+            return True
+        except Exception:
+            return False
+        finally:
+            try:
+                s.close()
+            except Exception:
+                pass
+
+    async def _ollama_request(
+        self,
+        prompt: str,
+        use_strong: bool = False,
+        json_mode: bool = False,
+    ) -> str:
+        """
+        Primary inference via local Ollama daemon.
+        Selects model based on SOVEREIGN_MODE settings and available RAM.
+        """
+        ram_mb = getattr(self.settings, "TOTAL_RAM_MB", 4096)
+        lite = getattr(self.settings, "LITE_MODE", False)
+
+        if lite or ram_mb < 2000:
+            model = getattr(self.settings, "OLLAMA_MODEL_LITE", "tinyllama:1.1b")
+        elif ram_mb < 6000:
+            model = getattr(self.settings, "OLLAMA_MODEL_LIGHT", "phi3:mini")
+        elif use_strong and ram_mb >= 16000:
+            model = getattr(self.settings, "OLLAMA_MODEL_STRONG", "llama3.3:70b")
+        else:
+            model = getattr(self.settings, "OLLAMA_MODEL_MEDIUM",
+                            "mistral:7b-instruct-v0.3-q4_K_M")
+
+        timeout = getattr(self.settings, "OLLAMA_TIMEOUT_SECONDS", 120)
+        num_gpu = getattr(self.settings, "OLLAMA_NUM_GPU", 35)
+
+        payload: Dict[str, Any] = {
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            "stream": False,
+            "options": {
+                "num_ctx": 512 if lite else (2048 if ram_mb < 6000 else 4096),
+                "num_thread": os.cpu_count() or 4,
+            },
+        }
+        
+        # GPU offloading logic
+        machine = platform.machine().lower()
+        is_apple_silicon = platform.system() == "Darwin" and machine == "arm64"
+        import shutil
+        has_cuda = shutil.which("nvidia-smi") is not None
+        if has_cuda or is_apple_silicon:
+            payload["options"]["num_gpu"] = num_gpu
+
+        if json_mode:
+            payload["format"] = "json"
+
+        url = f"{self.ollama_url}/api/chat"
+        async with httpx.AsyncClient(timeout=float(timeout)) as client:
+            resp = await client.post(url, json=payload)
+            resp.raise_for_status()
+            data = resp.json()
+            return data["message"]["content"]
+
+    async def _lm_studio_request(
+        self,
+        prompt: str,
+        use_strong: bool = False,
+    ) -> str:
+        """LM Studio via OpenAI-compatible API — local fallback after Ollama."""
+        if not self.lm_studio_client:
+            raise RuntimeError("LM Studio not configured")
+        model = getattr(self.settings, "LM_STUDIO_MODEL", "local-model")
+        response = await self.lm_studio_client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=2048,
+        )
+        return response.choices[0].message.content
+
+    async def _huggingface_request(
+        self,
+        prompt: str,
+        use_strong: bool = False,
+    ) -> str:
+        """HuggingFace Inference API (Serverless or Dedicated)."""
+        if not self.hf_client:
+            raise RuntimeError("HuggingFace client not initialised")
+        result = await self.hf_client.text_generation(
+            prompt=prompt,
+            max_new_tokens=1024,
+            temperature=0.7,
+            return_full_text=False,
+        )
+        return result if isinstance(result, str) else result.generated_text
 
     async def _gemini_request(self, prompt: str, use_pro: bool = False, json_mode: bool = False) -> str:
-        """Primary inference via Gemini."""
+        """Cloud Failover 1: Gemini."""
         model = self.gemini_pro if use_pro else self.gemini_flash
         if not model:
             raise RuntimeError("Gemini not configured")
-        
         generation_config = {}
         if json_mode:
             generation_config = {"response_mime_type": "application/json"}
-        
         response = await model.generate_content_async(prompt, generation_config=generation_config)
         return response.text
 
     async def _openai_request(self, prompt: str, use_strong: bool = False, json_mode: bool = False) -> str:
-        """Failover 1: OpenAI."""
+        """Cloud Failover 2: OpenAI."""
         if not self.openai_client:
             raise RuntimeError("OpenAI not configured")
-        
         model = "gpt-4o" if use_strong else "gpt-4o-mini"
         kwargs: Dict[str, Any] = {
             "model": model,
@@ -187,15 +328,13 @@ class ModelRouter:
         }
         if json_mode:
             kwargs["response_format"] = {"type": "json_object"}
-        
         response = await self.openai_client.chat.completions.create(**kwargs)
         return response.choices[0].message.content
 
     async def _anthropic_request(self, prompt: str, use_strong: bool = False) -> str:
-        """Failover 2: Anthropic."""
+        """Cloud Failover 3: Anthropic."""
         if not self.anthropic_client:
             raise RuntimeError("Anthropic not configured")
-        
         model = "claude-3-7-sonnet-20250219" if use_strong else "claude-3-5-haiku-20241022"
         message = await self.anthropic_client.messages.create(
             model=model,
@@ -205,25 +344,18 @@ class ModelRouter:
         return message.content[0].text
 
     async def _kimi_request(self, prompt: str, thinking: bool = True) -> str:
-        """NVIDIA NIM integration for Kimi k2.5 with thinking/reasoning capability."""
+        """NVIDIA NIM integration for Kimi k2.5."""
         if not self.nvidia_nim_api_key:
             raise RuntimeError("NVIDIA NIM API Key missing")
-
         invoke_url = "https://integrate.api.nvidia.com/v1/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {self.nvidia_nim_api_key}",
-            "Accept": "application/json"
-        }
+        headers = {"Authorization": f"Bearer {self.nvidia_nim_api_key}", "Accept": "application/json"}
         payload = {
             "model": "moonshotai/kimi-k2.5",
             "messages": [{"role": "user", "content": prompt}],
             "max_tokens": 16384,
             "temperature": 1.00,
-            "top_p": 1.00,
-            "stream": False,
             "chat_template_kwargs": {"thinking": thinking},
         }
-
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(invoke_url, headers=headers, json=payload)
             response.raise_for_status()
@@ -234,54 +366,34 @@ class ModelRouter:
         """Failover 7: Cohere."""
         if not self.cohere_client:
             raise RuntimeError("Cohere not configured")
-        
         model = "command-r-plus" if use_strong else "command-r"
-        response = await self.cohere_client.chat(
-            model=model,
-            message=prompt,
-            max_tokens=4096
-        )
+        response = await self.cohere_client.chat(model=model, message=prompt, max_tokens=4096)
         return response.text
 
     async def _bedrock_request(self, prompt: str, use_strong: bool = False) -> str:
-        """Failover 8: AWS Bedrock — fully async via aioboto3."""
+        """Failover 8: AWS Bedrock."""
         if not self.bedrock_session:
             raise RuntimeError("AWS Bedrock not configured")
-
-        model_id = (
-            "anthropic.claude-3-sonnet-20240229-v1:0"
-            if use_strong
-            else "anthropic.claude-3-haiku-20240307-v1:0"
-        )
+        model_id = "anthropic.claude-3-sonnet-20240229-v1:0" if use_strong else "anthropic.claude-3-haiku-20240307-v1:0"
         body = json.dumps({
             "anthropic_version": "bedrock-2023-05-31",
             "max_tokens": 4096,
             "messages": [{"role": "user", "content": prompt}]
         }).encode("utf-8")
-
         async with self.bedrock_session.client("bedrock-runtime") as client:
-            response = await client.invoke_model(
-                body=body,
-                modelId=model_id,
-                accept="application/json",
-                contentType="application/json",
-            )
+            response = await client.invoke_model(body=body, modelId=model_id, accept="application/json", contentType="application/json")
             response_body = await response["body"].read()
             data = json.loads(response_body)
             return data["content"][0]["text"]
 
     async def _notify_fallback(self, model_name: str):
-        """Broadcasts a fallback event to connected clients."""
         if hasattr(self, 'ws_gateway') and self.ws_gateway:
             try:
-                await self.ws_gateway.broadcast_event('model.fallback', {
-                    "fallback_model": model_name
-                })
-            except Exception as e:
-                self.logger.error(f"Failed to broadcast fallback event: {e}")
+                await self.ws_gateway.broadcast_event('model.fallback', {"fallback_model": model_name})
+            except Exception:
+                pass
 
     async def get_response(self, prompt: str, complexity: Literal["LOW", "MEDIUM", "HIGH"] = "MEDIUM", psi: float = 0.0) -> str:
-        """Get a response with automatic failover across providers."""
         from ..tracing_config import get_tracer
         from opentelemetry import trace
         tracer = get_tracer("Inference.Router")
@@ -290,39 +402,30 @@ class ModelRouter:
             span.set_attribute("complexity", complexity)
             span.set_attribute("psi", psi)
 
-            # AAP-002: ψ-Modulated Model Routing via KCM Hyperbolic Penalty.
-            # High Tension (ψ > 0.7) triggers cosh() penalty on Strong models,
-            # forcing routing to Light/deterministic models for safety.
             use_strong = (complexity == "HIGH")
             use_tactical = False
             
             if psi > 0.0:
-                # KCM Hyperbolic Penalty: cosh(ψ) × latency
-                strong_penalty = math.cosh(psi) * 3000.0  # Strong model ~3s latency
-                light_penalty = math.cosh(psi) * 200.0    # Light model ~200ms latency
-                
+                strong_penalty = math.cosh(psi) * 3000.0
+                light_penalty = math.cosh(psi) * 200.0
                 if strong_penalty > 2.0 * light_penalty and psi > 0.7:
-                    # High tension: force tactical/light model
                     use_tactical = True
                     use_strong = False
-                    self.logger.info(f"[KCM] ψ={psi:.2f} → Routing to Light model (penalty={strong_penalty:.0f} vs {light_penalty:.0f})")
                 elif psi > 0.8:
-                    # Very high tension but no extreme penalty: still use strong for stability
                     use_strong = True
             
             if not use_tactical:
                 use_strong = use_strong or (complexity == "HIGH") or (psi > 0.8)
             
-            # Only activate JSON mode when the prompt explicitly requests JSON output
             import re
             json_mode = bool(re.search(
                 r'\b(return|output|respond\s+with|give\s+me|provide|format\s+as|reply\s+in)\b[^.]*\bjson\b',
                 prompt.lower()
             ))
-            errors = []
+            
+            errors: list = []
 
-            # KCM Tactical Shortcut: if high-tension routing selected "light",
-            # attempt Groq LPU first for sub-second deterministic response
+            # ── KCM Tactical Shortcut ────────────────────────────────────────
             if use_tactical and self.groq_api_key:
                 try:
                     self.logger.info("[KCM] Tactical routing → Groq LPU")
@@ -331,9 +434,56 @@ class ModelRouter:
                 except Exception as e:
                     errors.append(f"Groq (tactical): {e}")
                     span.add_event("Groq tactical failover")
-                    self.logger.warning(f"Tactical Groq failed, falling through: {e}")
+                    self.logger.warning("Tactical Groq failed, continuing: %s", e)
 
-            # Attempt 1: Gemini
+            # ── Attempt 1: Ollama (PRIMARY — local, fully private) ────────────
+            if self.ollama_ready:
+                try:
+                    res = await self._ollama_request(
+                        prompt, use_strong=use_strong, json_mode=json_mode
+                    )
+                    span.set_attribute("model_provider", "ollama")
+                    return res
+                except Exception as e:
+                    errors.append(f"Ollama: {e}")
+                    span.add_event("Ollama failover", attributes={"error": str(e)})
+                    self.logger.warning("Ollama failed, continuing: %s", e)
+                    self.ollama_ready = self._probe_ollama()
+
+            # ── Attempt 2: LM Studio (local fallback) ────────────────────────
+            if self.lm_studio_client:
+                try:
+                    await self._notify_fallback("LM Studio (local)")
+                    res = await self._lm_studio_request(prompt, use_strong=use_strong)
+                    span.set_attribute("model_provider", "lm_studio")
+                    return res
+                except Exception as e:
+                    errors.append(f"LM Studio: {e}")
+                    span.add_event("LM Studio failover", attributes={"error": str(e)})
+                    self.logger.warning("LM Studio failed: %s", e)
+
+            # ── Attempt 3: HuggingFace (optional) ────────────────────────────
+            if self.hf_client:
+                try:
+                    await self._notify_fallback("HuggingFace Inference")
+                    res = await self._huggingface_request(prompt, use_strong=use_strong)
+                    span.set_attribute("model_provider", "huggingface")
+                    return res
+                except Exception as e:
+                    errors.append(f"HuggingFace: {e}")
+                    span.add_event("HuggingFace failover", attributes={"error": str(e)})
+                    self.logger.warning("HuggingFace failed: %s", e)
+
+            # ── Cloud providers (skipped if SOVEREIGN_MODE=True) ──────────────
+            if getattr(self.settings, "SOVEREIGN_MODE", False):
+                error_msg = (
+                    "SOVEREIGN_MODE=True: all local providers failed and "
+                    "cloud is disabled. Errors: " + "; ".join(errors)
+                )
+                span.set_status(trace.Status(trace.StatusCode.ERROR, error_msg))
+                raise RuntimeError(error_msg)
+
+            # ── Attempt 4: Gemini ─────────────────────────────────────────────
             if self.gemini_flash or self.gemini_pro:
                 try:
                     res = await self._gemini_request(prompt, use_pro=use_strong, json_mode=json_mode)
@@ -342,9 +492,9 @@ class ModelRouter:
                 except Exception as e:
                     errors.append(f"Gemini: {e}")
                     span.add_event("Gemini failover", attributes={"error": str(e)})
-                    self.logger.warning(f"Gemini failed, attempting failover: {e}")
+                    self.logger.warning("Gemini failed: %s", e)
 
-            # Attempt 2: OpenAI
+            # ── Attempt 5: OpenAI ─────────────────────────────────────────────
             if self.openai_client:
                 try:
                     await self._notify_fallback("OpenAI (GPT-4o)")
@@ -354,9 +504,9 @@ class ModelRouter:
                 except Exception as e:
                     errors.append(f"OpenAI: {e}")
                     span.add_event("OpenAI failover", attributes={"error": str(e)})
-                    self.logger.warning(f"OpenAI failed, attempting failover: {e}")
+                    self.logger.warning("OpenAI failed: %s", e)
 
-            # Attempt 3: Anthropic
+            # ── Attempt 6: Anthropic ──────────────────────────────────────────
             if self.anthropic_client:
                 try:
                     await self._notify_fallback("Anthropic (Claude 3.7)")
@@ -365,79 +515,25 @@ class ModelRouter:
                     return res
                 except Exception as e:
                     errors.append(f"Anthropic: {e}")
-                    span.add_event("Anthropic failover", attributes={"error": str(e)})
-                    self.logger.warning(f"Anthropic failed: {e}")
+                    self.logger.warning("Anthropic failed: %s", e)
 
-            # Attempt 4: DeepSeek
-            if self.deepseek_client:
-                try:
-                    await self._notify_fallback("DeepSeek (R1 / Chat)")
-                    # Use DeepSeek-R1 for GitHub Models, deepseek-chat for direct
-                    model = "DeepSeek-R1" if "azure" in str(self.deepseek_client.base_url) else "deepseek-chat"
-                    response = await self.deepseek_client.chat.completions.create(
-                        model=model,
-                        messages=[{"role": "user", "content": prompt}],
-                        max_tokens=4096
-                    )
-                    span.set_attribute("model_provider", "deepseek")
-                    return response.choices[0].message.content
-                except Exception as e:
-                    errors.append(f"DeepSeek: {e}")
-                    span.add_event("DeepSeek failover", attributes={"error": str(e)})
-                    self.logger.warning(f"DeepSeek failed: {e}")
+            # ── Attempts 7–10: DeepSeek, OpenRouter, Together, Cohere ─────────
+            for name, client, model_strong, model_light in [
+                ("DeepSeek",     self.deepseek_client, "DeepSeek-R1",  "deepseek-chat"),
+                ("OpenRouter",   self.openrouter_client, "meta-llama/llama-3.3-70b-instruct", "meta-llama/llama-3.3-70b-instruct"),
+                ("Together",     self.together_client, "meta-llama/Llama-3-70b-chat-hf", "meta-llama/Llama-3-70b-chat-hf"),
+            ]:
+                if client:
+                    try:
+                        await self._notify_fallback(name)
+                        model = model_strong if (use_strong or name == "DeepSeek") and "azure" in str(getattr(client, "base_url", "")) else model_light
+                        response = await client.chat.completions.create(model=model, messages=[{"role": "user", "content": prompt}], max_tokens=4096)
+                        span.set_attribute("model_provider", name.lower())
+                        return response.choices[0].message.content
+                    except Exception as e:
+                        errors.append(f"{name}: {e}")
+                        self.logger.warning("%s failed: %s", name, e)
 
-            # Attempt 5: OpenRouter
-            if self.openrouter_client:
-                try:
-                    await self._notify_fallback("OpenRouter (Llama 3.3)")
-                    # Using a more standard model for OpenRouter failover to ensure stability
-                    model = "meta-llama/llama-3.3-70b-instruct"
-                    response = await self.openrouter_client.chat.completions.create(
-                        model=model,
-                        messages=[{"role": "user", "content": prompt}],
-                        max_tokens=4096
-                    )
-                    span.set_attribute("model_provider", "openrouter")
-                    return response.choices[0].message.content
-                except Exception as e:
-                    errors.append(f"OpenRouter: {e}")
-                    span.add_event("OpenRouter failover", attributes={"error": str(e)})
-                    self.logger.warning(f"OpenRouter failed: {e}")
-
-            # Attempt 6: LM Studio
-            if self.lm_studio_client:
-                try:
-                    await self._notify_fallback("LM Studio (Local)")
-                    response = await self.lm_studio_client.chat.completions.create(
-                        model="model-identifier", # LM Studio usually uses whatever is loaded
-                        messages=[{"role": "user", "content": prompt}],
-                        max_tokens=2048
-                    )
-                    span.set_attribute("model_provider", "lm_studio")
-                    return response.choices[0].message.content
-                except Exception as e:
-                    errors.append(f"LM Studio: {e}")
-                    span.add_event("LM Studio failover", attributes={"error": str(e)})
-                    self.logger.warning(f"LM Studio failed: {e}")
-
-            # Attempt 7: Together AI
-            if self.together_client:
-                try:
-                    await self._notify_fallback("Together (Llama-3-70B)")
-                    model = "meta-llama/Llama-3-70b-chat-hf"
-                    response = await self.together_client.chat.completions.create(
-                        model=model,
-                        messages=[{"role": "user", "content": prompt}],
-                        max_tokens=4096
-                    )
-                    span.set_attribute("model_provider", "together")
-                    return response.choices[0].message.content
-                except Exception as e:
-                    errors.append(f"Together: {e}")
-                    span.add_event("Together failover", attributes={"error": str(e)})
-                    self.logger.warning(f"Together failed: {e}")
-
-            # Attempt 8: Cohere
             if self.cohere_client:
                 try:
                     await self._notify_fallback("Cohere (Command R+)")
@@ -446,10 +542,8 @@ class ModelRouter:
                     return res
                 except Exception as e:
                     errors.append(f"Cohere: {e}")
-                    span.add_event("Cohere failover", attributes={"error": str(e)})
-                    self.logger.warning(f"Cohere failed: {e}")
+                    self.logger.warning("Cohere failed: %s", e)
 
-            # Attempt 9: AWS Bedrock
             if self.bedrock_session:
                 try:
                     await self._notify_fallback("AWS Bedrock (Claude 3)")
@@ -458,10 +552,8 @@ class ModelRouter:
                     return res
                 except Exception as e:
                     errors.append(f"AWS Bedrock: {e}")
-                    span.add_event("Bedrock failover", attributes={"error": str(e)})
-                    self.logger.warning(f"AWS Bedrock failed: {e}")
+                    self.logger.warning("AWS Bedrock failed: %s", e)
 
-            # Attempt 10: Kimi (Failover for reasoning)
             if self.nvidia_nim_api_key:
                 try:
                     await self._notify_fallback("Kimi (k2.5)")
@@ -470,285 +562,89 @@ class ModelRouter:
                     return res
                 except Exception as e:
                     errors.append(f"Kimi: {e}")
-                    span.add_event("Kimi failover", attributes={"error": str(e)})
-                    self.logger.warning(f"Kimi failed: {e}")
+                    self.logger.warning("Kimi failed: %s", e)
 
-            error_msg = f"All inference providers failed: {'; '.join(errors)}"
+            error_msg = "All inference providers failed: " + "; ".join(errors)
             span.set_status(trace.Status(trace.StatusCode.ERROR, error_msg))
             raise RuntimeError(error_msg)
 
-    # --- Specialized Multi-Modal Audio/Video/Image Synthesis Targets ---
-    
     async def get_fast_tactical_response(self, prompt: str) -> str:
-        """Groq LPU integration for sub-second tactical decision-making."""
         if not self.groq_api_key:
-             self.logger.warning("Groq unavailable, falling back to Flash.")
              return await self._gemini_request(prompt, use_pro=False)
-
-        headers = {
-            "Authorization": f"Bearer {self.groq_api_key}",
-            "Content-Type": "application/json"
-        }
-        payload = {
-            "model": "llama-3.3-70b-versatile",
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.2, # Lower temp for tactical accuracy
-            "max_tokens": 1024
-        }
-
+        headers = {"Authorization": f"Bearer {self.groq_api_key}", "Content-Type": "application/json"}
+        payload = {"model": "llama-3.3-70b-versatile", "messages": [{"role": "user", "content": prompt}], "temperature": 0.2, "max_tokens": 1024}
         async with httpx.AsyncClient(timeout=10.0) as client:
             try:
                 response = await client.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload)
                 response.raise_for_status()
                 data = response.json()
                 return data["choices"][0]["message"]["content"]
-            except Exception as e:
-                self.logger.error(f"Groq request failed: {e}")
+            except Exception:
                 return await self._gemini_request(prompt, use_pro=False)
 
-    async def generate_speech(self, text: str, voice_id: str = "pNInz6obpgDQGcFmaJgB") -> bytes: # Default: Adam
-        """ElevenLabs integration for emotionally resonant voice synthesis."""
-        if not self.elevenlabs_api_key:
-            raise RuntimeError("ElevenLabs credentials missing.")
-
+    async def generate_speech(self, text: str, voice_id: str = "pNInz6obpgDQGcFmaJgB") -> bytes:
+        if not self.elevenlabs_api_key: raise RuntimeError("ElevenLabs credentials missing.")
         url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
-        headers = {
-            "Accept": "audio/mpeg",
-            "Content-Type": "application/json",
-            "xi-api-key": self.elevenlabs_api_key
-        }
-        payload = {
-            "text": text,
-            "model_id": "eleven_monolingual_v1",
-            "voice_settings": {
-                "stability": 0.5,
-                "similarity_boost": 0.5
-            }
-        }
-
+        headers = {"xi-api-key": self.elevenlabs_api_key, "Content-Type": "application/json"}
+        payload = {"text": text, "model_id": "eleven_monolingual_v1"}
         async with httpx.AsyncClient(timeout=30.0) as client:
-            try:
-                response = await client.post(url, json=payload, headers=headers)
-                response.raise_for_status()
-                return response.content
-            except Exception as e:
-                self.logger.error(f"ElevenLabs TTS failed: {e}")
-                raise RuntimeError(f"ElevenLabs error: {e}")
+            resp = await client.post(url, json=payload, headers=headers)
+            resp.raise_for_status()
+            return resp.content
 
     async def generate_image(self, prompt: str) -> str:
-        """Midjourney/ImagineAPI integration for manifestation."""
-        if not self.midjourney_api_key:
-            raise RuntimeError("Midjourney credentials missing.")
-
-        # Using ImagineAPI.dev structure as a production-ready standard
+        if not self.midjourney_api_key: raise RuntimeError("Midjourney credentials missing.")
         url = "https://api.imagineapi.dev/v1/generations"
-        headers = {
-            "Authorization": f"Bearer {self.midjourney_api_key}",
-            "Content-Type": "application/json"
-        }
-        payload = {"prompt": prompt}
-
+        headers = {"Authorization": f"Bearer {self.midjourney_api_key}"}
         async with httpx.AsyncClient(timeout=30.0) as client:
-            try:
-                response = await client.post(url, json=payload, headers=headers)
-                response.raise_for_status()
-                data = response.json()
-                # Returns the result URL or ID
-                return data.get("url") or data.get("id")
-            except Exception as e:
-                self.logger.error(f"Midjourney generation failed: {e}")
-                raise RuntimeError(f"Midjourney error: {e}")
+            resp = await client.post(url, json={"prompt": prompt}, headers=headers)
+            resp.raise_for_status()
+            data = resp.json()
+            return data.get("url") or data.get("id")
 
     async def generate_video(self, prompt: str, image_url: str = None) -> str:
-        """RunwayML Gen-3 integration for temporal genesis."""
-        if not self.runway_api_key:
-            raise RuntimeError("Runway credentials missing.")
-
+        if not self.runway_api_key: raise RuntimeError("Runway credentials missing.")
         url = "https://api.runwayml.com/v1/image_to_video" if image_url else "https://api.runwayml.com/v1/text_to_video"
-        headers = {
-            "Authorization": f"Bearer {self.runway_api_key}",
-            "Content-Type": "application/json",
-            "X-Runway-Version": "2024-11-06"
-        }
-        payload = {
-            "promptText": prompt,
-            "model": "gen3a_turbo"
-        }
-        if image_url:
-            payload["promptImage"] = image_url
-
+        headers = {"Authorization": f"Bearer {self.runway_api_key}", "X-Runway-Version": "2024-11-06"}
         async with httpx.AsyncClient(timeout=60.0) as client:
-            try:
-                response = await client.post(url, json=payload, headers=headers)
-                response.raise_for_status()
-                data = response.json()
-                return data.get("id") # Returns task ID for polling
-            except Exception as e:
-                self.logger.error(f"RunwayML generation failed: {e}")
-                raise RuntimeError(f"RunwayML error: {e}")
-
-    async def get_structured_plan(self, objective: str) -> Dict[str, Any]:
-        """Specific helper to force a JSON plan from the LLM."""
-        prompt = f"""
-        You are the Planner for an Autonomous Executive Agent.
-        Objective: "{objective}"
-        
-        Break this objective down into a list of executable steps.
-        Available Tools: "web_search", "summarize", "analyze_data", "system_query", "filesystem".
-        
-        Return ONLY valid JSON with this schema:
-        {{
-            "steps": [
-                {{ "id": "step_1", "description": "Search for X", "tool": "web_search", "dependencies": [] }},
-                {{ "id": "step_2", "description": "Summarize findings", "tool": "summarize", "dependencies": ["step_1"] }}
-            ]
-        }}
-        """
-        try:
-            response_text = await self.get_response(prompt, complexity="MEDIUM")
-            return json.loads(response_text)
-        except json.JSONDecodeError:
-            # Try to extract JSON from the response
-            self.logger.warning("Plan response was not valid JSON, attempting extraction...")
-            import re
-            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
-            if json_match:
-                return json.loads(json_match.group())
-            return {"steps": []}
-        except Exception as e:
-            self.logger.error(f"Planning failed: {e}")
-            return {"steps": []}
-            
-    async def refine_plan(self, objective: str, original_plan: List[Dict[str, Any]], execution_results: str, critic_feedback: str, failed_tasks: List[str]) -> Dict[str, Any]:
-        """
-        Self-Correction Loop: Generates an improved plan based on failure analysis.
-        """
-        prompt = f"""
-        SYSTEM: You are the Strategic Correction Engine.
-        CONTEXT: An autonomous agent attempted a task and failed validation.
-        
-        OBJECTIVE: "{objective}"
-        
-        PRIOR PLAN: {json.dumps(original_plan)}
-        RESULTS: {execution_results}
-        FAILED TASKS: {json.dumps(failed_tasks)}
-        CRITIC FEEDBACK: "{critic_feedback}"
-        
-        INSTRUCTION: Generate a REVISED plan to satisfy the objective.
-        - Fix logic errors in failed tasks.
-        - Add verification steps if the critic noted missing accuracy.
-        - Remove redundant steps.
-        
-        TOOLS: "web_search", "summarize", "analyze_data", "system_query", "filesystem".
-        
-        OUTPUT: JSON schema {{ "steps": [ {{ "id": "...", "description": "...", "tool": "...", "dependencies": [] }} ] }}
-        """
-        try:
-            response_text = await self.get_response(prompt, complexity="HIGH")
-            return json.loads(response_text)
-        except Exception as e:
-            self.logger.error(f"Plan refinement failed: {e}")
-            return {"steps": []}
-
-    async def critique_result(self, objective: str, result: str) -> Dict[str, Any]:
-        prompt = f"""
-        Objective: {objective}
-        Result: {result}
-        
-        Rate the success of this result from 0.0 to 1.0. 
-        Return JSON: {{ "score": 0.0, "feedback": "reasoning" }}
-        """
-        try:
-            response_text = await self.get_response(prompt, complexity="MEDIUM")
-            return json.loads(response_text)
-        except Exception as e:
-            self.logger.error(f"Critic failure: {e}")
-            return {"score": 0.0, "feedback": "Critic failed to evaluate results due to an internal error."}
+            resp = await client.post(url, json={"promptText": prompt, "model": "gen3a_turbo"}, headers=headers)
+            resp.raise_for_status()
+            return resp.json().get("id")
 
     async def check_health(self) -> Dict[str, Any]:
-        """Verifies health of all configured model providers with detailed errors."""
         results = {}
-        test_prompt = "Hello"
-        
-        # 1. Gemini
+        # 0. Ollama (local primary)
+        if self.ollama_ready:
+            try:
+                await self._ollama_request("Hi", use_strong=False)
+                results["ollama"] = {"status": "HEALTHY"}
+            except Exception as e:
+                results["ollama"] = {"status": "UNSTABLE", "error": type(e).__name__}
+        else:
+            results["ollama"] = {"status": "NOT_RUNNING"}
+
+        # 0b. LM Studio (local fallback)
+        if self.lm_studio_client:
+            try:
+                await self._lm_studio_request("Hi")
+                results["lm_studio"] = {"status": "HEALTHY"}
+            except Exception as e:
+                results["lm_studio"] = {"status": "UNSTABLE", "error": type(e).__name__}
+
+        # 0c. HuggingFace
+        if self.hf_client:
+            try:
+                await self._huggingface_request("Hi")
+                results["huggingface"] = {"status": "HEALTHY"}
+            except Exception as e:
+                results["huggingface"] = {"status": "UNSTABLE", "error": type(e).__name__}
+
+        # Cloud checks...
         if self.gemini_flash:
             try:
-                await self._gemini_request(test_prompt)
+                await self._gemini_request("Hi")
                 results["gemini"] = {"status": "HEALTHY"}
-            except Exception as e:
-                self.logger.error(f"Gemini health check failed: {e}")
-                results["gemini"] = {"status": "UNSTABLE", "error": type(e).__name__}
+            except Exception:
+                results["gemini"] = {"status": "UNSTABLE"}
         
-        # 2. OpenAI / GitHub
-        if self.openai_client:
-            try:
-                await self._openai_request(test_prompt, use_strong=False)
-                results["openai"] = {"status": "HEALTHY"}
-            except Exception as e:
-                self.logger.error(f"OpenAI health check failed: {e}")
-                results["openai"] = {"status": "UNSTABLE", "error": type(e).__name__}
-
-        # 3. Anthropic
-        if self.anthropic_client:
-            try:
-                await self._anthropic_request(test_prompt, use_strong=False)
-                results["anthropic"] = {"status": "HEALTHY"}
-            except Exception as e:
-                self.logger.error(f"Anthropic health check failed: {e}")
-                results["anthropic"] = {"status": "UNSTABLE", "error": type(e).__name__}
-
-        # 4. DeepSeek
-        if self.deepseek_client:
-            try:
-                model = "DeepSeek-R1" if "azure" in str(self.deepseek_client.base_url) else "deepseek-chat"
-                await self.deepseek_client.chat.completions.create(
-                    model=model,
-                    messages=[{"role": "user", "content": test_prompt}],
-                    max_tokens=5
-                )
-                results["deepseek"] = {"status": "HEALTHY"}
-            except Exception as e:
-                self.logger.error(f"DeepSeek health check failed: {e}")
-                results["deepseek"] = {"status": "UNSTABLE", "error": type(e).__name__}
-
-        # 5. Kimi
-        if self.nvidia_nim_api_key:
-            try:
-                await self._kimi_request(test_prompt, thinking=False)
-                results["kimi"] = {"status": "HEALTHY"}
-            except Exception as e:
-                self.logger.error(f"Kimi health check failed: {e}")
-                results["kimi"] = {"status": "UNSTABLE", "error": type(e).__name__}
-
-        # 6. Groq
-        if self.groq_api_key:
-            try:
-                await self.get_fast_tactical_response(test_prompt)
-                results["groq"] = {"status": "HEALTHY"}
-            except Exception as e:
-                self.logger.error(f"Groq health check failed: {e}")
-                results["groq"] = {"status": "UNSTABLE", "error": type(e).__name__}
-
-        # 7. OpenRouter
-        if self.openrouter_client:
-            try:
-                await self.openrouter_client.chat.completions.create(
-                    model="google/gemini-2.0-flash-001",
-                    messages=[{"role": "user", "content": test_prompt}],
-                    max_tokens=5
-                )
-                results["openrouter"] = {"status": "HEALTHY"}
-            except Exception as e:
-                self.logger.error(f"OpenRouter health check failed: {e}")
-                results["openrouter"] = {"status": "UNSTABLE", "error": type(e).__name__}
-
-        # 8. AWS Bedrock
-        if self.bedrock_session:
-            try:
-                await self._bedrock_request(test_prompt, use_strong=False)
-                results["bedrock"] = {"status": "HEALTHY"}
-            except Exception as e:
-                self.logger.error(f"Bedrock health check failed: {e}")
-                results["bedrock"] = {"status": "UNSTABLE", "error": type(e).__name__}
-
         return results
