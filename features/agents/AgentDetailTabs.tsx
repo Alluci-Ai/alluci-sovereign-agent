@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../../store/useStore';
-import { ChevronLeft, Save, Layout, Box, Wrench, Network, Clock, Zap } from 'lucide-react';
+import { ChevronLeft, Save, Layout, Box, Wrench, Network, Clock, Zap, Activity, History, RefreshCw } from 'lucide-react';
+import { HeartbeatOrderEditor } from '../heartbeat/HeartbeatOrderEditor';
 import WorkspaceEditor from './WorkspaceEditor';
 import ToolProfileEditor from './ToolProfileEditor';
 import ChannelSubscriptions from './ChannelSubscriptions';
@@ -16,9 +17,25 @@ interface AgentDetailProps {
 
 export const AgentDetailTabs: React.FC<AgentDetailProps> = ({ agentId, onBack }) => {
     const { accessToken } = useStore();
-    const [activeTab, setActiveTab] = useState<'overview' | 'workspace' | 'tools' | 'channels' | 'cron' | 'skills'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'workspace' | 'tools' | 'channels' | 'heartbeat' | 'skills'>('overview');
     const [agent, setAgent] = useState<any>(null);
+    const [heartbeatHistory, setHeartbeatHistory] = useState<any[]>([]);
     const [saving, setSaving] = useState(false);
+
+    const fetchHeartbeatHistory = async () => {
+        try {
+            const res = await fetch(`${DAEMON_URL}/api/v1/agents/${agentId}/heartbeat/history`, {
+                headers: { 'Authorization': `Bearer ${accessToken}` },
+                credentials: 'include'
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setHeartbeatHistory(data.history || []);
+            }
+        } catch (err) {
+            console.error('Failed fetching heartbeat history:', err);
+        }
+    };
 
     useEffect(() => {
         const load = async () => {
@@ -36,13 +53,26 @@ export const AgentDetailTabs: React.FC<AgentDetailProps> = ({ agentId, onBack })
             }
         };
         load();
-    }, [agentId, accessToken]);
+        if (activeTab === 'heartbeat') fetchHeartbeatHistory();
+    }, [agentId, accessToken, activeTab]);
 
-    const handleSaveOverview = async () => {
+    const handleSaveAgent = async (updatedData: any) => {
         setSaving(true);
         try {
-            // Simulation of complete logic per Sovereign Spec:
-            await new Promise(r => setTimeout(r, 500));
+            const res = await fetch(`${DAEMON_URL}/api/v1/agents/${agentId}`, {
+                method: 'PUT',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${accessToken}` 
+                },
+                body: JSON.stringify(updatedData),
+                credentials: 'include'
+            });
+            if (res.ok) {
+                setAgent({ ...agent, ...updatedData });
+            }
+        } catch (err) {
+            console.error('Failed saving agent:', err);
         } finally {
             setSaving(false);
         }
@@ -77,7 +107,7 @@ export const AgentDetailTabs: React.FC<AgentDetailProps> = ({ agentId, onBack })
                         { id: 'workspace', icon: Box, label: 'Workspace' },
                         { id: 'tools', icon: Wrench, label: 'Tools' },
                         { id: 'channels', icon: Network, label: 'Channels' },
-                        { id: 'cron', icon: Clock, label: 'Background' },
+                        { id: 'heartbeat', icon: Activity, label: 'Heartbeat' },
                         { id: 'skills', icon: Zap, label: 'Skills' }
                     ].map(tab => (
                         <button
@@ -144,7 +174,7 @@ export const AgentDetailTabs: React.FC<AgentDetailProps> = ({ agentId, onBack })
                             </div>
 
                             <div className="flex justify-end pt-4">
-                                <button className="glass-btn flex items-center gap-2 px-6 py-2" onClick={handleSaveOverview} disabled={saving}>
+                                <button className="glass-btn flex items-center gap-2 px-6 py-2" onClick={() => handleSaveAgent(agent)} disabled={saving}>
                                     <Save size={14} /> {saving ? 'Writing OS...' : 'Save Overview Manifest'}
                                 </button>
                             </div>
@@ -161,10 +191,63 @@ export const AgentDetailTabs: React.FC<AgentDetailProps> = ({ agentId, onBack })
                 {/* ── CHANNELS TAB ── */}
                 {activeTab === 'channels' && <ChannelSubscriptions agentId={agentId} />}
 
-                {/* ── CRON TAB ── */}
-                {activeTab === 'cron' && (
-                    <div className="bg-glass-1 border border-glass-edge rounded-xl p-8 text-center text-[11px] font-mono text-text-tertiary">
-                        No background tasks currently bound to this agent identity.
+                {/* ── HEARTBEAT TAB ── */}
+                {activeTab === 'heartbeat' && (
+                    <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            <div className="lg:col-span-2 space-y-4">
+                                <div className="bg-glass-1 border border-glass-edge p-6 rounded-2xl shadow-xl">
+                                    <HeartbeatOrderEditor 
+                                        agentId={agentId}
+                                        initialOrders={agent.heartbeat_orders || []}
+                                        onSave={(orders) => handleSaveAgent({ heartbeat_orders: orders })}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="space-y-4">
+                                <div className="bg-glass-1 border border-glass-edge p-5 rounded-2xl shadow-lg">
+                                    <h4 className="text-[10px] uppercase tracking-widest text-text-tertiary font-bold mb-4 flex items-center gap-2">
+                                        <History className="w-3 h-3 text-accent" />
+                                        Recent Pulse Events
+                                    </h4>
+                                    
+                                    <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                                        {heartbeatHistory.length === 0 && (
+                                            <div className="py-8 text-center text-[10px] font-mono opacity-30 italic">
+                                                NO_RECENT_PULSE_DATA
+                                            </div>
+                                        )}
+                                        {heartbeatHistory.map((entry, i) => (
+                                            <div key={i} className="p-3 bg-glass-pressed rounded-xl border border-glass-edge flex flex-col gap-2">
+                                                <div className="flex justify-between items-start">
+                                                  <span className="text-[10px] font-bold text-accent px-1.5 py-0.5 bg-accent/10 rounded uppercase">
+                                                    {entry.outcome}
+                                                  </span>
+                                                  <span className="text-[9px] font-mono opacity-40">
+                                                    {new Date(entry.fired_at * 1000).toLocaleTimeString()}
+                                                  </span>
+                                                </div>
+                                                <div className="text-[11px] font-medium text-text-secondary leading-relaxed">
+                                                    {entry.probe_type} → {entry.action_type}
+                                                </div>
+                                                <div className="text-[9px] text-text-quaternary font-mono line-clamp-2">
+                                                    {entry.detail}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    
+                                    <button 
+                                        onClick={fetchHeartbeatHistory}
+                                        className="w-full mt-4 py-2 text-[10px] font-bold text-text-tertiary hover:text-accent flex items-center justify-center gap-2 transition-colors border-t border-glass-edge pt-4"
+                                    >
+                                        <RefreshCw className="w-3 h-3" />
+                                        Refresh Telemetry
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 )}
 

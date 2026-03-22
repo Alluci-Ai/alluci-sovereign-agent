@@ -294,6 +294,53 @@ class SoulManifest(BaseModel):
     chainsOfThought: List[str] = []
     bestPractices: List[str] = []
     
+# ─── Agent Record ─────────────────────────────────────────────────────────────
+
+class AgentRecord(SQLModel, table=True):
+    """
+    Persistent sovereign agent entity. Each agent has its own name, primary
+    LLM model, system prompt override, heartbeat orders (JSON array), and
+    an optional partial soul manifest override.
+    """
+    __tablename__ = "agent_record"
+
+    id: str = Field(primary_key=True)                          # short UUID
+    name: str = Field(nullable=False)
+    description: Optional[str] = Field(default=None)
+    model: str = Field(default="gpt-4o")
+    fallback_chain: str = Field(default="gemini-flash,claude-haiku")
+    status: str = Field(default="ACTIVE")                      # ACTIVE | PAUSED | DRAFT
+    system_prompt: Optional[str] = Field(default=None)
+    # JSON-serialised array of HeartbeatOrder objects
+    heartbeat_orders: Optional[str] = Field(default=None)
+    # JSON-serialised partial SoulManifest overrides
+    soul_manifest_override: Optional[str] = Field(default=None)
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc)
+    )
+    updated_at: Optional[datetime] = Field(default=None)
+
+
+class HeartbeatOrderRecord(SQLModel, table=True):
+    """
+    Execution log for every heartbeat order fire event.
+    Used for: last-fired UI display, cooldown enforcement, outcome tracking,
+    and pcl_signal history.
+    """
+    __tablename__ = "heartbeat_order_record"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    order_id: str = Field(index=True)
+    agent_id: Optional[str] = Field(default=None, index=True)  # None = root
+    fired_at: float = Field(index=True)
+    probe_type: str = Field(default="")
+    action_type: str = Field(default="")
+    # "success" | "failed" | "skipped" | "no_change"
+    outcome: str = Field(default="success")
+    detail: Optional[str] = Field(default=None)
+    signal_stored: bool = Field(default=False)
+
+
 class DiscordGuildMapping(SQLModel, table=True):
     """Mapping of Discord Guilds to preferred routing channels (Sovereign Spec §2.3)."""
     __tablename__ = "discord_guild_mapping"

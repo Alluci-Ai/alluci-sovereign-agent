@@ -5,6 +5,7 @@ import PersonalityField from './PersonalityField';
 import { SoulPreferences, SoulHumor, SoulConciseness, SoulManifest, SkillManifest } from '../types';
 import SkillBuilderWizard from './SkillBuilderWizard';
 import { SKILL_DATABASE } from '../knowledge';
+import { HeartbeatOrderEditor } from '../features/heartbeat/HeartbeatOrderEditor';
 
 const DAEMON_URL = 'http://localhost:8000';
 
@@ -302,8 +303,35 @@ const IdentityForge: React.FC<{ onClose: () => void; onManifestUpdate?: (manifes
                                     <textarea className="glass-input" value={manifest.identityCore} onChange={e => updateManifest('identityCore', e.target.value)} style={{ minHeight: 64, resize: 'vertical', fontSize: 13 }} />
                                 </div>
                                 <div>
-                                    <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', display: 'block', marginBottom: 4, textTransform: 'uppercase' }}>Heartbeat Orders</label>
-                                    <textarea className="glass-input" value={manifest.heartbeat || ''} onChange={e => updateManifest('heartbeat', e.target.value)} placeholder="- [x] Monitor..." style={{ minHeight: 48, resize: 'vertical', fontSize: 13 }} />
+                                    <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', display: 'block', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Heartbeat Pulse Configuration</label>
+                                    <div className="bg-zinc-950/20 border border-zinc-800/50 rounded-2xl p-4">
+                                        <HeartbeatOrderEditor 
+                                            initialOrders={(() => {
+                                                const raw = manifest.heartbeat;
+                                                if (!raw) return [];
+                                                if (typeof raw === 'string') {
+                                                    // Auto-migrate legacy markdown to structured
+                                                    if (raw.trim().startsWith('- [')) {
+                                                        return raw.split('\n')
+                                                            .filter(l => l.trim().startsWith('- [x]'))
+                                                            .map(l => ({
+                                                                id: Math.random().toString(36).substring(2, 9),
+                                                                label: l.replace('- [x]', '').trim(),
+                                                                active: true,
+                                                                probe_type: 'task_deadline',
+                                                                probe_config: { path: 'TASKS.md' },
+                                                                action_type: 'execute_objective',
+                                                                action_config: { objective_template: l.replace('- [x]', '').trim() },
+                                                                interval_minutes: 15
+                                                            }));
+                                                    }
+                                                    try { return JSON.parse(raw); } catch(e) { return []; }
+                                                }
+                                                return Array.isArray(raw) ? raw : [];
+                                            })()}
+                                            onSave={(orders) => updateManifest('heartbeat', orders)}
+                                        />
+                                    </div>
                                 </div>
                                 <div>
                                     <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', display: 'block', marginBottom: 4, textTransform: 'uppercase' }}>Voice Profile</label>

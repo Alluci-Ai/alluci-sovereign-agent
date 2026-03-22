@@ -236,6 +236,11 @@ async def init_services(app_instance):
                 ), name=f"refresh_{bridge_id}")
             logger.info(f"[ SERVICES ] Token refresh loop started for {bridge_id}")
 
+    # 20b. Wire H-LSM into HeartbeatDaemon for log_only and pcl_signal actions
+    if orchestrator and orchestrator.heartbeat and hlsm_manager:
+        orchestrator.heartbeat.inject_hlsm(hlsm_manager)
+        logger.info("[ HB ] H-LSM injected into HeartbeatDaemon")
+
     # 21. Background Services
     await orchestrator.start_background_services()
 
