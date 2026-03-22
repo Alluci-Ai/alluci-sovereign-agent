@@ -499,6 +499,85 @@ class PeakOpportunityDetector(BaseDetector):
         )
 
 
+class HeartbeatSignalDetector(BaseDetector):
+    """
+    Reads PCL signals stored by HeartbeatDaemon orders with
+    action_type='pcl_signal'. Those entries are stored in H-LSM with
+    source='heartbeat_signal' and contain content of the form:
+      [PCL_SIGNAL] [Agent:X] label: detail (priority=N, order_id=Y)
+
+    This detector surfaces them as Opportunity objects so the full
+    5-rule InterventionJudge can gate them on ACE flow state, quiet hours,
+    cooldown, confidence, and deduplication — rather than the Heartbeat
+    executing blindly.
+
+    Integration: pcl.py _observe_memory() populates world.recent_learnings
+    from H-LSM l1_get_recent(). This detector reads those learnings for
+    [PCL_SIGNAL] markers.
+    """
+
+    name = "HeartbeatSignalDetector"
+
+    async def detect(self, world: WorldModel) -> Optional[Opportunity]:
+        import re
+        import hashlib
+
+        # Collect all entries from recent_learnings and unresolved_threads
+        # that carry a [PCL_SIGNAL] marker
+        signal_entries = [
+            entry
+            for entry in (world.recent_learnings + world.unresolved_threads)
+            if "[PCL_SIGNAL]" in entry
+        ]
+        if not signal_entries:
+            return None
+
+        # Process the first (most recently stored) signal entry
+        best = signal_entries[0]
+
+        # Extract priority — default to 3 (medium) if not parseable
+        priority = 3
+        try:
+            m = re.search(r"priority=(\d)", best)
+            if m:
+                priority = max(1, min(5, int(m.group(1))))
+        except Exception:
+            pass
+
+        # Extract human-readable signal label from the content string
+        # Pattern: [PCL_SIGNAL] [Agent:X] LABEL: detail
+        label_match = re.search(
+            r"\[PCL_SIGNAL\](?:\s*\[Agent:[^\]]+\])?\s*(.+?):", best
+        )
+        label = label_match.group(1).strip() if label_match else "Heartbeat Signal"
+
+        # Deterministic ID based on content hash so the cooldown/dedup gates
+        # prevent the same signal from being acted on multiple times per cycle
+        condition_key = (
+            f"hb_signal:{hashlib.sha256(best[:80].encode()).hexdigest()[:8]}"
+        )
+        return Opportunity(
+            id=Opportunity.make_id(self.name, condition_key),
+            detector_name=self.name,
+            title=f"Heartbeat signal: {label[:60]}",
+            description=f"A heartbeat probe detected: {best[:200]}",
+            priority=priority,
+            confidence=0.80,
+            # P1/P2 signals route to execution; P3+ route to notification
+            recommended_action="execute" if priority <= 2 else "notify",
+            objective=(
+                f"A heartbeat order detected the following condition and "
+                f"requested PCL action: {best[:300]}. "
+                f"Assess and take the most appropriate autonomous action."
+            )
+            if priority <= 2
+            else "",
+            notification_body=f"📡 Heartbeat signal: {label[:100]}",
+            autonomy_level="SEMI_AUTONOMOUS" if priority == 1 else "RESTRICTED",
+            cooldown_minutes=60,
+        )
+
+
 # ─── Intervention Judge ───────────────────────────────────────────────────────
 
 class InterventionJudge:
@@ -642,6 +721,7 @@ class ProactiveCognitionLoop:
         # Detector registry — order determines priority in ties
         self.detectors: List[BaseDetector] = [
             GoalDeadlineDetector(),
+            HeartbeatSignalDetector(),
             UnresolvedBridgeDetector(),
             GoalStallDetector(),
             TaskFailurePatternDetector(),
@@ -796,14 +876,13 @@ class ProactiveCognitionLoop:
         if not self.hlsm:
             return
         try:
-            # Get recent L1 entries (last 24h indicator)
-            recent = await self.hlsm.l1_get_recent(limit=50)
-            now = time.time()
+            # 1. Fetch recent learnings (L1 memory)
+            # We also look for source='heartbeat_signal' specific entries
+            learnings = await self.hlsm.l1_get_recent(limit=15)
             world.recent_learnings = [
-                r.content[:200]
-                for r in recent
-                if now - r.retention_score * 86400 < 86400  # rough 24h proxy
-            ][:10]
+                f"{m.get('content')} [source:{m.get('metadata', {}).get('source', 'unknown')}]"
+                for m in learnings
+            ]
 
             # Detect recurring topics: use L2 semantic search for pattern detection
             recurring = []

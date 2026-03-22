@@ -4,7 +4,7 @@ import logging
 from .logging_config import get_logger
 from typing import List, Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import field_validator
+from pydantic import field_validator, Field, validator
 
 # Minimal fallback logging for module-load-time messages.
 # structlog takes over in the app lifespan via logging_config.configure_logging().
@@ -67,7 +67,10 @@ class Settings(BaseSettings):
     VERUS_ID_IDENTITY: Optional[str] = None
     VERUS_ID_PRIVATE_KEY: Optional[str] = None
     
-    # Model Providers
+    LOG_LEVEL: str = Field(default="INFO")
+
+    # ─── Inference Providers ──────────────────────────────────────────────────
+    LM_STUDIO_MODEL: str = Field(default="mixed-model-request")
     GEMINI_API_KEY: Optional[str] = None
     OPENAI_API_KEY: Optional[str] = None
     ANTHROPIC_API_KEY: Optional[str] = None
@@ -77,6 +80,7 @@ class Settings(BaseSettings):
     OPENROUTER_API_KEY: Optional[str] = None
     LM_STUDIO_URL: str = "http://localhost:1234/v1"
     TOGETHER_API_KEY: Optional[str] = None
+    ELEVENLABS_API_KEY: Optional[str] = None
     COHERE_API_KEY: Optional[str] = None
     AWS_ACCESS_KEY_ID: Optional[str] = None
     AWS_SECRET_ACCESS_KEY: Optional[str] = None
@@ -228,7 +232,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
-        extra="ignore"
+        extra="ignore",
+        protected_namespaces=()
     )
 
     @field_validator("DATABASE_URL")
@@ -273,11 +278,27 @@ class Settings(BaseSettings):
             raise ValueError("CSRF_SECRET_KEY must differ from JWT and vault keys.")
         return v
 
-    @field_validator("GEMINI_API_KEY")
+    @field_validator(
+        "GROQ_API_KEY",
+        "TOGETHER_API_KEY",
+        "DEEPSEEK_API_KEY",
+        "NVIDIA_NIM_API_KEY",
+        "ELEVENLABS_API_KEY",
+        mode="before",
+    )
     @classmethod
-    def validate_api_key(cls, v: Optional[str]) -> Optional[str]:
-        if not v or "PLACEHOLDER" in v:
+    def stop_placeholders(cls, v, info):
+        """Reject unconfigured placeholders to prevent silent runtime failure."""
+        if isinstance(v, str) and v.upper().startswith("PLACEHOLDER"):
+            return None
+        return v
+
+    @field_validator("GEMINI_API_KEY", mode="before")
+    @classmethod
+    def validate_api_key(cls, v: Optional[str], info) -> Optional[str]:
+        if not v or (isinstance(v, str) and "PLACEHOLDER" in v.upper()):
             logger.warning("⚠️ WARNING: GEMINI_API_KEY is not set. Cloud Inference Engine will be disabled.")
+            return None
         return v
 
 def load_settings() -> Settings:

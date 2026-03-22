@@ -1,15 +1,23 @@
 
 import logging
+import json
+import uuid
+from datetime import datetime, timezone
 from ..logging_config import get_logger
 from datetime import date
 from typing import Dict, Any, List, Optional
 from fastapi import APIRouter, HTTPException, Depends, Query, Body
-from sqlmodel import Session, select
+from sqlmodel import Session, select, col
 from ..security.auth import verify_authenticated
 from ..database import engine as db_engine
-from ..models import SessionConfig
+from ..models import SessionConfig, AgentRecord
 from fastapi_csrf_protect import CsrfProtect
 from .. import services
+
+try:
+    from ..models import HeartbeatOrderRecord
+except ImportError:
+    HeartbeatOrderRecord = None
 
 logger = get_logger("SessionsRouter")
 
@@ -54,20 +62,251 @@ async def get_session_config(session_key: str):
             return {"session_key": session_key, "overrides": {}}
         return config
 
+# ─── Agent Constellation CRUD ─────────────────────────────────────────────────
+
 @router.get("/agents", dependencies=[Depends(verify_authenticated)])
 async def get_agents():
-    """Returns the agent constellation configuration."""
+    """Returns all AgentRecord entries from the database."""
+    with Session(db_engine) as session:
+        agents = session.exec(select(AgentRecord)).all()
+
+    if not agents:
+        # First-boot: return the logical root agent as a read-only default.
+        # It has no DB row — real agents are created via POST /agents.
+        return {
+            "agents": [
+                {
+                    "id": "root",
+                    "name": "Sovereign Root",
+                    "model": "gpt-4o",
+                    "status": "ACTIVE",
+                    "description": "Primary sovereign agent (built-in)",
+                    "fallback_chain": "gemini-flash,claude-haiku",
+                    "heartbeat_orders": [],
+                    "created_at": None,
+                }
+            ]
+        }
+
     return {
         "agents": [
-            { "id": "root", "name": "Sovereign Root", "model": "gpt-4o", "status": "READY", "active_skills": 12, "channels": 4 },
-            { "id": "researcher", "name": "Deep Researcher", "model": "gemini-1.5-pro", "status": "IDLE", "active_skills": 4, "channels": 0 },
-            { "id": "coder", "name": "Polyglot Coder", "model": "gpt-4o", "status": "IDLE", "active_skills": 8, "channels": 0 }
+            {
+                "id": a.id,
+                "name": a.name,
+                "model": a.model,
+                "status": a.status,
+                "description": a.description,
+                "fallback_chain": a.fallback_chain,
+                "heartbeat_orders": json.loads(a.heartbeat_orders or "[]"),
+                "created_at": a.created_at.isoformat() if a.created_at else None,
+            }
+            for a in agents
         ]
     }
 
-@router.post("/agents/delegate", dependencies=[Depends(verify_authenticated), Depends(CsrfProtect().validate_csrf)])
-async def delegate_to_agent(agent_id: str = Body(...), task: str = Body(...)):
-    """Delegates a task to a virtual agent in the constellation."""
+
+@router.get("/agents/{agent_id}", dependencies=[Depends(verify_authenticated)])
+async def get_agent(agent_id: str):
+    """Return a single agent by ID."""
+    with Session(db_engine) as session:
+        agent = session.get(AgentRecord, agent_id)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    return {
+        "agent": {
+            "id": agent.id,
+            "name": agent.name,
+            "model": agent.model,
+            "status": agent.status,
+            "description": agent.description,
+            "fallback_chain": agent.fallback_chain,
+            "system_prompt": agent.system_prompt,
+            "heartbeat_orders": json.loads(agent.heartbeat_orders or "[]"),
+            "soul_manifest_override": json.loads(
+                agent.soul_manifest_override or "{}"
+            ),
+            "created_at": agent.created_at.isoformat() if agent.created_at else None,
+            "updated_at": (
+                agent.updated_at.isoformat() if agent.updated_at else None
+            ),
+        }
+    }
+
+
+@router.post(
+    "/agents",
+    dependencies=[
+        Depends(verify_authenticated),
+        Depends(CsrfProtect().validate_csrf),
+    ],
+)
+async def create_agent(payload: Dict[str, Any] = Body(...)):
+    """Create a new agent record."""
+    agent = AgentRecord(
+        id=str(uuid.uuid4())[:8],
+        name=payload.get("name", "New Agent"),
+        description=payload.get("description"),
+        model=payload.get("model", "gpt-4o"),
+        fallback_chain=payload.get("fallback_chain", "gemini-flash,claude-haiku"),
+        status=payload.get("status", "DRAFT"),
+        system_prompt=payload.get("system_prompt"),
+        heartbeat_orders=json.dumps(payload.get("heartbeat_orders", [])),
+        soul_manifest_override=json.dumps(
+            payload.get("soul_manifest_override", {})
+        ),
+        created_at=datetime.now(timezone.utc),
+    )
+    with Session(db_engine) as session:
+        session.add(agent)
+        session.commit()
+        session.refresh(agent)
+    return {"agent": {"id": agent.id, "name": agent.name, "status": agent.status}}
+
+
+@router.put(
+    "/agents/{agent_id}",
+    dependencies=[
+        Depends(verify_authenticated),
+        Depends(CsrfProtect().validate_csrf),
+    ],
+)
+async def update_agent(agent_id: str, payload: Dict[str, Any] = Body(...)):
+    """Update an agent record — including heartbeat_orders."""
+    with Session(db_engine) as session:
+        agent = session.get(AgentRecord, agent_id)
+        if not agent:
+            raise HTTPException(status_code=404, detail="Agent not found")
+
+        for field_name in ("name", "model", "status", "description", "system_prompt"):
+            if field_name in payload:
+                setattr(agent, field_name, payload[field_name])
+
+        if "fallback_chain" in payload:
+            agent.fallback_chain = payload["fallback_chain"]
+
+        if "heartbeat_orders" in payload:
+            orders = payload["heartbeat_orders"]
+            agent.heartbeat_orders = json.dumps(
+                orders if isinstance(orders, list) else []
+            )
+
+        if "soul_manifest_override" in payload:
+            agent.soul_manifest_override = json.dumps(
+                payload["soul_manifest_override"]
+            )
+
+        agent.updated_at = datetime.now(timezone.utc)
+        session.add(agent)
+        session.commit()
+
+    return {"status": "SUCCESS", "agent_id": agent_id}
+
+
+@router.post(
+    "/agents/delegate",
+    dependencies=[
+        Depends(verify_authenticated),
+        Depends(CsrfProtect().validate_csrf),
+    ],
+)
+async def delegate_to_agent(
+    agent_id: str = Body(...), task: str = Body(...)
+):
+    """Delegate a task to a named agent, injecting agent context."""
     if not services.orchestrator:
         raise HTTPException(status_code=503, detail="Orchestrator not ready")
-    return await services.orchestrator.multi_agent_delegate(agent_id, task)
+
+    # Inject agent identity into the objective so the orchestrator and
+    # planner know which agent persona is handling this task.
+    with Session(db_engine) as session:
+        agent = session.get(AgentRecord, agent_id)
+
+    agent_tag = f"[Agent:{agent_id}]"
+    if agent and agent.system_prompt:
+        objective = (
+            f"{agent_tag} Acting as '{agent.name}' ({agent.system_prompt[:200]}). "
+            f"Task: {task}"
+        )
+    else:
+        objective = f"{agent_tag} {task}"
+
+    return await services.orchestrator.execute_objective(
+        objective=objective, autonomy="RESTRICTED"
+    )
+
+
+@router.delete(
+    "/agents/{agent_id}",
+    dependencies=[
+        Depends(verify_authenticated),
+        Depends(CsrfProtect().validate_csrf),
+    ],
+)
+async def delete_agent(agent_id: str):
+    """Delete an agent record."""
+    with Session(db_engine) as session:
+        agent = session.get(AgentRecord, agent_id)
+        if not agent:
+            raise HTTPException(status_code=404, detail="Agent not found")
+        session.delete(agent)
+        session.commit()
+    return {"status": "DELETED"}
+
+
+@router.get(
+    "/agents/{agent_id}/heartbeat/history",
+    dependencies=[Depends(verify_authenticated)],
+)
+async def get_agent_heartbeat_history(agent_id: str, limit: int = 20):
+    """Recent heartbeat execution history for a specific agent."""
+    if HeartbeatOrderRecord is None:
+        raise HTTPException(status_code=501, detail="HeartbeatOrderRecord not yet migrated")
+    with Session(db_engine) as session:
+        records = session.exec(
+            select(HeartbeatOrderRecord)
+            .where(HeartbeatOrderRecord.agent_id == agent_id)
+            .order_by(col(HeartbeatOrderRecord.fired_at).desc())
+            .limit(limit)
+        ).all()
+    return {
+        "agent_id": agent_id,
+        "history": [
+            {
+                "order_id": r.order_id,
+                "fired_at": r.fired_at,
+                "probe_type": r.probe_type,
+                "action_type": r.action_type,
+                "outcome": r.outcome,
+                "detail": r.detail,
+                "signal_stored": r.signal_stored,
+            }
+            for r in records
+        ],
+    }
+
+
+@router.get("/heartbeat/history", dependencies=[Depends(verify_authenticated)])
+async def get_root_heartbeat_history(limit: int = 30):
+    """Recent heartbeat execution history for the root agent."""
+    if HeartbeatOrderRecord is None:
+        raise HTTPException(status_code=501, detail="HeartbeatOrderRecord not yet migrated")
+    with Session(db_engine) as session:
+        records = session.exec(
+            select(HeartbeatOrderRecord)
+            .where(HeartbeatOrderRecord.agent_id == None)  # noqa: E711
+            .order_by(col(HeartbeatOrderRecord.fired_at).desc())
+            .limit(limit)
+        ).all()
+    return {
+        "history": [
+            {
+                "order_id": r.order_id,
+                "fired_at": r.fired_at,
+                "probe_type": r.probe_type,
+                "action_type": r.action_type,
+                "outcome": r.outcome,
+                "detail": r.detail,
+            }
+            for r in records
+        ]
+    }

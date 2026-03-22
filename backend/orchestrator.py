@@ -279,8 +279,9 @@ class ExecutiveOrchestrator:
                             context_parts.append(f"- {edge['source']} MUST PRECEDE {edge['target']}")
                         context_parts.append("Ensure the plan respects this topological sort.")
 
-        except Exception:
-            pass
+        except Exception as e:
+            self.logger.error(f"[ SOUL ] Failed to load manifest: {e}")
+            self.base_manifest = {}
 
         # 2. Skills Layer
         if self.skill_manager:
@@ -293,8 +294,8 @@ class ExecutiveOrchestrator:
                         context_parts.append(f"- {s['name']}: {s['description']}")
                         if 'logic' in s and s['logic']:
                             context_parts.append(f"  Logic: {', '.join(s['logic'])}")
-            except Exception:
-                pass
+            except Exception as e:
+                self.logger.error(f"[ SKILLS ] Error scanning for skills: {e}")
 
         # 3. H-LSM Memory Context (Hierarchical Long-Short Manifold)
         # Retrieves relevant memories across all three tiers and injects
@@ -444,8 +445,8 @@ class ExecutiveOrchestrator:
                             "issues": health_report.get("issues", []),
                             "action": "SAFE_HALT"
                         })
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        self.logger.error(f"[ RUPTURE ] WebSocket broadcast failed: {e}")
                 return {
                     "status": "halted",
                     "reason": "Manifold rupture detected — g=0 safe-halt engaged",
