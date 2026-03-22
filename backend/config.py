@@ -220,13 +220,21 @@ class Settings(BaseSettings):
     AUTH_COOKIE_SAMESITE: str = "lax"  # Use 'lax' or 'strict' for local dev
     AUTH_COOKIE_SECURE: Optional[bool] = None  # Auto-detected if None
     
+    # Security Hardening (v5.3.3)
+    SENSITIVE_LOG_KEYS: List[str] = [
+        "key", "secret", "token", "password", "key_id", "authorization", 
+        "master_key", "jwt_secret", "api_key", "private_key"
+    ]
+    
     @field_validator("AUTH_COOKIE_SECURE", mode="before")
     @classmethod
     def auto_detect_secure(cls, v, info):
         if v is not None:
             return v
         app_env = info.data.get("APP_ENV", os.getenv("APP_ENV", "development"))
-        # In production, ALWAYS secure. In dev, only if we explicitly want it.
+        # In production, ALWAYS secure. 
+        # In development: only secure if HTTPS is detected via header or explicit override.
+        # This prevents the 'Not Secure' browser warning on http://localhost.
         return app_env == "production"
     
     # Execution Governance

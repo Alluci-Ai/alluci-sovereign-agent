@@ -24,6 +24,26 @@ def add_otel_trace_id(logger, method_name, event_dict):
     return event_dict
 
 
+def sensitive_masker(logger, method_name, event_dict):
+    """Redacts sensitive values based on keys defined in settings."""
+    # We import settings here to avoid circular imports during early boot
+    try:
+        from .config import settings
+        keys_to_mask = getattr(settings, "SENSITIVE_LOG_KEYS", [])
+    except (ImportError, AttributeError):
+        # Fallback if settings aren't ready
+        keys_to_mask = ["key", "secret", "token", "password", "key_id"]
+
+    for key in event_dict:
+        if any(k.lower() in key.lower() for k in keys_to_mask):
+            val = event_dict[key]
+            if isinstance(val, str) and len(val) > 8:
+                event_dict[key] = f"{val[:4]}...{val[-4:]} [REDACTED]"
+            else:
+                event_dict[key] = "[REDACTED]"
+    return event_dict
+
+
 def configure_logging(app_env: str = "development") -> None:
     """
     Configures structlog to wrap the stdlib logging module.
@@ -38,6 +58,7 @@ def configure_logging(app_env: str = "development") -> None:
     shared_processors: list = [
         structlog.contextvars.merge_contextvars,
         add_otel_trace_id,
+        sensitive_masker,  # Redact secrets before they hit the renderer
         structlog.stdlib.add_log_level,
         structlog.stdlib.add_logger_name,
         structlog.processors.TimeStamper(fmt="iso"),
