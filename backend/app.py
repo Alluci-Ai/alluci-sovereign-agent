@@ -112,26 +112,6 @@ async def global_exception_handler(request: Request, exc: Exception):
         },
     )
 
-@app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
-    """
-    Global catch-all for unhandled exceptions.
-    Excludes FastAPI/Starlette internal exceptions to avoid breaking standard behaviors.
-    """
-    if isinstance(exc, (StarletteHTTPException, RequestValidationError)):
-        # Re-raise to let FastAPI's default handlers take over
-        raise exc
-
-    logger.error(f"[ GLOBAL_ERROR ] {request.method} {request.url.path}: {exc}", exc_info=True)
-    return JSONResponse(
-        status_code=500,
-        content={
-            "status": "error", 
-            "message": "Internal Server Error",
-            "detail": str(exc) if settings.APP_ENV != "production" else "Check system logs"
-        },
-    )
-
 @app.get("/health", include_in_schema=False)
 async def health_check():
     from datetime import datetime, timezone
