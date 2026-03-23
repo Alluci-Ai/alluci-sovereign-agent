@@ -629,6 +629,29 @@ async def google_chat_event(request: Request):
     if response and response.get("body"): return {"text": response["body"]}
     return {}
 
+# --- iPhone Bridge Routes ---
+
+@router.post("/channels/iphone/pair", dependencies=[Depends(verify_authenticated)])
+async def iphone_pair(request: Request, csrf_protect: CsrfProtect = Depends(), payload: Dict[str, str] = Body(...)):
+    await csrf_protect.validate_csrf(request)
+    """
+    [ GAP-003 ] Securely pins the companion's CA certificate for TLS.
+    Body: { "cert": "-----BEGIN CERTIFICATE-----..." }
+    """
+    adapter = services.channel_registry.get("iphone")
+    if not adapter:
+        raise HTTPException(status_code=503, detail="iPhone bridge not initialized")
+    
+    cert_pem = payload.get("cert")
+    if not cert_pem:
+        raise HTTPException(status_code=400, detail="'cert' PEM is required")
+        
+    success = await adapter.store_pinned_ca(cert_pem)
+    if success:
+        return {"status": "SUCCESS", "message": "Companion CA pinned. TLS enforcement active."}
+    else:
+        raise HTTPException(status_code=500, detail="Failed to store pinned certificate")
+
 # --- iCloud & WebChat Utilities ---
 
 @router.get("/channels/imessage/permission", dependencies=[Depends(verify_authenticated)])

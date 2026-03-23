@@ -3,7 +3,8 @@ import logging
 from ..logging_config import get_logger
 from typing import Dict, Any, List
 from fastapi import APIRouter, HTTPException, Depends, Body
-from ..security.auth import verify_authenticated
+from, Request
+..security.auth import verify_authenticated
 from ..security.utils import log_system_event
 from .. import services
 from fastapi_limiter.depends import RateLimiter
@@ -15,8 +16,11 @@ MASK = "••••••••••••"
 
 router = APIRouter(tags=["Vault Operations"])
 
-@router.post("/vault/rotate", dependencies=[Depends(verify_authenticated), Depends(RateLimiter(times=10, minutes=1)), Depends(CsrfProtect().validate_csrf)])
-async def rotate_vault_keys(payload: Dict[str, str] = Body(...)):
+@router.post("/vault/rotate", dependencies=[Depends(verify_authenticated), Depends(RateLimiter(times=10, minutes=1))])
+async def rotate_vault_keys(payload: Dict[str, str] = Body(...),
+    request: Request,
+    csrf_protect: CsrfProtect = Depends(),):
+        await csrf_protect.validate_csrf(request)
     """[ ROTATE_KEYS ] Instantly re-encrypts all vaults with a new key."""
     new_key = payload.get("new_key")
     if not new_key:
@@ -33,7 +37,7 @@ async def rotate_vault_keys(payload: Dict[str, str] = Body(...)):
     await log_system_event("VAULT_ROTATE", "All Active Vaults Cryptographically Rotated", "SUCCESS")
     return {"status": "success", "message": "All Active Vaults Cryptographically Rotated"}
 
-@router.post("/vault/flush", dependencies=[Depends(verify_authenticated), Depends(CsrfProtect().validate_csrf)])
+@router.post("/vault/flush", dependencies=[Depends(verify_authenticated)])
 async def flush_vault():
     if not services.vault:
         raise HTTPException(status_code=503, detail="Vault not ready")
@@ -69,7 +73,7 @@ async def get_vault_keys():
         logger.error(f"Failed to retrieve vault keys: {e}")
         return {}
 
-@router.post("/vault/keys", dependencies=[Depends(verify_authenticated), Depends(RateLimiter(times=settings.RATE_LIMIT_PER_MINUTE, seconds=60)), Depends(CsrfProtect().validate_csrf)])
+@router.post("/vault/keys", dependencies=[Depends(verify_authenticated), Depends(RateLimiter(times=settings.RATE_LIMIT_PER_MINUTE, seconds=60))])
 async def save_vault_keys(new_keys: Dict[str, Any] = Body(...)):
     """Persists API keys, merging with existing values to preserve masked secrets."""
     if not services.vault:

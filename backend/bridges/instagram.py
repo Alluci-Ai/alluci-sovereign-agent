@@ -53,6 +53,7 @@ class InstagramBridge(BridgeAdapter, UnofficialBridgeMixin):
 
     def __init__(self, bridge_id: str, vault_root: str, vault_manager: Optional[Any] = None):
         super().__init__(bridge_id, vault_root, vault_manager)
+        self.validate_official_gate("INSTAGRAM")
         self.page_id: Optional[str] = None
         self.page_access_token: Optional[str] = None
         self.instagram_account_id: Optional[str] = None
@@ -64,7 +65,6 @@ class InstagramBridge(BridgeAdapter, UnofficialBridgeMixin):
     # ── Connection ────────────────────────────────────────────────────────────
 
     async def connect(self, credentials: Dict[str, Any]) -> bool:
-        self.validate_official_gate("INSTAGRAM")
         """
         Connect using stored credentials.
         credentials must contain page_access_token and page_id.

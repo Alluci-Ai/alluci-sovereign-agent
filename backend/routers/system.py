@@ -132,8 +132,13 @@ async def get_audit_ledger(limit: int = 50, offset: int = 0, status: Optional[st
     from ..security.audit_ledger import read_audit_log
     return await read_audit_log(limit=limit, offset=offset, status=status)
 
-@router.post("/audit/entry", dependencies=[Depends(verify_authenticated), Depends(CsrfProtect().validate_csrf)])
-async def add_audit_entry(entry: AuditEntry):
+@router.post("/audit/entry", dependencies=[Depends(verify_authenticated)])
+async def add_audit_entry(
+    request: Request,
+    csrf_protect: CsrfProtect = Depends(),
+    entry: AuditEntry = Depends(),
+):
+    await csrf_protect.validate_csrf(request)
     from ..security.audit_ledger import sync_audit_entry
     return await sync_audit_entry(entry)
 
@@ -146,9 +151,13 @@ async def get_pcl_status():
     return await services.pcl.get_status()
 
 
-@router.post("/system/pcl/cycle", dependencies=[Depends(verify_authenticated), Depends(CsrfProtect().validate_csrf)])
-async def trigger_pcl_cycle():
+@router.post("/system/pcl/cycle", dependencies=[Depends(verify_authenticated)])
+async def trigger_pcl_cycle(
+    request: Request,
+    csrf_protect: CsrfProtect = Depends(),
+):
     """Manually trigger a PCL cognitive cycle immediately."""
+    await csrf_protect.validate_csrf(request)
     if not services.pcl:
         raise HTTPException(status_code=503, detail="PCL engine not initialized")
     return await services.pcl.run_cycle()

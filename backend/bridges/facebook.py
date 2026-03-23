@@ -39,6 +39,7 @@ class FacebookBridge(BridgeAdapter, UnofficialBridgeMixin):
 
     def __init__(self, bridge_id: str, vault_root: str, vault_manager: Optional[Any] = None):
         super().__init__(bridge_id, vault_root, vault_manager)
+        self.validate_official_gate("FACEBOOK")
         self.page_id: Optional[str] = None
         self.page_access_token: Optional[str] = None
         self.page_name: Optional[str] = None
@@ -60,7 +61,6 @@ class FacebookBridge(BridgeAdapter, UnofficialBridgeMixin):
     # ── Connection ────────────────────────────────────────────────────────────
 
     async def connect(self, credentials: Dict[str, Any]) -> bool:
-        self.validate_official_gate("FACEBOOK")
         self.page_access_token = credentials.get("page_access_token")
         self.page_id           = credentials.get("page_id")
         self.page_name         = credentials.get("page_name")

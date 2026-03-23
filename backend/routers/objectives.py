@@ -15,8 +15,11 @@ from fastapi_limiter.depends import RateLimiter
 
 router = APIRouter(tags=["Objectives & Tasks"])
 
-@router.post("/objective/execute", dependencies=[Depends(verify_authenticated), Depends(RateLimiter(times=settings.RATE_LIMIT_PER_MINUTE, seconds=60)), Depends(CsrfProtect().validate_csrf)])
-async def execute_objective(req: ObjectiveRequest):
+@router.post("/objective/execute", dependencies=[Depends(verify_authenticated), Depends(RateLimiter(times=settings.RATE_LIMIT_PER_MINUTE, seconds=60))])
+async def execute_objective(req: ObjectiveRequest,
+    request: Request,
+    csrf_protect: CsrfProtect = Depends(),):
+        await csrf_protect.validate_csrf(request)
     if not services.orchestrator:
         raise HTTPException(status_code=503, detail="Orchestrator not ready")
         

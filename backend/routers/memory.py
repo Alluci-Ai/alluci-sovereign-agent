@@ -3,7 +3,8 @@ import logging
 from ..logging_config import get_logger
 from typing import Dict, Any, List, Optional
 from fastapi import APIRouter, HTTPException, Depends, Query, Body
-from ..security.auth import verify_authenticated
+from, Request
+..security.auth import verify_authenticated
 from fastapi_csrf_protect import CsrfProtect
 from .. import services
 
@@ -23,7 +24,7 @@ async def search_memory(q: str = Query(...), limit: int = 10):
         raise HTTPException(status_code=503, detail="Memory manager not ready")
     return await services.memory.search(q, limit=limit)
 
-@router.post("/memory/store", dependencies=[Depends(verify_authenticated), Depends(CsrfProtect().validate_csrf)])
+@router.post("/memory/store", dependencies=[Depends(verify_authenticated)])
 async def store_memory(data: Dict[str, Any] = Body(...)):
     if not services.memory:
         raise HTTPException(status_code=503, detail="Memory manager not ready")

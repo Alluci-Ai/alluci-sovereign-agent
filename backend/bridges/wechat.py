@@ -45,6 +45,7 @@ class WeChatBridge(BridgeAdapter, UnofficialBridgeMixin):
 
     def __init__(self, bridge_id: str, vault_root: str, vault_manager: Optional[Any] = None):
         super().__init__(bridge_id, vault_root, vault_manager)
+        self.validate_official_gate("WECHAT/WECOM")
         self._corp_id:      Optional[str] = os.getenv("WECOM_CORP_ID")
         self._corp_secret:  Optional[str] = os.getenv("WECOM_CORP_SECRET")
         self._agent_id:     Optional[str] = os.getenv("WECOM_AGENT_ID")
@@ -59,7 +60,6 @@ class WeChatBridge(BridgeAdapter, UnofficialBridgeMixin):
         """
         Connect using WeCom Corp credentials.
         """
-        self.validate_official_gate("WECHAT/WECOM")
         self._corp_id     = credentials.get("corp_id")     or self._corp_id
         self._corp_secret = credentials.get("corp_secret") or self._corp_secret
         self._agent_id    = credentials.get("agent_id")    or self._agent_id

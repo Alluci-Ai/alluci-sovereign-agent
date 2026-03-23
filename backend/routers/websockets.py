@@ -14,26 +14,31 @@ router = APIRouter(tags=["WebSockets"])
 
 def _verify_origin(websocket: WebSocket) -> bool:
     """
-    Enforces Same-Origin Policy for WebSockets to prevent Cross-Site WebSocket Hijacking (CSWH).
-    This is the WebSocket equivalent of CSRF protection.
+    Enforces Same-Origin Policy (SOP) for WebSockets to prevent Cross-Site WebSocket Hijacking (CSWH).
+    Strictly rejects connections without an Origin header or from unauthorized origins.
     """
     origin = websocket.headers.get("origin")
     if not origin:
-        # Allow connections without Origin header (e.g. native apps, curl)
-        return True
+        logger.warning("[WS] Blocked connection: Missing Origin header (CSWH risk)")
+        return False
 
     try:
         parsed_origin = urlparse(origin)
-        allowed_origins = [
-            "localhost", "127.0.0.1",
-            urlparse(os.getenv("DAEMON_PUBLIC_URL", "")).hostname
-        ]
-        if parsed_origin.hostname in allowed_origins:
+        # Combine static defaults with production public URL if set
+        public_url = os.getenv("DAEMON_PUBLIC_URL", "")
+        allowed_hosts = {"localhost", "127.0.0.1"}
+        if public_url:
+            public_host = urlparse(public_url).hostname
+            if public_host:
+                allowed_hosts.add(public_host)
+
+        if parsed_origin.hostname in allowed_hosts:
             return True
         
         logger.warning(f"[WS] Blocked connection from unauthorized origin: {origin}")
         return False
-    except Exception:
+    except Exception as exc:
+        logger.error(f"[WS] Origin validation error: {exc}")
         return False
 
 async def authenticate_ws(websocket: WebSocket, token: str):

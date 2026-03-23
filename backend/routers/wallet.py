@@ -3,7 +3,8 @@ import logging
 from ..logging_config import get_logger
 from typing import Dict, Any, List, Optional
 from fastapi import APIRouter, HTTPException, Depends, Body
-from ..security.auth import verify_authenticated
+from, Request
+..security.auth import verify_authenticated
 from .. import services
 from fastapi_limiter.depends import RateLimiter
 from fastapi_csrf_protect import CsrfProtect
@@ -25,7 +26,7 @@ async def get_wallet_balance():
     if not adapter: return {"balance": 0, "currency": "VRSC"}
     return await adapter.get_balance()
 
-@router.post("/wallet/send", dependencies=[Depends(verify_authenticated), Depends(RateLimiter(times=10, minutes=1)), Depends(CsrfProtect().validate_csrf)])
+@router.post("/wallet/send", dependencies=[Depends(verify_authenticated), Depends(RateLimiter(times=10, minutes=1))])
 async def wallet_send(data: Dict[str, Any] = Body(...)):
     adapter = services.channel_registry.get("verus_wallet")
     if not adapter: raise HTTPException(503, "Wallet adapter not loaded")
@@ -43,7 +44,7 @@ async def get_node_status():
     if not adapter: raise HTTPException(503, "Wallet adapter not loaded")
     return await adapter.get_node_status()
 
-@router.post("/wallet/node/action", dependencies=[Depends(verify_authenticated), Depends(CsrfProtect().validate_csrf)])
+@router.post("/wallet/node/action", dependencies=[Depends(verify_authenticated)])
 async def wallet_node_action(data: Dict[str, Any] = Body(...)):
     adapter = services.channel_registry.get("verus_wallet")
     if not adapter: raise HTTPException(503, "Wallet adapter not loaded")

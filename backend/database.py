@@ -51,10 +51,66 @@ def _enable_wal_mode():
         except Exception as e:
             logger.warning(f"Failed to enable WAL mode: {e}")
 
+def apply_sqlite_migrations():
+    """
+    Runs raw SQL migration scripts for SQLite (e.g., FTS5) that Alembic
+    cannot easily manage without manual intervention.
+    """
+    if "sqlite" not in db_url:
+        return
+
+    migrations_dir = os.path.join(os.path.dirname(__file__), "migrations/raw_sql")
+    if not os.path.exists(migrations_dir):
+        logger.debug(f"Target raw SQL migration directory not found: {migrations_dir}")
+        return
+
+    # Sort files to ensure deterministic execution order
+    sql_files = sorted([f for f in os.listdir(migrations_dir) if f.endswith(".sql")])
+    if not sql_files:
+        return
+
+    logger.info(f"Applying {len(sql_files)} raw SQL migrations to SQLite...")
+    with engine.connect() as conn:
+        for sql_file in sql_files:
+            file_path = os.path.join(migrations_dir, sql_file)
+            try:
+                with open(file_path, "r") as f:
+                    sql_script = f.read()
+                
+                # We execute each file as a single transaction if possible,
+                # but most FTS5 scripts are designed to be idempotent.
+                conn.exec_driver_sql(sql_script)
+                conn.commit()
+                logger.info(f"  Applied: {sql_file}")
+            except Exception as e:
+                logger.error(f"  Failed to apply raw migration {sql_file}: {e}")
+                # We continue to next file as these are usually idempotent CREATE IF NOT EXISTS
+
 def create_db_and_tables():
-    """Initializes the database schema and performs environment-specific tuning."""
-    SQLModel.metadata.create_all(engine)
+    """
+    Initializes the database schema and performs environment-specific tuning.
+    
+    [ GAP-001 ] This function is guarded in production. Schema changes in production
+    MUST be handled via Alembic migrations (backend/migrations).
+    """
+    if settings.APP_ENV == "production":
+        logger.warning("create_db_and_tables() ignored in PRODUCTION. Use Alembic migrations.")
+        # We still perform performance tuning (WAL mode)
+        _enable_wal_mode()
+        return
+
+    logger.info(f"Initializing database schema (Env: {settings.APP_ENV})...")
+    try:
+        SQLModel.metadata.create_all(engine)
+        logger.info("  SQLModel schema initialized.")
+    except Exception as e:
+        logger.error(f"  Failed to initialize SQLModel schema: {e}")
+
     _enable_wal_mode()
+    
+    # FTS5 is required even if table already exists (CREATE VIRTUAL TABLE IF NOT EXISTS)
+    apply_sqlite_migrations()
+    logger.info("Database initialization complete.")
 
 def get_session():
     """Context manager for database sessions. Used as a FastAPI dependency."""

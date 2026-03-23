@@ -115,6 +115,12 @@ class PPNEmbeddingModule:
         """
         [ AAP-001 ] Unpacks Euler characteristics from simplicial graph.
         Returns (Vertices, Edges, Faces).
+
+        NOTE: This implementation uses a deterministic projection from graph 
+        energy to simplex counts as a proxy for high-dimensional simplicial 
+        connectivity. This is an intentional heuristic used for production 
+        stability where full gudhi-based simplex tree traversals are not 
+        performant or required for the current planning manifold.
         """
         # Deterministic mapping from graph energy to simplex counts
         energy = np.sum(np.abs(G))

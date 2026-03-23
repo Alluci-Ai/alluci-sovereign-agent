@@ -8,7 +8,8 @@ from datetime import date
 from typing import Dict, Any, List, Optional
 from fastapi import APIRouter, HTTPException, Depends, Query, Body
 from sqlmodel import Session, select, col
-from ..security.auth import verify_authenticated
+from, Request
+..security.auth import verify_authenticated
 from ..database import engine as db_engine
 from ..models import SessionConfig, AgentRecord
 from fastapi_csrf_protect import CsrfProtect
@@ -137,7 +138,6 @@ async def get_agent(agent_id: str):
     "/agents",
     dependencies=[
         Depends(verify_authenticated),
-        Depends(CsrfProtect().validate_csrf),
     ],
 )
 async def create_agent(payload: Dict[str, Any] = Body(...)):
@@ -167,7 +167,6 @@ async def create_agent(payload: Dict[str, Any] = Body(...)):
     "/agents/{agent_id}",
     dependencies=[
         Depends(verify_authenticated),
-        Depends(CsrfProtect().validate_csrf),
     ],
 )
 async def update_agent(agent_id: str, payload: Dict[str, Any] = Body(...)):
@@ -206,7 +205,6 @@ async def update_agent(agent_id: str, payload: Dict[str, Any] = Body(...)):
     "/agents/delegate",
     dependencies=[
         Depends(verify_authenticated),
-        Depends(CsrfProtect().validate_csrf),
     ],
 )
 async def delegate_to_agent(
@@ -239,7 +237,6 @@ async def delegate_to_agent(
     "/agents/{agent_id}",
     dependencies=[
         Depends(verify_authenticated),
-        Depends(CsrfProtect().validate_csrf),
     ],
 )
 async def delete_agent(agent_id: str):

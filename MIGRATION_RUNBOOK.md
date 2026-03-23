@@ -66,6 +66,18 @@ Alembic's `env.py` is configured to automatically strip the `+asyncpg` suffix to
 - **Rollback one step**: `alembic downgrade -1`
 - **Rollback to base**: `alembic downgrade base`
 
+## 8. FTS5 & Raw SQL Migrations
+Alembic does not natively support SQLite's `VIRTUAL TABLE` syntax for FTS5 without significant custom dialect hacking. For this reason, the agent uses a **Raw SQL Runner**:
+
+1. Place raw `.sql` files in `backend/migrations/raw_sql/`.
+2. Files are automatically executed by `apply_sqlite_migrations()` in `database.py` during app startup (in non-production).
+3. These scripts should be idempotent (e.g., `CREATE VIRTUAL TABLE IF NOT EXISTS`).
+
+## 9. Production Safety Guard
+To prevent accidental data loss, `create_db_and_tables()` in `database.py` is **disabled in production**:
+- It will log a warning and return immediately if `APP_ENV=production`.
+- This ensures that only well-vetted Alembic migrations can modify the schema in live environments.
+
 ## 7. Troubleshooting
 - **IsSQLite Error**: If a migration fails with "batch mode" errors on PostgreSQL, ensure `render_as_batch=False` is set in `env.py` (our `env.py` handles this automatically).
 - **PYTHONPATH Issues**: Always ensure the root directory is on your `PYTHONPATH` so Alembic can find the `backend` module.
