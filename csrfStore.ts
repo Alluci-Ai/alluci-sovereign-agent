@@ -5,10 +5,12 @@ export const setCsrfToken = (token: string | null) => {
   _csrfToken = token;
 };
 
-export const getCsrfToken = async (daemonUrl: string, accessToken: string | null): Promise<string | null> => {
-  if (_csrfToken) return _csrfToken;
+export const getCsrfToken = async (daemonUrl: string, accessToken: string | null, forceRefresh = false): Promise<string | null> => {
+  if (_csrfToken && !forceRefresh) return _csrfToken;
   try {
-    const headers: Record<string, string> = {};
+    const headers: Record<string, string> = {
+        'Accept': 'application/json'
+    };
     if (accessToken) {
       headers['Authorization'] = `Bearer ${accessToken}`;
     }
@@ -16,7 +18,10 @@ export const getCsrfToken = async (daemonUrl: string, accessToken: string | null
       credentials: 'include',
       headers: headers
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+        console.warn("CSRF Token Fetch Failed:", res.status);
+        return null;
+    }
     const data = await res.json();
     _csrfToken = data.csrf_token;
     return _csrfToken;

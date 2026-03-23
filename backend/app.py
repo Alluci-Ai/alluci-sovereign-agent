@@ -186,10 +186,50 @@ async def add_security_headers(request: Request, call_next):
 MAX_SIZE = 10 * 1024 * 1024  # 10MB
 @app.middleware("http")
 async def limit_request_size(request: Request, call_next):
-    if request.method in ["POST", "PUT", "PATCH"]:
+    if request.method in ["POST", "PUT", "PATCH", "DELETE"]:
         content_length = request.headers.get("content-length")
         if content_length and int(content_length) > MAX_SIZE:
             return JSONResponse(status_code=413, content={"detail": "Request Entity Too Large"})
+    return await call_next(request)
+
+# SEC-004: Global CSRF Validation for Mutating Routes
+@app.middleware("http")
+async def csrf_protect_middleware(request: Request, call_next):
+    """
+    Enforces CSRF protection for all POST, PUT, PATCH, and DELETE operations
+    within the /api/v1/ prefix, excluding authentication entry points.
+    """
+    if request.method in ["POST", "PUT", "PATCH", "DELETE"]:
+        path = request.url.path
+        # Skip CSRF for login/auth entry points and health checks
+        skip_paths = [
+            "/api/v1/auth/login",
+            "/api/v1/auth/verusid/callback",
+            "/api/v1/auth/webauthn/verify",
+            "/api/v1/auth/csrf-token", # Allow getting the token
+            "/api/v1/auth/webauthn/assertion/verify" # WebAuthn login assertion
+        ]
+        
+        if path.startswith("/api/v1") and path not in skip_paths:
+            from fastapi_csrf_protect import CsrfProtect
+            from fastapi_csrf_protect.exceptions import CsrfProtectError
+            
+            csrf = CsrfProtect()
+            try:
+                await csrf.validate_csrf(request)
+            except CsrfProtectError as e:
+                logger.warning(f"[ CSRF_BLOCK ] {request.method} {path}: {e.message}")
+                return JSONResponse(
+                    status_code=403, 
+                    content={"status": "error", "message": "CSRF validation failed", "detail": e.message}
+                )
+            except Exception as e:
+                logger.error(f"[ CSRF_ERROR ] {request.method} {path}: {str(e)}")
+                return JSONResponse(
+                    status_code=403, 
+                    content={"status": "error", "message": "CSRF validation error"}
+                )
+                
     return await call_next(request)
 
 from .security.auth import verify_authenticated

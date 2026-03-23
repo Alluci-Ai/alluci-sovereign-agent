@@ -3,6 +3,7 @@ import { PolytopeIdentity } from './Identity';
 import PersonalityField from './PersonalityField';
 import { SkillManifest } from '../types';
 import { useStore } from '../store/useStore';
+import { getCsrfToken } from '../csrfStore';
 
 const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
 
@@ -328,11 +329,13 @@ const SkillBuilderWizard: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
     try {
       // 1. Get real cryptographic signature from the backend
+      const csrfToken = await getCsrfToken(DAEMON_URL, token);
       const signRes = await fetch(`${DAEMON_URL}/api/v1/skill/sign`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {})
         },
         body: JSON.stringify(manifest)
       });
@@ -352,11 +355,13 @@ const SkillBuilderWizard: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         publicKey: "pub_local_vault"
       };
 
+      const csrfToken2 = await getCsrfToken(DAEMON_URL, token, true); // Refresh for next call if needed, or just reuse
       const res = await fetch(`${DAEMON_URL}/api/v1/skills`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          ...(csrfToken2 ? { 'X-CSRF-Token': csrfToken2 } : {})
         },
         body: JSON.stringify(payload)
       });

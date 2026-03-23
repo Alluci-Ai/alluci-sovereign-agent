@@ -2,6 +2,7 @@
 import { GoogleGenAI, LiveServerMessage, Modality, Blob, GenerateContentResponse, FunctionDeclaration, Type } from '@google/genai';
 import { AuditLedger, generateSystemPrompt } from './alluciCore';
 import { PersonalityTraits, Connection, SkillManifest, SoulManifest } from './types';
+import { getCsrfToken } from './csrfStore';
 
 // Exported GroundingSource for UI reference list
 export interface GroundingSource {
@@ -76,7 +77,9 @@ export class AlluciGeminiService {
    * Only available when VITE_GEMINI_API_KEY is set at build time.
    */
   private getApiKey(): string | null {
-    return import.meta.env.VITE_GEMINI_API_KEY || null;
+    // SECURITY: Direct API key usage is disabled in production to prevent exposure.
+    // All requests must be routed through the backend proxy.
+    return null; 
   }
 
   // Added sendVideoFrame to handle streaming image frames to the Live API session
@@ -239,9 +242,14 @@ export class AlluciGeminiService {
       };
 
       const token = this.getAuthToken();
+      const csrfToken = await getCsrfToken(this.DAEMON_URL, token);
+      
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
+      }
+      if (csrfToken) {
+        headers['X-CSRF-Token'] = csrfToken;
       }
 
       const response = await fetch(`${this.DAEMON_URL}/api/v1/objective/execute`, {
@@ -271,11 +279,17 @@ export class AlluciGeminiService {
     const token = this.getAuthToken();
     if (token) {
       try {
+        const csrfToken = await getCsrfToken(this.DAEMON_URL, token);
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+        };
+        if (csrfToken) {
+            headers['X-CSRF-Token'] = csrfToken;
+        }
+
         const response = await fetch(`${this.DAEMON_URL}/api/v1/gemini/proxy`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: headers,
           body: JSON.stringify({ prompt: text, complexity: 'MEDIUM' }),
           credentials: 'include'
         });

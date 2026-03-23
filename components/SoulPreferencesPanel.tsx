@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { PolytopeIdentity } from './Identity';
 import PersonalityField from './PersonalityField';
 import { SoulPreferences, SoulHumor, SoulConciseness, SoulManifest, SkillManifest } from '../types';
+import { getCsrfToken } from '../csrfStore';
 import SkillBuilderWizard from './SkillBuilderWizard';
 import { SKILL_DATABASE } from '../knowledge';
 import { HeartbeatOrderEditor } from '../features/heartbeat/HeartbeatOrderEditor';
@@ -178,9 +179,14 @@ const IdentityForge: React.FC<{ onClose: () => void; onManifestUpdate?: (manifes
         setSaving(true);
         const token = localStorage.getItem('alluci_daemon_token');
         try {
+            const csrfToken = await getCsrfToken(DAEMON_URL, token);
             const res = await fetch(`${DAEMON_URL}/api/v1/soul/manifest`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+                headers: { 
+                    'Content-Type': 'application/json', 
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+                    ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {})
+                },
                 body: JSON.stringify(manifest)
             });
             if (res.ok) { setIsDirty(false); }

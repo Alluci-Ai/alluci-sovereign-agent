@@ -1,0 +1,26 @@
+body {
+    background: var(--bg-base);
+    min-height: 100vh;
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-variant-ligatures: none;
+    margin: 0;
+    overflow-x: hidden;
+    cursor: default;
+    transition: background 0.25s ease, color 0.25s ease;
+}
+
+.input-active:focus {
+    outline: none;
+}
+
+.ground-truth {
+    font-variant-ligatures: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+@media (max-width: 768px) {
+    .glass-label { letter-spacing: 0.10em; }
+}

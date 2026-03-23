@@ -18,74 +18,15 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <title>Polytope — Sovereign OS</title>
     <link rel="stylesheet" href="/styles/tokens.css">
+    <link rel="stylesheet" href="/styles/layout.css">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <link
         href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap"
         rel="stylesheet">
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        void: 'var(--bg-base)',
-                        deep: 'var(--bg-elevated)',
-                        glass1: 'var(--glass-bg)',
-                        glass2: 'var(--glass-bg-hover)',
-                        manifold: 'var(--bg-base)',
-                        sovereign: 'var(--accent-secondary)',
-                        zinc: 'var(--text-secondary)',
-                        tension: 'var(--accent-warm)',
-                        agent: 'var(--accent)',
-                        flux: 'var(--accent-secondary)'
-                    },
-                    fontFamily: {
-                        mono: ['var(--font-mono)', '"JetBrains Mono"', 'monospace'],
-                        sans: ['var(--font-body)', 'Inter', 'sans-serif'],
-                        display: ['var(--font-display)', 'Inter', 'sans-serif']
-                    }
-                }
-            }
-        }
-    </script>
-    <script>
-        // Initialize theme from localStorage before paint to prevent flash
-        (function() {
-            const theme = localStorage.getItem('alluci_theme') || 'dark';
-            document.documentElement.setAttribute('data-theme', theme);
-        })();
-    </script>
-    <style>
-        body {
-            background: var(--bg-base);
-            min-height: 100vh;
-            color: var(--text-primary);
-            font-family: var(--font-body);
-            font-variant-ligatures: none;
-            margin: 0;
-            overflow-x: hidden;
-            cursor: default;
-            transition: background 0.25s ease, color 0.25s ease;
-        }
-
-        .input-active:focus {
-            outline: none;
-        }
-
-        .ground-truth {
-            font-variant-ligatures: none;
-        }
-
-        .scrollbar-hide::-webkit-scrollbar { display: none; }
-        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-
-        @media (max-width: 768px) {
-            .glass-label { letter-spacing: 0.10em; }
-        }
-    </style>
-    <link rel="stylesheet" href="/index.css">
+    <script src="/scripts/config.js"></script>
+    <script src="/scripts/theme.js"></script>
 </head>
-
 <body class="bg-void">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
