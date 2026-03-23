@@ -2,17 +2,10 @@ import React, { Suspense } from 'react';
 import { useStore } from '../store/useStore';
 import { ErrorBoundary } from './ErrorBoundary';
 
-// Features
+// Features (from root features/)
 import TerminalView from '../features/terminal/TerminalView';
 import CommandBar from '../features/terminal/CommandBar';
 import AuditChainPanel from '../features/system/AuditChainPanel';
-import LiveCanvas from './LiveCanvas';
-import SoulPreferencesPanel from './SoulPreferencesPanel';
-import SkillBuilderWizard from './SkillBuilderWizard';
-import ApiWizard from './ApiWizard';
-import { TaskPanel } from './TaskPanel';
-import BridgeCenter from './BridgeCenter';
-import { SkillGrid } from './SkillGrid';
 import { AbortButton } from '../features/chat/AbortButton';
 import { ModelFallbackBanner } from '../features/chat/ModelFallbackBanner';
 import { SessionsPanel } from '../features/sessions/SessionsPanel';
@@ -28,9 +21,18 @@ import { MemoryPanel } from '../features/memory/MemoryPanel';
 import { DAGPanel } from '../features/dag/DAGPanel';
 import PVTDashboard from '../features/observability/PVTDashboard';
 
+// Components (from root components/)
+import LiveCanvas from './LiveCanvas';
+import SoulPreferencesPanel from './SoulPreferencesPanel';
+import SkillBuilderWizard from './SkillBuilderWizard';
+import ApiWizard from './ApiWizard';
+import { TaskPanel } from './TaskPanel';
+import BridgeCenter from './BridgeCenter';
+import { SkillGrid } from './SkillGrid';
+
 interface ViewManifoldProps {
-  geminiServiceRef: any;
-  bridgeManagerRef: any;
+  geminiServiceRef: React.RefObject<any>;
+  bridgeManagerRef: React.RefObject<any>;
   fetchSkills: () => void;
   startAuthFlow: (conn: any) => void;
   handleSocialAction: (id: string, action: string, params: any) => void;
@@ -38,12 +40,12 @@ interface ViewManifoldProps {
   handlePulse: (id: string) => void;
   saveApiKeysToDaemon: (keys: any) => void;
   refreshAuditLog: () => void;
-  abortControllerRef: any;
-  fileInputRef: any;
-  handleFileChange: (e: any) => void;
-  handleCommandSubmit: (e: any) => void;
-  handlePaste: (e: any) => void;
-  removeAttachment: (idx: number) => void;
+  abortControllerRef: React.RefObject<AbortController | null>;
+  fileInputRef: React.RefObject<HTMLInputElement | null>;
+  handleFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  handleCommandSubmit: (e?: React.FormEvent) => void;
+  handlePaste: (e: React.ClipboardEvent) => void;
+  removeAttachment: (id: string) => void;
 }
 
 const ViewManifold: React.FC<ViewManifoldProps> = ({
@@ -86,7 +88,10 @@ const ViewManifold: React.FC<ViewManifoldProps> = ({
         <div className="inline-panel-wrapper">
           <SoulPreferencesPanel
             onClose={() => setActiveView('chat')}
-            onManifestUpdate={(m) => { setBaseManifest(m); geminiServiceRef.current?.setPersonality(m); }}
+            onManifestUpdate={(m) => { 
+                setBaseManifest(m); 
+                geminiServiceRef.current?.setPersonality(m); 
+            }}
           />
         </div>
       );
@@ -99,7 +104,7 @@ const ViewManifold: React.FC<ViewManifoldProps> = ({
             <SkillGrid
               skills={skills}
               onSelect={setSelectedSkill}
-              onToggle={(id) => setSkills(skills.map(x => x.id === id ? { ...x, verified: !x.verified } : x))}
+              onToggle={(id) => setSkills(prev => prev.map(x => x.id === id ? { ...x, verified: !x.verified } : x))}
               onDelete={() => { }}
               onCreate={() => setShowSkillWizard(true)}
             />
@@ -153,16 +158,16 @@ const ViewManifold: React.FC<ViewManifoldProps> = ({
       return <div className="inline-panel-wrapper"><AuditChainPanel refreshAuditLog={refreshAuditLog} /></div>;
     case 'canvas':
       return <div className="flex-1 p-4 md:p-8"><LiveCanvas nodes={canvasNodes} /></div>;
-    case 'sessions': return <SessionsPanel />;
-    case 'analytics': return <AnalyticsPanel />;
-    case 'config': return <ConfigPanel />;
-    case 'node': return <NodePanel />;
-    case 'logs': return <LogPanel />;
-    case 'crons': return <div className="inline-panel-wrapper"><CronPanel /></div>;
-    case 'agents': return <AgentsPanel />;
-    case 'debug': return <DebugPanel />;
-    case 'dag': return <DAGPanel />;
-    case 'pvt': return <PVTDashboard />;
+    case 'sessions': return <Suspense fallback={null}><SessionsPanel /></Suspense>;
+    case 'analytics': return <Suspense fallback={null}><AnalyticsPanel /></Suspense>;
+    case 'config': return <Suspense fallback={null}><ConfigPanel /></Suspense>;
+    case 'node': return <Suspense fallback={null}><NodePanel /></Suspense>;
+    case 'logs': return <Suspense fallback={null}><LogPanel /></Suspense>;
+    case 'crons': return <div className="inline-panel-wrapper"><Suspense fallback={null}><CronPanel /></Suspense></div>;
+    case 'agents': return <Suspense fallback={null}><AgentsPanel /></Suspense>;
+    case 'debug': return <Suspense fallback={null}><DebugPanel /></Suspense>;
+    case 'dag': return <Suspense fallback={null}><DAGPanel /></Suspense>;
+    case 'pvt': return <Suspense fallback={null}><PVTDashboard /></Suspense>;
     case 'chat':
     default:
       return (
