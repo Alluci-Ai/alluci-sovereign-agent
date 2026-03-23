@@ -2,6 +2,7 @@
 import logging
 from ..logging_config import get_logger
 from typing import Dict, Any, List
+from pydantic import BaseModel, Field
 from fastapi import APIRouter, HTTPException, Depends, Body, Request
 from ..security.auth import verify_authenticated
 from ..security.utils import log_system_event

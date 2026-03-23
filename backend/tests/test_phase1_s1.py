@@ -53,7 +53,7 @@ def test_metrics_endpoint():
     client = TestClient(app)
     response = client.get("/metrics")
     assert response.status_code == 200
-    assert "alluci_uptime_seconds_total" in response.text
+    assert "alluci_http_requests_total" in response.text
 
 def test_health_enhancements():
     from backend.app import app

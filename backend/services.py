@@ -34,6 +34,7 @@ logger = get_logger("PolytopeServices")
 
 # Global Service Instances
 vault: Optional[VaultManager] = None
+vault_manager: Optional[VaultManager] = None
 router: Optional[ModelRouter] = None
 ace: Optional[AffectiveEngine] = None
 orchestrator: Optional[ExecutiveOrchestrator] = None
@@ -100,6 +101,7 @@ async def init_services(app_instance):
 
     # 3. Security Layer
     vault = VaultManager(settings.POLYTOPE_MASTER_KEY)
+    globals()["vault_manager"] = vault
     sovereign_identity = SovereignIdentity(settings)
 
     # 4. Inference Layer

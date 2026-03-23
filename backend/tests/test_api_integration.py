@@ -100,7 +100,7 @@ class TestTasksAPI:
         if tasks:
             task_idx = tasks[0]["index"]
             update_res = app_client.put(
-                f"/tasks/{task_idx}",
+                f"/api/v1/tasks/{task_idx}",
                 json={"description": tasks[0]["description"], "completed": True,
                       "priority": "LOW", "due_date": None},
                 headers=auth_headers
@@ -120,7 +120,7 @@ class TestTasksAPI:
         tasks = list_res.json()
         if tasks:
             idx = tasks[-1]["index"]
-            del_res = app_client.delete(f"/tasks/{idx}", headers=auth_headers)
+            del_res = app_client.delete(f"/api/v1/tasks/{idx}", headers=auth_headers)
             assert del_res.status_code == 200
 
 

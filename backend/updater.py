@@ -84,43 +84,14 @@ class UpdateManager:
 
     async def perform_update(self) -> Dict[str, Any]:
         """
-        Pulls code, installs requirements, migrates database, and triggers a restart.
-        Requires authenticated administrative approval.
+        [ DEPRECATED ] In-place updates are disabled for production safety. 
+        Updates should be performed via the artifact-based deployment pipeline (Docker / CI).
         """
-        if not self.update_available:
-            return {"ok": False, "error": "No update available."}
-
-        logger.critical(f"[ UPDATER ] INITIATING SELF-UPDATE TO v{self.latest_version}...")
-        
-        try:
-            # 1. Pull Git Origin
-            logger.info("[ UPDATER ] Syncing manifold codebase via git...")
-            pull_res = subprocess.run(["git", "pull", "origin", "main"], capture_output=True, text=True)
-            if pull_res.returncode != 0:
-                return {"ok": False, "error": f"Git Pull Failed: {pull_res.stderr}"}
-
-            # 2. Update Python dependencies
-            logger.info("[ UPDATER ] Refreshing dependencies from requirements.txt...")
-            pip_res = subprocess.run([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"], capture_output=True, text=True)
-            if pip_res.returncode != 0:
-                logger.warning(f"[ UPDATER ] Pip update issues (likely ignored): {pip_res.stderr}")
-
-            # 3. Apply Schema Migrations
-            logger.info("[ UPDATER ] Re-anchoring data schema via Alembic...")
-            migrate_res = subprocess.run(["alembic", "upgrade", "head"], capture_output=True, text=True)
-            if migrate_res.returncode != 0:
-                return {"ok": False, "error": f"Migration Failed: {migrate_res.stderr}"}
-
-            # 4. Trigger Restart
-            # We schedule a hard exit. The supervisor (docker, systemd) will bring us back.
-            logger.critical("[ UPDATER ] SUCCESS. SYSTEM REBOOT IN 3 SECONDS.")
-            asyncio.get_event_loop().call_later(3, lambda: sys.exit(0))
-            
-            return {"ok": True, "message": "Update sequence successfully initiated. Rebooting..."}
-
-        except Exception as e:
-            logger.error(f"[ UPDATER ] Update Failure: {e}")
-            return {"ok": False, "error": str(e)}
+        logger.warning("[ UPDATER ] Blocked: In-place update attempted. Use deployment pipeline.")
+        return {
+            "ok": False, 
+            "error": "In-place updates are disabled. Please deploy a new container image/artifact."
+        }
 
     def get_status(self) -> Dict[str, Any]:
         return {

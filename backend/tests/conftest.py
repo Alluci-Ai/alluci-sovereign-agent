@@ -251,6 +251,13 @@ def app_client(mock_settings, temp_db):
     with patch("backend.config.load_settings", return_value=mock_settings):
 
         from backend.app import app
+        from backend.security.auth import init_jwt_keys
+        from cryptography.hazmat.primitives.asymmetric import rsa
+        
+        # Initialize RS256 keys for testing
+        private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        public_key = private_key.public_key()
+        init_jwt_keys(private_key, public_key)
 
         # Inject mocked services
         services.vault = MagicMock()

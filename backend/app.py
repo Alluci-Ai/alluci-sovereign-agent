@@ -4,25 +4,28 @@ import contextlib
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, Response, Depends
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from secure import Secure
+from fastapi_limiter.depends import RateLimiter
 
 from .config import settings
-from .logging_config import get_logger
-
-logger = get_logger("PolytopeApp")
+from .logging_config import get_logger, configure_logging
+from .tracing_config import configure_tracing
 from . import services
 from .security.rate_limiter import get_fallback_limiter
 
-# Patch RateLimiter to fall back to in-memory sliding window when Redis is absent.
+logger = get_logger("PolytopeApp")
+
 _original_limiter_call = RateLimiter.__call__
 
 async def _resilient_limiter_call(self, request: Request, response: Response):
     if services.redis_client:
         return await _original_limiter_call(self, request, response)
-    else:
-        times = getattr(self, "times", 60)
-        seconds = getattr(self, "seconds", 60)
-        await get_fallback_limiter().check(request, times=times, seconds=seconds)
+
+    times = getattr(self, "times", 60)
+    seconds = getattr(self, "seconds", 60)
+    minutes = getattr(self, "minutes", None)
+    if minutes is not None:
+        seconds = minutes * 60
+    await get_fallback_limiter().check(request, times=times, seconds=seconds)
 
 RateLimiter.__call__ = _resilient_limiter_call
 from .routers import auth, objectives, telemetry, system, vault, channels, voice, crons, wallet, sessions, config, soul, exec_approval, tasks, dag, websockets, memory, goals, sop
@@ -38,9 +41,6 @@ async def global_rate_limit(request: Request, response: Response):
     if services.redis_client:
         return await RateLimiter(times=settings.RATE_LIMIT_PER_MINUTE, seconds=60)(request, response)
 
-from .logging_config import configure_logging
-from .tracing_config import configure_tracing
-
 # global initialization outside lifespan to avoid recursive instrumentation hooks
 configure_logging(app_env=settings.APP_ENV)
 
@@ -51,7 +51,7 @@ async def lifespan(app: FastAPI):
 
     # SEC-001: Initialize RS256 JWT keypair from vault
     from .security.auth import init_jwt_keys
-    private_key, public_key = await services.vault_manager.get_or_create_jwt_keypair()
+    private_key, public_key = await services.vault.get_or_create_jwt_keypair()
     init_jwt_keys(private_key, public_key)
     logger.info("[ JWT ] RS256 keypair loaded from vault.")
     

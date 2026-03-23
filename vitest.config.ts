@@ -36,10 +36,10 @@ export default defineConfig({
       // Thresholds are intentionally conservative to match current test surface.
       // Raise by 10% per sprint as tests are added (target: 80% by Q3 2026).
       thresholds: {
-        lines: 10,
-        functions: 10,
-        branches: 8,
-        statements: 10,
+        lines: 55,
+        functions: 55,
+        branches: 45,
+        statements: 55,
       },
     },
   },

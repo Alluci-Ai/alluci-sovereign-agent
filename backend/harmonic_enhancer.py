@@ -203,7 +203,7 @@ class HarmonicAssistant:
             base_impact = (semantic_relevance * 0.7) + (psi * 0.3)
             
             # P = clamp(...) * FocusPenalty
-            raw_p = (base_impact * 0.5) + (combined_score * 0.3) + (novelty * 0.2)
+            raw_p = (base_impact * 0.5) + (combined_score * 0.3) + (structural_novelty * 0.2)
             p = max(0.0, min(1.0, raw_p)) * (0.5 + (0.5 * focus_penalty)) # Soften penalty
             
             # Ikigai Boost

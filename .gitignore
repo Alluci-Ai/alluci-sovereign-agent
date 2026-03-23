@@ -63,3 +63,11 @@ heartbeat_state.json
 
 # Dev Scripts
 scripts/dev/
+
+# Local TLS and cert material
+certs/
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
