@@ -45,7 +45,7 @@ class BTMMapper:
 
         # === B. TENSION: torsion mapping ===
         # tension = clamp(torsion_score × 1024, 0, 1024)
-        # Alluci proxy: stress_score / 100 = torsion [0..1]
+        # Alluci calculation: stress_score / 100 = torsion [0..1]
         tension = 0.0
         if data.stress_score is not None:
             torsion = min(1.0, data.stress_score / 100.0)

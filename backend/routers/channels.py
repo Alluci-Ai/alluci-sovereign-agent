@@ -4,7 +4,7 @@ import secrets
 import os
 import asyncio
 from typing import Dict, Any, Optional
-from fastapi import APIRouter, HTTPException, Depends, Query, Body, Request, Response
+from fastapi import APIRouter, HTTPException, Depends, Body, Query, Header, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse
 from ..security.auth import verify_authenticated
 from .. import services

@@ -1,5 +1,5 @@
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { WalletPanel } from './WalletPanel';
 import { useStore } from '../../store/useStore';
 
@@ -16,19 +16,24 @@ vi.mock('./WalletMining', () => ({ WalletMining: () => <div data-testid="wallet-
 vi.mock('./NodePanel', () => ({ NodePanel: () => <div data-testid="node-panel" /> }));
 
 describe('WalletPanel', () => {
-    const mockSetWalletMode = vi.fn();
-    const mockSetWalletStatus = vi.fn();
+    const storeState = {
+        accessToken: 'mock-token',
+        walletMode: 'lite',
+        walletStatus: 'offline',
+        setWalletMode: vi.fn((m) => { storeState.walletMode = m; }),
+        setWalletStatus: vi.fn((s) => { storeState.walletStatus = s; }),
+    };
 
     beforeEach(() => {
         vi.clearAllMocks();
-        vi.useFakeTimers();
-        (useStore as any).mockReturnValue({
-            accessToken: 'mock-token',
-            walletMode: 'lite',
-            setWalletMode: mockSetWalletMode,
-            walletStatus: 'offline',
-            setWalletStatus: mockSetWalletStatus
-        });
+        vi.useRealTimers();
+        storeState.walletMode = 'lite';
+        storeState.walletStatus = 'offline';
+        (useStore as any).mockReturnValue(storeState);
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
     });
 
     it('renders loading state initially', async () => {
@@ -59,7 +64,7 @@ describe('WalletPanel', () => {
             expect(screen.getByTestId('wallet-overview')).toBeInTheDocument();
         });
 
-        expect(mockSetWalletStatus).toHaveBeenCalledWith('synced');
+        expect(storeState.setWalletStatus).toHaveBeenCalledWith('synced');
         expect(screen.getByText('System Online')).toBeInTheDocument();
     });
 
@@ -78,7 +83,7 @@ describe('WalletPanel', () => {
         fireEvent.click(screen.getByText('Go Sovereign'));
 
         expect(window.confirm).toHaveBeenCalled();
-        expect(mockSetWalletMode).toHaveBeenCalledWith('sovereign');
+        expect(storeState.setWalletMode).toHaveBeenCalledWith('sovereign');
         
         // Should trigger node start action
         expect(global.fetch).toHaveBeenCalledWith(
@@ -105,11 +110,12 @@ describe('WalletPanel', () => {
     });
 
     it('polls for updates every 15 seconds', async () => {
+        vi.useFakeTimers();
         (global.fetch as any).mockResolvedValue({ ok: true, json: async () => ({ connected: true }) });
         
         render(<WalletPanel />);
         
-        await waitFor(() => {
+        await vi.waitFor(() => {
             expect(global.fetch).toHaveBeenCalledTimes(1);
         });
 

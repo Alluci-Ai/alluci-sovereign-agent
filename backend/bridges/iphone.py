@@ -30,7 +30,17 @@ class IPhoneBridge(BridgeAdapter, ServiceListener):
         self._ca_cert_path = os.path.join(self.vault_path, "companion_ca.crt")
 
     def update_service(self, zc: Zeroconf, type_: str, name: str) -> None:
-        pass
+        """
+        [ RES-003 ] Triggered when iPhone service details (like IP) change.
+        Ensures the bridge reconnects to the new address.
+        """
+        if self.info and self.info.name == name:
+            new_info = zc.get_service_info(type_, name)
+            if new_info and new_info.parsed_addresses() != self.info.parsed_addresses():
+                self.logger.info(f"[IPHONE] Address change detected for {name}. Reconnecting...")
+                self.info = new_info
+                # Trigger an async reconnect in the background
+                asyncio.create_task(self.connect({}))
 
     def remove_service(self, zc: Zeroconf, type_: str, name: str) -> None:
         if self.info and self.info.name == name:
@@ -46,36 +56,37 @@ class IPhoneBridge(BridgeAdapter, ServiceListener):
 
     async def store_pinned_ca(self, cert_pem: str) -> bool:
         """
-        [ GAP-003 ] Securely stores the companion's CA certificate for TLS pinning.
-        This is called during the initial 'pairing' flow.
+        [ GAP-003 / RES-002 ] Securely and atomically stores the companion's CA certificate.
         """
+        import tempfile
+        fd, temp_path = tempfile.mkstemp(dir=os.path.dirname(self._ca_cert_path))
         try:
-            with open(self._ca_cert_path, "w") as f:
+            with os.fdopen(fd, 'w') as f:
                 f.write(cert_pem)
-            os.chmod(self._ca_cert_path, 0o600)
-            self.logger.info("[IPHONE] Companion CA certificate pinned.")
+            os.chmod(temp_path, 0o600)
+            os.replace(temp_path, self._ca_cert_path)
+            self.logger.info("[IPHONE] Companion CA certificate pinned atomically.")
             return True
         except Exception as e:
             self.logger.error(f"[IPHONE] Failed to store pinned CA: {e}")
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
             return False
 
     def _build_ssl_context(self) -> ssl.SSLContext:
         """
-        [ GAP-003 ] Builds a hardened SSL context with certificate pinning.
-        If a pinned CA exists, it enforces strict verification.
+        [ GAP-003 / DEBT-003 ] Builds a hardened SSL context with internal certificate pinning.
+        Enforces strict verification; connection is rejected if the device is not paired.
         """
         if os.path.exists(self._ca_cert_path):
             context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH, cafile=self._ca_cert_path)
             context.check_hostname = False # Local discovery uses .local/IPs
             context.verify_mode = ssl.CERT_REQUIRED
             self.logger.debug("[IPHONE] Using pinned TLS certificate verification.")
-        else:
-            # Fallback for un-paired devices (development only)
-            context = ssl.create_default_context()
-            context.check_hostname = False
-            context.verify_mode = ssl.CERT_NONE
-            self.logger.warning("[IPHONE] Security Warning: TLS pinning not active. Pair device to enable.")
-        return context
+            return context
+        
+        # [ DEBT-003 ] Refuse to connect entirely when unpaired
+        raise ssl.SSLError("Security Violation: iPhone TLS pinning not active. Pair device to enable.")
 
     async def connect(self, credentials: Dict[str, Any]) -> bool:
         if not self.zc:

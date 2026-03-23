@@ -52,7 +52,7 @@ AES-256-GCM encrypted local vault, and 21 messaging bridge adapters.
 | Zustand global state | `store/useStore.ts` |
 | React features | `features/{name}/` |
 | Watch Swift app | `watchos/AlluciWatch/` |
-| iOS companion app | `watchos/AlluciCompanion/` (to be created) |
+| iOS companion app | `watchos/AlluciCompanion/` |
 
 ## Verification Commands (Run After Every Change)
 ```bash
@@ -60,7 +60,7 @@ python -m pytest backend/tests/ -x -q                    # all Python tests pass
 python -m mypy backend/ --ignore-missing-imports          # no Python type errors  
 npx tsc --noEmit                                           # no TypeScript errors
 npx vitest run                                             # frontend unit tests pass
-curl -s http://localhost:8000/api/v1/health | python3 -m json.tool  # backend running
+curl -s http://127.0.0.1:8000/api/v1/health | python3 -m json.tool  # backend running
 ```
 
 - [x] WebAuthn assertion/login endpoints (`backend/routers/auth.py`)

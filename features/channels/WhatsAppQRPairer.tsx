@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useStore } from '../../store/useStore';
 import { QrCode, RefreshCcw, CheckCircle, WifiOff } from 'lucide-react';
 
-const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
+const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
 
 export const WhatsAppQRPairer: React.FC = () => {
     const { accessToken } = useStore();

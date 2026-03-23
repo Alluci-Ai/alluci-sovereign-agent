@@ -1,8 +1,7 @@
 
 from typing import List, Dict, Any, Optional
-from fastapi import APIRouter, HTTPException, Depends, Body
-from, Request
-..security.auth import verify_authenticated
+from fastapi import APIRouter, HTTPException, Depends, Body, Request
+from ..security.auth import verify_authenticated
 from ..models import SOPRecord
 from fastapi_csrf_protect import CsrfProtect
 from .. import services
@@ -18,10 +17,13 @@ async def list_sops():
 
 @router.post("/", dependencies=[Depends(verify_authenticated)])
 async def register_sop(
+    request: Request,
     name: str = Body(...), 
     description: str = Body(...), 
-    steps: List[Dict[str, Any]] = Body(...)
+    steps: List[Dict[str, Any]] = Body(...),
+    csrf_protect: CsrfProtect = Depends(),
 ):
+    await csrf_protect.validate_csrf(request)
     """Register a new SOP sequence."""
     if not services.sop_engine:
         raise HTTPException(status_code=503, detail="SOP engine not ready")
@@ -39,7 +41,8 @@ async def get_sop(sop_id: int):
     return sop
 
 @router.post("/{sop_id}/execute", dependencies=[Depends(verify_authenticated)])
-async def execute_sop(sop_id: int, context_overrides: Optional[Dict[str, Any]] = Body(None)):
+async def execute_sop(request: Request, sop_id: int, context_overrides: Optional[Dict[str, Any]] = Body(None), csrf_protect: CsrfProtect = Depends()):
+    await csrf_protect.validate_csrf(request)
     """Trigger the execution of an SOP."""
     if not services.sop_engine:
         raise HTTPException(status_code=503, detail="SOP engine not ready")

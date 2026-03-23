@@ -1,6 +1,7 @@
 import React from 'react';
 import { useStore } from '../../store/useStore';
 import { RealtimeBarVisualizer, CircularVisualizer } from '../../components/Visualizers';
+import { useLiquidGlass } from '../../hooks/useLiquidGlass';
 
 interface AffectiveEnginePanelProps {
     audioStream: MediaStream | null;
@@ -34,6 +35,11 @@ const AffectiveEnginePanel: React.FC<AffectiveEnginePanelProps> = ({
         mobileView
     } = useStore();
 
+    const resonanceLG = useLiquidGlass({ variant: 'card' });
+    const coherenceLG = useLiquidGlass({ variant: 'card' });
+    const healthLG = useLiquidGlass({ variant: 'card' });
+    const filesLG = useLiquidGlass({ variant: 'card' });
+
     const getFormattedTime = (iso: string) => {
         try {
             return new Date(iso).toLocaleString('en-US', {
@@ -58,21 +64,24 @@ const AffectiveEnginePanel: React.FC<AffectiveEnginePanelProps> = ({
                 <h3 className="glass-label text-[8px] opacity-40 border-b border-sovereign pb-1 text-center">Affective_Engine_v4.3</h3>
 
                 <div className="flex flex-col gap-6">
-                    <div className="space-y-4  p-3 border border-sovereign/5">
+                    <div ref={resonanceLG.ref as any} style={resonanceLG.style} {...resonanceLG.handlers} className="space-y-4 p-3 border border-sovereign/5 relative overflow-hidden group">
+                        <div className="absolute inset-0 pointer-events-none opacity-50 transition-opacity group-hover:opacity-100" style={{ backgroundImage: resonanceLG.glintGradient }} />
                         <span className="glass-label text-[6px] opacity-30 block mb-1">User_Resonance_Manifold</span>
                         <RealtimeBarVisualizer label="Valence (Emotion)" value={biometrics.emotional} color="#000000" onChange={(val) => updateBiometrics({ emotional: val })} />
                         <RealtimeBarVisualizer label="Arousal (Physical)" value={biometrics.physical} color="#FF7D00" onChange={(val) => updateBiometrics({ physical: val })} />
                         <RealtimeBarVisualizer label="Cognitive Load" value={biometrics.cognitive} color="#91D65F" onChange={(val) => updateBiometrics({ cognitive: val })} />
                     </div>
 
-                    <div className="space-y-4 bg-agent/5 p-3 border border-agent/10">
+                    <div ref={coherenceLG.ref as any} style={coherenceLG.style} {...coherenceLG.handlers} className="space-y-4 bg-agent/5 p-3 border border-agent/10 relative overflow-hidden group">
+                        <div className="absolute inset-0 pointer-events-none opacity-50 transition-opacity group-hover:opacity-100" style={{ backgroundImage: coherenceLG.glintGradient }} />
                         <span className="glass-label text-[6px] opacity-30 block mb-1">System_Coherence_Manifold</span>
                         <RealtimeBarVisualizer label="System_Coherence" value={agent.cognitive} color="#91D65F" />
                         <RealtimeBarVisualizer label="Valence_Curvature" value={agent.valenceCurvature} color="#995CC0" />
                         <RealtimeBarVisualizer label="Manifold_Integrity" value={agent.manifoldIntegrity} color="#FF7D00" />
                     </div>
 
-                    <div className="space-y-4 bg-flux/5 p-3 border border-flux/10 animate-in fade-in slide-in-from-bottom-2">
+                    <div ref={healthLG.ref as any} style={healthLG.style} {...healthLG.handlers} className="space-y-4 bg-flux/5 p-3 border border-flux/10 animate-in fade-in slide-in-from-bottom-2 relative overflow-hidden group">
+                        <div className="absolute inset-0 pointer-events-none opacity-50 transition-opacity group-hover:opacity-100" style={{ backgroundImage: healthLG.glintGradient }} />
                         <span className="glass-label text-[6px] opacity-30 block mb-1">HealthKit_Sovereign_Monitor (iWatch)</span>
                         <div className="grid grid-cols-2 gap-2">
                             <div className="glass-input w-full">
@@ -95,7 +104,8 @@ const AffectiveEnginePanel: React.FC<AffectiveEnginePanelProps> = ({
                     </div>
 
                     {/* Cloud Files Section */}
-                    <div className="space-y-4 bg-sovereign/5 p-3 border border-[rgba(255,255,255,0.18)] animate-in fade-in slide-in-from-bottom-2">
+                    <div ref={filesLG.ref as any} style={filesLG.style} {...filesLG.handlers} className="space-y-4 bg-sovereign/5 p-3 border border-[rgba(255,255,255,0.18)] animate-in fade-in slide-in-from-bottom-2 relative overflow-hidden group">
+                        <div className="absolute inset-0 pointer-events-none opacity-50 transition-opacity group-hover:opacity-100" style={{ backgroundImage: filesLG.glintGradient }} />
                         <div className="flex justify-between items-center mb-1">
                             <span className="glass-label text-[6px] opacity-30 block">Sovereign_Files (iCloud)</span>
                             <button

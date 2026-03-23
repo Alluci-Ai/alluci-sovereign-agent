@@ -3,7 +3,7 @@ import logging
 from ..logging_config import get_logger
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.responses import PlainTextResponse
 from sqlmodel import Session, select, text
 from ..config import settings

@@ -142,5 +142,11 @@ export class Rating implements SerializableEntity {
     })
   }
 
-  //TODO: implement ratings values
+  getRating(key: string): Buffer | undefined {
+    return this.ratings.get(key);
+  }
+
+  setRating(key: string, value: Buffer) {
+    this.ratings.set(key, value);
+  }
 }

@@ -6,10 +6,8 @@ from datetime import datetime, timezone
 from ..logging_config import get_logger
 from datetime import date
 from typing import Dict, Any, List, Optional
-from fastapi import APIRouter, HTTPException, Depends, Query, Body
-from sqlmodel import Session, select, col
-from, Request
-..security.auth import verify_authenticated
+from ..security.auth import verify_authenticated
+from fastapi import APIRouter, HTTPException, Depends, Query, Body, Request
 from ..database import engine as db_engine
 from ..models import SessionConfig, AgentRecord
 from fastapi_csrf_protect import CsrfProtect
@@ -140,7 +138,8 @@ async def get_agent(agent_id: str):
         Depends(verify_authenticated),
     ],
 )
-async def create_agent(payload: Dict[str, Any] = Body(...)):
+async def create_agent(request: Request, payload: Dict[str, Any] = Body(...), csrf_protect: CsrfProtect = Depends()):
+    await csrf_protect.validate_csrf(request)
     """Create a new agent record."""
     agent = AgentRecord(
         id=str(uuid.uuid4())[:8],
@@ -169,7 +168,8 @@ async def create_agent(payload: Dict[str, Any] = Body(...)):
         Depends(verify_authenticated),
     ],
 )
-async def update_agent(agent_id: str, payload: Dict[str, Any] = Body(...)):
+async def update_agent(request: Request, agent_id: str, payload: Dict[str, Any] = Body(...), csrf_protect: CsrfProtect = Depends()):
+    await csrf_protect.validate_csrf(request)
     """Update an agent record — including heartbeat_orders."""
     with Session(db_engine) as session:
         agent = session.get(AgentRecord, agent_id)
@@ -208,8 +208,11 @@ async def update_agent(agent_id: str, payload: Dict[str, Any] = Body(...)):
     ],
 )
 async def delegate_to_agent(
-    agent_id: str = Body(...), task: str = Body(...)
+    request: Request,
+    agent_id: str = Body(...), task: str = Body(...),
+    csrf_protect: CsrfProtect = Depends()
 ):
+    await csrf_protect.validate_csrf(request)
     """Delegate a task to a named agent, injecting agent context."""
     if not services.orchestrator:
         raise HTTPException(status_code=503, detail="Orchestrator not ready")
@@ -239,7 +242,8 @@ async def delegate_to_agent(
         Depends(verify_authenticated),
     ],
 )
-async def delete_agent(agent_id: str):
+async def delete_agent(request: Request, agent_id: str, csrf_protect: CsrfProtect = Depends()):
+    await csrf_protect.validate_csrf(request)
     """Delete an agent record."""
     with Session(db_engine) as session:
         agent = session.get(AgentRecord, agent_id)

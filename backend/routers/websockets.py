@@ -22,24 +22,20 @@ def _verify_origin(websocket: WebSocket) -> bool:
         logger.warning("[WS] Blocked connection: Missing Origin header (CSWH risk)")
         return False
 
-    try:
-        parsed_origin = urlparse(origin)
-        # Combine static defaults with production public URL if set
-        public_url = os.getenv("DAEMON_PUBLIC_URL", "")
-        allowed_hosts = {"localhost", "127.0.0.1"}
-        if public_url:
-            public_host = urlparse(public_url).hostname
-            if public_host:
-                allowed_hosts.add(public_host)
+    # Normalize origin for comparison
+    origin = origin.rstrip("/")
+    
+    # Check against canonical allowed origins from config
+    if origin in settings.ALLOWED_ORIGINS:
+        return True
 
-        if parsed_origin.hostname in allowed_hosts:
-            return True
-        
-        logger.warning(f"[WS] Blocked connection from unauthorized origin: {origin}")
-        return False
-    except Exception as exc:
-        logger.error(f"[WS] Origin validation error: {exc}")
-        return False
+    # Fallback to DAEMON_PUBLIC_URL if explicitly set
+    public_url = os.getenv("DAEMON_PUBLIC_URL", "")
+    if public_url and origin == public_url.rstrip("/"):
+        return True
+
+    logger.warning(f"[WS] Blocked connection from unauthorized origin: {origin}")
+    return False
 
 async def authenticate_ws(websocket: WebSocket, token: str):
     """Verifies token from query string or cookies."""

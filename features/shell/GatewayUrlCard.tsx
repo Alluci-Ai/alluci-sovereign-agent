@@ -6,7 +6,7 @@ export const GatewayUrlCard: React.FC = () => {
     const { daemonStatus, setAccessToken } = useStore();
 
     // In a real implementation this binds to a settings context/localStorage overlay natively
-    const [daemonUrl, setDaemonUrl] = useState(() => localStorage.getItem('VITE_DAEMON_URL') || import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000');
+    const [daemonUrl, setDaemonUrl] = useState(() => localStorage.getItem('VITE_DAEMON_URL') || import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000');
     const [authToken, setAuthToken] = useState(() => localStorage.getItem('AUTH_TOKEN') || '');
     const [sessionKey, setSessionKey] = useState(() => localStorage.getItem('SESSION_KEY') || '');
 

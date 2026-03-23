@@ -1,3 +1,4 @@
+import os
 from sqlmodel import create_engine, SQLModel, Session
 from .config import settings
 from .logging_config import get_logger

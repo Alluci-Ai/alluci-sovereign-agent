@@ -8,7 +8,7 @@ interface VerusIdLoginProps {
     onCancel: () => void;
 }
 
-const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
+const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
 
 export const VerusIdLogin: React.FC<VerusIdLoginProps> = ({ onComplete, onCancel }) => {
     const [loginData, setLoginData] = useState<any>(null);

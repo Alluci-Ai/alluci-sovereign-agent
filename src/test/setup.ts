@@ -2,28 +2,34 @@ import '@testing-library/jest-dom';
 import { expect, afterEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import * as matchers from '@testing-library/jest-dom/matchers';
+import dns from 'node:dns';
+
+// Fix for environments where localhost is not in /etc/hosts
+if (typeof dns.setDefaultResultOrder === 'function') {
+    dns.setDefaultResultOrder('ipv4first');
+}
 
 // Extends Vitest's expect with Testing Library matchers
 expect.extend(matchers);
 
 // Runs cleanup after each test case (e.g. clearing jsdom)
 afterEach(() => {
-  cleanup();
+    cleanup();
 });
 
 // Mock browser globals that might be missing in JSDOM
 Object.defineProperty(window, 'matchMedia', {
-  writable: true,
-  value: vi.fn().mockImplementation(query => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addListener: vi.fn(), // deprecated
-    removeListener: vi.fn(), // deprecated
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn(),
-  })),
+    writable: true,
+    value: vi.fn().mockImplementation(query => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener: vi.fn(), // deprecated
+        removeListener: vi.fn(), // deprecated
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+    })),
 });
 
 // Mock ResizeObserver
@@ -32,3 +38,24 @@ global.ResizeObserver = vi.fn().mockImplementation(() => ({
     unobserve: vi.fn(),
     disconnect: vi.fn(),
 }));
+
+// Mock global fetch to prevent real network requests during tests
+global.fetch = vi.fn().mockImplementation(() => 
+    Promise.resolve({
+        ok: true,
+        json: async () => ({}),
+        status: 200,
+        headers: new Headers(),
+    })
+);
+
+// Mock WebSocket
+global.WebSocket = vi.fn().mockImplementation(() => ({
+    send: vi.fn(),
+    close: vi.fn(),
+    onopen: null,
+    onmessage: null,
+    onerror: null,
+    onclose: null,
+    readyState: 0, // CONNECTING
+})) as any;

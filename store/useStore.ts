@@ -161,6 +161,8 @@ export interface AppState {
     setWalletMode: (val: 'lite' | 'sovereign') => void;
     walletStatus: 'synced' | 'syncing' | 'offline';
     setWalletStatus: (val: 'synced' | 'syncing' | 'offline') => void;
+    activeChain: string;
+    setActiveChain: (val: string) => void;
 
     // DAG Planner
     activeRunId: number | null;
@@ -354,6 +356,8 @@ export const useStore = create<AppState>((set) => ({
     setWalletMode: (val) => set({ walletMode: val }),
     walletStatus: 'offline',
     setWalletStatus: (val) => set({ walletStatus: val }),
+    activeChain: 'VRSC',
+    setActiveChain: (val) => set({ activeChain: val }),
 
     // DAG Planner
     activeRunId: null,
@@ -370,7 +374,7 @@ export const useStore = create<AppState>((set) => ({
         pvtHealth: { ...state.pvtHealth, ...val }
     })),
     hydrate: async () => {
-        const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
+        const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
         // Only attempt hydration if the session signal cookie exists
         if (!document.cookie.includes('alluci_session=1')) return;
         

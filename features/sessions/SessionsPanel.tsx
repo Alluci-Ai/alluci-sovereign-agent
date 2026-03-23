@@ -5,7 +5,7 @@ import { SessionOverrides } from './SessionOverrides';
 import { SessionCostDisplay } from './SessionCostDisplay';
 import { ActiveSessionsList } from './ActiveSessionsList';
 
-const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
+const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
 
 /**
  * SessionsPanel — Refactored Sessions Manifold.

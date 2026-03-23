@@ -1,8 +1,7 @@
 
 from typing import List, Optional
-from fastapi import APIRouter, HTTPException, Depends, Query, Body
-from, Request
-..security.auth import verify_authenticated
+from fastapi import APIRouter, HTTPException, Depends, Query, Body, Request
+from ..security.auth import verify_authenticated
 from ..models import GoalRecord
 from fastapi_csrf_protect import CsrfProtect
 from .. import services
@@ -18,10 +17,13 @@ async def list_goals(status: Optional[str] = Query(None)):
 
 @router.post("/", dependencies=[Depends(verify_authenticated)])
 async def create_goal(
+    request: Request,
     title: str = Body(...), 
     description: str = Body(...), 
-    priority: str = Body("MEDIUM")
+    priority: str = Body("MEDIUM"),
+    csrf_protect: CsrfProtect = Depends(),
 ):
+    await csrf_protect.validate_csrf(request)
     """Create a new long-term goal."""
     if not services.goal_engine:
         raise HTTPException(status_code=503, detail="Goals engine not ready")
@@ -40,10 +42,13 @@ async def get_goal(goal_id: int):
 
 @router.patch("/{goal_id}", dependencies=[Depends(verify_authenticated)])
 async def update_goal(
+    request: Request,
     goal_id: int, 
     status: Optional[str] = Body(None), 
-    progress: Optional[float] = Body(None)
+    progress: Optional[float] = Body(None),
+    csrf_protect: CsrfProtect = Depends(),
 ):
+    await csrf_protect.validate_csrf(request)
     """Update goal status or progress."""
     if not services.goal_engine:
         raise HTTPException(status_code=503, detail="Goals engine not ready")
@@ -53,7 +58,8 @@ async def update_goal(
     return {"status": "UPDATED"}
 
 @router.delete("/{goal_id}", dependencies=[Depends(verify_authenticated)])
-async def delete_goal(goal_id: int):
+async def delete_goal(request: Request, goal_id: int, csrf_protect: CsrfProtect = Depends()):
+    await csrf_protect.validate_csrf(request)
     """Delete a goal."""
     if not services.goal_engine:
         raise HTTPException(status_code=503, detail="Goals engine not ready")

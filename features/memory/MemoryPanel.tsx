@@ -123,7 +123,7 @@ export const MemoryPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                                             m.tier === 0 ? 'bg-zinc-800 text-zinc-400' :
                                             m.tier === 2 ? 'bg-emerald-900/30 text-emerald-400' : 'bg-blue-900/30 text-blue-400'
                                         }`}>
-                                            Tier {m.tier || 1} {m.tier === 0 ? 'Working' : m.tier === 2 ? 'Semantic' : 'Episodic'}
+                                            Tier {m.tier ?? 1} {m.tier === 0 ? 'Working' : m.tier === 2 ? 'Semantic' : 'Episodic'}
                                         </div>
                                         <span className="text-[10px] text-zinc-600 font-mono">
                                             ID: {m.id.substring(0, 12)}...

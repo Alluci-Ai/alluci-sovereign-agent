@@ -21,7 +21,13 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
 def verify_token(token: str) -> dict:
     """Verifies a JWT token signature and returns the payload."""
     try:
-        payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=["HS256"])
+        # SEC-004: Added 60s leeway for clock skew between agent and client
+        payload = jwt.decode(
+            token, 
+            settings.JWT_SECRET_KEY, 
+            algorithms=["HS256"],
+            options={"leeway": 60}
+        )
         if payload.get("sub") is None:
             raise JWTError("Missing subject")
         return payload

@@ -2,9 +2,8 @@
 import logging
 from ..logging_config import get_logger
 from typing import Dict, Any, List, Optional
-from fastapi import APIRouter, HTTPException, Depends, Body
-from, Request
-..security.auth import verify_authenticated
+from fastapi import APIRouter, HTTPException, Depends, Body, Request
+from ..security.auth import verify_authenticated
 from fastapi_csrf_protect import CsrfProtect
 from .. import services
 
@@ -30,14 +29,16 @@ async def get_cron_job(job_id: int):
     return job
 
 @router.post("/cron/jobs", dependencies=[Depends(verify_authenticated)])
-async def create_cron_job(data: Dict[str, Any] = Body(...)):
+async def create_cron_job(request: Request, data: Dict[str, Any] = Body(...), csrf_protect: CsrfProtect = Depends()):
+    await csrf_protect.validate_csrf(request)
     """Create a new scheduled task."""
     if not services.cron_engine:
         raise HTTPException(status_code=503, detail="Cron engine not initialized")
     return await services.cron_engine.create_job(data)
 
 @router.delete("/cron/jobs/{job_id}", dependencies=[Depends(verify_authenticated)])
-async def delete_cron_job(job_id: int):
+async def delete_cron_job(request: Request, job_id: int, csrf_protect: CsrfProtect = Depends()):
+    await csrf_protect.validate_csrf(request)
     """Remove a scheduled task."""
     if not services.cron_engine:
         raise HTTPException(status_code=503, detail="Cron engine not initialized")

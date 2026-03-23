@@ -14,7 +14,7 @@ export interface SovereignCallbacks {
 export class AlluciSovereignService {
     private socket: WebSocket | null = null;
     private audioContext: AudioContext | null = null;
-    private DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
+    private DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
     private WS_URL = this.DAEMON_URL.replace('http', 'ws') + '/ws/sovereign';
 
     constructor() { }

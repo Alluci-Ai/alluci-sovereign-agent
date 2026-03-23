@@ -67,7 +67,7 @@ import PVTDashboard from './features/observability/PVTDashboard';
 import { useTranslation } from 'react-i18next';
 import './styles/dag.css';
 
-const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
+const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
 
 const App: React.FC = () => {
   const {

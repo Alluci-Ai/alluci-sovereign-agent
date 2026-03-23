@@ -3,7 +3,7 @@ import { useStore } from '../../store/useStore';
 import { adminService } from '../../adminService';
 import { Settings2, Save } from 'lucide-react';
 
-const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
+const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
 
 /**
  * SessionOverrides — Panel component allowing users to modify runtime

@@ -17,11 +17,24 @@ vi.mock('../../components/Identity', () => ({
     default: () => <div data-testid="polytope-identity" />
 }));
 
+vi.mock('../chat/JumpToNewButton', () => ({
+    JumpToNewButton: () => <div data-testid="jump-to-new-button" />
+}));
+
+vi.mock('../chat/ReadingIndicator', () => ({
+    ReadingIndicator: () => <div data-testid="reading-indicator" />
+}));
+
 describe('TerminalView', () => {
     const mockProps = {
         getFormattedTime: (iso: string) => '12:00:00',
         copyText: vi.fn()
     };
+
+    beforeAll(() => {
+        // Mock scrollIntoView for jsdom
+        window.HTMLElement.prototype.scrollIntoView = vi.fn();
+    });
 
     it('renders idle state when transcriptions are empty', () => {
         (useStore as any).mockReturnValue({

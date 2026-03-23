@@ -8,7 +8,7 @@ import ChannelSubscriptions from './ChannelSubscriptions';
 import BulkSkillActions from '../skills/BulkSkillActions';
 import NodeBindingEditor from '../devices/NodeBindingEditor';
 
-const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
+const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
 
 interface AgentDetailProps {
     agentId: string;

@@ -15,7 +15,6 @@ vi.mock('./CronRunHistory', () => ({ CronRunHistory: () => <div data-testid="cro
 describe('CronPanel', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        vi.useFakeTimers();
         (useStore as any).mockReturnValue({ accessToken: 'mock-token' });
     });
 

@@ -76,7 +76,7 @@ describe('MemoryPanel', () => {
             expect(screen.getByText('Found memory')).toBeInTheDocument();
         });
 
-        expect(sovereignService as any)._fetch.toHaveBeenCalledWith(expect.stringContaining('/memory/search?q=test%20query'));
+        expect((sovereignService as any)._fetch).toHaveBeenCalledWith(expect.stringContaining('/memory/search?q=test%20query'));
     });
 
     it('handles deleting a memory', async () => {

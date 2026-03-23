@@ -136,7 +136,7 @@ async def get_webauthn_challenge():
         "timeout": 120_000,                   # 2 minutes, matches TTL
         "rp": {
             "name": "Alluci Sovereign Agent",
-            "id": getattr(settings, "WEBAUTHN_RP_ID", "localhost"),
+            "id": getattr(settings, "WEBAUTHN_RP_ID", "127.0.0.1"),
         },
         "user": {
             "id": "ALLUCI_SOVEREIGN_001",
@@ -180,8 +180,8 @@ async def verify_webauthn_response(response: Response, payload: Dict[str, Any] =
     if expected_challenge is None:
         raise HTTPException(status_code=400, detail="Challenge not found or expired.")
 
-    rp_id = getattr(settings, "WEBAUTHN_RP_ID", "localhost")
-    expected_origin = getattr(settings, "WEBAUTHN_ORIGIN", "http://localhost:5173")
+    rp_id = getattr(settings, "WEBAUTHN_RP_ID", "127.0.0.1")
+    expected_origin = getattr(settings, "WEBAUTHN_ORIGIN", "http://127.0.0.1:5173")
 
     try:
         credential = RegistrationCredential(
@@ -275,7 +275,7 @@ async def get_webauthn_assertion_challenge(payload: Dict[str, Any] = Body(defaul
         "challengeId": challenge_id,
         "challenge": b64_challenge,
         "timeout": 120_000,
-        "rpId": getattr(settings, "WEBAUTHN_RP_ID", "localhost"),
+        "rpId": getattr(settings, "WEBAUTHN_RP_ID", "127.0.0.1"),
         "allowCredentials": allow_credentials,
         "userVerification": "preferred",
     }
@@ -334,8 +334,8 @@ async def verify_webauthn_assertion(
             detail="Credential not registered. Please register your passkey first.",
         )
 
-    rp_id = getattr(settings, "WEBAUTHN_RP_ID", "localhost")
-    expected_origin = getattr(settings, "WEBAUTHN_ORIGIN", "http://localhost:5173")
+    rp_id = getattr(settings, "WEBAUTHN_RP_ID", "127.0.0.1")
+    expected_origin = getattr(settings, "WEBAUTHN_ORIGIN", "http://127.0.0.1:5173")
 
     try:
 
@@ -408,7 +408,7 @@ async def oauth_authorize(provider_id: str = Query(...)):
         raise HTTPException(status_code=500, detail=f"Client ID for {provider_id} not configured")
         
     state = secrets.token_urlsafe(32)
-    daemon_url = os.getenv("DAEMON_PUBLIC_URL", "http://localhost:8000").rstrip("/")
+    daemon_url = os.getenv("DAEMON_PUBLIC_URL", "http://127.0.0.1:8000").rstrip("/")
     redirect_uri = f"{daemon_url}{provider['redirect_path']}"
     
     params = {

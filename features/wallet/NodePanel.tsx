@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Cpu, HardDrive, Share2, Power, RefreshCw, Terminal as TerminalIcon, Shield } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 
-const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
+const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
 
 interface NodeStatus {
     active: boolean;

@@ -5,7 +5,7 @@ import { DailyBarChart } from './DailyBarChart';
 import { SessionsTable } from './SessionsTable';
 import { SessionTimeseries } from './SessionTimeseries';
 
-const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
+const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
 
 interface SummaryStats {
     total_input: number;

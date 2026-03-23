@@ -45,7 +45,7 @@ class TestPromptInjectionViaAPI:
     def test_injection_blocked_at_api_level(self, app_client, auth_headers, payload):
         """Each injection payload must be rejected by the guardrail before reaching the LLM."""
         res = app_client.post(
-            "/objective/execute",
+            "/api/v1/objective/execute",
             json={"objective": payload, "autonomy_level": "RESTRICTED"},
             headers=auth_headers
         )
@@ -64,15 +64,15 @@ class TestAuthorizationBoundaries:
     def test_all_protected_routes_reject_no_auth(self, app_client):
         """Every protected route returns 401 with no Authorization header."""
         protected_routes = [
-            ("GET",  "/api/system/health"),
-            ("GET",  "/api/vault/keys"),
-            ("POST", "/objective/execute"),
-            ("GET",  "/tasks"),
-            ("POST", "/tasks"),
-            ("GET",  "/soul/manifest"),
-            ("GET",  "/api/dag/runs"),
-            ("POST", "/vault/rotate"),
-            ("POST", "/api/audit/entry"),
+            ("GET",  "/api/v1/system/health"),
+            ("GET",  "/api/v1/vault/keys"),
+            ("POST", "/api/v1/objective/execute"),
+            ("GET",  "/api/v1/tasks"),
+            ("POST", "/api/v1/tasks"),
+            ("GET",  "/api/v1/soul/manifest"),
+            ("GET",  "/api/v1/dag/runs"),
+            ("POST", "/api/v1/vault/rotate"),
+            ("POST", "/api/v1/audit/entry"),
         ]
         for method, path in protected_routes:
             if method == "GET":
@@ -88,14 +88,14 @@ class TestAuthorizationBoundaries:
         from jose import jwt as jose_jwt
         from datetime import datetime, timedelta, timezone
         
-        # Create a token that expired 1 second ago
-        expire = datetime.now(timezone.utc) - timedelta(seconds=1)
+        # Create a token that expired 120 seconds ago (beyond 60s leeway)
+        expire = datetime.now(timezone.utc) - timedelta(seconds=120)
         token = jose_jwt.encode(
             {"sub": "sovereign", "exp": expire},
             mock_settings.JWT_SECRET_KEY,
             algorithm="HS256"
         )
-        res = app_client.get("/api/system/health",
+        res = app_client.get("/api/v1/system/health",
                               headers={"Authorization": f"Bearer {token}"})
         assert res.status_code == 401
 
@@ -111,7 +111,7 @@ class TestAuthorizationBoundaries:
             "an-attacker-controlled-secret-key",
             algorithm="HS256"
         )
-        res = app_client.get("/api/system/health",
+        res = app_client.get("/api/v1/system/health",
                               headers={"Authorization": f"Bearer {fake_token}"})
         assert res.status_code == 401
 
@@ -119,7 +119,7 @@ class TestAuthorizationBoundaries:
     def test_bearer_format_must_be_correct(self, app_client, auth_headers):
         """Missing 'Bearer' prefix in Authorization header is rejected."""
         token = auth_headers["Authorization"].split(" ")[1]
-        res = app_client.get("/api/system/health",
+        res = app_client.get("/api/v1/system/health",
                               headers={"Authorization": token})  # No "Bearer " prefix
         assert res.status_code == 401
 
@@ -132,7 +132,7 @@ class TestInputBoundaryConditions:
         # 10MB payload
         giant_payload = {"objective": "A" * (10 * 1024 * 1024), "autonomy_level": "RESTRICTED"}
         res = app_client.post(
-            "/objective/execute",
+            "/api/v1/objective/execute",
             json=giant_payload,
             headers=auth_headers
         )
@@ -142,7 +142,7 @@ class TestInputBoundaryConditions:
     def test_malformed_json_returns_422(self, app_client, auth_headers):
         """Malformed JSON body returns 422."""
         res = app_client.post(
-            "/objective/execute",
+            "/api/v1/objective/execute",
             data="not valid json{{",
             headers={**auth_headers, "Content-Type": "application/json"}
         )
@@ -152,7 +152,7 @@ class TestInputBoundaryConditions:
     def test_null_objective_field_rejected(self, app_client, auth_headers):
         """null objective value is rejected."""
         res = app_client.post(
-            "/objective/execute",
+            "/api/v1/objective/execute",
             json={"objective": None, "autonomy_level": "RESTRICTED"},
             headers=auth_headers
         )
@@ -179,7 +179,7 @@ class TestRateLimiting:
         """
         responses = []
         for _ in range(120):  # Exceed the per-minute limit
-            res = app_client.post("/auth/login", json={"key": "wrong-key"})
+            res = app_client.post("/api/v1/auth/login", json={"key": "wrong-key"})
             responses.append(res.status_code)
             if res.status_code == 429:
                 break  # Rate limit triggered

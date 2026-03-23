@@ -2,9 +2,8 @@
 import logging
 from ..logging_config import get_logger
 from typing import Dict, Any, List, Optional
-from fastapi import APIRouter, HTTPException, Depends, Query, Body
-from, Request
-..security.auth import verify_authenticated
+from fastapi import APIRouter, HTTPException, Depends, Query, Body, Request
+from ..security.auth import verify_authenticated
 from fastapi_csrf_protect import CsrfProtect
 from .. import services
 
@@ -25,7 +24,8 @@ async def search_memory(q: str = Query(...), limit: int = 10):
     return await services.memory.search(q, limit=limit)
 
 @router.post("/memory/store", dependencies=[Depends(verify_authenticated)])
-async def store_memory(data: Dict[str, Any] = Body(...)):
+async def store_memory(request: Request, data: Dict[str, Any] = Body(...), csrf_protect: CsrfProtect = Depends()):
+    await csrf_protect.validate_csrf(request)
     if not services.memory:
         raise HTTPException(status_code=503, detail="Memory manager not ready")
     content = data.get("content")
@@ -39,7 +39,8 @@ async def get_memory_stats():
     return await services.memory.get_stats()
 
 @router.delete("/memory/{entry_id}", dependencies=[Depends(verify_authenticated)])
-async def delete_memory_entry(entry_id: str):
+async def delete_memory_entry(request: Request, entry_id: str, csrf_protect: CsrfProtect = Depends()):
+    await csrf_protect.validate_csrf(request)
     if not services.memory:
         raise HTTPException(status_code=503, detail="Memory manager not ready")
     success = await services.memory.delete(entry_id)
@@ -48,8 +49,9 @@ async def delete_memory_entry(entry_id: str):
     return {"status": "SUCCESS"}
 
 @router.post("/memory/consolidate", dependencies=[Depends(verify_authenticated)])
-async def trigger_consolidation():
+async def trigger_consolidation(request: Request, csrf_protect: CsrfProtect = Depends()):
     """Manually trigger the H-LSM consolidation cycle (Decay, Promotion, Pruning)."""
+    await csrf_protect.validate_csrf(request)
     if not services.hlsm_manager:
         raise HTTPException(status_code=503, detail="H-LSM manager not ready")
     

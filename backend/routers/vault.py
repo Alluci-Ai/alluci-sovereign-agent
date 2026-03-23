@@ -2,9 +2,8 @@
 import logging
 from ..logging_config import get_logger
 from typing import Dict, Any, List
-from fastapi import APIRouter, HTTPException, Depends, Body
-from, Request
-..security.auth import verify_authenticated
+from fastapi import APIRouter, HTTPException, Depends, Body, Request
+from ..security.auth import verify_authenticated
 from ..security.utils import log_system_event
 from .. import services
 from fastapi_limiter.depends import RateLimiter
@@ -17,10 +16,9 @@ MASK = "••••••••••••"
 router = APIRouter(tags=["Vault Operations"])
 
 @router.post("/vault/rotate", dependencies=[Depends(verify_authenticated), Depends(RateLimiter(times=10, minutes=1))])
-async def rotate_vault_keys(payload: Dict[str, str] = Body(...),
-    request: Request,
+async def rotate_vault_keys(request: Request, payload: Dict[str, str] = Body(...),
     csrf_protect: CsrfProtect = Depends(),):
-        await csrf_protect.validate_csrf(request)
+    await csrf_protect.validate_csrf(request)
     """[ ROTATE_KEYS ] Instantly re-encrypts all vaults with a new key."""
     new_key = payload.get("new_key")
     if not new_key:

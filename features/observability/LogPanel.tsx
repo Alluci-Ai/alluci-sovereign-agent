@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useStore } from '../../store/useStore';
 import { Terminal, Filter, Download, Pause, Play, Trash2 } from 'lucide-react';
 
-const DAEMON_WS_URL = import.meta.env.VITE_DAEMON_WS_URL || 'ws://localhost:8000';
+const DAEMON_WS_URL = import.meta.env.VITE_DAEMON_WS_URL || 'ws://127.0.0.1:8000';
 
 interface LogEntry {
     timestamp: string;

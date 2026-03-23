@@ -155,6 +155,18 @@ async def add_security_headers(request: Request, call_next):
     )
     return response
 
+# SEC-003: Request Body Size Limit Middleware (10MB)
+MAX_SIZE = 10 * 1024 * 1024  # 10MB
+@app.middleware("http")
+async def limit_request_size(request: Request, call_next):
+    if request.method in ["POST", "PUT", "PATCH"]:
+        content_length = request.headers.get("content-length")
+        if content_length and int(content_length) > MAX_SIZE:
+            return JSONResponse(status_code=413, content={"detail": "Request Entity Too Large"})
+    return await call_next(request)
+
+from .security.auth import verify_authenticated
+
 # Register Routers (Versioned API)
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(objectives.router, prefix="/api/v1")
@@ -178,7 +190,7 @@ app.include_router(exec_approval.router, prefix="/api/v1")
 
 # Observability — /api/v1/metrics (Prometheus scrape endpoint)
 from .metrics import metrics_router
-app.include_router(metrics_router, prefix="/api/v1")
+app.include_router(metrics_router, prefix="/api/v1", dependencies=[Depends(verify_authenticated)])
 
 from fastapi.responses import RedirectResponse
 

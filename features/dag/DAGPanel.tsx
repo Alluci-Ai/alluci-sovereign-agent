@@ -11,7 +11,7 @@ import { PlanPreviewModal } from './components/PlanPreviewModal';
 import { useStore } from '../../store/useStore';
 import type { TaskRecord, DAGRun } from './types';
 
-const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
+const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
 
 export const DAGPanel: React.FC = () => {
   const { accessToken } = useStore();

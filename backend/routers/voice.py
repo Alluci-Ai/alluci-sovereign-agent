@@ -1,9 +1,8 @@
 
 import logging
 from ..logging_config import get_logger
-from fastapi import APIRouter, HTTPException, Depends, Query, Response, File, UploadFile
-from, Request
-..security.auth import verify_authenticated
+from fastapi import APIRouter, HTTPException, Depends, Query, Response, File, UploadFile, Request
+from ..security.auth import verify_authenticated
 from fastapi_csrf_protect import CsrfProtect
 from .. import services
 
@@ -12,10 +11,9 @@ logger = get_logger("VoiceRouter")
 router = APIRouter(tags=["Voice & Audio"])
 
 @router.post("/voice/transcribe", dependencies=[Depends(verify_authenticated)])
-async def transcribe_voice(file: UploadFile = File(...),
-    request: Request,
+async def transcribe_voice(request: Request, file: UploadFile = File(...),
     csrf_protect: CsrfProtect = Depends(),):
-        await csrf_protect.validate_csrf(request)
+    await csrf_protect.validate_csrf(request)
     """Transcribes audio using local Whisper bridge (P1-007)."""
     if not services.local_inference:
         raise HTTPException(status_code=503, detail="Local inference not initialized")

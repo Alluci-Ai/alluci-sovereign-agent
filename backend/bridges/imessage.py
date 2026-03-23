@@ -116,8 +116,10 @@ class IMessageBridge(BridgeAdapter):
 
     async def connect(self, credentials: Optional[Dict[str, Any]] = None) -> bool:
         if not self.is_macos:
-            self.last_error = "iMessage requires macOS."
-            return False
+            raise RuntimeError(
+                f"[IMESSAGE] Platform Violation: iMessage bridge cannot be initialized on {platform.system()}. "
+                "macOS native environment is required for chat.db access and AppleScript injection."
+            )
 
         perms = await self.check_permission()
         if not perms.get("all_granted"):

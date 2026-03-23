@@ -3,7 +3,7 @@ import { useStore } from '../../store/useStore';
 import { Save, X, Activity, Server, ArrowRight, Clock, Target, Shield } from 'lucide-react';
 import { CronJob } from './CronPanel';
 
-const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
+const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
 
 interface CronJobFormProps {
     job: Partial<CronJob>;

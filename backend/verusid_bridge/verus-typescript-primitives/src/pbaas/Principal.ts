@@ -4,6 +4,7 @@ import { BN } from 'bn.js';
 import varuint from '../utils/varuint';
 import { KeyID } from './KeyID';
 import { NoDestination } from './NoDestination';
+import { PubKey } from './PubKey';
 import { SerializableEntity } from '../utils/types/SerializableEntity';
 
 export const PRINCIPAL_DEFAULT_FLAGS = new BN(0, 10)
@@ -98,12 +99,11 @@ export class Principal implements SerializableEntity {
     if (this.containsFlags()) this.flags = new BN(reader.readUInt32(), 10);
 
     if (this.containsPrimaryAddresses()) {
-      this.primary_addresses = reader.readVector().map(x => {
+      this.primary_addresses = (reader as any).readVector().map(x => {
         if (x.length === 20) {
           return new KeyID(x);
         } else if (x.length === 33) {
-          //TODO: Implement pubkey principal by adding PubKey class as possible TxDestination
-          throw new Error("Pubkey Principal not yet supported");
+          return new PubKey(x);
         } else {
           return new NoDestination();
         }

@@ -73,7 +73,7 @@ export class BridgeManager {
    */
   async sendMessage(bridgeId: string, recipient: string, text: string): Promise<boolean> {
     try {
-      const daemonUrl = import.meta.env?.VITE_DAEMON_URL || 'http://localhost:8000';
+      const daemonUrl = import.meta.env?.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
       const res = await fetch(`${daemonUrl}/api/v1/channels/${bridgeId}/send`, {
         method: 'POST',
         headers: { 
@@ -100,7 +100,7 @@ export class BridgeManager {
    */
   async uploadToCloud(bridgeId: string, fileData: string, fileName: string): Promise<boolean> {
     try {
-      const daemonUrl = import.meta.env?.VITE_DAEMON_URL || 'http://localhost:8000';
+      const daemonUrl = import.meta.env?.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
       const res = await fetch(`${daemonUrl}/api/v1/channels/${bridgeId}/upload`, {
         method: 'POST',
         headers: { 
@@ -135,7 +135,7 @@ export class BridgeManager {
    */
   async executeSocialTask(bridgeId: string, task: string, params: Record<string, unknown>): Promise<boolean> {
     try {
-      const daemonUrl = import.meta.env?.VITE_DAEMON_URL || 'http://localhost:8000';
+      const daemonUrl = import.meta.env?.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
       const res = await fetch(`${daemonUrl}/api/v1/channels/${bridgeId}/task`, {
         method: 'POST',
         headers: { 
@@ -156,7 +156,7 @@ export class BridgeManager {
    * Executes workspace-level sovereign actions across Slack, Teams, and G-Suite.
    */
   async executeEnterpriseTask(bridgeId: string, taskType: string, payload: any): Promise<boolean> {
-    const daemonUrl = import.meta.env?.VITE_DAEMON_URL || 'http://localhost:8000';
+    const daemonUrl = import.meta.env?.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
     const res = await fetch(`${daemonUrl}/api/v1/channels/${bridgeId}/enterprise`, {
       method: "POST",
       headers: {

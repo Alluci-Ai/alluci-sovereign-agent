@@ -4,7 +4,7 @@ import { Settings, Save, Code, LayoutList, Eye, EyeOff } from 'lucide-react';
 import GatewayUrlCard from '../shell/GatewayUrlCard';
 import LocaleSelector from '../shell/LocaleSelector';
 
-const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
+const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
 
 export const ConfigPanel: React.FC = () => {
     const { accessToken } = useStore();

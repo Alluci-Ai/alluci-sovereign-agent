@@ -2,7 +2,7 @@
 import uuid
 import traceback
 from typing import Dict, Any, Optional, List
-from fastapi import APIRouter, HTTPException, Depends, Body, Query
+from fastapi import APIRouter, HTTPException, Depends, Body, Query, Request
 from sqlmodel import Session, select, desc
 from ..config import settings
 from ..database import engine as db_engine
@@ -16,10 +16,9 @@ from fastapi_limiter.depends import RateLimiter
 router = APIRouter(tags=["Objectives & Tasks"])
 
 @router.post("/objective/execute", dependencies=[Depends(verify_authenticated), Depends(RateLimiter(times=settings.RATE_LIMIT_PER_MINUTE, seconds=60))])
-async def execute_objective(req: ObjectiveRequest,
-    request: Request,
+async def execute_objective(request: Request, req: ObjectiveRequest,
     csrf_protect: CsrfProtect = Depends(),):
-        await csrf_protect.validate_csrf(request)
+    await csrf_protect.validate_csrf(request)
     if not services.orchestrator:
         raise HTTPException(status_code=503, detail="Orchestrator not ready")
         

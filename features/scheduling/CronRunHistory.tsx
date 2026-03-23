@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useStore } from '../../store/useStore';
 import { CheckCircle2, XCircle, Clock, Search, ExternalLink, Hash, Activity } from 'lucide-react';
 
-const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
+const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
 
 interface CronRun {
     id: number;
