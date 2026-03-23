@@ -45,11 +45,12 @@ interface ViewManifoldProps {
   handleFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   handleCommandSubmit: (e?: React.FormEvent) => void;
   handlePaste: (e: React.ClipboardEvent) => void;
-  removeAttachment: (id: string) => void;
+  removeAttachment: (idx: number) => void;
 }
 
 const ViewManifold: React.FC<ViewManifoldProps> = ({
   geminiServiceRef,
+  bridgeManagerRef,
   fetchSkills,
   startAuthFlow,
   handleSocialAction,

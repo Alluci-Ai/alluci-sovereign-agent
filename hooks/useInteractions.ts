@@ -9,8 +9,15 @@ export const useInteractions = (
     refreshAuditLog: () => void,
     fileInputRef: React.RefObject<HTMLInputElement | null>
 ) => {
-    const { setTranscriptions, isProcessing, setIsProcessing, textInput, setTextInput } = useStore();
-    const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
+    const { 
+        setTranscriptions, 
+        isProcessing, 
+        setIsProcessing, 
+        textInput, 
+        setTextInput,
+        attachments,
+        setAttachments
+    } = useStore();
     const messageQueue = useRef<{ text: string, attachments: PendingAttachment[] }[]>([]);
 
     // Shared AbortController — AbortButton signals via this ref

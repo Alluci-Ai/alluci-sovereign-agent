@@ -5,7 +5,8 @@ import {
     AuditEntry,
     ApiManifoldKeys,
     SoulManifest,
-    Message
+    Message,
+    PendingAttachment
 } from '../types';
 
 export type ActiveView =
@@ -70,6 +71,8 @@ export interface AppState {
     setConnections: (val: Connection[] | ((prev: Connection[]) => Connection[])) => void;
     skills: SkillManifest[];
     setSkills: (val: SkillManifest[] | ((prev: SkillManifest[]) => SkillManifest[])) => void;
+    selectedSkill: SkillManifest | null;
+    setSelectedSkill: (val: SkillManifest | null) => void;
     auditLog: AuditEntry[];
     setAuditLog: (val: AuditEntry[] | ((prev: AuditEntry[]) => AuditEntry[])) => void;
 
@@ -177,6 +180,10 @@ export interface AppState {
     };
     setPvtHealth: (val: Partial<AppState['pvtHealth']>) => void;
     
+    // Attachments (Sprint Interaction Upgrade)
+    attachments: PendingAttachment[];
+    setAttachments: (val: PendingAttachment[] | ((prev: PendingAttachment[]) => PendingAttachment[])) => void;
+
     // Hydration
     hydrate: () => Promise<void>;
 }
@@ -257,6 +264,8 @@ export const useStore = create<AppState>((set) => ({
     setSkills: (val) => set((state) => ({
         skills: typeof val === 'function' ? val(state.skills) : val
     })),
+    selectedSkill: null,
+    setSelectedSkill: (val) => set({ selectedSkill: val }),
     auditLog: [],
     setAuditLog: (val) => set((state) => ({
         auditLog: typeof val === 'function' ? val(state.auditLog) : val
@@ -372,6 +381,11 @@ export const useStore = create<AppState>((set) => ({
     },
     setPvtHealth: (val) => set((state) => ({
         pvtHealth: { ...state.pvtHealth, ...val }
+    })),
+    
+    attachments: [],
+    setAttachments: (val) => set((state) => ({
+        attachments: typeof val === 'function' ? val(state.attachments) : val
     })),
     hydrate: async () => {
         const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
