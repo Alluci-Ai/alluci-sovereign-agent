@@ -33,9 +33,9 @@ interface ViewManifoldProps {
   bridgeManagerRef: any;
   fetchSkills: () => void;
   startAuthFlow: (conn: any) => void;
-  handleSocialAction: (action: string) => void;
-  handleEnterpriseAction: (action: string) => void;
-  handlePulse: () => void;
+  handleSocialAction: (id: string, action: string, params: any) => void;
+  handleEnterpriseAction: (id: string, action: string, params: any) => void;
+  handlePulse: (id: string) => void;
   saveApiKeysToDaemon: (keys: any) => void;
   refreshAuditLog: () => void;
   abortControllerRef: any;
@@ -43,7 +43,7 @@ interface ViewManifoldProps {
   handleFileChange: (e: any) => void;
   handleCommandSubmit: (e: any) => void;
   handlePaste: (e: any) => void;
-  removeAttachment: (id: string) => void;
+  removeAttachment: (idx: number) => void;
 }
 
 const ViewManifold: React.FC<ViewManifoldProps> = ({

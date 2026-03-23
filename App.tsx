@@ -65,7 +65,7 @@ import { MemoryPanel } from './features/memory/MemoryPanel';
 import { DAGPanel } from './features/dag/DAGPanel';
 import PVTDashboard from './features/observability/PVTDashboard';
 import { useTranslation } from 'react-i18next';
-import ViewManifold from './src/components/ViewManifold';
+import ViewManifold from './components/ViewManifold';
 import './styles/dag.css';
 
 const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
