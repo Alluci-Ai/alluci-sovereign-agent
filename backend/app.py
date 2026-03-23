@@ -11,17 +11,20 @@ from .logging_config import get_logger
 
 logger = get_logger("PolytopeApp")
 from . import services
-from fastapi_limiter.depends import RateLimiter
+from .security.rate_limiter import get_fallback_limiter
 
-# Monkeypatch RateLimiter to skip if services.redis_client is not initialized
-# This prevents crashes on systems without Redis while allowing us to keep
-# RateLimiter dependencies throughout the router files.
+# Patch RateLimiter to fall back to in-memory sliding window when Redis is absent.
 _original_limiter_call = RateLimiter.__call__
-async def _safe_limiter_call(self, request: Request, response: Response):
-    if not services.redis_client:
-        return
-    return await _original_limiter_call(self, request, response)
-RateLimiter.__call__ = _safe_limiter_call
+
+async def _resilient_limiter_call(self, request: Request, response: Response):
+    if services.redis_client:
+        return await _original_limiter_call(self, request, response)
+    else:
+        times = getattr(self, "times", 60)
+        seconds = getattr(self, "seconds", 60)
+        await get_fallback_limiter().check(request, times=times, seconds=seconds)
+
+RateLimiter.__call__ = _resilient_limiter_call
 from .routers import auth, objectives, telemetry, system, vault, channels, voice, crons, wallet, sessions, config, soul, exec_approval, tasks, dag, websockets, memory, goals, sop
 from .security import csrf # Initialize CSRF config
 from .engine.errors import AdapterError
@@ -130,29 +133,42 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# SEC-002: Security Headers (HSTS, NoSniff, XSS Protection)
-secure_headers = Secure.with_default_headers()
+# SEC-002: Security Headers — Nonce-based CSP
+from .security.csp import generate_nonce
+
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
+    # 1. Generate a fresh nonce for every request
+    nonce = generate_nonce()
+    request.state.csp_nonce = nonce
+
     response = await call_next(request)
-    secure_headers.set_headers(response)
     
+    from secure import Secure
+    secure_headers = Secure()
+    secure_headers.set_headers(response)
+
     # HSTS for production and secure development
     if (settings.APP_ENV == "production" or 
         request.headers.get("x-forwarded-proto") == "https" or
         settings.AUTH_COOKIE_SECURE):
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
-        
-    # Additional Security Headers
+
+    # Nonce-based CSP — no more unsafe-inline or unsafe-eval
+    response.headers["Content-Security-Policy"] = (
+        f"default-src 'self'; "
+        f"script-src 'self' 'nonce-{nonce}'; "
+        f"style-src 'self' 'nonce-{nonce}'; "
+        f"img-src 'self' data: https:; "
+        f"font-src 'self' data:; "
+        f"connect-src 'self' ws: wss: http: https:; "
+        f"frame-ancestors 'none'; "
+        f"base-uri 'self'; "
+        f"form-action 'self';"
+    )
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
-    response.headers["Content-Security-Policy"] = (
-        "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
-        "style-src 'self' 'unsafe-inline'; "
-        "img-src 'self' data: https:; "
-        "connect-src 'self' ws: wss: http: https:;"
-    )
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     return response
 
 # SEC-003: Request Body Size Limit Middleware (10MB)

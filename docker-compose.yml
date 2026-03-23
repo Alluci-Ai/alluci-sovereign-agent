@@ -65,7 +65,10 @@ services:
     image: redis:7-alpine
     container_name: alluci-redis
     restart: unless-stopped
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-}
+    command: >
+      redis-server
+      --appendonly yes
+      --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env — Redis will not start unauthenticated}
     volumes:
       - redis_data:/data
     healthcheck:

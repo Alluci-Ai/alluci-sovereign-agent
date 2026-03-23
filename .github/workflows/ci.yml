@@ -12,9 +12,10 @@ on:
 
 env:
   POLYTOPE_MASTER_KEY: ${{ secrets.TEST_POLYTOPE_MASTER_KEY }}
-  JWT_SECRET_KEY: ${{ secrets.TEST_JWT_SECRET_KEY }}
-  GEMINI_API_KEY:  "test-key-for-ci"
-  APP_ENV:         "testing"
+  JWT_SECRET_KEY:      ${{ secrets.TEST_JWT_SECRET_KEY }}
+  CSRF_SECRET_KEY:     ${{ secrets.TEST_CSRF_SECRET_KEY }}
+  GEMINI_API_KEY:      "test-key-for-ci"
+  APP_ENV:             "testing"
 
 jobs:
 
@@ -205,25 +206,33 @@ jobs:
       - name: List SDKs
         run: xcodebuild -showsdks
 
-      - name: Build watchOS Application (Simulator)
+      # ── AlluciWatch (watchOS) ──────────────────────────────────────
+      - name: Build AlluciWatch for watchOS Simulator
         run: |
-          # Note: Requires Task A4 (xcodeproj) to be fully functional
-          # We run with -quiet to avoid log flooding
-          echo "Building AlluciWatch for watchOS..."
-          # xcodebuild -project watchos/AlluciWatch/AlluciWatch.xcodeproj \
-          #   -scheme AlluciWatch \
-          #   -sdk watchsimulator \
-          #   -destination 'platform=watchOS Simulator,name=Apple Watch Series 9 (45mm)' \
-          #   build -quiet || echo "Skipping actual build until xcodeproj is committed."
+          xcodebuild \
+            -project watchos/AlluciWatch/AlluciWatch.xcodeproj \
+            -scheme "AlluciWatch Watch App" \
+            -sdk watchsimulator \
+            -destination 'platform=watchOS Simulator,name=Apple Watch Series 9 (45mm)' \
+            -configuration Debug \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            build -quiet
 
-      - name: Build iOS Companion App (Simulator)
+      # ── AlluciCompanion (iOS) ──────────────────────────────────────
+      - name: Build AlluciCompanion for iOS Simulator
         run: |
-          echo "Building AlluciCompanion for iOS..."
-          # xcodebuild -project watchos/AlluciCompanion/AlluciCompanion.xcodeproj \
-          #   -scheme AlluciCompanion \
-          #   -sdk iphonesimulator \
-          #   -destination 'platform=iOS Simulator,name=iPhone 15' \
-          #   build -quiet || echo "Skipping actual build until xcodeproj is committed."
+          xcodebuild \
+            -project watchos/AlluciCompanion/AlluciCompanion.xcodeproj \
+            -scheme AlluciCompanion \
+            -sdk iphonesimulator \
+            -destination 'platform=iOS Simulator,name=iPhone 15' \
+            -configuration Debug \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            build -quiet
 
 
   # ══════════════════════════════════════════════════════════════
@@ -338,8 +347,16 @@ jobs:
              [ "${{ needs.frontend-tests.result }}" != "success" ] ||
              [ "${{ needs.security-scan.result }}" != "success" ] ||
              [ "${{ needs.docker-build.result }}" != "success" ] ||
-             [ "${{ needs.apple-build.result }}" != "success" ]; then
+             [ "${{ needs.apple-build.result }}" != "success" ] ||
+             [ "${{ needs.e2e.result }}" != "success" ]; then
             echo "❌ Production gate FAILED — one or more jobs did not pass"
+            echo "  smoke:          ${{ needs.smoke.result }}"
+            echo "  backend-tests:  ${{ needs.backend-tests.result }}"
+            echo "  frontend-tests: ${{ needs.frontend-tests.result }}"
+            echo "  security-scan:  ${{ needs.security-scan.result }}"
+            echo "  docker-build:   ${{ needs.docker-build.result }}"
+            echo "  apple-build:    ${{ needs.apple-build.result }}"
+            echo "  e2e:            ${{ needs.e2e.result }}"
             exit 1
           fi
           echo "✅ All gates passed — safe to deploy to production"

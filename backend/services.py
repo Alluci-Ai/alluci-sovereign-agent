@@ -85,6 +85,14 @@ async def init_services(app_instance):
         logger.warning("[ CACHE ]: REDIS_URL not configured. Rate limiting is INACTIVE.")
         metrics.increment_counter("redis_not_configured_total")
 
+    if not redis_client:
+        logger.warning(
+            "[ RATE_LIMITER ] Redis is not configured. "
+            "Falling back to in-memory sliding window rate limiter. "
+            "This limiter does not persist across restarts and does not "
+            "coordinate across multiple worker processes."
+        )
+
     # 2. Database & Data Layout
     create_db_and_tables()
     vault_root = os.path.expanduser("~/.polytope/vaults")
