@@ -596,14 +596,78 @@ class VaultManager:
         payload = b"\x02" + struct.pack(">I", len(encrypted_key)) + encrypted_key + nonce + encrypted_data
         with open(absolute_path, "wb") as f_out: f_out.write(payload)
 
-    def export_identity_pem(self) -> str:
-        """Exports the current RSA private key in PEM format for recovery/backup."""
+    async def get_or_create_jwt_keypair(self) -> tuple:
+        """
+        Retrieves or generates a dedicated RSA-4096 keypair for JWT signing.
+        """
+        return await asyncio.to_thread(self._get_or_create_jwt_keypair_sync)
+
+    def _get_or_create_jwt_keypair_sync(self):
+        from cryptography.hazmat.primitives.asymmetric import rsa
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.backends import default_backend
+
+        key_path = os.path.join(self.vault_root, "jwt_signing.pem")
+        pub_path  = os.path.join(self.vault_root, "jwt_signing_pub.pem")
+
+        if os.path.exists(key_path):
+            try:
+                with open(key_path, "rb") as f:
+                    private_key = serialization.load_pem_private_key(
+                        f.read(),
+                        password=self.master_key.encode(),
+                        backend=default_backend()
+                    )
+                return private_key, private_key.public_key()
+            except Exception as e:
+                logger.error(f"Failed to load JWT keypair: {e}")
+
+        # Generate new keypair
+        private_key = rsa.generate_private_key(
+            public_exponent=65537,
+            key_size=4096,
+            backend=default_backend()
+        )
+        pem = private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.BestAvailableEncryption(
+                self.master_key.encode()
+            )
+        )
+        pub_pem = private_key.public_key().public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo
+        )
+
+        with open(key_path, "wb") as f: f.write(pem)
+        with open(pub_path, "wb") as f: f.write(pub_pem)
+        os.chmod(key_path, 0o600)
+        os.chmod(pub_path, 0o600)
+
+        logger.info("[ JWT ] Generated new RS256 keypair for JWT signing.")
+        return private_key, private_key.public_key()
+
+    def export_identity_pem(self, export_passphrase: str) -> str:
+        """
+        Exports the RSA private key encrypted with a caller-supplied passphrase.
+        """
         if not self.private_key:
-            return ""
+            raise ValueError("No RSA private key loaded in vault.")
+
+        if not export_passphrase or len(export_passphrase) < 16:
+            raise ValueError("Export passphrase must be at least 16 characters.")
+
+        if export_passphrase == self.master_key:
+            raise ValueError("Export passphrase must not be the same as the vault master key.")
+
+        from cryptography.hazmat.primitives import serialization
         return self.private_key.private_bytes(
             encoding=serialization.Encoding.PEM,
             format=serialization.PrivateFormat.PKCS8,
-            encryption_algorithm=serialization.NoEncryption()
+            encryption_algorithm=serialization.BestAvailableEncryption(
+                export_passphrase.encode()
+            )
         ).decode()
 
     async def flush_cache(self) -> bool:

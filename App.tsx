@@ -65,6 +65,7 @@ import { MemoryPanel } from './features/memory/MemoryPanel';
 import { DAGPanel } from './features/dag/DAGPanel';
 import PVTDashboard from './features/observability/PVTDashboard';
 import { useTranslation } from 'react-i18next';
+import ViewManifold from './src/components/ViewManifold';
 import './styles/dag.css';
 
 const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
@@ -436,170 +437,7 @@ const App: React.FC = () => {
 
   const accentColor = isConnected ? '#91D65F' : '#A1A1A1';
 
-  // Render the content area based on activeView
-  const renderContent = () => {
-    // Ensure we always have connections to show
-    const currentConnections = connections && connections.length > 0 ? connections : INITIAL_CONNECTIONS;
-
-    switch (activeView) {
-      case 'soul':
-        return (
-          <div className="inline-panel-wrapper">
-            <SoulPreferencesPanel
-              onClose={() => setActiveView('chat')}
-              onManifestUpdate={(m) => { setBaseManifest(m); geminiServiceRef.current?.setPersonality(m); }}
-            />
-          </div>
-        );
-      case 'skills':
-        return (
-          <div className="inline-panel-wrapper">
-            {showSkillWizard ? (
-              <SkillBuilderWizard onClose={() => { setShowSkillWizard(false); fetchSkills(); }} />
-            ) : (
-              <SkillGrid
-                skills={skills}
-                onSelect={setSelectedSkill}
-                onToggle={(id) => setSkills(s => s.map(x => x.id === id ? { ...x, verified: !x.verified } : x))}
-                onDelete={() => { }}
-                onCreate={() => setShowSkillWizard(true)}
-              />
-            )}
-          </div>
-        );
-      case 'bridges':
-        return (
-          <div className="inline-panel-wrapper">
-            <BridgeCenter
-              connections={currentConnections}
-              startAuthFlow={startAuthFlow}
-              onSocialAction={handleSocialAction}
-              onEnterpriseAction={handleEnterpriseAction}
-              onPulse={handlePulse}
-            />
-          </div>
-        );
-      case 'api':
-        return (
-          <div className="inline-panel-wrapper">
-            <ApiWizard
-              isOpen={true}
-              onClose={() => setActiveView('chat')}
-              apiKeys={apiKeys}
-              onSave={saveApiKeysToDaemon}
-            />
-          </div>
-        );
-      case 'wallet':
-        return (
-          <div className="inline-panel-wrapper">
-            <WalletPanel />
-          </div>
-        );
-      case 'memory':
-        return (
-          <div className="inline-panel-wrapper">
-            <MemoryPanel onClose={() => setActiveView('chat')} />
-          </div>
-        );
-      case 'tasks':
-        return (
-          <div className="inline-panel-wrapper">
-            <TaskPanel onClose={() => setActiveView('chat')} />
-          </div>
-        );
-      case 'files':
-        return (
-          <div className="inline-panel-wrapper">
-            <div className="inline-panel">
-              <div className="inline-panel__header">
-                <h2 className="inline-panel__title">File Manifold</h2>
-              </div>
-              <div className="inline-panel__body">
-                <div className="inline-panel__empty">
-                  <p>No files indexed yet.</p>
-                  <p className="text-xs opacity-50">Connect an iCloud bridge to sync files.</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      case 'audit':
-        return (
-          <div className="inline-panel-wrapper">
-            <AuditChainPanel refreshAuditLog={refreshAuditLog} />
-          </div>
-        );
-      case 'canvas':
-        return (
-          <div className="flex-1 p-4 md:p-8">
-            <LiveCanvas nodes={canvasNodes} />
-          </div>
-        );
-      case 'sessions':
-        return <SessionsPanel />;
-      case 'analytics':
-        return <AnalyticsPanel />;
-      case 'config':
-        return <ConfigPanel />;
-      case 'node':
-        return <NodePanel />;
-      case 'logs':
-        return <LogPanel />;
-      case 'crons':
-        return (
-          <div className="inline-panel-wrapper">
-            <CronPanel />
-          </div>
-        );
-      case 'agents':
-        return <AgentsPanel />;
-      case 'debug':
-        return <DebugPanel />;
-      case 'dag':
-        return <DAGPanel />;
-      case 'pvt':
-        return <PVTDashboard />;
-      case 'chat':
-      default:
-        return (
-          <>
-            <ModelFallbackBanner />
-            <TerminalView
-              getFormattedTime={(iso) => new Date(iso).toLocaleTimeString()}
-              copyText={copyText}
-            />
-            <ErrorBoundary>
-              <div style={{ position: 'relative' }}>
-                <AbortButton
-                  abortControllerRef={abortControllerRef}
-                  onAbort={() => {
-                    setIsProcessing(false);
-                    setTranscriptions(prev => [...prev, {
-                      text: '[ ABORTED ]: Generation stopped by user.',
-                      isUser: false,
-                      timestamp: new Date().toISOString()
-                    }]);
-                  }}
-                />
-                <CommandBar
-                  textInput={textInput}
-                  setTextInput={setTextInput}
-                  attachments={attachments}
-                  handlePaste={handlePaste}
-                  removeAttachment={removeAttachment}
-                  fileInputRef={fileInputRef}
-                  handleFileChange={handleFileChange}
-                  handleCommandSubmit={handleCommandSubmit}
-                  isProcessing={isProcessing}
-                />
-              </div>
-            </ErrorBoundary>
-          </>
-        );
-    }
-  };
-
+  // Root Layout
   return (
     <div className="app-shell">
       {/* ── Sticky Update Banner ─────────────────────────────────────────── */}
@@ -670,7 +508,23 @@ const App: React.FC = () => {
               </div>
             )}
             <ErrorBoundary>
-              {renderContent()}
+              <ViewManifold
+                geminiServiceRef={geminiServiceRef}
+                bridgeManagerRef={bridgeManagerRef}
+                fetchSkills={fetchSkills}
+                startAuthFlow={startAuthFlow}
+                handleSocialAction={handleSocialAction}
+                handleEnterpriseAction={handleEnterpriseAction}
+                handlePulse={handlePulse}
+                saveApiKeysToDaemon={saveApiKeysToDaemon}
+                refreshAuditLog={refreshAuditLog}
+                abortControllerRef={abortControllerRef}
+                fileInputRef={fileInputRef}
+                handleFileChange={handleFileChange}
+                handleCommandSubmit={handleCommandSubmit}
+                handlePaste={handlePaste}
+                removeAttachment={removeAttachment}
+              />
             </ErrorBoundary>
           </div>
 

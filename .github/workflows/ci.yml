@@ -108,6 +108,12 @@ jobs:
             --cov-fail-under=82 \
             -v --tb=short
 
+      - name: Verify Alembic migrations are consistent
+        run: |
+          cd backend
+          export PYTHONPATH=$PYTHONPATH:..
+          alembic check
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:

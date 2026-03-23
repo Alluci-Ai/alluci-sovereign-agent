@@ -1,93 +1,67 @@
-
-import time
-import psutil
-from typing import Dict, Any
-
-class MetricsTracker:
-    def __init__(self):
-        self.request_count = 0
-        self.latency_sum = 0
-        self.error_count = 0
-        self.start_time = time.time()
-        self._counters: Dict[str, int] = {}
-
-    def record_request(self, latency: float, status_code: int):
-        self.request_count += 1
-        self.latency_sum += latency
-        if status_code >= 400:
-            self.error_count += 1
-
-    def increment_counter(self, name: str, amount: int = 1):
-        """Increment a named Prometheus-style counter."""
-        self._counters[name] = self._counters.get(name, 0) + amount
-
-    def get_metrics_text(self) -> str:
-        uptime = time.time() - self.start_time
-        avg_latency = self.latency_sum / self.request_count if self.request_count > 0 else 0
-        
-        cpu = psutil.cpu_percent()
-        ram = psutil.virtual_memory().percent
-        
-        lines = [
-            "# HELP alluci_uptime_seconds_total Total uptime in seconds",
-            "# TYPE alluci_uptime_seconds_total counter",
-            f"alluci_uptime_seconds_total {uptime}",
-            
-            "# HELP alluci_requests_total Total number of HTTP requests processed",
-            "# TYPE alluci_requests_total counter",
-            f"alluci_requests_total {self.request_count}",
-            
-            "# HELP alluci_errors_total Total number of HTTP 4xx/5xx responses",
-            "# TYPE alluci_errors_total counter",
-            f"alluci_errors_total {self.error_count}",
-            
-            "# HELP alluci_avg_latency_seconds Average request latency in seconds",
-            "# TYPE alluci_avg_latency_seconds gauge",
-            f"alluci_avg_latency_seconds {avg_latency}",
-            
-            "# HELP alluci_cpu_percent Current CPU usage percentage",
-            "# TYPE alluci_cpu_percent gauge",
-            f"alluci_cpu_percent {cpu}",
-            
-            "# HELP alluci_ram_percent Current RAM usage percentage",
-            "# TYPE alluci_ram_percent gauge",
-            f"alluci_ram_percent {ram}",
-        ]
-
-        # Emit dynamic counters (e.g., redis_init_failures_total)
-        for name, val in self._counters.items():
-            lines.append(f"# TYPE {name} counter")
-            lines.append(f"{name} {val}")
-
-        return "\n".join(lines) + "\n"
-
-metrics = MetricsTracker()
-
-
-# ── FastAPI Router ─────────────────────────────────────────────────────────────
-
-from fastapi import APIRouter
+from prometheus_client import (
+    Counter, Gauge, Histogram, Info,
+    generate_latest, CONTENT_TYPE_LATEST, REGISTRY
+)
+from fastapi import APIRouter, Request
 from fastapi.responses import PlainTextResponse
+import time
+import os
+
+# ── Metric Definitions ────────────────────────────────────────────────────────
+
+REQUEST_COUNT = Counter(
+    "alluci_http_requests_total",
+    "Total number of HTTP requests",
+    ["method", "endpoint", "status_code"]
+)
+
+REQUEST_LATENCY = Histogram(
+    "alluci_http_request_duration_seconds",
+    "HTTP request latency in seconds",
+    ["method", "endpoint"],
+    buckets=[0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0]
+)
+
+ACTIVE_CONNECTIONS = Gauge(
+    "alluci_websocket_connections_active",
+    "Number of active WebSocket connections"
+)
+
+# ── Middleware ────────────────────────────────────────────────────────────────
+
+async def metrics_middleware(request: Request, call_next):
+    """Records per-request latency and status code metrics."""
+    start = time.perf_counter()
+    response = await call_next(request)
+    duration = time.perf_counter() - start
+
+    path = request.url.path
+    # Normalize path
+    for segment in path.split("/"):
+        if segment.isdigit() or (len(segment) > 20 and "-" in segment):
+            path = path.replace(segment, "{id}")
+
+    REQUEST_COUNT.labels(
+        method=request.method,
+        endpoint=path,
+        status_code=str(response.status_code)
+    ).inc()
+
+    REQUEST_LATENCY.labels(
+        method=request.method,
+        endpoint=path
+    ).observe(duration)
+
+    return response
+
+# ── Router ────────────────────────────────────────────────────────────────────
 
 metrics_router = APIRouter(tags=["Observability"])
 
-
-@metrics_router.get(
-    "/metrics",
-    response_class=PlainTextResponse,
-    include_in_schema=False,
-    summary="Prometheus metrics scrape endpoint",
-)
-async def prometheus_metrics() -> PlainTextResponse:
-    """
-    Exposes application metrics in Prometheus text format (version 0.0.4).
-    Scrape this endpoint with Prometheus or any compatible collector.
-
-    Note: For full Prometheus integration with labels and histograms, install
-    prometheus-client and update MetricsTracker to use Counter/Gauge/Histogram types.
-    The current implementation uses in-memory counters that reset on restart.
-    """
-    content = metrics.get_metrics_text()
-    return PlainTextResponse(content=content, media_type="text/plain; version=0.0.4; charset=utf-8")
-
-
+@metrics_router.get("/metrics", include_in_schema=False)
+async def get_metrics():
+    """Prometheus scrape endpoint."""
+    return PlainTextResponse(
+        content=generate_latest(REGISTRY).decode("utf-8"),
+        media_type=CONTENT_TYPE_LATEST
+    )

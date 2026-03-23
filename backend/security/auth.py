@@ -9,23 +9,40 @@ from ..config import load_settings
 settings = load_settings()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
+from cryptography.hazmat.primitives import serialization
+
+_jwt_private_key_pem: bytes = b""
+_jwt_public_key_pem: bytes = b""
+
+def init_jwt_keys(private_key, public_key):
+    """Called once at app startup after VaultManager is initialized."""
+    global _jwt_private_key_pem, _jwt_public_key_pem
+    _jwt_private_key_pem = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption()
+    )
+    _jwt_public_key_pem = public_key.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo
+    )
+
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
-    # Default to 24 hours for local sovereign agent usage
     expire = datetime.now(timezone.utc) + (expires_delta or timedelta(hours=24))
-    to_encode.update({"exp": expire})
-    # Use dedicated JWT secret — NOT the vault master key
-    encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm="HS256")
-    return encoded_jwt
+    to_encode.update({"exp": expire, "iat": datetime.now(timezone.utc)})
+    if not _jwt_private_key_pem:
+        raise RuntimeError("JWT private key not initialized.")
+    return jwt.encode(to_encode, _jwt_private_key_pem, algorithm="RS256")
 
 def verify_token(token: str) -> dict:
-    """Verifies a JWT token signature and returns the payload."""
+    if not _jwt_public_key_pem:
+        raise RuntimeError("JWT public key not initialized.")
     try:
-        # SEC-004: Added 60s leeway for clock skew between agent and client
         payload = jwt.decode(
             token, 
-            settings.JWT_SECRET_KEY, 
-            algorithms=["HS256"],
+            _jwt_public_key_pem, 
+            algorithms=["RS256"],
             options={"leeway": 60}
         )
         if payload.get("sub") is None:

@@ -12,6 +12,7 @@ starlette==0.41.0
 # ─── Data Validation & Settings ───────────────────────────────────────────────
 pydantic==2.12.5
 pydantic-settings==2.4.0
+prometheus-client==0.21.0
 
 # ─── Database & Migrations ────────────────────────────────────────────────────
 sqlmodel==0.0.21

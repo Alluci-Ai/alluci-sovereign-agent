@@ -48,6 +48,12 @@ configure_logging(app_env=settings.APP_ENV)
 async def lifespan(app: FastAPI):
     logger.info("[ POLYTOPE_DAEMON ] Booting up...")
     await services.init_services(app)
+
+    # SEC-001: Initialize RS256 JWT keypair from vault
+    from .security.auth import init_jwt_keys
+    private_key, public_key = await services.vault_manager.get_or_create_jwt_keypair()
+    init_jwt_keys(private_key, public_key)
+    logger.info("[ JWT ] RS256 keypair loaded from vault.")
     
     # SEC-001: WebAuthn Redis Initialization
     from .security.webauthn_store import webauthn_store, WebAuthnChallengeStore
@@ -132,6 +138,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+from .metrics import metrics_middleware
+
+# Add after the security headers middleware:
+app.middleware("http")(metrics_middleware)
 
 # SEC-002: Security Headers — Nonce-based CSP
 from .security.csp import generate_nonce

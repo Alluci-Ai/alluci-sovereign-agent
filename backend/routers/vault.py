@@ -35,6 +35,29 @@ async def rotate_vault_keys(request: Request, payload: Dict[str, str] = Body(...
     await log_system_event("VAULT_ROTATE", "All Active Vaults Cryptographically Rotated", "SUCCESS")
     return {"status": "success", "message": "All Active Vaults Cryptographically Rotated"}
 
+class ExportPemRequest(BaseModel):
+    export_passphrase: str = Field(
+        ..., 
+        min_length=16,
+        description="A unique passphrase to encrypt the exported key. Must not be your master key."
+    )
+
+@router.post("/vault/export-identity-pem",
+             summary="Export RSA identity key (encrypted)",
+             description="Returns the vault RSA private key encrypted with your export passphrase.")
+async def export_identity_pem(
+    body: ExportPemRequest,
+    _auth=Depends(verify_authenticated)
+):
+    try:
+        pem = services.vault_manager.export_identity_pem(body.export_passphrase)
+        return {
+            "pem": pem, 
+            "warning": "Store this securely. It contains your encrypted private key."
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 @router.post("/vault/flush", dependencies=[Depends(verify_authenticated)])
 async def flush_vault():
     if not services.vault:

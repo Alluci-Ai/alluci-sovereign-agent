@@ -53,6 +53,24 @@ from .models import AgentRecord, HeartbeatOrderRecord
 
 logger = get_logger("Heartbeat")
 
+_URL_PATTERN = re.compile(r'https?://', re.IGNORECASE)
+_NETWORK_CONSENT_MARKER = "[NETWORK_OK]"
+
+def _order_requires_network(order_text: str) -> bool:
+    return bool(_URL_PATTERN.search(order_text))
+
+def _order_has_network_consent(order_text: str) -> bool:
+    return _NETWORK_CONSENT_MARKER in order_text
+
+async def execute_standing_order(order_text: str):
+    """Executes a single standing order with network consent enforcement."""
+    if _order_requires_network(order_text):
+        if not _order_has_network_consent(order_text):
+            logger.warning(f"[ HEARTBEAT ] Blocked order missing [NETWORK_OK]: {order_text[:50]}...")
+            return f"Blocked: Missing {_NETWORK_CONSENT_MARKER} for network access."
+    
+    # Original execution logic follows...
+
 # ─── Constants ────────────────────────────────────────────────────────────────
 
 DEFAULT_INTERVAL_MINUTES: int = 15
