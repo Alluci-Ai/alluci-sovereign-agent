@@ -7,7 +7,7 @@
 fastapi==0.115.0
 uvicorn[standard]==0.30.0
 python-multipart==0.0.9
-starlette>=0.37.2,<0.42.0
+starlette>=0.37.2,<1.1.0
 
 # ─── Data Validation & Settings ───────────────────────────────────────────────
 pydantic==2.12.5
