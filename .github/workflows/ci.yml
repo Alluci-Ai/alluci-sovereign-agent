@@ -58,8 +58,12 @@ jobs:
         env:
           PYTHONPATH: .
           DPK_LIB_PATH: backend/security/build/libdpk.so
+      - name: Python lint check (ruff)
+        run: ruff check backend/
+      - name: Python format check (ruff)
+        run: ruff format --check backend/
       - name: Python type check (mypy)
-        run: mypy backend/ || true
+        run: mypy backend/
       - name: Check for unmigrated Alembic models
         run: |
           alembic check

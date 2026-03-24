@@ -20,7 +20,7 @@ def check_env():
 def check_backend():
     print("Checking Backend (8000)...")
     try:
-        res = requests.get("http://localhost:8000/health", timeout=5)
+        res = requests.get("http://127.0.0.1:8000/health", timeout=5)
         if res.status_code == 200:
             print("OK: Backend is reachable.")
             return True
@@ -32,7 +32,7 @@ def check_backend():
 def check_frontend():
     print("Checking Frontend (3000)...")
     try:
-        res = requests.get("http://localhost:3000/", timeout=5)
+        res = requests.get("http://127.0.0.1:3000/", timeout=5)
         if res.status_code == 200:
             print("OK: Frontend is reachable.")
             return True

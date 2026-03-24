@@ -78,9 +78,12 @@ def apply_sqlite_migrations():
                 with open(file_path, "r") as f:
                     sql_script = f.read()
                 
-                # We execute each file as a single transaction if possible,
-                # but most FTS5 scripts are designed to be idempotent.
-                conn.exec_driver_sql(sql_script)
+                # SQLite/SQLAlchemy exec_driver_sql only allows one statement.
+                # We split by semicolon and execute each non-empty part.
+                statements = [s.strip() for s in sql_script.split(";") if s.strip()]
+                for stmt in statements:
+                    conn.exec_driver_sql(stmt)
+                
                 conn.commit()
                 logger.info(f"  Applied: {sql_file}")
             except Exception as e:

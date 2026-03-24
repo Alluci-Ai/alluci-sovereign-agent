@@ -142,6 +142,15 @@ async def health_check():
 async def root_ready():
     return {"status": "ready"}
 
+@app.get("/api/v1/health", include_in_schema=False)
+async def health_v1():
+    from datetime import datetime, timezone
+    return {"status": "healthy", "version": "v1", "timestamp": datetime.now(timezone.utc).isoformat()}
+
+@app.get("/api/v1/ready", include_in_schema=False)
+async def ready_v1():
+    return {"status": "ready", "version": "v1"}
+
 # CORS Policy
 app.add_middleware(
     CORSMiddleware,

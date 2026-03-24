@@ -1,10 +1,10 @@
 # Alluci Sovereign Agent v6.4 — Orchestration
 
-VENV = venv
+VENV = .venv
 PYTHON = $(VENV)/bin/python3
 UVICORN = $(VENV)/bin/uvicorn
 
-.PHONY: start stop restart status init doctor logs clean
+.PHONY: start stop restart status init doctor logs clean quality
 
 help:
 	@echo "Alluci Sovereign Agent — Automation"
@@ -14,14 +14,12 @@ help:
 	@echo "  make restart   - stop + start"
 	@echo "  make status    - Check port 8000/3000 status"
 	@echo "  make doctor    - Validate environment, secrets, and dependencies"
+	@echo "  make quality   - Run full quality suite (tests, types, lint)"
 	@echo "  make logs      - Stream combined logs"
 
 init:
 	@echo "Initializing Alluci environment..."
-	@if [ ! -f .env ]; then cp .env.example .env && echo "Created .env from template"; fi
-	@if [ ! -d $(VENV) ]; then python3 -m venv $(VENV) && echo "Created virtualenv"; fi
-	@$(PYTHON) -m pip install -r requirements.txt
-	@npm install
+	@./scripts/bootstrap_all.sh
 
 stop:
 	@echo "Stopping all processes..."
@@ -48,6 +46,18 @@ status:
 doctor:
 	@echo "--- Alluci Doctor ---"
 	@$(PYTHON) scripts/verify_local.py
+
+quality:
+	@echo "--- Alluci Quality Gate ---"
+	@echo "[ 1/4 ] Backend Tests (Pytest)..."
+	@$(PYTHON) -m pytest backend/tests/ -x -q
+	@echo "[ 2/4 ] Backend Type Check (Mypy)..."
+	@$(VENV)/bin/mypy backend/
+	@echo "[ 3/4 ] Frontend Type Check (TSC)..."
+	@npm run typecheck
+	@echo "[ 4/4 ] Frontend Tests (Vitest)..."
+	@npm run test
+	@echo "--- Quality Gate PASSED ---"
 
 logs:
 	@tail -f backend.log frontend.log

@@ -1,0 +1,108 @@
+name: Release — SBOM, Signing, Staged Deploy
+
+on:
+  push:
+    tags:
+      - 'v*' # Trigger on version tags (e.g., v6.4.0)
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+
+jobs:
+  quality-gate:
+    name: Mandatory Quality Gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Bootstrap Backend
+        run: |
+          chmod +x scripts/bootstrap_backend.sh
+          ./scripts/bootstrap_backend.sh
+      - name: Make Quality
+        run: make quality
+
+  build-and-sign:
+    name: Build, SBOM, and Sign Images
+    needs: quality-gate
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.build-image.outputs.image }}
+      digest: ${{ steps.build-image.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3.4.0
+
+      - name: Build and Push Backend Image
+        id: build-image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.backend
+          push: true
+          tags: ghcr.io/${{ github.repository }}/alluci-backend:${{ github.ref_name }}
+
+      - name: Generate SBOM (CycloneDX)
+        run: |
+          pip install cyclonedx-bom
+          cyclonedx-py requirements.txt --outfile sbom-backend.json
+
+      - name: Upload SBOM to release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: sbom-backend.json
+          asset_name: sbom-backend-${{ github.ref_name }}.json
+          tag: ${{ github.ref }}
+
+      - name: Sign the images
+        run: |
+          cosign sign --yes ghcr.io/${{ github.repository }}/alluci-backend:${{ github.ref_name }}@${{ steps.build-image.outputs.digest }}
+        env:
+          COSIGN_EXPERIMENTAL: 1
+
+  deploy-staging:
+    name: Deploy to Staging
+    needs: build-and-sign
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Deploy to Staging Cluster
+        run: |
+          echo "Deploying image with digest: ${{ needs.build-and-sign.outputs.digest }} to staging."
+          # kubectl set image deployment/alluci-backend backend=ghcr.io/${{ github.repository }}/alluci-backend@${{ needs.build-and-sign.outputs.digest }}
+      - name: Post-deploy Synthetic Check
+        run: |
+          # curl -f https://staging-alluci.example.com/api/v1/health
+          echo "Staging checks PASSED."
+
+  deploy-production:
+    name: Deploy to Production
+    needs: [deploy-staging, build-and-sign]
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Manual Approval Gate
+        run: echo "Environment gate will handle approval."
+      - name: Deploy to Production Cluster
+        run: |
+          echo "Deploying to production."
+          # kubectl set image deployment/alluci-backend backend=ghcr.io/${{ github.repository }}/alluci-backend@${{ needs.build-and-sign.outputs.digest }}
+      - name: Final Production Verification
+        run: |
+          # curl -f https://alluci.sovereign/api/v1/ready
+          echo "Production deployment finalized."

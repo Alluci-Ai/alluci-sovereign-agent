@@ -1,0 +1,52 @@
+groups:
+- name: AlluciCoreAlerts
+  rules:
+  - alert: HighApiErrorRate
+    expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.05
+    for: 2m
+    labels:
+      severity: critical
+      service: alluci-backend
+    annotations:
+      summary: "High API error rate detected ({{ $value | printf \"%.2f\" }}% error rate)"
+      description: "More than 5% of HTTP requests are failing with 5xx errors for the last 2 minutes."
+
+  - alert: HighLatencyP95
+    expr: histogram_quantile(0.95, sum by (le, endpoint) (rate(http_request_duration_seconds_bucket[5m]))) > 0.8
+    for: 10m
+    labels:
+      severity: warning
+      service: alluci-backend
+    annotations:
+      summary: "Slow API endpoints detected (p95 > 800ms)"
+      description: "API p95 latency is consistently above 800ms for more than 10 minutes on endpoint {{ $labels.endpoint }}."
+
+  - alert: VaultIntegrityFailure
+    expr: rate(vault_integrity_checks_failed_total[1m]) > 0
+    for: 0m
+    labels:
+      severity: critical
+      service: alluci-backend
+    annotations:
+      summary: "Vault Integrity Verification FAILED"
+      description: "VDXF integrity check failed for vault data. This may indicate unauthorized tampering with the encrypted storage."
+
+  - alert: RedisConnectionLost
+    expr: redis_up == 0
+    for: 1m
+    labels:
+      severity: critical
+      service: alluci-backend
+    annotations:
+      summary: "Redis Cache Connection LOST"
+      description: "The backend cannot connect to the Redis instance. Rate limiting and L0 memory caching are currently degraded."
+
+  - alert: LowMemoryWarning
+    expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < 0.15
+    for: 5m
+    labels:
+      severity: warning
+      service: infrastructure
+    annotations:
+      summary: "Low Memory Available (< 15%)"
+      description: "The host node is running low on memory, which may cause OOM-kills or degraded model performance."

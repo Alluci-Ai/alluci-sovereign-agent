@@ -28,8 +28,17 @@
     ]
   },
   "include": [
+    "index.tsx",
+    "App.tsx",
+    "*.ts",
+    "components/**/*",
+    "features/**/*",
+    "hooks/**/*",
+    "store/**/*",
+    "lib/**/*",
     "src/**/*",
-    "frontend/**/*"
+    "frontend/**/*",
+    "tests/**/*"
   ],
   "exclude": [
     "node_modules",

@@ -7,7 +7,7 @@
 fastapi==0.115.0
 uvicorn[standard]==0.30.0
 python-multipart==0.0.9
-starlette==0.41.0
+starlette>=0.37.2,<0.42.0
 
 # ─── Data Validation & Settings ───────────────────────────────────────────────
 pydantic==2.12.5
@@ -16,7 +16,7 @@ pydantic-settings==2.4.0
 # ─── Database & Migrations ────────────────────────────────────────────────────
 sqlmodel==0.0.21
 alembic==1.13.2
-psycopg2-binary==2.9.9       # PostgreSQL sync driver (Alembic migrations)
+psycopg2-binary==2.9.11       # PostgreSQL sync driver (Alembic migrations)
 asyncpg==0.29.0              # PostgreSQL async driver (runtime)
 aiosqlite==0.20.0            # SQLite async support
 
@@ -41,10 +41,10 @@ tiktoken==0.7.0
 # ─── Messaging & Bridge SDKs ──────────────────────────────────────────────────
 discord.py==2.3.2            # Discord bridge
 python-telegram-bot==21.6    # Telegram bridge
-nostr-sdk==0.3.0             # Nostr bridge
+nostr-sdk>=0.42.0             # Nostr bridge (Updated for Python 3.14 compatibility)
 aiosmtplib==3.0.1            # Async SMTP for email bridge
 aioimaplib==1.1.0            # Async IMAP for email bridge
-pyicloud==1.1.0              # iCloud bridge (Updated for 1.1.0+)
+pyicloud>=2.0.0              # iCloud bridge (Updated for Python 3.14 compatibility)
 pycryptodome==3.20.0          # WeCom AES decryption
 pyotp==2.9.0                  # iWatch pairing
 slack-sdk==3.41.0
