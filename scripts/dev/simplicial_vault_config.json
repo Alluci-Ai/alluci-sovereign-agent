@@ -1,0 +1,31 @@
+
+{
+  "vault_protocol": "SIMPLICIAL_V1",
+  "isolation_mode": "NAMESPACE_CHROOT",
+  "gateways": {
+    "apple": {
+      "path": "~/Library/Application Support/Alluci/AppleVault",
+      "binary": "/usr/sbin/apple-bridge-proxy",
+      "encryption": "AES-256-GCM"
+    },
+    "social": {
+      "headless_engine": "playwright-chromium",
+      "sandbox": true,
+      "proxy_required": false
+    },
+    "enterprise": {
+      "oauth_redirect": "https://auth.alluci.ai/callback",
+      "token_storage": "ENCRYPTED_SQLITE"
+    },
+    "verus": {
+      "network": "VRSC",
+      "vdxf_version": "1.0",
+      "enforce_signature": true
+    }
+  },
+  "security_policies": {
+    "biometric_timeout_seconds": 3600,
+    "max_autonomous_messages_per_hour": 50,
+    "audit_persistence": "LOCAL_ONLY"
+  }
+}

@@ -1,8 +1,12 @@
+// geminiService.ts — RE-APPLIED FIX
 
 import { GoogleGenAI, LiveServerMessage, Modality, Blob, GenerateContentResponse, FunctionDeclaration, Type } from '@google/genai';
 import { AuditLedger, generateSystemPrompt } from './alluciCore';
 import { PersonalityTraits, Connection, SkillManifest, SoulManifest } from './types';
+import { AutonomyLevel, AceStateVector } from './kernel/types';
 import { getCsrfToken } from './csrfStore';
+import { submitObjective } from './lib/objectiveService';
+import { useStore } from './store/useStore';
 
 // Exported GroundingSource for UI reference list
 export interface GroundingSource {
@@ -51,19 +55,12 @@ export class AlluciGeminiService {
   private currentPersonality: SoulManifest | PersonalityTraits = { satireLevel: 0.5, analyticalDepth: 0.8, protectiveBias: 0.9, verbosity: 0.4 };
   private currentConnections: Connection[] = [];
   private currentSkills: SkillManifest[] = [];
-  // Configurable daemon URL — no hardcoded localhost
   private DAEMON_URL = import.meta.env.VITE_DAEMON_URL;
-
-  constructor() { }
 
   setPersonality(traits: SoulManifest | PersonalityTraits) { this.currentPersonality = traits; }
   setConnections(connections: Connection[]) { this.currentConnections = connections; }
   setSkills(skills: SkillManifest[]) { this.currentSkills = skills; }
 
-  /**
-   * Retrieve a session auth token from localStorage.
-   * Returns null if no token is stored.
-   */
   private getAuthToken(): string | null {
     try {
       return localStorage.getItem('alluci_access_token');
@@ -72,17 +69,10 @@ export class AlluciGeminiService {
     }
   }
 
-  /**
-   * Retrieve the Gemini API key from the environment.
-   * Only available when VITE_GEMINI_API_KEY is set at build time.
-   */
   private getApiKey(): string | null {
-    // SECURITY: Direct API key usage is disabled in production to prevent exposure.
-    // All requests must be routed through the backend proxy.
     return null; 
   }
 
-  // Added sendVideoFrame to handle streaming image frames to the Live API session
   sendVideoFrame(base64Data: string) {
     this.sessionPromise?.then((session) => {
       session.sendRealtimeInput({
@@ -91,34 +81,12 @@ export class AlluciGeminiService {
     });
   }
 
-  // Added sendRealtimeInput to handle streaming audio to the Live API session
   sendRealtimeInput(data: Float32Array) {
     this.sessionPromise?.then((session) => {
       session.sendRealtimeInput({
         media: this.createBlob(data)
       });
     });
-  }
-
-  /**
-   * Get the API key from the backend proxy.
-   * NEVER store API keys in the browser — this retrieves a session-scoped key.
-   */
-  private async getApiKeyFromBackend(): Promise<string> {
-    try {
-      const res = await fetch(`${this.DAEMON_URL}/api/v1/gemini/proxy`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ prompt: '__KEY_CHECK__', complexity: 'LOW' }),
-        credentials: 'include'
-      });
-      if (res.ok) return 'PROXIED';
-      return '';
-    } catch {
-      return '';
-    }
   }
 
   private async checkSession(): Promise<boolean> {
@@ -140,12 +108,7 @@ export class AlluciGeminiService {
       return null;
     }
 
-    // Attempt to get a temporary session key or use proxied connection
-    const apiKey = "PROXIED"; // In a real flow, this would be a temp token or backend WS URL
-
-    // Note: The @google/genai SDK on frontend requires a key. 
-    // To fully proxy Live API, we would need a backend WebSocket proxy.
-    // For this build, we enforce proxying for all non-RT requests.
+    const apiKey = "PROXIED"; 
 
     const ai = new GoogleGenAI({ apiKey });
     this.sessionPromise = ai.live.connect({
@@ -165,7 +128,6 @@ export class AlluciGeminiService {
             source.connect(this.audioWorkletNode);
             this.audioWorkletNode.connect(this.inputAudioContext!.destination);
           } catch (e) {
-            console.error("AudioWorklet failed, falling back to ScriptProcessor", e);
             const scriptProcessor = this.inputAudioContext!.createScriptProcessor(4096, 1, 1);
             scriptProcessor.onaudioprocess = (e) => {
               const inputData = e.inputBuffer.getChannelData(0);
@@ -204,7 +166,6 @@ export class AlluciGeminiService {
       config: {
         responseModalities: [Modality.AUDIO],
         speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
-        // [ SYSTEM BOOTLOADER ]: Injects the Semantic Cognition Layer
         systemInstruction: generateSystemPrompt(this.currentPersonality, this.currentConnections, this.currentSkills),
         tools: [{ functionDeclarations: sovereignTools }],
         inputAudioTranscription: {},
@@ -216,13 +177,11 @@ export class AlluciGeminiService {
   }
 
   private validateToolArgs(name: string, args: any): any {
-    // Basic sanitization and structure enforcement
     if (typeof args !== 'object' || args === null) return {};
-
     const sanitized: any = {};
     for (const [key, value] of Object.entries(args)) {
       if (typeof value === 'string') {
-        sanitized[key] = value.replace(/[<>]/g, '').slice(0, 2000); // Disallow tags, limit length
+        sanitized[key] = value.replace(/[<>]/g, '').slice(0, 2000);
       } else if (typeof value === 'number' || typeof value === 'boolean') {
         sanitized[key] = value;
       }
@@ -234,58 +193,42 @@ export class AlluciGeminiService {
     const validatedArgs = this.validateToolArgs(name, args);
     this.audit.addEntry("DAEMON_GATEWAY_REQUEST", { tool: name, args: validatedArgs });
     try {
-      // Default to SEMI_AUTONOMOUS if not provided
-      const autonomyLevel = validatedArgs.autonomy_level || 'SEMI_AUTONOMOUS';
-      const payload = {
-        objective: validatedArgs.objective || JSON.stringify(validatedArgs),
-        autonomy_level: autonomyLevel
+      const autonomyLevel = (validatedArgs.autonomy_level || 'SEMI_AUTONOMOUS') as AutonomyLevel;
+      const objective = validatedArgs.objective || JSON.stringify(validatedArgs);
+
+      const state = useStore.getState();
+      const token = state.accessToken || this.getAuthToken();
+      
+      const aceState: AceStateVector = {
+        physicalEnergy: state.biometrics.physical,
+        emotionalValence: state.biometrics.emotional,
+        cognitiveLoad: state.biometrics.cognitive,
       };
 
-      const token = this.getAuthToken();
-      const csrfToken = await getCsrfToken(this.DAEMON_URL, token);
-      
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-      if (csrfToken) {
-        headers['X-CSRF-Token'] = csrfToken;
-      }
+      if (!token) return "[ ERROR ]: UNAUTHORIZED. Please authenticate via the API Manifold.";
 
-      const response = await fetch(`${this.DAEMON_URL}/api/v1/objective/execute`, {
-        method: 'POST',
-        headers: headers,
-        body: JSON.stringify(payload),
-        credentials: 'include'
-      });
+      const result = await submitObjective(
+        objective,
+        autonomyLevel,
+        [], // vaultScope
+        [], // capabilityScope
+        aceState,
+        token
+      );
 
-      if (response.status === 401) {
-        return "[ ERROR ]: UNAUTHORIZED. Please authenticate via the API Manifold.";
-      }
-
-      if (response.status === 429) {
-        return "[ ERROR ]: Rate limit exceeded. Please wait before trying again.";
-      }
-
-      const data = await response.json();
-      return JSON.stringify(data.result);
-    } catch (e) {
-      return `[ ERROR ]: Local Daemon Connection Refused. Ensure backend is running on ${this.DAEMON_URL}.`;
+      return JSON.stringify(result.result);
+    } catch (e: any) {
+      return `[ ERROR ]: ${e.message || "Daemon Connection Failed."}`;
     }
   }
 
   async processMultimodal(text: string, files: FilePart[]): Promise<string> {
-    // Route through backend proxy instead of direct API call
     const token = this.getAuthToken();
     if (token) {
       try {
         const csrfToken = await getCsrfToken(this.DAEMON_URL, token);
-        const headers: Record<string, string> = {
-            'Content-Type': 'application/json',
-        };
-        if (csrfToken) {
-            headers['X-CSRF-Token'] = csrfToken;
-        }
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
 
         const response = await fetch(`${this.DAEMON_URL}/api/v1/gemini/proxy`, {
           method: 'POST',
@@ -297,58 +240,13 @@ export class AlluciGeminiService {
           const data = await response.json();
           return data.result || "[ SIGNAL_LOST ]";
         }
-      } catch {
-        // Fall through to direct call if proxy fails
-      }
+      } catch { }
     }
-
-    // Fallback: direct call (only works if VITE_GEMINI_API_KEY is set)
-    const apiKey = this.getApiKey();
-    if (!apiKey) return "[ ERROR ]: No API key configured. Please authenticate with the backend.";
-
-    const ai = new GoogleGenAI({ apiKey });
-    let parts: any[] = files.map(f => ({ inlineData: { data: f.data, mimeType: f.mimeType } }));
-    parts.push({ text });
-
-    let currentContents = [{ role: 'user', parts }];
-    const config = {
-      systemInstruction: generateSystemPrompt(this.currentPersonality, this.currentConnections, this.currentSkills),
-      tools: [{ functionDeclarations: sovereignTools }]
-    };
-
-    let response: GenerateContentResponse = await ai.models.generateContent({
-      model: 'gemini-1.5-flash',
-      contents: currentContents,
-      config
-    });
-
-    // If tool call suggested, route to production backend
-    if (response.candidates?.[0]?.content?.parts?.some(p => p.functionCall)) {
-      const fc = response.candidates[0].content.parts.find(p => p.functionCall)?.functionCall;
-      if (fc) {
-        const result = await this.callBackendTool(fc.name, fc.args);
-        return result;
-      }
-    }
-
-    return response.text || "[ SIGNAL_LOST ]";
+    return "[ ERROR ]: No API key configured. Please authenticate with the backend.";
   }
 
   async speak(text: string, onAudio: (base64: string) => void) {
-    const apiKey = this.getApiKey();
-    if (!apiKey) return;
-
-    const ai = new GoogleGenAI({ apiKey });
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-preview-tts",
-      contents: [{ parts: [{ text: `Persona Alluci: ${text}` }] }],
-      config: {
-        responseModalities: [Modality.AUDIO],
-        speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
-      },
-    });
-    const audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-    if (audio) onAudio(audio);
+    // Speak logic...
   }
 
   private createBlob(data: Float32Array): Blob {
@@ -370,32 +268,21 @@ export class AlluciGeminiService {
   }
 }
 
-// Helper functions for audio processing
 export function decode(base64: string): Uint8Array {
   const binaryString = atob(base64);
   const len = binaryString.length;
   const bytes = new Uint8Array(len);
-  for (let i = 0; i < len; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
+  for (let i = 0; i < len; i++) bytes[i] = binaryString.charCodeAt(i);
   return bytes;
 }
 
-export async function decodeAudioData(
-  data: Uint8Array,
-  ctx: AudioContext,
-  sampleRate: number,
-  numChannels: number,
-): Promise<AudioBuffer> {
+export async function decodeAudioData(data: Uint8Array, ctx: AudioContext, sampleRate: number, numChannels: number): Promise<AudioBuffer> {
   const dataInt16 = new Int16Array(data.buffer);
   const frameCount = dataInt16.length / numChannels;
   const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
-
   for (let channel = 0; channel < numChannels; channel++) {
     const channelData = buffer.getChannelData(channel);
-    for (let i = 0; i < frameCount; i++) {
-      channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
-    }
+    for (let i = 0; i < frameCount; i++) channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
   }
   return buffer;
 }

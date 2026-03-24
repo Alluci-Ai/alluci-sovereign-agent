@@ -1,27 +1,58 @@
-const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
+// lib/bridgeAuth.ts — RE-APPLIED FIX
 
-// Store credentials in vault (called before activateBridge)
-export async function saveBridgeCredentials(
-    id: string, creds: Record<string, any>, token: string
-): Promise<boolean> {
-    const res = await fetch(`${DAEMON_URL}/api/v1/channels/${id}/config`, {
-        method: 'PUT',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(creds),
-    });
-    return res.ok;
+import { getCsrfToken } from '../csrfStore';
+
+const DAEMON_URL = import.meta.env.VITE_DAEMON_URL;
+
+export async function saveBridgeCredentials(bridgeId: string, credentials: Record<string, string>) {
+  const token = localStorage.getItem('alluci_access_token');
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  // Ensure CSRF protection for credential mutation
+  const csrfToken = await getCsrfToken(DAEMON_URL, token || '');
+  if (csrfToken) {
+    headers['X-CSRF-Token'] = csrfToken;
+  }
+
+  const res = await fetch(`${DAEMON_URL}/api/v1/auth/bridge/${bridgeId}/save`, {
+    method: 'POST',
+    headers: headers,
+    body: JSON.stringify(credentials),
+    credentials: 'include'
+  });
+
+  if (!res.ok) throw new Error('Failed to save bridge credentials');
+  return res.json();
 }
 
-// Activate bridge adapter with stored credentials
-export async function activateBridge(
-    id: string, token: string
-): Promise<{ connected: boolean; alias?: string; profileImg?: string; error?: string }> {
-    const res = await fetch(`${DAEMON_URL}/api/v1/channels/${id}/connect`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        credentials: 'include',
-    });
-    if (!res.ok) return { connected: false, error: await res.text() };
-    return res.json();
+export async function activateBridge(bridgeId: string) {
+  const token = localStorage.getItem('alluci_access_token');
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  // Ensure CSRF protection for bridge activation state
+  const csrfToken = await getCsrfToken(DAEMON_URL, token || '');
+  if (csrfToken) {
+    headers['X-CSRF-Token'] = csrfToken;
+  }
+
+  const res = await fetch(`${DAEMON_URL}/api/v1/bridge/${bridgeId}/activate`, {
+    method: 'POST',
+    headers: headers,
+    credentials: 'include'
+  });
+
+  if (!res.ok) throw new Error('Failed to activate bridge');
+  return res.json();
 }

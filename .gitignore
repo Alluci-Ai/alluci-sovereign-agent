@@ -1,73 +1,76 @@
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
+# .gitignore — PRODUCTION READINESS REVISION
 
-node_modules
-dist
-dist-ssr
-*.local
-
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-
-# Environment variables (NEVER COMMIT)
-.env
-
-# Backend
+# ── Dependency Management ─────────────────────────────────────────────────────
+node_modules/
 venv/
 .venv/
 env/
-__pycache__
-*.pyc
-*.pyo
-*.egg-info
-*.eggs
-.pytest_cache
-.coverage
-htmlcov/
-*.db
-*.db-shm
-*.db-wal
-coverage.xml
-typecheck_output.txt
-heartbeat_state.json
-*.o
-*.so
-*.dylib
-*.dll
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# Vault data (contains encrypted secrets)
-.polytope/
-
-# Docker
-.docker/
-
-# IDE
-*.iml
-
-# Process IDs
-*_pid.txt
-
-# Dev Scripts
-scripts/dev/
-
-# Local TLS and cert material
+# ── Sensitive Material (URGENT) ────────────────────────────────────────────────
+# Never commit certificates or private keys.
 certs/
 *.pem
 *.key
 *.crt
 *.p12
 *.pfx
+*.jks
+.polytope/
+vault/
+polytope_data.db
+polytope_data.db-journal
+
+# ── Build Artifacts ────────────────────────────────────────────────────────────
+dist/
+dist-ssr/
+*.local
+.eslintcache
+.stylelintcache
+.vite/
+.next/
+out/
+build/
+.pwa/
+manifest.json
+
+# ── Python / Backend ───────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+backend.log
+backend_pcl.log
+backend_restart_hlsm.log
+test_polytope.db
+alembic_history.log
+
+# ── OS / Editors ───────────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+Thumbs.db
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+.project
+.settings/
+*.log
+
+# ── Docker ────────────────────────────────────────────────────────────────────
+.docker/
+docker-compose.override.yml

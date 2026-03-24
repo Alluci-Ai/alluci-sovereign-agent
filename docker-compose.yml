@@ -1,94 +1,70 @@
-# docker-compose.yml
-version: "3.9"
+# docker-compose.yml — PRODUCTION READINESS REVISION
 
 services:
   backend:
     build:
       context: .
       dockerfile: Dockerfile.backend
-    container_name: alluci-backend
+    container_name: alluci_daemon
     restart: unless-stopped
     env_file: .env
     environment:
+      - DATABASE_URL=postgresql+asyncpg://alluci:${DB_PASSWORD:-alluci_prod_pwd}@db:5432/alluci_db
+      - REDIS_URL=redis://redis:6379/0
       - APP_ENV=production
-      - DATABASE_URL=postgresql+asyncpg://alluci:${DB_PASSWORD}@db:5432/polytope
-      - PROD_DATABASE_URL=postgresql+asyncpg://alluci:${DB_PASSWORD}@db:5432/polytope
-      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
-    expose:
-      - "8000"
-    volumes:
-      - sovereign_vault:/home/polytope/.polytope
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "python", "-c",
-             "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
-      interval: 30s
-      timeout: 10s
-      start_period: 15s
-      retries: 3
-
-  nginx:
-    image: nginx:alpine
-    container_name: alluci-nginx
-    restart: unless-stopped
     ports:
-      - "80:80"
-      - "443:443"
+      - "8000:8000"
     volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./certs:/etc/letsencrypt:ro
+      - ./backend/security:/app/backend/security:ro
     depends_on:
-      - backend
-      - frontend
+      - db
+      - redis
+    networks:
+      - sovereign_net
 
   frontend:
     build:
       context: .
       dockerfile: Dockerfile.frontend
-    container_name: alluci-frontend
+    container_name: alluci_manifold
     restart: unless-stopped
-    expose:
-      - "80"
+    ports:
+      - "3000:80"
+    secrets:
+      - alluci_tls_cert
+      - alluci_tls_key
     depends_on:
       - backend
+    networks:
+      - sovereign_net
 
   db:
     image: postgres:16-alpine
-    container_name: alluci-db
-    restart: unless-stopped
+    container_name: alluci_db
     environment:
-      POSTGRES_USER: alluci
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: polytope
+      - POSTGRES_DB=alluci_db
+      - POSTGRES_USER=alluci
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-alluci_prod_pwd}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U alluci -d polytope"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+    networks:
+      - sovereign_net
 
   redis:
     image: redis:7-alpine
-    container_name: alluci-redis
-    restart: unless-stopped
-    command: >
-      redis-server
-      --appendonly yes
-      --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env — Redis will not start unauthenticated}
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD-SHELL", "redis-cli -a \"$REDIS_PASSWORD\" ping | grep PONG"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+    container_name: alluci_redis
+    networks:
+      - sovereign_net
+
+networks:
+  sovereign_net:
+    driver: bridge
 
 volumes:
-  sovereign_vault:
   postgres_data:
-  redis_data:
+
+secrets:
+  alluci_tls_cert:
+    file: ${TLS_CERT_PATH:-./certs/fullchain.pem}
+  alluci_tls_key:
+    file: ${TLS_KEY_PATH:-./certs/privkey.pem}

@@ -1,3 +1,4 @@
+// features/dag/DAGPanel.tsx — RE-APPLIED FIX
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useDAGRuns } from './hooks/useDAGRuns';
@@ -9,6 +10,8 @@ import { ObjectiveSubmitBar } from './components/ObjectiveSubmitBar';
 import { TaskDetailDrawer } from './components/TaskDetailDrawer';
 import { PlanPreviewModal } from './components/PlanPreviewModal';
 import { useStore } from '../../store/useStore';
+import { submitObjective } from '../../lib/objectiveService';
+import { AutonomyLevel, AceStateVector } from '../../kernel/types';
 import type { TaskRecord, DAGRun } from './types';
 
 const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
@@ -72,16 +75,27 @@ export const DAGPanel: React.FC = () => {
   };
 
   const handleObjectiveSubmit = async (objective: string, autonomy: string) => {
-    const res = await fetch(`${DAEMON_URL}/api/v1/objective/execute`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ objective, autonomy_level: autonomy }),
-    });
-    if (res.ok) {
-      const data = await res.json();
+    try {
+      const { biometrics } = useStore.getState();
+      const aceState: AceStateVector = {
+        physicalEnergy: biometrics.physical,
+        emotionalValence: biometrics.emotional,
+        cognitiveLoad: biometrics.cognitive,
+      };
+
+      const data = await submitObjective(
+        objective,
+        autonomy as AutonomyLevel,
+        [], // vaultScope
+        [], // capabilityScope
+        aceState,
+        accessToken || ''
+      );
+      
       refreshRuns();
       if (data.run_id) setSelectedRunId(data.run_id);
+    } catch (e: any) {
+      console.error('[DAGPanel] Objective execution failed:', e);
     }
   };
 

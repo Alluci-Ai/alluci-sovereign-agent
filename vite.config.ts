@@ -1,9 +1,13 @@
+// vite.config.ts — RE-APPLIED FIX
 
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import { readFileSync } from 'node:fs';
+
+const pkg = JSON.parse(readFileSync('./package.json', 'utf-8'));
 
 // Fix for __dirname not available in ESM environment
 const __filename = fileURLToPath(import.meta.url);
@@ -74,6 +78,7 @@ export default defineConfig(({ mode }) => {
       // In dev and same-origin prod, empty string enables relative path proxying.
       // If a separate CDN/Load Balancer is used, override via environment.
       'import.meta.env.VITE_DAEMON_URL': JSON.stringify(env.VITE_DAEMON_URL || ''),
+      __APP_VERSION__: JSON.stringify(pkg.version),
     },
     resolve: {
       alias: {

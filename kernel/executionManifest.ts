@@ -1,133 +1,166 @@
+// kernel/executionManifest.ts — RE-APPLIED FIX
 
 import { createHash, randomUUID } from 'node:crypto';
 import { IdentityManager } from './identity';
-import { AutonomyLevel, ExecutionManifest, ManifestObjective, SignedExecutionManifest } from './types';
+import {
+    AutonomyLevel,
+    ExecutionManifest,
+    ManifestObjective,
+    SignedExecutionManifest,
+} from './types';
+
+// ── Version constants ──────────────────────────────────────────────────────────
+const APP_VERSION: string =
+    (typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : null) ??
+    (() => {
+        try {
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
+            return require('../package.json').version as string;
+        } catch {
+            return '0.0.0-unknown';
+        }
+    })();
+
+const MANIFEST_VERSION = '1.0.0';
 
 /**
  * [ EXECUTION_MANIFEST_FACTORY ]
- * Generates the immutable contract for a sovereign action.
- * Ensures objective hashing and canonical signing.
+ *
+ * Generates the immutable, signed contract for a sovereign action.
+ * Each manifest binds an objective to an identity, autonomy level,
+ * vault scope, capability scope, and the active model version.
+ *
+ * Model and planner versions are injected at construction time
+ * from the active inference configuration — they are NOT hardcoded.
  */
 export class ExecutionManifestFactory {
-  private identity: IdentityManager;
-  private readonly PLANNER_VERSION = "4.3.0";
-  private readonly MODEL_VERSION = "gemini-pro-1.5";
-  private readonly MANIFEST_VERSION = "1.0.0";
+    private identity: IdentityManager;
+    private readonly plannerVersion: string;
+    private readonly modelVersion: string;
 
-  constructor(identity: IdentityManager) {
-    this.identity = identity;
-  }
-
-  /**
-   * Creates a signed manifest.
-   * This is the "Intent" that becomes an "Instruction".
-   */
-  create(
-    objectiveRaw: string,
-    autonomyLevel: AutonomyLevel,
-    vaultScope: string[],
-    capabilityScope: string[],
-    biometricGate: boolean = false
-  ): SignedExecutionManifest {
-
-    const now = new Date();
-    // Manifests are short-lived by default to prevent replay attacks
-    const expires = new Date(now.getTime() + 1000 * 60 * 15); // 15 min expiry
-
-    const objective: ManifestObjective = {
-      raw: objectiveRaw,
-      objectiveHash: this.hashString(objectiveRaw)
-    };
-
-    const manifest: ExecutionManifest = {
-      version: this.MANIFEST_VERSION,
-      executionId: randomUUID(), // Uses Node's crypto.randomUUID (v4) as execution ID
-      rootPublicKey: this.identity.getRootPublicKey(),
-      deviceFingerprint: this.getDeviceFingerprint(),
-      createdAt: now.toISOString(),
-      expiresAt: expires.toISOString(),
-      objective,
-      autonomyLevel,
-      vaultScope,
-      capabilityScope,
-      biometricGate,
-      plannerVersion: this.PLANNER_VERSION,
-      modelVersion: this.MODEL_VERSION,
-      nonce: randomUUID()
-    };
-
-    const canonicalString = this.canonicalize(manifest);
-    const signature = this.identity.signData(canonicalString);
-
-    return {
-      manifest,
-      signature
-    };
-  }
-
-  /**
-   * Validates the integrity and authenticity of a manifest.
-   */
-  validate(signedManifest: SignedExecutionManifest): boolean {
-    const { manifest, signature } = signedManifest;
-
-    // 1. Validate Expiration
-    if (new Date(manifest.expiresAt) < new Date()) {
-      console.warn(`[ MANIFEST ]: Expired at ${manifest.expiresAt}`);
-      return false;
+    /**
+     * @param identity       - The IdentityManager holding the root Ed25519 keypair.
+     * @param modelVersion   - The active model ID (e.g. 'gemini-2.0-flash').
+     * @param plannerVersion - The planner version string. Defaults to APP_VERSION.
+     */
+    constructor(
+        identity: IdentityManager,
+        modelVersion?: string,
+        plannerVersion?: string,
+    ) {
+        this.identity = identity;
+        this.plannerVersion = plannerVersion ?? APP_VERSION;
+        this.modelVersion =
+            modelVersion ??
+            (import.meta?.env?.VITE_DEFAULT_MODEL as string | undefined) ??
+            'unknown';
     }
 
-    // 2. Validate Objective Integrity
-    const currentObjectiveHash = this.hashString(manifest.objective.raw);
-    if (currentObjectiveHash !== manifest.objective.objectiveHash) {
-      console.error("[ MANIFEST ]: Objective hash mismatch. Possible tampering.");
-      return false;
+    /**
+     * Creates a signed execution manifest.
+     */
+    create(
+        objectiveRaw: string,
+        autonomyLevel: AutonomyLevel,
+        vaultScope: string[],
+        capabilityScope: string[],
+        biometricGate = false,
+    ): SignedExecutionManifest {
+        const now = new Date();
+        const expires = new Date(now.getTime() + 1_000 * 60 * 15); // 15-minute expiry
+
+        const objective: ManifestObjective = {
+            raw: objectiveRaw,
+            objectiveHash: this.hashString(objectiveRaw),
+        };
+
+        const manifest: ExecutionManifest = {
+            version: MANIFEST_VERSION,
+            executionId: randomUUID(),
+            rootPublicKey: this.identity.getRootPublicKey(),
+            deviceFingerprint: this.getDeviceFingerprint(),
+            createdAt: now.toISOString(),
+            expiresAt: expires.toISOString(),
+            objective,
+            autonomyLevel,
+            vaultScope,
+            capabilityScope,
+            biometricGate,
+            plannerVersion: this.plannerVersion,
+            modelVersion: this.modelVersion,
+            nonce: randomUUID(),
+        };
+
+        const canonicalString = this.canonicalize(manifest);
+        const signature = this.identity.signData(canonicalString);
+
+        return { manifest, signature };
     }
 
-    // 3. Verify Signature against Root Key
-    const canonicalString = this.canonicalize(manifest);
-    const isValid = this.identity.verifySignature(canonicalString, signature, manifest.rootPublicKey);
+    /**
+     * Validates the integrity and authenticity of a previously signed manifest.
+     */
+    validate(signedManifest: SignedExecutionManifest): boolean {
+        const { manifest, signature } = signedManifest;
 
-    if (!isValid) {
-      console.error("[ MANIFEST ]: Invalid signature.");
+        // 1. Expiry
+        if (new Date(manifest.expiresAt) < new Date()) {
+            console.warn(`[ MANIFEST ]: Expired at ${manifest.expiresAt}`);
+            return false;
+        }
+
+        // 2. Objective integrity
+        if (this.hashString(manifest.objective.raw) !== manifest.objective.objectiveHash) {
+            console.error('[ MANIFEST ]: Objective hash mismatch. Possible tampering.');
+            return false;
+        }
+
+        // 3. Signature
+        const canonicalString = this.canonicalize(manifest);
+        const isValid = this.identity.verifySignature(
+            canonicalString,
+            signature,
+            manifest.rootPublicKey,
+        );
+        if (!isValid) {
+            console.error('[ MANIFEST ]: Invalid signature.');
+        }
+        return isValid;
     }
 
-    return isValid;
-  }
+    // ── Private helpers ────────────────────────────────────────────────────────
 
-  private hashString(input: string): string {
-    return createHash('sha256').update(input).digest('hex');
-  }
-
-  /**
-   * Deterministic JSON stringify for signing.
-   * Sorts object keys recursively.
-   */
-  private canonicalize(obj: any): string {
-    if (obj === null || typeof obj !== 'object') {
-      return JSON.stringify(obj);
+    private hashString(input: string): string {
+        return createHash('sha256').update(input).digest('hex');
     }
-    if (Array.isArray(obj)) {
-      const parts = obj.map(item => this.canonicalize(item));
-      return `[${parts.join(',')}]`;
-    }
-    const sortedKeys = Object.keys(obj).sort();
-    const parts = sortedKeys.map(key => {
-      const val = obj[key];
-      return `"${key}":${this.canonicalize(val)}`;
-    });
-    return `{${parts.join(',')}}`;
-  }
 
-  private getDeviceFingerprint(): string {
-    if (process.env.DEVICE_FINGERPRINT) return process.env.DEVICE_FINGERPRINT;
-
-    try {
-      const os = require('node:os');
-      const data = `${os.hostname()}-${os.platform()}-${os.arch()}`;
-      return createHash('sha256').update(data).digest('hex').substring(0, 16).toUpperCase();
-    } catch {
-      return "FALLBACK_NODE_ID";
+    /**
+     * Deterministic JSON stringify with recursively sorted keys.
+     */
+    private canonicalize(obj: unknown): string {
+        if (obj === null || typeof obj !== 'object') {
+            return JSON.stringify(obj);
+        }
+        if (Array.isArray(obj)) {
+            return `[${obj.map(item => this.canonicalize(item)).join(',')}]`;
+        }
+        const sorted = Object.keys(obj as Record<string, unknown>).sort();
+        const parts = sorted.map(key => {
+            const val = (obj as Record<string, unknown>)[key];
+            return `"${key}":${this.canonicalize(val)}`;
+        });
+        return `{${parts.join(',')}}`;
     }
-  }
+
+    private getDeviceFingerprint(): string {
+        if (process.env.DEVICE_FINGERPRINT) return process.env.DEVICE_FINGERPRINT;
+        try {
+            // eslint-disable-next-line @typescript-eslint/no-require-imports
+            const os = require('node:os') as typeof import('node:os');
+            const data = `${os.hostname()}-${os.platform()}-${os.arch()}`;
+            return createHash('sha256').update(data).digest('hex').substring(0, 16).toUpperCase();
+        } catch {
+            return 'FALLBACK_NODE_ID';
+        }
+    }
 }

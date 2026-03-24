@@ -1,53 +1,104 @@
+# backend/routers/objectives.py — RE-APPLIED FIX
 
+import base64
+import json
 import uuid
-import traceback
-from typing import Dict, Any, Optional, List
-from fastapi import APIRouter, HTTPException, Depends, Body, Query, Request
-from sqlmodel import Session, select, desc
-from ..config import settings
-from ..database import engine as db_engine
-from ..models import ObjectiveRequest, Run, TaskRecord as TaskRecordModel, TaskUpdate
-from ..security.auth import verify_authenticated
-from ..security.utils import sanitize_input
-from fastapi_csrf_protect import CsrfProtect
+import logging
+from typing import Dict, Any, Optional
+from fastapi import APIRouter, Depends, HTTPException, Header
+from pydantic import BaseModel
+from cryptography.hazmat.primitives.asymmetric import ed25519
+
 from .. import services
-from fastapi_limiter.depends import RateLimiter
+from ..config import settings
+from ..security.policyEngine import AutonomyPolicyEngine
+from ..auth import get_current_user
 
-router = APIRouter(tags=["Objectives & Tasks"])
+router = APIRouter()
+logger = logging.getLogger("ObjectiveManager")
+policy_engine = AutonomyPolicyEngine()
 
-@router.post("/objective/execute", dependencies=[Depends(verify_authenticated), Depends(RateLimiter(times=settings.RATE_LIMIT_PER_MINUTE, seconds=60))])
-async def execute_objective(request: Request, req: ObjectiveRequest,
-    csrf_protect: CsrfProtect = Depends(),):
-    await csrf_protect.validate_csrf(request)
-    if not services.orchestrator:
-        raise HTTPException(status_code=503, detail="Orchestrator not ready")
-        
+class ObjectiveRequest(BaseModel):
+    objective: str
+    autonomy_level: str = "SEMI_AUTONOMOUS"
+
+# ── Manifest Validation Helpers ───────────────────────────────────────────────
+
+def _canonicalize(obj: Any) -> str:
+    """Python mirror of ExecutionManifestFactory.canonicalize() in TypeScript."""
+    if obj is None or not isinstance(obj, (dict, list)):
+        return json.dumps(obj, separators=(',', ':'))
+    if isinstance(obj, list):
+        return f"[{','.join(_canonicalize(x) for x in obj)}]"
+    sorted_keys = sorted(obj.keys())
+    parts = [f'"{k}":{_canonicalize(obj[k])}' for k in sorted_keys]
+    return "{" + ",".join(parts) + "}"
+
+def verify_manifest(manifest_header: str) -> Dict[str, Any]:
+    """Decodes and validates the Ed25519 signature of an execution manifest."""
     try:
-        # 1. Sanitize user-provided objective
-        sanitized_objective = await sanitize_input(req.objective, scanner=services.scanner)
+        manifest_raw = base64.b64decode(manifest_header).decode("utf-8")
+        signed_manifest = json.loads(manifest_raw)
+        manifest = signed_manifest["manifest"]
+        signature = bytes.fromhex(signed_manifest["signature"])
+        root_pubkey = bytes.fromhex(manifest["rootPublicKey"])
+
+        canonical_str = _canonicalize(manifest)
+        verify_key = ed25519.Ed25519PublicKey.from_public_bytes(root_pubkey)
+        verify_key.verify(signature, canonical_str.encode("utf-8"))
         
-        # 2. Execute via orchestrator
-        result = await services.orchestrator.execute_objective(sanitized_objective, req.autonomy_level, mode=req.mode)
-        
-        # 3. Scan Output (for PII/Secret leakage)
-        vault_keys = await services.vault.retrieve_secret("alluci_api_keys") or {}
-        active_secrets = []
-        for cat, providers in vault_keys.items():
-            if isinstance(providers, dict):
-                for k, v in providers.items():
-                    if v and isinstance(v, str) and len(v) > 8 and v != "MASK":
-                        active_secrets.append(v)
-        
-        is_safe, error = await services.scanner.scan_output(str(result), active_secrets=active_secrets)
-        if not is_safe:
-            raise HTTPException(status_code=403, detail=error)
-            
-        return {"result": result}
-    except HTTPException:
-        raise
+        return manifest
     except Exception as e:
-        error_id = str(uuid.uuid4())
-        raise HTTPException(
-            status_code=500,
-            detail=f"Objective execution failed. Error reference: {error_id}"
+        logger.error(f"[ SECURITY ]: Manifest verification failed: {e}")
+        raise HTTPException(status_code=403, detail="Invalid Execution Manifest Signature.")
+
+# ── Endpoints ────────────────────────────────────────────────────────────────
+
+@router.post("/execute")
+async def execute_objective(
+    request: ObjectiveRequest,
+    manifest_header: Optional[str] = Header(None, alias="X-Execution-Manifest"),
+    current_user: Any = Depends(get_current_user)
+):
+    """
+    Executes a sovereign objective using the backend DAG planner.
+    Enforces signed manifest validation and ACE-modulated policy.
+    """
+    if not services.orchestrator:
+        raise HTTPException(status_code=503, detail="Orchestrator not initialised.")
+
+    # 1. Manifest Integrity & Authenticity Check
+    if not manifest_header:
+        raise HTTPException(status_code=403, detail="X-Execution-Manifest header required for production.")
+    
+    manifest = verify_manifest(manifest_header)
+
+    # 2. Policy Enforcement (ACE/Autonomy Gate)
+    ace_state = None
+    if services.ace:
+        # Map front-end biometrics to ACE state vector
+        ace_state = {
+            "physicalEnergy": getattr(services.ace, "physical_energy", 0.5),
+            "emotionalValence": getattr(services.ace, "emotional_valence", 0.5),
+            "cognitiveLoad": getattr(services.ace, "cognitive_load", 0.3)
+        }
+
+    # evaluate risk score (defaulting to 50 for legacy, should be dynamic)
+    risk_score = 50 
+    permitted = policy_engine.evaluate(manifest, risk_score, ace_state)
+
+    if not permitted:
+        logger.warning(f"[ POLICY ]: Objective rejected for {current_user.id} due to autonomy constraints.")
+        raise HTTPException(status_code=403, detail="Objective rejected by autonomy policy gate.")
+
+    # 3. Execution (Proxy to Orchestrator)
+    try:
+        logger.info(f"[ EXEC ]: Starting objective for {current_user.id}: {request.objective[:50]}...")
+        run_id = await services.orchestrator.execute_objective(
+            request.objective,
+            autonomy_level=manifest["autonomyLevel"]
         )
+        return {"status": "accepted", "run_id": run_id}
+    except Exception as e:
+        logger.exception("Objective execution failed.")
+        raise HTTPException(status_code=500, detail=str(e))
