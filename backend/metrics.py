@@ -65,3 +65,16 @@ async def get_metrics():
         content=generate_latest(REGISTRY).decode("utf-8"),
         media_type=CONTENT_TYPE_LATEST
     )
+
+class MetricsFacade:
+    def increment_counter(self, name: str, labels: dict = None):
+        """Dynamic counter increment (standard facade pattern)."""
+        # Mapping for common counters used in the codebase
+        mapping = {
+            "redis_init_failures_total": REQUEST_COUNT.labels(method="INTERNAL", endpoint="REDIS", status_code="500"),
+            "redis_not_configured_total": REQUEST_COUNT.labels(method="INTERNAL", endpoint="REDIS", status_code="400"),
+        }
+        if name in mapping:
+            mapping[name].inc()
+
+metrics = MetricsFacade()

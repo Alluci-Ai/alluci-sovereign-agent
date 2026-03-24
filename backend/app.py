@@ -50,7 +50,7 @@ async def lifespan(app: FastAPI):
     assert_secrets_are_set()
     warn_on_stale_model_ids()
     
-    logger.info("[ POLYTOPE_DAEMON ] Booting up...")
+    logger.info("[ POLYTOPE_DAEMON ] # 1. Initialize global system components")
     await services.init_services(app)
 
     # SEC-001: Initialize RS256 JWT keypair from vault
@@ -78,6 +78,14 @@ async def lifespan(app: FastAPI):
         logger.info("[ VERUSID ] Challenge store backed by Redis.")
         
     yield
+    
+    # --- Graceful Shutdown ---
+    logger.info("[ SHUTDOWN ] Cleaning up system components...")
+    if services.redis_client:
+        await services.redis_client.close()
+        logger.info("[ CACHE ] Redis connection closed.")
+    
+    logger.info("[ SHUTDOWN ] Alluci Sovereign Agent stopped gracefully.")
     await services.shutdown_services()
 
 app = FastAPI(

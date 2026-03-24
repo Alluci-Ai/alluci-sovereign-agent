@@ -1,6 +1,9 @@
 # backend/core/startup_checks.py
 import os
 import sys
+from dotenv import load_dotenv
+
+load_dotenv(override=True)
 
 FORBIDDEN_SECRET_VALUES = {
     "testing_csrf_key_auto_generated",
@@ -36,9 +39,14 @@ def assert_secrets_are_set() -> None:
             errors.append(f"  - {key} is missing or set to a known-insecure placeholder value.")
 
     if errors:
-        print("FATAL: Refusing to start with insecure configuration:", file=sys.stderr)
+        print("\n\033[91mFATAL: Refusing to start with insecure configuration:\033[0m", file=sys.stderr)
         for e in errors:
-            print(e, file=sys.stderr)
+            print(f"  - {e}", file=sys.stderr)
+        
+        print("\n\033[1m[REPARATION HINT]\033[0m", file=sys.stderr)
+        print("To fix this, add the missing keys to your \033[1m.env\033[0m file or export them locally.", file=sys.stderr)
+        print("Example: \033[92mexport CSRF_SECRET_KEY=$(openssl rand -hex 32)\033[0m", file=sys.stderr)
+        print("Or use: \033[92mmake init\033[0m to generate a standard template.\n", file=sys.stderr)
         sys.exit(1)
 
 def warn_on_stale_model_ids() -> None:
