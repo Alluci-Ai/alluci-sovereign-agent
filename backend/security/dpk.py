@@ -58,16 +58,40 @@ class DiscreteProjectionKernel:
                 self.native_lib = None
 
     def _load_native_lib(self):
+        # 1. Direct environment override (highest priority)
+        env_path = os.getenv("DPK_LIB_PATH")
+        if env_path:
+            try:
+                return ctypes.CDLL(env_path)
+            except Exception as e:
+                logger.warning(f"[DPK] Failed to load library from DPK_LIB_PATH={env_path}: {e}")
+
+        # 2. Dynamic platform-specific discovery in build/ directory
         base_dir = os.path.dirname(os.path.abspath(__file__))
-        ext = ".so" if os.name != "nt" else ".dll"
-        if os.uname().sysname == "Darwin": ext = ".dylib"
+        build_dir = os.path.join(base_dir, "build")
         
-        lib_path = os.path.join(base_dir, f"libdpk{ext}")
+        ext = ".so"
+        import platform
+        if platform.system() == "Darwin":
+            ext = ".dylib"
+        elif platform.system() == "Windows":
+            ext = ".dll"
+            
+        lib_path = os.path.join(build_dir, f"libdpk{ext}")
         if os.path.exists(lib_path):
             try:
                 return ctypes.CDLL(lib_path)
             except Exception as e:
                 logger.warning(f"[DPK] Failed to load library at {lib_path}: {e}")
+                
+        # 3. Legacy path fallback (migration)
+        legacy_path = os.path.join(base_dir, f"libdpk{ext}")
+        if os.path.exists(legacy_path):
+            try:
+                return ctypes.CDLL(legacy_path)
+            except Exception as e:
+                logger.debug(f"[DPK] Legacy library load failed at {legacy_path}: {e}")
+
         return None
 
     def __del__(self):

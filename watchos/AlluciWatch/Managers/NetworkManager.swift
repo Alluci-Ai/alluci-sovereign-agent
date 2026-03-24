@@ -1,20 +1,66 @@
 import Foundation
 import Security
 
+struct KeychainHelper {
+    static let service = "com.alluci.watch"
+
+    static func save(_ value: String, for key: String) {
+        let data = Data(value.utf8)
+        let query: [String: Any] = [
+            kSecClass as String:            kSecClassGenericPassword,
+            kSecAttrService as String:      service,
+            kSecAttrAccount as String:      key,
+            kSecValueData as String:        data,
+            kSecAttrAccessible as String:   kSecAttrAccessibleAfterFirstUnlock,
+        ]
+        SecItemDelete(query as CFDictionary)
+        SecItemAdd(query as CFDictionary, nil)
+    }
+
+    static func load(for key: String) -> String? {
+        let query: [String: Any] = [
+            kSecClass as String:            kSecClassGenericPassword,
+            kSecAttrService as String:      service,
+            kSecAttrAccount as String:      key,
+            kSecMatchLimit as String:       kSecMatchLimitOne,
+            kSecReturnData as String:       true,
+        ]
+        var result: AnyObject?
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+              let data = result as? Data else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    static func delete(for key: String) {
+        let query: [String: Any] = [
+            kSecClass as String:       kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: key,
+        ]
+        SecItemDelete(query as CFDictionary)
+    }
+}
+
 class NetworkManager: ObservableObject {
     @Published var isPaired: Bool = false
     @Published var sessionToken: String?
-    @Published var baseURL: String = ""
-    @Published var deviceID: String = ""
     
-    private let defaults = UserDefaults.standard
-    private let keychainService = "com.alluci.agent.token"
-    private let keychainAccount = "sessionToken"
-    
+    private let baseURLKey = "alluci.baseURL"
+    private let deviceIDKey = "alluci.deviceID"
+    private let tokenKey = "alluci.sessionToken"
+
+    var baseURL: String {
+        get { KeychainHelper.load(for: baseURLKey) ?? "https://localhost:8000" }
+        set { KeychainHelper.save(newValue, for: baseURLKey) }
+    }
+
+    var deviceID: String {
+        get { KeychainHelper.load(for: deviceIDKey) ?? UUID().uuidString }
+        set { KeychainHelper.save(newValue, for: deviceIDKey) }
+    }
+
     init() {
-        self.sessionToken = loadTokenFromKeychain()
-        self.baseURL = defaults.string(forKey: "baseURL") ?? ""
-        self.deviceID = defaults.string(forKey: "deviceID") ?? ""
+        self.sessionToken = KeychainHelper.load(for: tokenKey)
         self.isPaired = self.sessionToken != nil
     }
     
@@ -45,10 +91,8 @@ class NetworkManager: ObservableObject {
                 self.isPaired = true
                 
                 if let token = result.session_token {
-                    self.saveTokenToKeychain(token)
+                    KeychainHelper.save(token, for: self.tokenKey)
                 }
-                self.defaults.set(url, forKey: "baseURL")
-                self.defaults.set(deviceID, forKey: "deviceID")
             }
         } else {
             throw NSError(domain: "Pairing", code: 401, userInfo: [NSLocalizedDescriptionKey: result.error ?? "Unknown error"])
@@ -79,52 +123,10 @@ class NetworkManager: ObservableObject {
         DispatchQueue.main.async {
             self.sessionToken = nil
             self.isPaired = false
-            self.deleteTokenFromKeychain()
+            KeychainHelper.delete(for: self.tokenKey)
+            KeychainHelper.delete(for: self.baseURLKey)
+            KeychainHelper.delete(for: self.deviceIDKey)
         }
-    }
-    
-    // MARK: - Keychain Helpers
-    
-    private func saveTokenToKeychain(_ token: String) {
-        guard let data = token.data(using: .utf8) else { return }
-        
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: keychainService,
-            kSecAttrAccount as String: keychainAccount,
-            kSecValueData as String: data,
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
-        ]
-        
-        SecItemDelete(query as CFDictionary)
-        SecItemAdd(query as CFDictionary, nil)
-    }
-    
-    private func loadTokenFromKeychain() -> String? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: keychainService,
-            kSecAttrAccount as String: keychainAccount,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
-        
-        var dataTypeRef: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &dataTypeRef)
-        
-        if status == errSecSuccess, let data = dataTypeRef as? Data, let token = String(data: data, encoding: .utf8) {
-            return token
-        }
-        return nil
-    }
-    
-    private func deleteTokenFromKeychain() {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: keychainService,
-            kSecAttrAccount as String: keychainAccount
-        ]
-        SecItemDelete(query as CFDictionary)
     }
 }
 

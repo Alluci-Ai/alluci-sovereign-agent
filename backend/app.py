@@ -46,6 +46,10 @@ configure_logging(app_env=settings.APP_ENV)
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
+    from .core.startup_checks import assert_secrets_are_set, warn_on_stale_model_ids
+    assert_secrets_are_set()
+    warn_on_stale_model_ids()
+    
     logger.info("[ POLYTOPE_DAEMON ] Booting up...")
     await services.init_services(app)
 
@@ -79,7 +83,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Alluci Sovereign Agent",
     description="Sovereign Executive Assistant with Polytopic Manifolds",
-    version="5.3.5",
+    version="6.4.0",
     lifespan=lifespan,
     dependencies=[Depends(global_rate_limit)]
 )

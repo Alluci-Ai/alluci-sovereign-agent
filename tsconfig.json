@@ -28,20 +28,14 @@
     ]
   },
   "include": [
-    "**/*.ts",
-    "**/*.tsx"
+    "src/**/*",
+    "frontend/**/*"
   ],
   "exclude": [
     "node_modules",
-    "backend",
-    "venv",
-    ".venv",
     "dist",
-    "third-party",
-    "tests",
-    "e2e",
-    "**/__tests__",
-    "**/*.test.ts",
-    "**/*.test.tsx"
+    "build",
+    "backend/verusid_bridge/**/__tests__/**",
+    "backend/verusid_bridge/**/test/**"
   ]
 }

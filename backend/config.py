@@ -244,7 +244,11 @@ class Settings(BaseSettings):
 
     # Proactive Cognition Loop (PCL)
     PCL_ENABLED: bool = True
-    PCL_CYCLE_INTERVAL: int = 300
+    PCL_CYCLE_INTERVAL: float = Field(
+        default=300.0,
+        gt=0,
+        description="Interval in seconds between PCL cognitive loop cycles. Minimum: 1s.",
+    )
     PCL_QUIET_START_HOUR: int = 22
     PCL_QUIET_END_HOUR: int = 7
 

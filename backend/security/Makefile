@@ -1,33 +1,27 @@
-# Makefile for Alluci Sovereign Agent Native Kernels
+# backend/security/Makefile
+BUILD_DIR := build
+TARGET_DYLIB := $(BUILD_DIR)/libdpk.dylib
+TARGET_SO := $(BUILD_DIR)/libdpk.so
+TARGET_OBJ := $(BUILD_DIR)/dpk_kernel.o
+SRC := dpk_kernel.cpp
 
-CXX = g++
-CXXFLAGS = -O3 -Wall -fPIC -std=c++11
-LDFLAGS = -shared
+CXX := g++
+CXXFLAGS := -O2 -std=c++17 -fPIC -Wall
 
-# Target names based on OS
-UNAME_S := $(shell uname -s)
-ifeq ($(UNAME_S),Darwin)
-	TARGET = libdpk.dylib
-	LDFLAGS += -Wl,-undefined,dynamic_lookup
-else
-	TARGET = libdpk.so
-endif
+.PHONY: all clean macos linux
 
-SRCS = dpk_kernel.cpp
-OBJS = $(SRCS:.cpp=.o)
+all: $(shell uname -s | tr '[:upper:]' '[:lower:]')
 
-all: $(TARGET)
+$(BUILD_DIR):
+	mkdir -p $(BUILD_DIR)
 
-$(TARGET): $(OBJS)
-	$(CXX) $(LDFLAGS) -o $@ $^
+macos: $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) -dynamiclib -o $(TARGET_DYLIB) $(SRC)
+	@echo "Built macOS dylib: $(TARGET_DYLIB)"
 
-%.o: %.cpp
-	$(CXX) $(CXXFLAGS) -c $< -o $@
-
-verify: $(TARGET)
-	@python3 -c "import ctypes; ctypes.CDLL('./$(TARGET)'); print('Verification successful: $(TARGET) loaded.');"
+linux: $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) -shared -o $(TARGET_SO) $(SRC)
+	@echo "Built Linux .so: $(TARGET_SO)"
 
 clean:
-	rm -f $(OBJS) $(TARGET)
-
-.PHONY: all clean verify
+	rm -rf $(BUILD_DIR)
