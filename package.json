@@ -14,7 +14,7 @@
     "lint": "eslint . --max-warnings=0"
   },
   "dependencies": {
-    "@google/genai": "^1.40.0",
+    "@google/genai": "^1.46.0",
     "i18next": "^25.8.17",
     "lucide-react": "^0.575.0",
     "qrcode.react": "^4.2.0",
