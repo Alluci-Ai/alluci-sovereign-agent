@@ -4,18 +4,18 @@ import { getCsrfToken } from '../csrfStore';
 
 const DAEMON_URL = import.meta.env.VITE_DAEMON_URL;
 
-export async function saveBridgeCredentials(bridgeId: string, credentials: Record<string, string>) {
-  const token = localStorage.getItem('alluci_access_token');
+export async function saveBridgeCredentials(bridgeId: string, credentials: Record<string, string>, token?: string) {
+  const activeToken = token || localStorage.getItem('alluci_access_token');
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
 
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
+  if (activeToken) {
+    headers['Authorization'] = `Bearer ${activeToken}`;
   }
 
   // Ensure CSRF protection for credential mutation
-  const csrfToken = await getCsrfToken(DAEMON_URL, token || '');
+  const csrfToken = await getCsrfToken(DAEMON_URL, activeToken || '');
   if (csrfToken) {
     headers['X-CSRF-Token'] = csrfToken;
   }
@@ -31,18 +31,18 @@ export async function saveBridgeCredentials(bridgeId: string, credentials: Recor
   return res.json();
 }
 
-export async function activateBridge(bridgeId: string) {
-  const token = localStorage.getItem('alluci_access_token');
+export async function activateBridge(bridgeId: string, token?: string) {
+  const activeToken = token || localStorage.getItem('alluci_access_token');
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
 
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
+  if (activeToken) {
+    headers['Authorization'] = `Bearer ${activeToken}`;
   }
 
   // Ensure CSRF protection for bridge activation state
-  const csrfToken = await getCsrfToken(DAEMON_URL, token || '');
+  const csrfToken = await getCsrfToken(DAEMON_URL, activeToken || '');
   if (csrfToken) {
     headers['X-CSRF-Token'] = csrfToken;
   }

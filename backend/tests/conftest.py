@@ -71,16 +71,16 @@ def temp_db():
     SQLModel.metadata.create_all(engine)
     
     # Patch all direct module lookups to db_engine
-    with patch("backend.database.engine", engine), \
-         patch("backend.routers.system.db_engine", engine), \
-         patch("backend.routers.objectives.db_engine", engine), \
-         patch("backend.routers.dag.db_engine", engine), \
-         patch("backend.routers.sessions.db_engine", engine), \
-         patch("backend.security.audit_ledger.db_engine", engine), \
-         patch("backend.goals.engine.db_engine", engine), \
-         patch("backend.sop.engine.db_engine", engine), \
-         patch("backend.device_manager.db_engine", engine), \
-         patch("backend.orchestrator.db_engine", engine), \
+    with patch("backend.database.engine", engine, create=True), \
+         patch("backend.routers.system.db_engine", engine, create=True), \
+         patch("backend.routers.objectives.db_engine", engine, create=True), \
+         patch("backend.routers.dag.db_engine", engine, create=True), \
+         patch("backend.routers.sessions.db_engine", engine, create=True), \
+         patch("backend.security.audit_ledger.db_engine", engine, create=True), \
+         patch("backend.goals.engine.db_engine", engine, create=True), \
+         patch("backend.sop.engine.db_engine", engine, create=True), \
+         patch("backend.device_manager.db_engine", engine, create=True), \
+         patch("backend.orchestrator.db_engine", engine, create=True), \
          patch("backend.models.engine", engine, create=True):
         yield engine
 

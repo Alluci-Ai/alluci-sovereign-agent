@@ -164,7 +164,7 @@ export class ExecutionManifestFactory {
             // eslint-disable-next-line @typescript-eslint/no-require-imports
             const os = require('node:os') as typeof import('node:os');
             const data = `${os.hostname()}-${os.platform()}-${os.arch()}`;
-            return createHash('sha256').update(data).digest('hex').substring(0, 16).toUpperCase();
+            return require('node:crypto').createHash('sha256').update(data).digest('hex').substring(0, 16).toUpperCase();
         } catch {
             return 'FALLBACK_NODE_ID';
         }

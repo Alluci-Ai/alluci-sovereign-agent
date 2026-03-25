@@ -65,11 +65,20 @@ services:
     networks:
       - sovereign_net
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health')"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 60s
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/logs
+      - /home/polytope/.polytope/vaults
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
     deploy:
       resources:
         limits:
