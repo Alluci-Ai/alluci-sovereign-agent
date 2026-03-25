@@ -29,16 +29,14 @@
   },
   "include": [
     "index.tsx",
-    "App.tsx",
-    "*.ts",
     "components/**/*",
     "features/**/*",
     "hooks/**/*",
     "store/**/*",
     "lib/**/*",
-    "src/**/*",
-    "frontend/**/*",
-    "tests/**/*"
+    "tests/**/*",
+    "*.ts",
+    "*.tsx"
   ],
   "exclude": [
     "node_modules",

@@ -145,11 +145,11 @@ async def root_ready():
 @app.get("/api/v1/health", include_in_schema=False)
 async def health_v1():
     from datetime import datetime, timezone
-    return {"status": "healthy", "version": "v1", "timestamp": datetime.now(timezone.utc).isoformat()}
+    return {"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()}
 
 @app.get("/api/v1/ready", include_in_schema=False)
 async def ready_v1():
-    return {"status": "ready", "version": "v1"}
+    return {"status": "ready"}
 
 # Moved to bottom to ensure it's the outermost middleware for response headers
 

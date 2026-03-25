@@ -82,6 +82,8 @@ jobs:
         run: npm ci
       - name: TypeScript type check
         run: npx tsc --noEmit
+      - name: Frontend lint
+        run: npx eslint . --max-warnings=0
       - name: Run vitest
         run: npm test
 
