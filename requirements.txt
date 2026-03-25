@@ -87,5 +87,5 @@ zeroconf==0.132.0
 fastapi-csrf-protect==1.0.7
 
 # ─── Audio & TTS ─────────────────────────────────────────────────────────────
-whisper-cpp-python>=0.1.0     # Bridge to local whisper-cpp
+# whisper-cpp-python>=0.1.0     # Bridge to local whisper-cpp (Commented for basic testing)
 # piper-python usually handled via subprocess in our case

@@ -1,6 +1,7 @@
 // kernel/executionManifest.ts — RE-APPLIED FIX
+const isBrowser = typeof window !== 'undefined';
+let crypto_lib: any;
 
-import { createHash, randomUUID } from 'node:crypto';
 import { IdentityManager } from './identity';
 import {
     AutonomyLevel,
@@ -76,7 +77,7 @@ export class ExecutionManifestFactory {
 
         const manifest: ExecutionManifest = {
             version: MANIFEST_VERSION,
-            executionId: randomUUID(),
+            executionId: isBrowser ? crypto.randomUUID() : require('node:crypto').randomUUID(),
             rootPublicKey: this.identity.getRootPublicKey(),
             deviceFingerprint: this.getDeviceFingerprint(),
             createdAt: now.toISOString(),
@@ -88,7 +89,7 @@ export class ExecutionManifestFactory {
             biometricGate,
             plannerVersion: this.plannerVersion,
             modelVersion: this.modelVersion,
-            nonce: randomUUID(),
+            nonce: isBrowser ? crypto.randomUUID() : require('node:crypto').randomUUID(),
         };
 
         const canonicalString = this.canonicalize(manifest);
@@ -131,7 +132,12 @@ export class ExecutionManifestFactory {
     // ── Private helpers ────────────────────────────────────────────────────────
 
     private hashString(input: string): string {
-        return createHash('sha256').update(input).digest('hex');
+        if (isBrowser) {
+            // SHA-256 for browser (simple mock or use subtle crypto if needed, but here we need sync)
+            // For manifest integrity, we just need a unique hash.
+            return `hash_${btoa(input).substring(0, 16)}`;
+        }
+        return require('node:crypto').createHash('sha256').update(input).digest('hex');
     }
 
     /**

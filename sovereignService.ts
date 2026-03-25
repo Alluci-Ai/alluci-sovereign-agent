@@ -15,7 +15,7 @@ export class AlluciSovereignService {
     private socket: WebSocket | null = null;
     private audioContext: AudioContext | null = null;
     private DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
-    private WS_URL = this.DAEMON_URL.replace('http', 'ws') + '/ws/sovereign';
+    private WS_URL = (this.DAEMON_URL.startsWith('https') ? this.DAEMON_URL.replace('https', 'wss') : this.DAEMON_URL.replace('http', 'ws')) + '/ws/sovereign';
 
     constructor() { }
 
@@ -84,7 +84,7 @@ export class AlluciSovereignService {
             'Content-Type': 'application/json',
             ...(options.headers || {}),
         };
-        const resp = await fetch(`${this.DAEMON_URL}${path}`, { ...options, headers });
+        const resp = await fetch(`${this.DAEMON_URL}/api/v1${path}`, { ...options, headers });
         if (!resp.ok) {
             const err = await resp.json().catch(() => ({ detail: resp.statusText }));
             throw new Error(err.detail || `Request failed: ${resp.status}`);

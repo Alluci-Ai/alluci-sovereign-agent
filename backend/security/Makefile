@@ -23,5 +23,13 @@ linux: $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) -shared -o $(TARGET_SO) $(SRC)
 	@echo "Built Linux .so: $(TARGET_SO)"
 
+verify:
+	@if [ -f "$(TARGET_SO)" ] || [ -f "$(TARGET_DYLIB)" ]; then \
+		echo "Verification PASSED: Native kernel found."; \
+	else \
+		echo "Verification FAILED: Native kernel NOT found."; \
+		exit 1; \
+	fi
+
 clean:
 	rm -rf $(BUILD_DIR)

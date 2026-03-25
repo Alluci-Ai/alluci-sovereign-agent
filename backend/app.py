@@ -151,14 +151,7 @@ async def health_v1():
 async def ready_v1():
     return {"status": "ready", "version": "v1"}
 
-# CORS Policy
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Moved to bottom to ensure it's the outermost middleware for response headers
 
 from .metrics import metrics_middleware
 
@@ -178,7 +171,7 @@ async def add_security_headers(request: Request, call_next):
     
     from secure import Secure
     secure_headers = Secure()
-    secure_headers.set_headers(response)
+    secure_headers.framework.fastapi(response)
 
     # HSTS for production and secure development
     if (settings.APP_ENV == "production" or 
@@ -220,6 +213,9 @@ async def csrf_protect_middleware(request: Request, call_next):
     Enforces CSRF protection for all POST, PUT, PATCH, and DELETE operations
     within the /api/v1/ prefix, excluding authentication entry points.
     """
+    if request.method == "OPTIONS":
+        return await call_next(request)
+
     if request.method in ["POST", "PUT", "PATCH", "DELETE"]:
         path = request.url.path
         # Skip CSRF for login/auth entry points and health checks
@@ -295,6 +291,16 @@ async def legacy_api_redirect(path: str):
         return JSONResponse(status_code=404, content={"detail": "Not Found"})
     
     return RedirectResponse(url=f"/api/v1/{path}", status_code=307)
+
+
+# SEC-005: CORS Policy — OUTERMOST to ensure headers on errors
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 if __name__ == "__main__":
     import uvicorn

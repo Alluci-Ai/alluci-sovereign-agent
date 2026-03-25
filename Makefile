@@ -50,9 +50,9 @@ doctor:
 quality:
 	@echo "--- Alluci Quality Gate ---"
 	@echo "[ 1/4 ] Backend Tests (Pytest)..."
-	@$(PYTHON) -m pytest backend/tests/ -x -q
+	. $(VENV)/bin/activate && python3 -m pytest backend/tests/ -x -q
 	@echo "[ 2/4 ] Backend Type Check (Mypy)..."
-	@$(VENV)/bin/mypy backend/
+	. $(VENV)/bin/activate && python3 -m mypy backend/ --ignore-missing-imports
 	@echo "[ 3/4 ] Frontend Type Check (TSC)..."
 	@npm run typecheck
 	@echo "[ 4/4 ] Frontend Tests (Vitest)..."

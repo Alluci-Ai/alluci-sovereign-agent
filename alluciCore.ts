@@ -142,7 +142,7 @@ export class SovereignSecurityManager {
       }
 
       // 1. Fetch Challenge from Daemon
-      const response = await fetch(`${this.audit.getDaemonUrl()}/auth/webauthn/challenge`);
+      const response = await fetch(`${this.audit.getDaemonUrl()}/api/v1/auth/webauthn/challenge`);
       const options = (await response.json()) as any;
 
       // 2. Prepare WebAuthn Options
@@ -182,7 +182,7 @@ export class SovereignSecurityManager {
         };
 
         // 4. Verify on Daemon
-        const verifyRes = await fetch(`${this.audit.getDaemonUrl()}/auth/webauthn/verify`, {
+        const verifyRes = await fetch(`${this.audit.getDaemonUrl()}/api/v1/auth/webauthn/verify`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -275,7 +275,7 @@ export class AuditLedger {
   private async syncToServer(entry: AuditEntry) {
     try {
       // Pass credentials to ensure the daemon's JWT HttpOnly cookie is sent
-      await fetch(`${this.daemonUrl}/api/audit/entry`, {
+      await fetch(`${this.daemonUrl}/api/v1/audit/entry`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
