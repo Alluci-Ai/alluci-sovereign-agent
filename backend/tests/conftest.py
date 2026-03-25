@@ -40,12 +40,39 @@ os.environ.update({
     "JWT_SECRET_KEY":        "test-jwt-secret-do-not-use-in-production-32chars",
     "GEMINI_API_KEY":        "test-gemini-key-placeholder",
     "DATABASE_URL":          "sqlite:///./test_polytope.db",
+    "OTEL_SDK_DISABLED":     "true",
     "RATE_LIMIT_PER_MINUTE": "9999",    # Disable rate limits in tests
     "VERUS_AUTH_ENABLED":    "false",
-    "MAX_CONCURRENT_TASKS":  "5",
-    "CRITIC_THRESHOLD":      "0.75",
-    "MAX_AUTONOMY_RETRIES":  "3",
 })
+
+# Configure structured logging for tests so they use standard logging handlers
+from backend.logging_config import configure_logging
+configure_logging(app_env="testing")
+
+# SEC-001: Initialize mock JWT keys for tests
+from backend.security.auth import init_jwt_keys
+# Use a dummy but valid RSA private/public key pair (or mock them if possible, 
+# but init_jwt_keys expects strings/bytes that look like keys or actual key objects)
+# For now, let's just use some dummy strings if the security/auth.py handles it,
+# or better yet, generate a small one.
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives import serialization
+
+_test_priv_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+_test_pub_key = _test_priv_key.public_key()
+
+_priv_pem = _test_priv_key.private_bytes(
+    encoding=serialization.Encoding.PEM,
+    format=serialization.PrivateFormat.PKCS8,
+    encryption_algorithm=serialization.NoEncryption()
+).decode()
+
+_pub_pem = _test_pub_key.public_bytes(
+    encoding=serialization.Encoding.PEM,
+    format=serialization.PublicFormat.SubjectPublicKeyInfo
+).decode()
+
+init_jwt_keys(_test_priv_key, _test_pub_key)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -127,6 +154,14 @@ def mock_settings():
     settings.MAX_CONCURRENT_TASKS = 5
     settings.RATE_LIMIT_PER_MINUTE = 9999
     settings.DATABASE_URL = "sqlite:///./test_polytope.db"
+    settings.AUTH_COOKIE_NAME = "alluci_daemon_token"
+    settings.AUTH_COOKIE_SECURE = False
+    settings.AUTH_COOKIE_HTTPONLY = True
+    settings.VERUS_RPC_HOST = "127.0.0.1"
+    settings.VERUS_RPC_PORT = 27486
+    settings.WEBAUTHN_RP_ID = "localhost"
+    settings.WEBAUTHN_RP_NAME = "Alluci Sovereign Agent"
+    settings.WEBAUTHN_ORIGIN = "http://localhost:3000"
     return settings
 
 
@@ -360,7 +395,10 @@ def auth_headers(app_client, mock_settings):
     )
     assert response.status_code == 200, f"Auth failed: {response.text}"
     token = response.json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
+    return {
+        "Authorization": f"Bearer {token}",
+        "X-CSRF-Token": "test-token"  # Matches the token in app_client
+    }
 
 
 # ══════════════════════════════════════════════════════════════════════════════

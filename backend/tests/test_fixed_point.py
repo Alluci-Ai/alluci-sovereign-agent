@@ -3,7 +3,7 @@ torch = pytest.importorskip("torch")
 from backend.inference.ppn import PPNEmbeddingModule
 
 def test_fixed_point_normalization():
-    ppn = PPNEmbeddingModule(input_dim=384, latent_dim=384)
+    ppn = PPNEmbeddingModule(input_dim=384, hidden_dim=384)
     t = torch.tensor([0.123456, 1.0, -1.0, 40.0, -40.0])
     
     out = ppn.normalize_to_fixed_point(t, scale=1024)

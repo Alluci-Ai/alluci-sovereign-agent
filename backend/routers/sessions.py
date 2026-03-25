@@ -8,6 +8,7 @@ from datetime import date
 from typing import Dict, Any, List, Optional
 from ..security.auth import verify_authenticated
 from fastapi import APIRouter, HTTPException, Depends, Query, Body, Request
+from sqlmodel import Session, select, col
 from ..database import engine as db_engine
 from ..models import SessionConfig, AgentRecord
 from fastapi_csrf_protect import CsrfProtect

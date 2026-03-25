@@ -30,9 +30,9 @@ class TestCostCalculation:
 
     @pytest.mark.unit
     def test_claude_sonnet_cost_calculation(self, tracker):
-        """Claude Sonnet 4: $3.00/1M input, $15.00/1M output."""
+        """Claude 3.7 Sonnet: $3.00/1M input, $15.00/1M output."""
         cost = tracker._calculate_cost(
-            "claude-sonnet-4-20250514",
+            "claude-3-7-sonnet-20250219",
             input_tokens=1_000_000,
             output_tokens=1_000_000
         )

@@ -60,7 +60,7 @@ async def verify_authenticated(request: Request, token: str = Depends(oauth2_sch
     
     # If header is missing or empty, check cookies
     if not token or token == "undefined":
-        token = request.cookies.get("alluci_daemon_token")
+        token = request.cookies.get(settings.AUTH_COOKIE_NAME)
     
     if not token:
         raise credentials_exception

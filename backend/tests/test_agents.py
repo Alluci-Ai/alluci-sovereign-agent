@@ -49,7 +49,7 @@ def test_create_agent(app_client, auth_headers, temp_db):
         "description": "Autonomous research specialist",
         "heartbeat_orders": [],
     }
-    resp = client.post(
+    resp = app_client.post(
         "/api/v1/agents",
         json=payload,
         headers={**auth_headers, "X-CSRF-Token": "test"},
@@ -64,7 +64,7 @@ def test_create_agent(app_client, auth_headers, temp_db):
 
 # ─── GET /agents — with records ───────────────────────────────────────────────
 
-def test_get_agents_returns_db_records(client, auth_headers, temp_db):
+def test_get_agents_returns_db_records(app_client, auth_headers, temp_db):
     from backend.models import AgentRecord
     with Session(temp_db) as session:
         session.add(AgentRecord(
@@ -73,7 +73,7 @@ def test_get_agents_returns_db_records(client, auth_headers, temp_db):
         ))
         session.commit()
 
-    resp = client.get("/api/v1/agents", headers=auth_headers)
+    resp = app_client.get("/api/v1/agents", headers=auth_headers)
     assert resp.status_code == 200
     agents = resp.json()["agents"]
     ids = [a["id"] for a in agents]
@@ -82,7 +82,7 @@ def test_get_agents_returns_db_records(client, auth_headers, temp_db):
 
 # ─── GET /agents/{id} ─────────────────────────────────────────────────────────
 
-def test_get_single_agent(client, auth_headers, temp_db):
+def test_get_single_agent(app_client, auth_headers, temp_db):
     from backend.models import AgentRecord
     hb_orders = json.dumps([{
         "id": "ord_test_01", "label": "Test Order", "active": True,
@@ -98,7 +98,7 @@ def test_get_single_agent(client, auth_headers, temp_db):
         ))
         session.commit()
 
-    resp = client.get("/api/v1/agents/agt_single_01", headers=auth_headers)
+    resp = app_client.get("/api/v1/agents/agt_single_01", headers=auth_headers)
     assert resp.status_code == 200
     agent = resp.json()["agent"]
     assert agent["id"] == "agt_single_01"
@@ -108,14 +108,14 @@ def test_get_single_agent(client, auth_headers, temp_db):
     assert agent["heartbeat_orders"][0]["label"] == "Test Order"
 
 
-def test_get_single_agent_404(client, auth_headers):
-    resp = client.get("/api/v1/agents/nonexistent_id", headers=auth_headers)
+def test_get_single_agent_404(app_client, auth_headers):
+    resp = app_client.get("/api/v1/agents/nonexistent_id", headers=auth_headers)
     assert resp.status_code == 404
 
 
 # ─── PUT /agents/{id} ─────────────────────────────────────────────────────────
 
-def test_update_agent_name_and_model(client, auth_headers, temp_db):
+def test_update_agent_name_and_model(app_client, auth_headers, temp_db):
     from backend.models import AgentRecord
     with Session(temp_db) as session:
         session.add(AgentRecord(
@@ -124,7 +124,7 @@ def test_update_agent_name_and_model(client, auth_headers, temp_db):
         ))
         session.commit()
 
-    resp = client.put(
+    resp = app_client.put(
         "/api/v1/agents/agt_update_01",
         json={"name": "New Name", "model": "gemini-2.0-flash", "status": "ACTIVE"},
         headers={**auth_headers, "X-CSRF-Token": "test"},
@@ -139,7 +139,7 @@ def test_update_agent_name_and_model(client, auth_headers, temp_db):
     assert updated.status == "ACTIVE"
 
 
-def test_update_agent_heartbeat_orders(client, auth_headers, temp_db):
+def test_update_agent_heartbeat_orders(app_client, auth_headers, temp_db):
     from backend.models import AgentRecord
     with Session(temp_db) as session:
         session.add(AgentRecord(
@@ -154,7 +154,7 @@ def test_update_agent_heartbeat_orders(client, auth_headers, temp_db):
         "action_type": "pcl_signal", "action_config": {"priority": 2},
         "interval_minutes": 30,
     }]
-    resp = client.put(
+    resp = app_client.put(
         "/api/v1/agents/agt_hb_update_01",
         json={"heartbeat_orders": new_orders},
         headers={**auth_headers, "X-CSRF-Token": "test"},
@@ -168,8 +168,8 @@ def test_update_agent_heartbeat_orders(client, auth_headers, temp_db):
     assert orders[0]["action_type"] == "pcl_signal"
 
 
-def test_update_nonexistent_agent_404(client, auth_headers):
-    resp = client.put(
+def test_update_nonexistent_agent_404(app_client, auth_headers):
+    resp = app_client.put(
         "/api/v1/agents/nonexistent",
         json={"name": "X"},
         headers={**auth_headers, "X-CSRF-Token": "test"},
@@ -179,7 +179,7 @@ def test_update_nonexistent_agent_404(client, auth_headers):
 
 # ─── DELETE /agents/{id} ──────────────────────────────────────────────────────
 
-def test_delete_agent(client, auth_headers, temp_db):
+def test_delete_agent(app_client, auth_headers, temp_db):
     from backend.models import AgentRecord
     with Session(temp_db) as session:
         session.add(AgentRecord(
@@ -188,7 +188,7 @@ def test_delete_agent(client, auth_headers, temp_db):
         ))
         session.commit()
 
-    resp = client.delete(
+    resp = app_client.delete(
         "/api/v1/agents/agt_del_01",
         headers={**auth_headers, "X-CSRF-Token": "test"},
     )
@@ -200,8 +200,8 @@ def test_delete_agent(client, auth_headers, temp_db):
     assert deleted is None
 
 
-def test_delete_nonexistent_agent_404(client, auth_headers):
-    resp = client.delete(
+def test_delete_nonexistent_agent_404(app_client, auth_headers):
+    resp = app_client.delete(
         "/api/v1/agents/nonexistent",
         headers={**auth_headers, "X-CSRF-Token": "test"},
     )
@@ -210,7 +210,7 @@ def test_delete_nonexistent_agent_404(client, auth_headers):
 
 # ─── POST /agents/delegate ────────────────────────────────────────────────────
 
-def test_delegate_to_agent(client, auth_headers, temp_db):
+def test_delegate_to_agent(app_client, auth_headers, temp_db):
     from backend.models import AgentRecord
     from backend import services as svc
     with Session(temp_db) as session:
@@ -229,7 +229,7 @@ def test_delegate_to_agent(client, auth_headers, temp_db):
     original = svc.orchestrator
     svc.orchestrator = mock_orch
     try:
-        resp = client.post(
+        resp = app_client.post(
             "/api/v1/agents/delegate",
             json={"agent_id": "agt_delegate_01", "task": "Summarise Q3 results"},
             headers={**auth_headers, "X-CSRF-Token": "test"},
@@ -245,7 +245,7 @@ def test_delegate_to_agent(client, auth_headers, temp_db):
 
 # ─── GET /agents/{id}/heartbeat/history ───────────────────────────────────────
 
-def test_agent_heartbeat_history(client, auth_headers, temp_db):
+def test_agent_heartbeat_history(app_client, auth_headers, temp_db):
     from backend.models import HeartbeatOrderRecord, AgentRecord
     from sqlmodel import Session
     import time as _time
@@ -267,7 +267,7 @@ def test_agent_heartbeat_history(client, auth_headers, temp_db):
             ))
         session.commit()
 
-    resp = client.get(
+    resp = app_client.get(
         "/api/v1/agents/agt_hist_01/heartbeat/history",
         headers=auth_headers,
     )
@@ -280,7 +280,7 @@ def test_agent_heartbeat_history(client, auth_headers, temp_db):
 
 # ─── GET /heartbeat/history (root) ────────────────────────────────────────────
 
-def test_root_heartbeat_history(client, auth_headers, temp_db):
+def test_root_heartbeat_history(app_client, auth_headers, temp_db):
     from backend.models import HeartbeatOrderRecord
     from sqlmodel import Session
     import time as _time
@@ -298,7 +298,7 @@ def test_root_heartbeat_history(client, auth_headers, temp_db):
             ))
         session.commit()
 
-    resp = client.get("/api/v1/heartbeat/history", headers=auth_headers)
+    resp = app_client.get("/api/v1/heartbeat/history", headers=auth_headers)
     assert resp.status_code == 200
     history = resp.json()["history"]
     assert len(history) == 2

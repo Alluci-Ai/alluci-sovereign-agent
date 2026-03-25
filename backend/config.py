@@ -36,6 +36,14 @@ class BridgeSettings(BaseModel):
     SIGNAL_CLI_PATH: str = "signal-cli"
     SIGNAL_SOCKET_PATH: str = "/tmp/signal-cli.sock"
     ICLOUD_COOKIE_DIR: str = "~/.icloud"
+    
+    # Verus Core
+    VERUS_RPC_HOST: str = "localhost"
+    VERUS_RPC_PORT: int = 27486
+    VERUS_RPC_USER: Optional[str] = None
+    VERUS_RPC_PASSWORD: Optional[str] = None
+    VERUS_PUBLIC_RPC_URL: str = "https://api.verus.services"
+    VERUS_LITE_MODE: bool = False
 
 class InferenceSettings(BaseModel):
     OLLAMA_URL: str = "http://localhost:11434"
@@ -89,6 +97,26 @@ class Settings(BaseSettings):
     # Governance
     RATE_LIMIT_PER_MINUTE: int = 60
     MAX_CONCURRENT_TASKS: int = 5
+    
+    # Verus Core
+    VERUS_RPC_HOST: str = "localhost"
+    VERUS_RPC_PORT: int = 27486
+    VERUS_RPC_USER: Optional[str] = None
+    VERUS_RPC_PASSWORD: Optional[str] = None
+    VERUS_PUBLIC_RPC_URL: str = "https://api.verus.services"
+    VERUS_LITE_MODE: bool = False
+    VERUS_ID_IDENTITY: Optional[str] = None
+    VERUS_ID_PRIVATE_KEY: Optional[str] = None
+    
+    # Auth & Cookies
+    AUTH_COOKIE_NAME: str = "alluci_daemon_token"
+    AUTH_COOKIE_SECURE: bool = False  # Set to True in production
+    AUTH_COOKIE_SAMESITE: str = "lax"
+    VERUS_AUTH_ENABLED: bool = False
+    
+    # WebAuthn
+    WEBAUTHN_RP_ID: str = "localhost"
+    WEBAUTHN_ORIGIN: str = "http://localhost:5173"
     
     model_config = SettingsConfigDict(
         env_file=".env",

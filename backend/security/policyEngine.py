@@ -36,8 +36,13 @@ class AutonomyPolicyEngine:
         risk_score: float, # 0.0 - 100.0
         ace_state: AceStateVector
     ) -> bool:
-        
-        # 1. Absolute Limits per Level
+        logger.info(f"DEBUG POLICY: manifest={type(manifest)}, ace={type(ace_state)}")
+        if not hasattr(manifest, "autonomy_level"):
+             logger.error(f"DEBUG POLICY: manifest missing autonomy_level! {manifest}")
+             return False
+        if not hasattr(ace_state, "physical_energy"):
+             logger.error(f"DEBUG POLICY: ace_state missing physical_energy! {ace_state}")
+             return False
         if manifest.autonomy_level == AutonomyLevel.RESTRICTED:
             # Restricted execution is extremely conservative.
             if risk_score > 10:

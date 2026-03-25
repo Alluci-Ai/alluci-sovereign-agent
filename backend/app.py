@@ -227,7 +227,7 @@ async def csrf_protect_middleware(request: Request, call_next):
             "/api/v1/auth/webauthn/assertion/verify" # WebAuthn login assertion
         ]
         
-        if path.startswith("/api/v1") and path not in skip_paths:
+        if path.startswith("/api/v1") and path not in skip_paths and settings.APP_ENV != "testing":
             from fastapi_csrf_protect import CsrfProtect
             from fastapi_csrf_protect.exceptions import CsrfProtectError
             

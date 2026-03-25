@@ -41,8 +41,9 @@ def upgrade() -> None:
                existing_nullable=True)
         batch_op.drop_index(batch_op.f('ix_agent_record_status'))
 
-    with op.batch_alter_table('channel_account', schema=None) as batch_op:
-        batch_op.drop_column('credentials')
+    # Redundant drop handled in ed12bc369d08
+    # with op.batch_alter_table('channel_account', schema=None) as batch_op:
+    #     batch_op.drop_column('credentials')
 
     with op.batch_alter_table('goal_record', schema=None) as batch_op:
         batch_op.add_column(sa.Column('deadline', sa.DateTime(), nullable=True))
@@ -52,9 +53,9 @@ def upgrade() -> None:
                existing_type=sa.TEXT(),
                type_=sqlmodel.sql.sqltypes.AutoString(),
                existing_nullable=True)
-        batch_op.drop_index(batch_op.f('ix_hb_order_record_agent_id'))
-        batch_op.drop_index(batch_op.f('ix_hb_order_record_fired_at'))
-        batch_op.drop_index(batch_op.f('ix_hb_order_record_order_id'))
+        batch_op.drop_index('ix_hb_order_agent_id')
+        batch_op.drop_index('ix_hb_order_fired_at')
+        batch_op.drop_index('ix_hb_order_order_id')
         batch_op.create_index(batch_op.f('ix_heartbeat_order_record_agent_id'), ['agent_id'], unique=False)
         batch_op.create_index(batch_op.f('ix_heartbeat_order_record_fired_at'), ['fired_at'], unique=False)
         batch_op.create_index(batch_op.f('ix_heartbeat_order_record_order_id'), ['order_id'], unique=False)

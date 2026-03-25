@@ -3,11 +3,11 @@ torch = pytest.importorskip("torch")
 from backend.inference.ppn import PPNEmbeddingModule
 
 def test_alce_budget_tracking():
-    ppn = PPNEmbeddingModule(input_dim=8, latent_dim=8)
+    ppn = PPNEmbeddingModule(input_dim=8, hidden_dim=8, manifold_dim=8)
     x = torch.randn(1, 8)
     
-    # First pass: budget should be 0
-    _, _, _, _, _, budget1, _, _, _, _ = ppn(x)
+    # First pass: budget should be 0 with psi=0
+    _, _, _, _, _, budget1, _, _, _, _ = ppn(x, psi=0.0)
     assert budget1 == 0.0
     
     # Second pass with same input: budget should be near 0
