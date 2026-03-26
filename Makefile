@@ -47,7 +47,10 @@ doctor:
 	@echo "--- Alluci Doctor ---"
 	@$(PYTHON) scripts/verify_local.py
 
-quality:
+preflight:
+	@./scripts/preflight.sh
+
+quality: preflight
 	. .venv/bin/activate && python -m pytest backend/tests/ -x -q
 	. .venv/bin/activate && python -m mypy backend/ --ignore-missing-imports
 	npm run typecheck
