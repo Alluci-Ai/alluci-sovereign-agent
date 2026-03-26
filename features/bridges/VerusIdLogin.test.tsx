@@ -8,7 +8,7 @@ describe('VerusIdLogin', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
-        vi.useFakeTimers();
+        vi.useRealTimers();
     });
 
     it('renders loading state initially and fetches login request', async () => {
@@ -49,6 +49,7 @@ describe('VerusIdLogin', () => {
     });
 
     it('polls for status and completes on success', async () => {
+        vi.useFakeTimers();
         const mockResponse = {
             request: { challenge: { challenge_id: 'test_challenge' } },
             deeplink: 'verus://test'
@@ -80,11 +81,11 @@ describe('VerusIdLogin', () => {
 
         // Advance timers for polling
         await act(async () => {
-            vi.advanceTimersByTime(3000);
+            await vi.advanceTimersByTimeAsync(3000);
         });
 
         await act(async () => {
-            vi.advanceTimersByTime(3000);
+            await vi.advanceTimersByTimeAsync(3000);
         });
 
         await waitFor(() => {
@@ -93,10 +94,11 @@ describe('VerusIdLogin', () => {
 
         // Advance for the 1500ms timeout to onComplete
         await act(async () => {
-            vi.advanceTimersByTime(1500);
+            await vi.advanceTimersByTimeAsync(1500);
         });
 
         expect(mockOnComplete).toHaveBeenCalledWith('alluci@');
+        vi.useRealTimers();
     });
 
     it('handles deeplink button click', async () => {
@@ -113,7 +115,7 @@ describe('VerusIdLogin', () => {
         // Mock window.location
         const originalLocation = window.location;
         delete (window as any).location;
-        window.location = { ...originalLocation, href: '' } as any;
+        (window as any).location = { ...originalLocation, href: '' };
 
         render(<VerusIdLogin onComplete={mockOnComplete} onCancel={mockOnCancel} />);
         
@@ -124,7 +126,7 @@ describe('VerusIdLogin', () => {
         fireEvent.click(screen.getByText('Open in Verus Mobile'));
         expect(window.location.href).toBe('verus://test_deeplink');
 
-        window.location = originalLocation;
+        (window as any).location = originalLocation;
     });
 
     it('calls onCancel handled when close button clicked', async () => {

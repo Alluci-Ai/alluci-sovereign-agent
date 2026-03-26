@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { QRCodeCanvas } from 'qrcode.react';
+import { QRCodeSVG } from 'qrcode.react';
 import { Shield, Smartphone, ExternalLink, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 
 interface VerusIdLoginProps {
@@ -121,7 +121,7 @@ export const VerusIdLogin: React.FC<VerusIdLoginProps> = ({ onComplete, onCancel
                     {status === 'pending' && loginData && (
                         <div className="flex flex-col items-center gap-6 animate-in fade-in duration-700">
                             <div className="qr-frame">
-                                <QRCodeCanvas
+                                <QRCodeSVG
                                     value={JSON.stringify(loginData.request)}
                                     size={180}
                                     level="L"
