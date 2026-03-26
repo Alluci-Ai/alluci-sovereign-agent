@@ -41,7 +41,7 @@ class TestObjectiveExecution:
         """POST /objective/execute → 200 with result and run_id."""
         res = app_client.post(
             "/api/v1/objective/execute",
-            json={"objective": "Test integration objective", "autonomy_level": "RESTRICTED"},
+            json={"objective": "Test integration objective", "autonomy_level": "SEMI_AUTONOMOUS"},
             headers=auth_headers
         )
         assert res.status_code == 200

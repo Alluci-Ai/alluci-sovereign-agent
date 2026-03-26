@@ -105,6 +105,7 @@ class TestAuth:
 
     def test_create_and_decode_token(self, mock_settings):
         from jose import jwt as jose_jwt
+        from backend.security.auth import _jwt_public_key_pem
         
         with patch('backend.config.settings', mock_settings):
             from backend.security.auth import create_access_token
@@ -112,13 +113,14 @@ class TestAuth:
             token = create_access_token({"sub": "sovereign_admin"})
             
             payload = jose_jwt.decode(
-                token, mock_settings.JWT_SECRET_KEY, algorithms=["HS256"]
+                token, _jwt_public_key_pem, algorithms=["RS256"]
             )
             assert payload["sub"] == "sovereign_admin"
             assert "exp" in payload
 
     def test_token_expires(self, mock_settings):
         from jose import jwt as jose_jwt
+        from backend.security.auth import _jwt_public_key_pem
         
         with patch('backend.config.settings', mock_settings):
             from backend.security.auth import create_access_token
@@ -130,7 +132,7 @@ class TestAuth:
             )
             
             with pytest.raises(jose_jwt.ExpiredSignatureError):
-                jose_jwt.decode(token, mock_settings.JWT_SECRET_KEY, algorithms=["HS256"])
+                jose_jwt.decode(token, _jwt_public_key_pem, algorithms=["RS256"])
 
 
 # ═══════════════════════════════════════════════════════════════════

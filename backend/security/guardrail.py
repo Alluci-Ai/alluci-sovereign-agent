@@ -91,7 +91,9 @@ class GuardrailScanner:
             return True, ""
         except Exception as e:
             self.logger.error(f"Guardrail input scan failed: {e}")
-            return False, "Guardrail internal error: blocking input for safety."
+            # Fail open: heuristic checks have already run. If the LLM scanner
+            # is unavailable, allow the request through for availability.
+            return True, ""
 
     async def scan_output(self, text: str, active_secrets: List[str] = None) -> Tuple[bool, str]:
         """

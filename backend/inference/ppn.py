@@ -1,3 +1,4 @@
+import math
 import numpy as np
 from typing import Tuple, Optional, List
 from ..ace.affect_kernel import AffectiveState
@@ -180,6 +181,61 @@ class PPNEmbeddingModule:
                             f += 1
         
         return (v, e, f)
+
+    def compute_phi_total(self, betti: list, affect_state: "AffectiveState") -> int:
+        """
+        [PPN-003] Affective-invariant topological index Φ_total.
+        Maps Betti numbers and affective state to a bounded integer in [0, 65536).
+        """
+        betti_sum = sum(float(b) for b in betti)
+        # Modulate by affective valence (normalized to [0,1])
+        valence_norm = float(affect_state.valence) / 1024.0
+        phi = (betti_sum * (1.0 + valence_norm)) * 1000
+        return int(abs(phi)) % 65536
+
+    def compute_coherence(self, G: "np.ndarray", B1: "np.ndarray", B2: "np.ndarray"):
+        """
+        [AAP-001] Computes topological coherence of the manifold.
+        Returns (coherence: float, distance_matrix: ndarray, graph_entropy: float).
+
+        Coherence = 1 - H_norm where H_norm is normalized graph entropy.
+        High entropy (uniform degree distribution) → lower coherence.
+        """
+        # Degree distribution from adjacency/graph tensor
+        if hasattr(G, 'numpy'):
+            g_np = G.numpy()
+        else:
+            g_np = np.array(G)
+
+        if g_np.ndim == 2:
+            degrees = g_np.sum(axis=1)
+        else:
+            # Interpret flat vector as square matrix if possible
+            n = int(math.sqrt(len(g_np)))
+            if n * n == len(g_np):
+                degrees = g_np.reshape(n, n).sum(axis=1)
+            else:
+                degrees = np.ones(max(len(g_np), 1))
+
+        total = degrees.sum()
+        if total == 0:
+            probs = np.ones(len(degrees)) / len(degrees)
+        else:
+            probs = degrees / total
+
+        # Shannon entropy (log2)
+        probs = probs[probs > 0]
+        h = -np.sum(probs * np.log2(probs))
+        max_h = math.log2(len(degrees)) if len(degrees) > 1 else 1.0
+        h_norm = h / max_h if max_h > 0 else 0.0
+        coherence = float(np.clip(1.0 - h_norm, 0.0, 1.0))
+
+        # Simple distance proxy between B1 and B2
+        b1 = np.array(B1, dtype=float)
+        b2 = np.array(B2, dtype=float)
+        d = float(np.linalg.norm(b1 - b2))
+
+        return coherence, d, h_norm
 
 class PolytopePlannerInference:
     """

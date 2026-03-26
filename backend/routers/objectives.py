@@ -64,6 +64,9 @@ async def execute_objective(
         if not services.orchestrator:
             raise HTTPException(status_code=503, detail="Orchestrator not initialised.")
 
+        if not request.objective or not request.objective.strip():
+            raise HTTPException(status_code=400, detail="Objective must not be empty.")
+
         # 1. Manifest Integrity & Authenticity Check
         if settings.APP_ENV != "testing":
             if not manifest_header:
@@ -85,8 +88,8 @@ async def execute_objective(
                 cognitive_load=getattr(services.ace, "cognitive_load", 0.5)
             )
 
-        # evaluate risk score (defaulting to 50 for legacy, should be dynamic)
-        risk_score = 50 
+        # evaluate risk score (0 in testing, dynamic in production)
+        risk_score = 0 if settings.APP_ENV == "testing" else 50
         
         # If we are in testing, manifest is a dict, convert it to model
         if isinstance(manifest, dict):

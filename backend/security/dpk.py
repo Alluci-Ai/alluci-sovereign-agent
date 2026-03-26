@@ -94,6 +94,17 @@ class DiscreteProjectionKernel:
 
         return None
 
+    def compute_signature_hash(self, betti: list, chi: int) -> int:
+        """
+        Compute a deterministic signature hash from Betti numbers and Euler characteristic.
+        AAP-003: SHA256-derived sovereign hash for manifold identity.
+        """
+        import hashlib
+        payload = f"betti={betti}|chi={chi}"
+        digest = hashlib.sha256(payload.encode()).digest()
+        # Take first 8 bytes as uint64
+        return int.from_bytes(digest[:8], byteorder="big")
+
     def __del__(self):
         if self.native_lib and self.native_instance:
             self.native_lib.dpk_free(self.native_instance)

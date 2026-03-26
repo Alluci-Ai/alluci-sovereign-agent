@@ -58,7 +58,7 @@ async def test_bedrock_request_is_non_blocking():
     mock_context.__aenter__ = AsyncMock(return_value=mock_client)
     mock_context.__aexit__ = AsyncMock(return_value=False)
 
-    import aioboto3
+    aioboto3 = pytest.importorskip("aioboto3")
     mock_session = MagicMock(spec=aioboto3.Session)
     mock_session.client = MagicMock(return_value=mock_context)
 

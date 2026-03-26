@@ -153,6 +153,7 @@ class IWatchBridge(BridgeAdapter):
         self._pending_seeds.pop(device_id, None)
         self._save_devices()
 
+        self.is_connected = True
         self.logger.info(f"[IWATCH] Device paired: {device_id[:8]}…")
         return {"status": "SUCCESS", "session_token": session_token, "device_id": device_id}
 

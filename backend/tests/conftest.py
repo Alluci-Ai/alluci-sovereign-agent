@@ -231,6 +231,7 @@ def failing_router():
     router.get_response = AsyncMock(side_effect=Exception("LLM API timeout"))
     router.get_structured_plan = AsyncMock(side_effect=Exception("LLM API timeout"))
     router.critique_result = AsyncMock(side_effect=Exception("LLM API timeout"))
+    router.get_fast_tactical_response = AsyncMock(side_effect=Exception("LLM API timeout"))
     return router
 
 
@@ -313,6 +314,7 @@ def app_client(mock_settings, temp_db):
         })
         services.router.critique_result = AsyncMock(return_value={"score": 0.9, "feedback": "Good"})
         services.router.check_health = AsyncMock(return_value={"gemini": "ok"})
+        services.router.get_fast_tactical_response = AsyncMock(return_value="safe")
 
         from backend.security.guardrail import GuardrailScanner
         services.scanner = GuardrailScanner(router=services.router)

@@ -124,8 +124,11 @@ async def get_system_status():
 @router.get("/metrics", response_class=PlainTextResponse)
 async def get_prometheus_metrics():
     """Prometheus-compatible metrics endpoint."""
-    from ..metrics import metrics
-    return metrics.generate_latest()
+    from prometheus_client import generate_latest, REGISTRY, CONTENT_TYPE_LATEST
+    return PlainTextResponse(
+        content=generate_latest(REGISTRY).decode("utf-8"),
+        media_type=CONTENT_TYPE_LATEST
+    )
 
 @router.get("/audit/ledger", dependencies=[Depends(verify_authenticated)])
 async def get_audit_ledger(limit: int = 50, offset: int = 0, status: Optional[str] = None):

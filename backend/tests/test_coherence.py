@@ -3,7 +3,7 @@ torch = pytest.importorskip("torch")
 from backend.inference.ppn import PPNEmbeddingModule
 
 def test_coherence_score_stability():
-    ppn = PPNEmbeddingModule(input_dim=8, latent_dim=8)
+    ppn = PPNEmbeddingModule(input_dim=8, hidden_dim=8, manifold_dim=8)
     
     # Identical states -> high coherence (max 1.0)
     G = torch.eye(10)

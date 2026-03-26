@@ -4,7 +4,7 @@ from backend.inference.ppn import PPNEmbeddingModule
 from backend.ace.affect_kernel import AffectiveState
 
 def test_phi_total_determinism():
-    ppn = PPNEmbeddingModule(input_dim=384, latent_dim=384)
+    ppn = PPNEmbeddingModule(input_dim=384, hidden_dim=384, manifold_dim=384)
     betti = [1.0, 0.0, 0.0, 0.0]
     state = AffectiveState(valence=512.0, arousal=0.0)
     
@@ -15,7 +15,7 @@ def test_phi_total_determinism():
     assert 0 <= phi1 < 65536
 
 def test_phi_total_modulation():
-    ppn = PPNEmbeddingModule(input_dim=384, latent_dim=384)
+    ppn = PPNEmbeddingModule(input_dim=384, hidden_dim=384, manifold_dim=384)
     betti = [1.0, 0.0, 0.0, 0.0]
     
     # Neutral state

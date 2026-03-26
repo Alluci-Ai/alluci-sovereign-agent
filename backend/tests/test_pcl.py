@@ -149,6 +149,7 @@ async def test_judge_intervention_logic(pcl_engine, mock_db_engine, mock_setting
     
     # Let's simplify and mock the _check methods directly for logic verification
     judge._check_cooldown = MagicMock(return_value=(True, "passed"))
+    judge._check_quiet_hours = MagicMock(return_value=(True, "passed"))
     judge._check_deduplication = MagicMock(return_value=(True, "passed"))
     
     # 1. Standard mode - Approved

@@ -4,8 +4,6 @@ import yaml
 from cryptography.fernet import Fernet
 from backend.memory.manager import MemoryManager
 from backend.skill_manager import SkillManager
-from backend.goals.engine import goal_engine
-from backend.sop.engine import sop_engine
 from backend.adapters.registry import AdapterRegistry
 from backend.adapters.shell import ShellAdapter
 from backend.adapters.web import WebAdapter
@@ -54,15 +52,22 @@ async def test_skill_manager_disk(temp_dir):
     assert any(s["id"] == "test_skill" for s in skills)
     assert any(s.get("source") == "disk" for s in skills)
 
-def test_goals_and_sop():
-    # Goals
-    gid = goal_engine.create_goal("Test Goal", "Verify goals")
-    assert gid in goal_engine.goals
-    assert goal_engine.goals[gid]["status"] == "pending"
+@pytest.mark.asyncio
+async def test_goals_and_sop(temp_db):
+    # Goals — use temp_db engine for isolation
+    from backend.goals.engine import GoalsEngine
+    engine = GoalsEngine(engine=temp_db)
+    gid = await engine.create_goal("Test Goal", "Verify goals")
+    goal = await engine.get_goal(gid)
+    assert goal is not None
+    assert goal.status == "active"
     
-    # SOPs
-    sop_engine.register_sop("test_sop", "Test SOP", [{"action": "shell", "args": {"command": "ls"}}])
-    assert sop_engine.get_sop("test_sop") is not None
+    # SOPs — also DB-backed, inject temp_db
+    from backend.sop.engine import SOPEngine
+    sop = SOPEngine(engine=temp_db)
+    sop_id = await sop.register_sop("test_sop", "Test SOP", [{"action": "shell", "args": {"command": "ls"}}])
+    result = sop.get_sop(sop_id)
+    assert result is not None
 
 @pytest.mark.asyncio
 async def test_adapters_registry(monkeypatch, tmp_path):

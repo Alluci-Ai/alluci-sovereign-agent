@@ -67,6 +67,9 @@ async def get_metrics():
     )
 
 class MetricsFacade:
+    def __init__(self):
+        self.start_time = time.time()
+
     def increment_counter(self, name: str, labels: dict = None):
         """Dynamic counter increment (standard facade pattern)."""
         # Mapping for common counters used in the codebase
