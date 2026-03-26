@@ -109,6 +109,7 @@ class Settings(BaseSettings):
     VERUS_LITE_MODE: bool = False
     VERUS_ID_IDENTITY: Optional[str] = None
     VERUS_ID_PRIVATE_KEY: Optional[str] = None
+    UNOFFICIAL_BRIDGES_ENABLED: bool = False
     
     # Auth & Cookies
     AUTH_COOKIE_NAME: str = "alluci_daemon_token"
