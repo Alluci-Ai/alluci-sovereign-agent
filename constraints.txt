@@ -24,7 +24,7 @@ numpy==1.26.4
 torch==2.5.1
 chromadb==0.5.0
 sentence-transformers==3.0.1
-tenacity==8.5.0
+tenacity==9.1.4
 aiofiles==23.2.1
 asyncpg==0.29.0
 aiosqlite==0.20.0
