@@ -34,16 +34,24 @@ Alluci abandons traditional, hallucination-prone Euclidean vector spaces in favo
 - **Adaptive Bit-Width Quantization**: Maintains high-fidelity reasoning in the first dense layers while crushing MoE weights down to a 1.58-bit footprint, allowing massive 30B+ parameter models to run on consumer hardware (M1/M2/RTX 4090).
 - **Draft-Verification Loop**: Utilizes native Speculative Decoding where a lightweight model (Gemma 4 E2B) drafts token sequences and the larger dense model verifies them in parallel, boosting inference speeds by 2-3x.
 
-### 2. Simplicial H-LSM Memory
+### 2. Executive Orchestration & DAG Planner
+- **Hierarchical DAG Planner**: Complex user objectives are parsed into a Directed Acyclic Graph (DAG). Sub-tasks are executed in parallel across multiple worker agents, dramatically reducing latency for multi-step goals.
+- **Dynamic Model Switching Tiers**: The Orchestrator routes tasks dynamically based on privacy constraints, speed, and intelligence needs. Local Gemma 4 handles `SENSITIVE` tasks, Groq handles high-speed tactical actions, and Gemini/Claude handle massive context analysis.
+- **Token Optimization**: The `SupervisorAgent` condenses verbose worker node outputs into dense "Sovereign Context Tokens" before passing them to the next node in the DAG, preventing context-window bloat and keeping the agent comfortably within the 8K limit.
+
+### 3. Simplicial H-LSM Memory
 - **The Discrete Projection Kernel (DPK)**: Replaces slow floating-point database math with $\mathcal{O}(1)$ complexity integer-based lookups, providing sub-microsecond latency for biometric and state synchronization.
 - **Topological Barcodes**: Memory isn't retrieved via keyword search. The agent generates Betti Signatures (Topological Barcodes) and retrieves context based on "Structural Homeomorphism" (logical shape), guaranteeing context relevance.
-- **Token Optimization**: The `SupervisorAgent` condenses verbose worker node outputs into dense "Sovereign Context Tokens" to prevent context-window bloat during complex Directed Acyclic Graph (DAG) executions.
 
-### 3. The "Dream" Cycle & Autonomous Evolution
+### 4. Local Fine-Tuning (SFT) & The LoRA Forge
+Alluci utilizes a specialized "Training Sandbox" mode that leverages the Unsloth library (optimized for 80% less VRAM usage) to perform Supervised Fine-Tuning (SFT) directly on your hardware.
+- **The Data Pipeline**: Alluci’s H-LSM Memory acts as the dataset generator. It continuously scrapes and cleans your local usage logs, business documents, and chat history into a secure "Sovereign Dataset."
+- **Native DPO & LoRA Forge**: You can trigger a "Skill Distillation" session where Alluci uses your specific data and a native PyTorch Direct Preference Optimization (DPO) kernel to forge custom LoRA (Low-Rank Adaptation) adapters for Gemma 4.
+
+### 5. The "Dream" Cycle & Autonomous Evolution
 When the system detects low cognitive load (you are asleep or away), the daemon halts external polling and reallocates 100% of hardware resources to internal evolution:
 - **Cognitive Distillation**: Analyzes the day's interactions using Socratic questioning, distilling episodic logs into permanent Semantic Truths.
-- **Teacher-Student Harvest**: Records high-quality reasoning from interactions with 3rd-party cloud models (like Claude or GPT-4o) and queues them as training pairs.
-- **Native DPO Forge**: Trains local LoRA adapters entirely offline using a native PyTorch Direct Preference Optimization (DPO) kernel—crystallizing cloud intelligence into your local machine overnight.
+- **Teacher-Student Harvest**: Records high-quality reasoning from interactions with 3rd-party cloud models and queues them as "Chosen" preference pairs for the local DPO forge—crystallizing cloud intelligence into your local machine overnight.
 
 ---
 
@@ -58,13 +66,13 @@ The ACE aligns machine logic with human biology. It bridges raw data and human s
 
 ---
 
-## 🛡️ Hardware-Level Security & Trust Protocol
+## 🛡️ Hardware-Level Security & Verus Identity
 
 - **The Sovereign Kill Switch**: If the agent attempts a high-cognitive action (banking, database writes, crypto tx) and your Apple Watch is off-wrist or no pulse is detected, the execution is instantly aborted and memory is encrypted.
-- **The "HACI" Intercept Modal**: Intercepts destructive actions. Even with a pulse detected, the agent requires your explicit UI authorization before proceeding.
+- **Wallet & Verus Node Integration**: Full integration with the Verus blockchain. Operates a local Verus node to secure your identity (VerusID), manage sovereign funds, and sign transactions cryptographically within the vault.
+- **Federated Pheromone Sync**: The `AntNetworkProtocol` allows you to share problem-solving paths with other agents on the Verus network by broadcasting abstract "Topological Barcodes" (Pheromones)—achieving swarm intelligence without ever sharing raw text or private data.
 - **Multi-Modal Anti-Spoofing**: Defeats AI deepfakes. Cross-references audio micro-hesitations (jitter/breath pauses) from `Whisper.cpp` against your actual, live respiratory sync from the Apple Watch to ensure human liveness.
 - **Simplicial Vaults**: Every external bridge (Signal, iMessage, Slack, G-Drive) operates in its own isolated cryptographic container tied to your **VerusID**.
-- **Federated Pheromone Sync**: The `AntNetworkProtocol` allows you to share problem-solving paths with other agents on the Verus network by broadcasting abstract "Topological Barcodes"—achieving swarm intelligence without ever sharing raw text or private data.
 
 ---
 
@@ -76,7 +84,7 @@ The new **Sovereignty Level Wizard** makes onboarding seamless. Choose between C
 - **Frontend**: [Node.js](https://nodejs.org/) (v20+)
 - **Backend**: [Python](https://www.python.org/) (v3.12+)
 - **Local Inference Tools** (Optional based on Sovereignty Level):
-    - [Ollama](https://ollama.com/) (LLMs)
+    - [Ollama](https://ollama.com/) (Hosts the Gemma 4 model family for active inference)
     - [Whisper.cpp](https://github.com/ggerganov/whisper.cpp) (ASR)
     - [Piper](https://github.com/rhasspy/piper) (TTS)
 
