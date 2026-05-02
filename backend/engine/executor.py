@@ -10,6 +10,7 @@ from ..adapters.registry import AdapterRegistry
 from .errors import AdapterNotFoundError
 from ..logging_config import get_logger
 from opentelemetry import trace
+from .supervisor import SupervisorAgent
 
 logger = get_logger("Engine.Executor")
 
@@ -25,6 +26,9 @@ class Executor:
         self.semaphore = asyncio.Semaphore(max_concurrent)
         self.task_timeout = task_timeout
         self.approval_manager = approval_manager
+        
+        # [ PPN-015 ] SupervisorAgent for Context Optimization
+        self.supervisor = SupervisorAgent()
 
     async def execute_dag(self, run_id: int, tasks: Dict[str, DAGTask]) -> Dict[str, DAGTask]:
         """
@@ -99,11 +103,14 @@ class Executor:
                 self._update_task_record(run_id, task.id, status="running", start_time=datetime.now(timezone.utc))
                 
                 # Context Injection
-                dep_context = {
+                raw_dep_context = {
                     dep: all_tasks[dep].result 
                     for dep in task.dependencies 
                     if all_tasks[dep].status == TaskStatus.COMPLETED
                 }
+                
+                # Condense verbose dependency outputs via SupervisorAgent to save tokens
+                dep_context = self.supervisor.condense_context(raw_dep_context)
                 task.args["dependency_output"] = dep_context
 
                 try:
