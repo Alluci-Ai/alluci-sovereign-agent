@@ -11,6 +11,7 @@ from .errors import AdapterNotFoundError
 from ..logging_config import get_logger
 from opentelemetry import trace
 from .supervisor import SupervisorAgent
+from ..ace.watch_auth import AppleWatchAuth
 
 logger = get_logger("Engine.Executor")
 
@@ -29,6 +30,11 @@ class Executor:
         
         # [ PPN-015 ] SupervisorAgent for Context Optimization
         self.supervisor = SupervisorAgent()
+        
+        # [ PPN-017 ] Sovereign Kill Switch Daemon
+        self.watch_auth = AppleWatchAuth()
+        # Mock watch presence for default testing, in prod this is streamed via Bluetooth
+        self.watch_auth.update_sensors(is_on_wrist=True, heart_rate=72.0)
 
     async def execute_dag(self, run_id: int, tasks: Dict[str, DAGTask]) -> Dict[str, DAGTask]:
         """
@@ -146,6 +152,10 @@ class Executor:
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), reraise=True)
     async def _execute_adapter(self, action: str, args: Dict[str, Any], task_id: str = "") -> Any:
+        # [ PPN-017 ] Kill Switch Check before routing
+        if self.watch_auth.locked or not self.watch_auth.verify_liveness(action):
+            raise PermissionError(f"Sovereign Kill Switch Active: Biological Liveness not verified for action '{action}'.")
+            
         adapter = self.registry.get(action)
         if not adapter:
             raise AdapterNotFoundError(f"No adapter registered for action '{action}'.")
