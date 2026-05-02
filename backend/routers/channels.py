@@ -27,6 +27,21 @@ async def list_channels():
         for cid, adapter in services.channel_registry.items()
     ]
 
+@router.get("/channels/availability", dependencies=[Depends(verify_authenticated)])
+async def get_channel_availability():
+   """
+   Returns platform availability status for all registered bridge adapters.
+   Used by BridgeCenter to show which bridges can be configured on this host.
+   """
+   if not services.channel_registry:
+       return []
+
+   return [
+       adapter.get_availability_status()
+       for adapter in services.channel_registry.values()
+       if hasattr(adapter, 'get_availability_status')
+   ]
+
 @router.get("/channels/{channel_id}/config", dependencies=[Depends(verify_authenticated)])
 async def get_channel_config(channel_id: str):
     adapter = services.channel_registry.get(channel_id)

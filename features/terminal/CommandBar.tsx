@@ -27,9 +27,63 @@ const CommandBar: React.FC<CommandBarProps> = ({
 }) => {
     const { startRecording, stopRecording } = useVoice();
     const isVoiceRecording = useStore(state => state.isVoiceRecording);
+    const [inputMode, setInputMode] = React.useState<'chat' | 'dispatch'>('chat');
+
+    const onSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (inputMode === 'chat') {
+            handleCommandSubmit(e);
+        } else {
+            const currentText = textInput.trim();
+            if (!currentText) return;
+            setTextInput("");
+            useStore.getState().setTranscriptions(prev => [...prev, { text: currentText, isUser: true, timestamp: new Date().toISOString(), type: 'dispatch' }]);
+            const token = useStore.getState().accessToken;
+            useStore.getState().setIsProcessing(true);
+            try {
+                const res = await fetch(`${import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000'}/api/v1/objective/execute`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ objective: currentText, autonomy_level: 'SOVEREIGN' }),
+                    credentials: 'include'
+                });
+                if (res.ok) {
+                    useStore.getState().setTranscriptions(prev => [...prev, { text: "Objective dispatched successfully. Tracking in DAG Manifold.", isUser: false, timestamp: new Date().toISOString(), type: 'dispatch' }]);
+                } else {
+                    useStore.getState().setTranscriptions(prev => [...prev, { text: "[ ERROR ]: Failed to dispatch objective.", isUser: false, timestamp: new Date().toISOString(), type: 'dispatch' }]);
+                }
+            } catch (err) {
+                 useStore.getState().setTranscriptions(prev => [...prev, { text: "[ ERROR ]: Network error during dispatch.", isUser: false, timestamp: new Date().toISOString(), type: 'dispatch' }]);
+            } finally {
+                 useStore.getState().setIsProcessing(false);
+            }
+        }
+    };
 
     return (
-        <form onSubmit={handleCommandSubmit} className="shrink-0 p-4 md:p-6 flex flex-col gap-2 z-10 w-full max-w-4xl mx-auto mb-4">
+        <form onSubmit={onSubmit} className="shrink-0 p-4 md:p-6 flex flex-col gap-2 z-10 w-full max-w-4xl mx-auto mb-4">
+            {/* Input Mode Toggle */}
+            <div className="flex px-2 mb-1">
+                <div className="bg-glass-2 rounded-full p-1 flex gap-1 shadow-inner border border-glass-edge backdrop-blur-md">
+                    <button 
+                        type="button" 
+                        onClick={() => setInputMode('chat')}
+                        className={`px-4 py-1.5 text-[11px] font-bold rounded-full transition-all ${inputMode === 'chat' ? 'bg-[rgba(255,255,255,0.15)] text-white shadow-sm' : 'text-text-tertiary hover:text-text-secondary'}`}
+                    >
+                        Conversational
+                    </button>
+                    <button 
+                        type="button" 
+                        onClick={() => setInputMode('dispatch')}
+                        className={`px-4 py-1.5 text-[11px] font-bold rounded-full transition-all ${inputMode === 'dispatch' ? 'bg-[rgba(255,159,10,0.2)] text-accent-warm shadow-sm border border-[rgba(255,159,10,0.3)]' : 'text-text-tertiary hover:text-text-secondary'}`}
+                    >
+                        Objective Dispatch
+                    </button>
+                </div>
+            </div>
             {attachments.length > 0 && (
                 <div className="flex flex-wrap gap-2 mb-2 px-2">
                     {attachments.map((file, idx) => (
@@ -97,7 +151,7 @@ const CommandBar: React.FC<CommandBarProps> = ({
                 <textarea
                     value={textInput}
                     onChange={(e) => setTextInput(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleCommandSubmit(e); } }}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSubmit(e); } }}
                     onPaste={handlePaste}
                     placeholder={isProcessing ? "Adding to replay queue..." : "Ask Alluci..."}
                     className="flex-1 bg-transparent border-none text-[14px] text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-0 p-3 h-10 md:h-12 resize-none scrollbar-hide py-3 md:py-3.5"

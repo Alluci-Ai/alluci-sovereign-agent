@@ -31,5 +31,14 @@ verify:
 		exit 1; \
 	fi
 
+windows: $(BUILD_DIR)
+	g++ $(CXXFLAGS) -shared -o $(BUILD_DIR)/dpk.dll $(SRC)
+	@echo "Built Windows DLL: $(BUILD_DIR)/dpk.dll"
+
+install: all
+	@echo "Kernel built at: $(BUILD_DIR)"
+
 clean:
 	rm -rf $(BUILD_DIR)
+
+.PHONY: all clean macos linux windows verify install

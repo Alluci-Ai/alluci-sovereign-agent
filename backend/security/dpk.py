@@ -58,40 +58,46 @@ class DiscreteProjectionKernel:
                 self.native_lib = None
 
     def _load_native_lib(self):
-        # 1. Direct environment override (highest priority)
-        env_path = os.getenv("DPK_LIB_PATH")
-        if env_path:
+        """
+        Loads the native C++ DPK kernel.
+        Resolution order:
+          1. DPK_LIB_PATH environment variable (CI / Docker)
+          2. build/ directory relative to this file (local dev)
+          3. Returns None if not found — Python fallback activates
+        """
+        import ctypes
+        import platform
+
+        # 1. Env override (used in CI and Docker)
+        env_path = os.environ.get("DPK_LIB_PATH")
+        if env_path and os.path.isfile(env_path):
+            logger.info(f"[DPK] Loading kernel from DPK_LIB_PATH: {env_path}")
             try:
                 return ctypes.CDLL(env_path)
-            except Exception as e:
-                logger.warning(f"[DPK] Failed to load library from DPK_LIB_PATH={env_path}: {e}")
+            except OSError as e:
+                logger.warning(f"[DPK] Failed to load from DPK_LIB_PATH: {e}")
 
-        # 2. Dynamic platform-specific discovery in build/ directory
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        build_dir = os.path.join(base_dir, "build")
-        
-        ext = ".so"
-        import platform
-        if platform.system() == "Darwin":
-            ext = ".dylib"
-        elif platform.system() == "Windows":
-            ext = ".dll"
-            
-        lib_path = os.path.join(build_dir, f"libdpk{ext}")
-        if os.path.exists(lib_path):
-            try:
-                return ctypes.CDLL(lib_path)
-            except Exception as e:
-                logger.warning(f"[DPK] Failed to load library at {lib_path}: {e}")
-                
-        # 3. Legacy path fallback (migration)
-        legacy_path = os.path.join(base_dir, f"libdpk{ext}")
-        if os.path.exists(legacy_path):
-            try:
-                return ctypes.CDLL(legacy_path)
-            except Exception as e:
-                logger.debug(f"[DPK] Legacy library load failed at {legacy_path}: {e}")
+        # 2. Convention path relative to this file
+        security_dir = os.path.dirname(os.path.abspath(__file__))
+        build_dir = os.path.join(security_dir, "build")
+        system = platform.system()
 
+        candidates = {
+            "Darwin": os.path.join(build_dir, "libdpk.dylib"),
+            "Linux":  os.path.join(build_dir, "libdpk.so"),
+            "Windows": os.path.join(build_dir, "dpk.dll"),
+        }
+        lib_path = candidates.get(system)
+
+        if lib_path and os.path.isfile(lib_path):
+            try:
+                lib = ctypes.CDLL(lib_path)
+                logger.info(f"[DPK] Native kernel loaded: {lib_path}")
+                return lib
+            except OSError as e:
+                logger.warning(f"[DPK] Failed to load native kernel: {e}")
+
+        logger.info("[DPK] Native kernel not found. Using Python fallback (full fidelity).")
         return None
 
     def compute_signature_hash(self, betti: list, chi: int) -> int:

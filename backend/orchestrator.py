@@ -191,6 +191,19 @@ class ExecutiveOrchestrator:
 
                 self.logger.info(f"[Orchestrator] Inbound {protocol} message from {sender} (Account: {account_id}): {body[:50]}...")
             
+            # Flow Mode Gate (DEEP_WORK / RECOVERY_MODE filtering)
+            if self.ace:
+                current_mode = self.ace.current_state.get("flow_mode", "STANDARD")
+                if current_mode in ["DEEP_WORK", "RECOVERY_MODE"]:
+                    self.logger.info(f"[{current_mode}] Silencing inbound message from {sender} on {protocol}")
+                    if hasattr(self, 'ws_gateway') and self.ws_gateway:
+                        asyncio.create_task(self.ws_gateway.broadcast_event('bridge.silenced', {
+                            "protocol": protocol,
+                            "sender": sender,
+                            "mode": current_mode
+                        }))
+                    return
+
             # 1. Record User Message to Log & Set Context
             with structlog.contextvars.bound_contextvars(session_key=session_key):
                 if self.analytics:
@@ -430,7 +443,8 @@ class ExecutiveOrchestrator:
                         "coherence": health_report.get("coherence", 0.0),
                         "status": health_report["status"],
                         "is_ruptured": health_report.get("is_ruptured", False),
-                        "phi_total": health_report.get("phi_total", 0)
+                        "phi_total": health_report.get("phi_total", 0),
+                        "flow_mode": self.ace.current_state.get("flow_mode", "STANDARD")
                     })
                 except Exception as e:
                     self.logger.debug(f"PVT broadcast failed: {e}")

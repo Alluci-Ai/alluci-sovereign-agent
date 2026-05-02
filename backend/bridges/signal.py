@@ -18,10 +18,11 @@ import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from .base import BridgeAdapter
-
+from .base import BridgeAdapter, PlatformRequirement
 
 class SignalBridge(BridgeAdapter):
+    platform_requirements = {PlatformRequirement.SIGNAL_CLI}
+    is_officially_supported = True
     """
     Production Signal Bridge using signal-cli daemon mode with Unix socket JSON-RPC.
     Falls back to subprocess polling when the daemon is unavailable.

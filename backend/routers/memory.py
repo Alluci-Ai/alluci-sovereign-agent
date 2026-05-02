@@ -61,3 +61,70 @@ async def trigger_consolidation(request: Request, csrf_protect: CsrfProtect = De
         "cycle_summary": summary,
         "message": "H-LSM consolidation sweep completed successfully."
     }
+
+@router.patch("/memory/{entry_id}/pin", dependencies=[Depends(verify_authenticated)])
+async def pin_memory(entry_id: str, request: Request, data: Dict[str, Any] = Body(...), csrf_protect: CsrfProtect = Depends()):
+    await csrf_protect.validate_csrf(request)
+    from sqlmodel import Session
+    from ..database.models import HLSMEpisodicEntry
+    from ..database import engine
+    import json
+    
+    with Session(engine) as session:
+        entry = session.get(HLSMEpisodicEntry, entry_id)
+        if not entry:
+            raise HTTPException(status_code=404, detail="Memory not found")
+        
+        metadata = json.loads(entry.extra_metadata) if entry.extra_metadata else {}
+        metadata["pinned"] = data.get("is_pinned", True)
+        entry.extra_metadata = json.dumps(metadata)
+        session.add(entry)
+        session.commit()
+    return {"status": "SUCCESS"}
+
+@router.patch("/memory/{entry_id}/tags", dependencies=[Depends(verify_authenticated)])
+async def tag_memory(entry_id: str, request: Request, data: Dict[str, Any] = Body(...), csrf_protect: CsrfProtect = Depends()):
+    await csrf_protect.validate_csrf(request)
+    from sqlmodel import Session
+    from ..database.models import HLSMEpisodicEntry
+    from ..database import engine
+    import json
+    
+    with Session(engine) as session:
+        entry = session.get(HLSMEpisodicEntry, entry_id)
+        if not entry:
+            raise HTTPException(status_code=404, detail="Memory not found")
+        
+        metadata = json.loads(entry.extra_metadata) if entry.extra_metadata else {}
+        metadata["tags"] = data.get("tags", [])
+        entry.extra_metadata = json.dumps(metadata)
+        session.add(entry)
+        session.commit()
+    return {"status": "SUCCESS"}
+
+@router.post("/memory/{entry_id}/promote", dependencies=[Depends(verify_authenticated)])
+async def promote_memory(entry_id: str, request: Request, csrf_protect: CsrfProtect = Depends()):
+    await csrf_protect.validate_csrf(request)
+    if not services.hlsm_manager:
+        raise HTTPException(status_code=503, detail="H-LSM manager not ready")
+    
+    from sqlmodel import Session
+    from ..database.models import HLSMEpisodicEntry
+    from ..database import engine
+    
+    with Session(engine) as session:
+        entry = session.get(HLSMEpisodicEntry, entry_id)
+        if not entry:
+            raise HTTPException(status_code=404, detail="Memory not found")
+        
+        if not entry.promoted_to_l2:
+            try:
+                await services.hlsm_manager.l2_store(entry)
+                entry.promoted_to_l2 = True
+                session.add(entry)
+                session.commit()
+            except Exception as e:
+                logger.error(f"Promotion failed: {e}")
+                raise HTTPException(status_code=500, detail="Promotion to L2 failed")
+                
+    return {"status": "SUCCESS"}

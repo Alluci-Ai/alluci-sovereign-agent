@@ -15,15 +15,14 @@ export const useSovereignConnection = (
     sovereignMode: boolean,
     setAudioStream: (stream: MediaStream | null) => void
 ) => {
-    const {
-        isConnected, setIsConnected,
-        setTranscriptions,
-        setCanvasNodes,
-        setActiveView,
-        connections,
-        skills,
-        accessToken
-    } = useStore();
+    const isConnected = useStore(state => state.isConnected);
+    const setIsConnected = useStore(state => state.setIsConnected);
+    const setTranscriptions = useStore(state => state.setTranscriptions);
+    const setCanvasNodes = useStore(state => state.setCanvasNodes);
+    const setActiveView = useStore(state => state.setActiveView);
+    const connections = useStore(state => state.connections);
+    const skills = useStore(state => state.skills);
+    const accessToken = useStore(state => state.accessToken);
 
     const handleConnect = async () => {
         if (isConnected) {

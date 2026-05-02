@@ -87,3 +87,9 @@ heartbeat_state.json
 *.o
 *.so
 build/
+
+# DPK Native Kernel
+backend/security/build/
+*.so
+*.dylib
+*.dll

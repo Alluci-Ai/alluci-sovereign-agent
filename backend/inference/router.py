@@ -7,6 +7,7 @@ import httpx
 import platform
 from typing import Literal, Dict, Any, List, Optional
 from ..logging_config import get_logger
+from .executive import ExecutiveRouter
 
 logger = get_logger("ModelRouter")
 
@@ -49,10 +50,11 @@ try:
 except ImportError:
     pass
 
-class ModelRouter:
+class ModelRouter(ExecutiveRouter):
     """
     Routes inference requests with failover chain: 
     Tactical (Groq) → Local (Ollama) → Local Fallback (LM Studio) → Optional (HF) → Cloud Failovers.
+    Implements the ExecutiveRouter interface for LCE Decoupling.
     """
     def __init__(self, settings):
         self.logger = get_logger("ModelRouter")
@@ -393,7 +395,18 @@ class ModelRouter:
             except Exception:
                 pass
 
-    async def get_response(self, prompt: str, complexity: Literal["LOW", "MEDIUM", "HIGH"] = "MEDIUM", psi: float = 0.0) -> str:
+    def evaluate_privacy_constraint(self, privacy_level: str, is_cloud_provider: bool) -> bool:
+        if privacy_level in ["SENSITIVE", "AIRGAPPED"] and is_cloud_provider:
+            return False
+        return True
+
+    async def get_response(
+        self, 
+        prompt: str, 
+        complexity: Literal["LOW", "MEDIUM", "HIGH"] = "MEDIUM", 
+        privacy_level: Literal["PUBLIC", "SENSITIVE", "AIRGAPPED"] = "PUBLIC",
+        psi: float = 0.0
+    ) -> str:
         from ..tracing_config import get_tracer
         from opentelemetry import trace
         tracer = get_tracer("Inference.Router")
@@ -474,11 +487,14 @@ class ModelRouter:
                     span.add_event("HuggingFace failover", attributes={"error": str(e)})
                     self.logger.warning("HuggingFace failed: %s", e)
 
-            # ── Cloud providers (skipped if SOVEREIGN_MODE=True) ──────────────
-            if getattr(self.settings, "SOVEREIGN_MODE", False):
+            # ── Cloud providers (skipped if SOVEREIGN_MODE=True or privacy is SENSITIVE/AIRGAPPED) ──────────────
+            sovereign_mode = getattr(self.settings, "SOVEREIGN_MODE", False)
+            allow_cloud = not sovereign_mode and self.evaluate_privacy_constraint(privacy_level, is_cloud_provider=True)
+            
+            if not allow_cloud:
                 error_msg = (
-                    "SOVEREIGN_MODE=True: all local providers failed and "
-                    "cloud is disabled. Errors: " + "; ".join(errors)
+                    f"Cloud providers disabled due to SOVEREIGN_MODE={sovereign_mode} or PRIVACY_LEVEL={privacy_level}. "
+                    "All local providers failed. Errors: " + "; ".join(errors)
                 )
                 span.set_status(trace.Status(trace.StatusCode.ERROR, error_msg))
                 raise RuntimeError(error_msg)

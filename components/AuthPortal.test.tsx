@@ -1,62 +1,61 @@
-import { render, screen, fireEvent } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
-import '@testing-library/jest-dom/vitest';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AuthPortal } from './AuthPortal';
 
-// Mock the features/channels/auth components
-vi.mock('../features/channels/auth/OAuthModal', () => ({
-    OAuthModal: ({ onCancel }: { onCancel: () => void }) => <div data-testid="oauth-modal"><button onClick={onCancel}>Cancel</button></div>
+// Mock the store
+vi.mock('../store/useStore', () => ({
+ useStore: vi.fn(() => ({
+   accessToken: null,
+   needsOnboarding: false,
+ })),
 }));
-vi.mock('../features/channels/auth/TokenModal', () => ({
-    TokenModal: () => <div data-testid="token-modal" />
-}));
-vi.mock('../features/channels/auth/QRSyncModal', () => ({
-    QRSyncModal: () => <div data-testid="qr-sync-modal" />
-}));
-vi.mock('../features/channels/auth/SecureTunnelModal', () => ({
-    SecureTunnelModal: () => <div data-testid="secure-tunnel-modal" />
-}));
-vi.mock('../features/channels/auth/WebSessionModal', () => ({
-    WebSessionModal: () => <div data-testid="web-session-modal" />
-}));
-vi.mock('../features/channels/auth/VerusIdentityModal', () => ({
-    VerusIdentityModal: () => <div data-testid="verus-identity-modal" />
-}));
+
+// Mock fetch for auth calls
+const mockFetch = vi.fn();
+globalThis.fetch = mockFetch;
 
 describe('AuthPortal', () => {
-    const mockOnComplete = vi.fn();
-    const mockOnCancel = vi.fn();
+ beforeEach(() => {
+   mockFetch.mockReset();
+ });
 
-    it('renders OAuthModal for OAUTH2 authType', () => {
-        const connection = { authType: 'OAUTH2' } as any;
-        render(<AuthPortal connection={connection} onComplete={mockOnComplete} onCancel={mockOnCancel} />);
-        expect(screen.getByTestId('oauth-modal')).toBeInTheDocument();
-        
-        fireEvent.click(screen.getByText('Cancel'));
-        expect(mockOnCancel).toHaveBeenCalled();
-    });
+ it('renders the login form when no access token', () => {
+   render(<AuthPortal onAuthenticated={vi.fn()} />);
+   expect(screen.getByRole('heading', { name: /alluci|sovereign|login/i })).toBeInTheDocument();
+ });
 
-    it('renders TokenModal for TOKEN authType', () => {
-        const connection = { authType: 'TOKEN' } as any;
-        render(<AuthPortal connection={connection} onComplete={mockOnComplete} onCancel={mockOnCancel} />);
-        expect(screen.getByTestId('token-modal')).toBeInTheDocument();
-    });
+ it('calls onAuthenticated with token on successful login', async () => {
+   mockFetch.mockResolvedValueOnce({
+     ok: true,
+     json: async () => ({ access_token: 'test-token-abc' }),
+   });
 
-    it('renders QRSyncModal for QR_SYNC authType', () => {
-        const connection = { authType: 'QR_SYNC' } as any;
-        render(<AuthPortal connection={connection} onComplete={mockOnComplete} onCancel={mockOnCancel} />);
-        expect(screen.getByTestId('qr-sync-modal')).toBeInTheDocument();
-    });
+   const onAuth = vi.fn();
+   render(<AuthPortal onAuthenticated={onAuth} />);
 
-    it('renders VerusIdentityModal for IDENTITY_LINK authType', () => {
-        const connection = { authType: 'IDENTITY_LINK' } as any;
-        render(<AuthPortal connection={connection} onComplete={mockOnComplete} onCancel={mockOnCancel} />);
-        expect(screen.getByTestId('verus-identity-modal')).toBeInTheDocument();
-    });
+   const input = screen.getByPlaceholderText(/master key|password|key/i);
+   fireEvent.change(input, { target: { value: 'test-master-key' } });
+   fireEvent.click(screen.getByRole('button', { name: /login|connect|authenticate/i }));
 
-    it('returns null for unknown authType', () => {
-        const connection = { authType: 'UNKNOWN' } as any;
-        const { container } = render(<AuthPortal connection={connection} onComplete={mockOnComplete} onCancel={mockOnCancel} />);
-        expect(container.firstChild).toBeNull();
-    });
+   await waitFor(() => {
+     expect(onAuth).toHaveBeenCalledWith('test-token-abc');
+   });
+ });
+
+ it('shows an error message on failed login', async () => {
+   mockFetch.mockResolvedValueOnce({
+     ok: false,
+     json: async () => ({ detail: 'Invalid credentials' }),
+   });
+
+   render(<AuthPortal onAuthenticated={vi.fn()} />);
+
+   const input = screen.getByPlaceholderText(/master key|password|key/i);
+   fireEvent.change(input, { target: { value: 'wrong-key' } });
+   fireEvent.click(screen.getByRole('button', { name: /login|connect|authenticate/i }));
+
+   await waitFor(() => {
+     expect(screen.getByText(/invalid|error|failed/i)).toBeInTheDocument();
+   });
+ });
 });

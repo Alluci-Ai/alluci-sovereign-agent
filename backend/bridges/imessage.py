@@ -18,10 +18,11 @@ import subprocess
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from .base import BridgeAdapter
-
+from .base import BridgeAdapter, PlatformRequirement
 
 class IMessageBridge(BridgeAdapter):
+    platform_requirements = {PlatformRequirement.MACOS}
+    is_officially_supported = True  # Apple-native, not a scraper
     """
     Production iMessage Bridge.
     - Non-blocking subprocess calls via run_in_executor

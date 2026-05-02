@@ -107,6 +107,24 @@ export class AlluciSovereignService {
     async deleteMemory(id: string) {
         return this._fetch(`/memory/${id}`, { method: 'DELETE' });
     }
+
+    async pinMemory(id: string, isPinned: boolean) {
+        return this._fetch(`/memory/${id}/pin`, { 
+            method: 'PATCH',
+            body: JSON.stringify({ is_pinned: isPinned })
+        });
+    }
+
+    async promoteMemory(id: string) {
+        return this._fetch(`/memory/${id}/promote`, { method: 'POST' });
+    }
+
+    async tagMemory(id: string, tags: string[]) {
+        return this._fetch(`/memory/${id}/tags`, { 
+            method: 'PATCH',
+            body: JSON.stringify({ tags })
+        });
+    }
 }
 
 export const sovereignService = new AlluciSovereignService();

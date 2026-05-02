@@ -27,9 +27,11 @@ export const OnboardingWizard: React.FC = () => {
     const [isCompleting, setIsCompleting] = useState(false);
 
     // Form State
+    const [sovereigntyLevel, setSovereigntyLevel] = useState<1 | 2 | 3>(1);
     const [identityName, setIdentityName] = useState('');
     const [masterKey, setMasterKey] = useState('');
     const [geminiKey, setGeminiKey] = useState('');
+    const [ollamaUrl, setOllamaUrl] = useState('http://127.0.0.1:11434');
     const [selectedSkill, setSelectedSkill] = useState(SUGGESTED_SKILLS[0].id);
 
     const nextStep = () => setStep(s => Math.min(s + 1, 4));
@@ -42,6 +44,7 @@ export const OnboardingWizard: React.FC = () => {
 
             const payload = {
                 identity_name: identityName,
+                sovereignty_level: sovereigntyLevel,
                 soul_manifest: {
                     identityCore: `You are ${identityName}, an autonomous sovereign agent.`,
                     reasoningStyle: "Direct and analytical.",
@@ -49,6 +52,10 @@ export const OnboardingWizard: React.FC = () => {
                 },
                 api_keys: {
                     llm: { googleCloud: geminiKey }
+                },
+                config: {
+                    master_key: masterKey,
+                    ollama_url: ollamaUrl
                 }
             };
 
@@ -97,6 +104,34 @@ export const OnboardingWizard: React.FC = () => {
                 return (
                     <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
                         <div className="flex items-center gap-3 mb-2">
+                            <ShieldCheck className="w-5 h-5 text-indigo-400" />
+                            <h3 className="text-xl font-semibold">Sovereignty Level</h3>
+                        </div>
+                        <p className="text-sm text-gray-400">Choose your deployment model. You can always increase your sovereignty level later.</p>
+                        <div className="space-y-3">
+                            {[
+                                { level: 1 as const, name: "Level 1: Cloud-First", desc: "Zero local setup. Uses cloud LLMs and cloud storage.", icon: <Zap className="w-5 h-5" /> },
+                                { level: 2 as const, name: "Level 2: Hybrid Local", desc: "Local LLM via Ollama for privacy, cloud fallback.", icon: <Cpu className="w-5 h-5" /> },
+                                { level: 3 as const, name: "Level 3: Full Sovereign", desc: "Air-gapped capable. Local LLM, encrypted vault, E2E bridges.", icon: <Lock className="w-5 h-5" /> }
+                            ].map(opt => (
+                                <div key={opt.level} onClick={() => setSovereigntyLevel(opt.level)} className={`p-4 rounded-2xl border cursor-pointer transition-all ${sovereigntyLevel === opt.level ? 'bg-indigo-500/10 border-indigo-500/50' : 'bg-white/5 border-white/10 hover:border-white/20'}`}>
+                                    <div className="flex items-center gap-3">
+                                        <div className={`p-2 rounded-lg ${sovereigntyLevel === opt.level ? 'bg-indigo-500/20 text-indigo-400' : 'bg-white/10 text-gray-400'}`}>{opt.icon}</div>
+                                        <div className="flex-1">
+                                            <div className="font-semibold">{opt.name}</div>
+                                            <div className="text-xs text-gray-500">{opt.desc}</div>
+                                        </div>
+                                        {sovereigntyLevel === opt.level && <CheckCircle2 className="w-5 h-5 text-indigo-400" />}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                );
+            case 2:
+                return (
+                    <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
+                        <div className="flex items-center gap-3 mb-2">
                             <User className="w-5 h-5 text-indigo-400" />
                             <h3 className="text-xl font-semibold">Identity Anchor</h3>
                         </div>
@@ -111,39 +146,43 @@ export const OnboardingWizard: React.FC = () => {
                         />
                     </div>
                 );
-            case 2:
-                return (
-                    <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
-                        <div className="flex items-center gap-3 mb-2">
-                            <Key className="w-5 h-5 text-indigo-400" />
-                            <h3 className="text-xl font-semibold">Master Key Re-Anchoring</h3>
-                        </div>
-                        <p className="text-sm text-gray-400">Confirm your Simplicial Vault master key. This key is used to encrypt all local secrets. Never lose it.</p>
-                        <input
-                            type="password"
-                            placeholder="Enter your security phrase"
-                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-lg outline-none focus:border-indigo-500/50 transition-colors"
-                            value={masterKey}
-                            onChange={(e) => setMasterKey(e.target.value)}
-                            autoFocus
-                        />
-                        <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl flex gap-3 italic text-xs text-amber-200/70">
-                            <ShieldCheck className="w-5 h-5 flex-shrink-0 text-amber-400" />
-                            This key is only stored locally in your sovereign vault. It is not transmitted to any cloud service.
-                        </div>
-                    </div>
-                );
             case 3:
                 return (
                     <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
                         <div className="flex items-center gap-3 mb-2">
-                            <Cpu className="w-5 h-5 text-indigo-400" />
-                            <h3 className="text-xl font-semibold">Cognitive Catalyst</h3>
+                            <Key className="w-5 h-5 text-indigo-400" />
+                            <h3 className="text-xl font-semibold">Authentication & Connectivity</h3>
                         </div>
-                        <p className="text-sm text-gray-400">Connect your primary LLM provider. Gemini 2.0 Flash is recommended for high-autonomy tasks.</p>
+                        <p className="text-sm text-gray-400">Configure keys required for Level {sovereigntyLevel} autonomy.</p>
                         <div className="space-y-4">
+                            {sovereigntyLevel >= 3 && (
+                                <label className="block">
+                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1 flex items-center gap-2"><Lock className="w-3 h-3" /> Master Vault Key</span>
+                                    <input
+                                        type="password"
+                                        placeholder="Enter security phrase"
+                                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 mt-1 outline-none focus:border-indigo-500/50 transition-colors"
+                                        value={masterKey}
+                                        onChange={(e) => setMasterKey(e.target.value)}
+                                    />
+                                </label>
+                            )}
+                            
+                            {sovereigntyLevel >= 2 && (
+                                <label className="block">
+                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1 flex items-center gap-2"><Cpu className="w-3 h-3" /> Ollama Endpoint</span>
+                                    <input
+                                        type="text"
+                                        placeholder="http://127.0.0.1:11434"
+                                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 mt-1 outline-none focus:border-indigo-500/50 transition-colors"
+                                        value={ollamaUrl}
+                                        onChange={(e) => setOllamaUrl(e.target.value)}
+                                    />
+                                </label>
+                            )}
+
                             <label className="block">
-                                <span className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Google Gemini API Key</span>
+                                <span className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1 flex items-center gap-2"><Zap className="w-3 h-3" /> Gemini API Key {sovereigntyLevel >= 2 ? '(Fallback)' : '(Primary)'}</span>
                                 <input
                                     type="password"
                                     placeholder="AIzaSy..."
@@ -194,9 +233,12 @@ export const OnboardingWizard: React.FC = () => {
     };
 
     const isNextDisabled = () => {
-        if (step === 1 && !identityName) return true;
-        if (step === 2 && !masterKey) return true;
-        if (step === 3 && !geminiKey) return true;
+        if (step === 2 && !identityName) return true;
+        if (step === 3) {
+            if (!geminiKey) return true;
+            if (sovereigntyLevel >= 3 && !masterKey) return true;
+            if (sovereigntyLevel >= 2 && !ollamaUrl) return true;
+        }
         return false;
     };
 

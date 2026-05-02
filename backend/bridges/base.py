@@ -8,7 +8,44 @@ from typing import List, Dict, Any, Callable, Optional
 from abc import ABC, abstractmethod
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
+import platform
+import sys
+from enum import Enum
+from typing import Set
+
+class PlatformRequirement(str, Enum):
+   """Declares what a bridge needs at the host system level."""
+   MACOS         = "macos"           # Requires macOS (iMessage, iCloud)
+   LINUX         = "linux"           # Requires Linux (signal-cli daemon)
+   ENTERPRISE_API = "enterprise_api" # Requires paid/enterprise API access
+   SIGNAL_CLI    = "signal_cli"      # Requires signal-cli binary in PATH
+   DOCKER        = "docker"          # Requires Docker daemon
+
+def get_platform_requirements_met(requirements: Set[PlatformRequirement]) -> dict:
+   """
+   Returns a dict of {requirement: bool} indicating which are satisfied.
+   Called at bridge init to populate the status API.
+   """
+   import shutil
+   results = {}
+   for req in requirements:
+       if req == PlatformRequirement.MACOS:
+           results[req] = platform.system() == "Darwin"
+       elif req == PlatformRequirement.LINUX:
+           results[req] = platform.system() == "Linux"
+       elif req == PlatformRequirement.SIGNAL_CLI:
+           results[req] = shutil.which("signal-cli") is not None
+       elif req == PlatformRequirement.DOCKER:
+           results[req] = shutil.which("docker") is not None
+       elif req == PlatformRequirement.ENTERPRISE_API:
+           results[req] = True  # Can't check at init; verified at connect()
+       else:
+           results[req] = False
+   return results
+
 class BridgeAdapter(ABC):
+    platform_requirements: Set[PlatformRequirement] = set()
+    is_officially_supported: bool = True  # False for unofficial/scraped bridges
     """
     Abstract Base Class for all sovereign bridge integrations.
     Enforces Simplicial Vault Isolation to prevent cross-bridge data leakage.
@@ -17,6 +54,17 @@ class BridgeAdapter(ABC):
         self.bridge_id = bridge_id
         self.vault_manager = vault_manager
         self.logger = get_logger(f"Bridge_{bridge_id.upper()}")
+        
+        # Platform availability check
+        self._platform_status = get_platform_requirements_met(self.platform_requirements)
+        self.is_platform_available = all(self._platform_status.values())
+
+        if not self.is_platform_available:
+            unmet = [k.value for k, v in self._platform_status.items() if not v]
+            self.logger.warning(
+                f"[{bridge_id.upper()}] Bridge UNAVAILABLE on this platform. "
+                f"Unmet requirements: {unmet}"
+            )
         
         # Simplicial Vault Path: ~/.polytope/vaults/{bridge_id}
         self.vault_path = os.path.join(vault_root, bridge_id)
@@ -136,6 +184,16 @@ class BridgeAdapter(ABC):
             "last_activity": self.last_activity,
             "last_error": self.last_error,
             "protocol": self.bridge_id.split('_')[0].upper()
+        }
+
+    def get_availability_status(self) -> dict:
+        """Returns structured availability info for the UI Bridge Center."""
+        return {
+            "bridge_id": self.bridge_id,
+            "platform_available": self.is_platform_available,
+            "officially_supported": self.is_officially_supported,
+            "requirements": {k.value: v for k, v in self._platform_status.items()},
+            "connected": self.is_connected,
         }
 
     async def _get_valid_token(self, creds: Dict[str, Any], token_url: str, client_id: str, client_secret: str) -> Dict[str, Any]:

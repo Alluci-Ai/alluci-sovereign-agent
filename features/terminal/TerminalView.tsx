@@ -16,21 +16,44 @@ const TerminalView: React.FC<TerminalViewProps> = ({ getFormattedTime, copyText 
     const { transcriptions, isProcessing } = useStore();
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
     const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+    const [viewMode, setViewMode] = React.useState<'chat' | 'dispatch'>('chat');
+
+    const filteredTranscriptions = transcriptions.filter(t => 
+        viewMode === 'dispatch' ? t.type === 'dispatch' : (t.type !== 'dispatch')
+    );
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [transcriptions, isProcessing]);
+    }, [filteredTranscriptions.length, isProcessing, viewMode]);
 
     return (
-        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4 md:p-8 flex flex-col gap-6 md:gap-8 scrollbar-hide relative bg-transparent">
-            <ExecutionTimeline isProcessing={isProcessing} />
-            {transcriptions.length === 0 && (
-                <div className="h-full flex flex-col items-center justify-center opacity-5 select-none animate-pulse">
-                    <PolytopeIdentity color="#000" size={100} />
-                    <h2 className="glass-label text-[8px] mt-6 tracking-[1.2em]">EXECUTIVE_SESSION_IDLE</h2>
-                </div>
-            )}
-            {transcriptions.map((t, i) => (
+        <div className="flex-1 flex flex-col h-full overflow-hidden bg-transparent relative">
+            <div className="flex border-b border-[rgba(255,255,255,0.08)] bg-glass-1 backdrop-blur-md px-4 shrink-0">
+                <button 
+                    onClick={() => setViewMode('chat')}
+                    className={`px-4 py-3 text-[10px] font-bold tracking-widest uppercase transition-colors ${viewMode === 'chat' ? 'text-accent border-b-2 border-accent' : 'text-text-tertiary hover:text-text-secondary'}`}
+                >
+                    Chat History
+                </button>
+                <button 
+                    onClick={() => setViewMode('dispatch')}
+                    className={`px-4 py-3 text-[10px] font-bold tracking-widest uppercase transition-colors ${viewMode === 'dispatch' ? 'text-accent-warm border-b-2 border-accent-warm' : 'text-text-tertiary hover:text-text-secondary'}`}
+                >
+                    Dispatch Logs
+                </button>
+            </div>
+            
+            <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4 md:p-8 flex flex-col gap-6 md:gap-8 scrollbar-hide relative bg-transparent">
+                <ExecutionTimeline isProcessing={isProcessing} />
+                {filteredTranscriptions.length === 0 && (
+                    <div className="h-full flex flex-col items-center justify-center opacity-5 select-none animate-pulse">
+                        <PolytopeIdentity color="#000" size={100} />
+                        <h2 className="glass-label text-[8px] mt-6 tracking-[1.2em]">
+                            {viewMode === 'chat' ? 'EXECUTIVE_SESSION_IDLE' : 'NO_DISPATCH_LOGS_YET'}
+                        </h2>
+                    </div>
+                )}
+                {filteredTranscriptions.map((t, i) => (
                 <div key={i} className="flex flex-col gap-4">
                     {/* Context Compaction Divider — shows token count when available */}
                     {t.isCompaction && (
@@ -85,6 +108,7 @@ const TerminalView: React.FC<TerminalViewProps> = ({ getFormattedTime, copyText 
                 scrollContainerRef={scrollContainerRef}
                 messagesEndRef={messagesEndRef}
             />
+            </div>
         </div>
     );
 };

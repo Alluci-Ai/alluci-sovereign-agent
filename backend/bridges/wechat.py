@@ -32,12 +32,14 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
-from .base import BridgeAdapter, UnofficialBridgeMixin
+from .base import BridgeAdapter, UnofficialBridgeMixin, PlatformRequirement
 
 WECOM_API = "https://qyapi.weixin.qq.com/cgi-bin"
 
 
 class WeChatBridge(BridgeAdapter, UnofficialBridgeMixin):
+    platform_requirements = {PlatformRequirement.ENTERPRISE_API}
+    is_officially_supported = True  # Uses official WeCom API
     """
     Production WeChat / WeCom Corporate Bridge.
     Uses WeCom (企业微信) Application API for enterprise messaging.

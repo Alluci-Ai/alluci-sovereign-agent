@@ -44,7 +44,11 @@
     "node_modules",
     "dist",
     "build",
+    "third-party",
+    "e2e",
     "backend/verusid_bridge/**/__tests__/**",
-    "backend/verusid_bridge/**/test/**"
+    "backend/verusid_bridge/**/test/**",
+    "backend/verusid_bridge/**/*.test.*",
+    "backend/verusid_bridge/**/*.spec.*"
   ]
 }

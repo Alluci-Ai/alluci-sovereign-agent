@@ -4,6 +4,7 @@ import PersonalityField from './PersonalityField';
 import { SkillManifest } from '../types';
 import { useStore } from '../store/useStore';
 import { getCsrfToken } from '../csrfStore';
+import { HeartbeatOrderEditor } from '../features/heartbeat/HeartbeatOrderEditor';
 
 const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
 
@@ -248,7 +249,31 @@ const StepReasoning: React.FC<StepProps> = ({ data, update, next, back }) => (
     <div className="flex justify-between mt-4">
       <button onClick={back} className="glass-btn glass-label text-[9px] px-6">← [ BACK ]</button>
       <button onClick={next} className="glass-btn glass-btn--primary glass-label text-[9px] px-6">
-        [ CALIBRATE_VECTORS ] →
+        [ NEXT: HEARTBEAT ] →
+      </button>
+    </div>
+  </div>
+);
+
+const StepHeartbeat: React.FC<StepProps> = ({ data, update, next, back }) => (
+  <div className="flex flex-col gap-6 animate-in slide-in-from-right-4">
+    <h3 className="glass-label text-[12px] border-b border-sovereign pb-1 mb-4">4. AUTONOMOUS_PULSE</h3>
+
+    <div className="p-4 border border-[rgba(255,255,255,0.08)] mb-2">
+      <p className="text-[9px] font-mono opacity-60">
+        Define proactive monitoring and automatic triggers for this cognitive module.
+      </p>
+    </div>
+
+    <HeartbeatOrderEditor 
+      initialOrders={data.heartbeat || []}
+      onSave={(orders) => update('heartbeat', orders)}
+    />
+
+    <div className="flex justify-between mt-8">
+      <button onClick={back} className="glass-btn glass-label text-[9px] px-6">← [ BACK ]</button>
+      <button onClick={next} className="glass-btn glass-btn--primary glass-label text-[9px] px-6">
+        [ NEXT: CALIBRATION ] →
       </button>
     </div>
   </div>
@@ -256,7 +281,7 @@ const StepReasoning: React.FC<StepProps> = ({ data, update, next, back }) => (
 
 const StepCalibration: React.FC<Omit<StepProps, 'next'> & { onSave: () => void }> = ({ data, update, back, onSave }) => (
   <div className="flex flex-col gap-6 animate-in slide-in-from-right-4">
-    <h3 className="glass-label text-[12px] border-b border-sovereign pb-1 mb-4">4. PERSONALITY_VECTOR_MAPPING</h3>
+    <h3 className="glass-label text-[12px] border-b border-sovereign pb-1 mb-4">5. PERSONALITY_VECTOR_MAPPING</h3>
 
     <div className="flex flex-col gap-4 p-4 border border-[rgba(255,255,255,0.08)] mt-2">
       Define how this skill shifts the agent's baseline personality when active.
@@ -389,7 +414,7 @@ const SkillBuilderWizard: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           </div>
           <div className="flex flex-col">
             <h2 className="glass-label text-lg tracking-[0.3em]">COGNITIVE_MODULE_BUILDER</h2>
-            <span className="text-[8px] font-mono opacity-40">Step {step + 1} of 4</span>
+            <span className="text-[8px] font-mono opacity-40">Step {step + 1} of 5</span>
           </div>
         </div>
         <button onClick={onClose} className="p-2 text-text-tertiary hover:text-text-primary transition-colors">
@@ -399,7 +424,7 @@ const SkillBuilderWizard: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
       {/* Progress Bar */}
       <div className="flex gap-1 mb-6 h-1 w-full overflow-hidden" style={{ background: 'var(--fill-quaternary)', borderRadius: 2 }}>
-        {[0, 1, 2, 3].map(i => (
+        {[0, 1, 2, 3, 4].map(i => (
           <div key={i} className="flex-1 transition-all duration-500" style={{ background: i <= step ? 'var(--liquid-accent)' : 'transparent', backdropFilter: i <= step ? 'blur(4px)' : 'none', borderRadius: 2 }} />
         ))}
       </div>
@@ -412,7 +437,8 @@ const SkillBuilderWizard: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           {step === 0 && <StepMetadata data={manifest} update={update} next={() => setStep(1)} />}
           {step === 1 && <StepCognition data={manifest} update={update} next={() => setStep(2)} back={() => setStep(0)} />}
           {step === 2 && <StepReasoning data={manifest} update={update} next={() => setStep(3)} back={() => setStep(1)} />}
-          {step === 3 && <StepCalibration data={manifest} update={update} back={() => setStep(2)} onSave={handleSave} />}
+          {step === 3 && <StepHeartbeat data={manifest} update={update} next={() => setStep(4)} back={() => setStep(2)} />}
+          {step === 4 && <StepCalibration data={manifest} update={update} back={() => setStep(3)} onSave={handleSave} />}
         </div>
 
         {/* JSON Preview Sidebar (Desktop Only) */}

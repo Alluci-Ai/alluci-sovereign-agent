@@ -10,6 +10,8 @@ export interface Message {
   tokenCount?: number;
   /** Name of the model that generated this message */
   modelName?: string;
+  /** Message type to separate chat from dispatch logs */
+  type?: 'chat' | 'dispatch';
 }
 
 export interface PendingAttachment extends FilePart {
@@ -78,6 +80,7 @@ export interface SkillManifest {
 
   // [ DYNAMIC_BINDING ]
   personalityMapping: SkillPersonalityImpact;
+  heartbeat?: any[];
 
   // [ EXECUTION_INSTRUCTIONS ]
   instructions?: string; // Markdown instructions for the cognitive module

@@ -43,7 +43,9 @@ export const MemoryPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                 source: r.source,
                 tier: r.tier || 1,
                 retention_score: r.retention_score || 1.0,
-                created_at: Date.now() / 1000
+                created_at: Date.now() / 1000,
+                extra_metadata: r.extra_metadata,
+                promoted_to_l2: r.promoted_to_l2
             })));
         } catch (e) {
             console.error("Search failed", e);
@@ -61,6 +63,27 @@ export const MemoryPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         } catch (e) {
             console.error("Delete failed", e);
         }
+    };
+
+    const handlePin = async (id: string, isPinned: boolean) => {
+        try {
+            await sovereignService.pinMemory(id, !isPinned);
+            setMemories(prev => prev.map(m => {
+                if (m.id === id) {
+                    const md = m.extra_metadata ? JSON.parse(m.extra_metadata) : {};
+                    md.pinned = !isPinned;
+                    return { ...m, extra_metadata: JSON.stringify(md) };
+                }
+                return m;
+            }));
+        } catch (e) { console.error("Pin failed", e); }
+    };
+
+    const handlePromote = async (id: string) => {
+        try {
+            await sovereignService.promoteMemory(id);
+            setMemories(prev => prev.map(m => m.id === id ? { ...m, promoted_to_l2: true, tier: 2 } : m));
+        } catch (e) { console.error("Promote failed", e); }
     };
 
     return (
@@ -121,20 +144,44 @@ export const MemoryPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                                     <div className="flex items-center gap-3">
                                         <div className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-tighter ${
                                             m.tier === 0 ? 'bg-zinc-800 text-zinc-400' :
-                                            m.tier === 2 ? 'bg-emerald-900/30 text-emerald-400' : 'bg-blue-900/30 text-blue-400'
+                                            m.tier === 2 || m.promoted_to_l2 ? 'bg-emerald-900/30 text-emerald-400' : 'bg-blue-900/30 text-blue-400'
                                         }`}>
-                                            Tier {m.tier ?? 1} {m.tier === 0 ? 'Working' : m.tier === 2 ? 'Semantic' : 'Episodic'}
+                                            Tier {m.tier ?? 1} {m.tier === 0 ? 'Working' : (m.tier === 2 || m.promoted_to_l2) ? 'Semantic' : 'Episodic'}
                                         </div>
                                         <span className="text-[10px] text-zinc-600 font-mono">
                                             ID: {m.id.substring(0, 12)}...
                                         </span>
+                                        {(() => {
+                                            const isPinned = m.extra_metadata && m.extra_metadata.includes('"pinned": true');
+                                            return isPinned ? (
+                                                <span className="text-[10px] text-amber-500 font-bold bg-amber-500/10 px-1.5 rounded">PINNED</span>
+                                            ) : null;
+                                        })()}
                                     </div>
-                                    <button 
-                                        onClick={() => handleDelete(m.id)} 
-                                        className="text-zinc-600 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 p-1"
-                                    >
-                                        <Trash2 size={14} />
-                                    </button>
+                                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button 
+                                            onClick={() => handlePin(m.id, !!(m.extra_metadata && m.extra_metadata.includes('"pinned": true')))} 
+                                            className="text-zinc-600 hover:text-amber-500 p-1 rounded hover:bg-white/5 transition-all text-xs"
+                                            title="Toggle Pin"
+                                        >
+                                            Pin
+                                        </button>
+                                        {!m.promoted_to_l2 && m.tier === 1 && (
+                                            <button 
+                                                onClick={() => handlePromote(m.id)} 
+                                                className="text-zinc-600 hover:text-emerald-500 p-1 rounded hover:bg-white/5 transition-all text-xs"
+                                                title="Promote to Semantic Memory"
+                                            >
+                                                Promote
+                                            </button>
+                                        )}
+                                        <button 
+                                            onClick={() => handleDelete(m.id)} 
+                                            className="text-zinc-600 hover:text-red-500 transition-colors p-1"
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
+                                    </div>
                                 </div>
 
                                 <p className="text-sm leading-relaxed text-zinc-300 mb-3 pl-2">

@@ -4,7 +4,7 @@ import { SharedModalShell } from './SharedModalShell';
 import { activateBridge, saveBridgeCredentials } from '../../../lib/bridgeAuth';
 import { useStore } from '../../../store/useStore';
 import { adminService } from '../../../adminService';
-import { DAEMON_URL } from '../../../usePolytopeAPI';
+const DAEMON_URL = import.meta.env.VITE_DAEMON_URL ?? 'http://127.0.0.1:8000';
 
 export const QRSyncModal: React.FC<{
     connection: Connection;

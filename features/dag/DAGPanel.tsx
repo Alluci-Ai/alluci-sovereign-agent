@@ -6,6 +6,7 @@ import { useTaskStream } from './hooks/useTaskStream';
 import { RunListSidebar } from './components/RunListSidebar';
 import { RunDetailHeader } from './components/RunDetailHeader';
 import { DAGGraph } from './components/DAGGraph';
+import { GanttChart } from './components/GanttChart';
 import { ObjectiveSubmitBar } from './components/ObjectiveSubmitBar';
 import { TaskDetailDrawer } from './components/TaskDetailDrawer';
 import { PlanPreviewModal } from './components/PlanPreviewModal';
@@ -26,6 +27,7 @@ export const DAGPanel: React.FC = () => {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [previewObjective, setPreviewObjective] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('');
+  const [viewMode, setViewMode] = useState<'graph' | 'gantt'>('graph');
 
   const { taskStates, streamStatus } = useTaskStream(selectedRunId);
 
@@ -137,11 +139,34 @@ export const DAGPanel: React.FC = () => {
               onCancel={handleCancel}
               onRefresh={() => loadRunDetail(selectedRun.id)}
             />
-            <DAGGraph
-              tasks={mergedTasks}
-              selectedTaskId={selectedTaskId}
-              onSelectTask={setSelectedTaskId}
-            />
+            {/* View Toggle */}
+            <div className="flex border-b border-zinc-800/50 bg-zinc-950/40">
+              <button 
+                onClick={() => setViewMode('graph')}
+                className={`flex-1 py-2 text-[10px] font-bold tracking-widest uppercase transition-colors ${viewMode === 'graph' ? 'text-accent border-b-2 border-accent bg-accent/5' : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'}`}
+              >
+                Topology View
+              </button>
+              <button 
+                onClick={() => setViewMode('gantt')}
+                className={`flex-1 py-2 text-[10px] font-bold tracking-widest uppercase transition-colors ${viewMode === 'gantt' ? 'text-accent border-b-2 border-accent bg-accent/5' : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'}`}
+              >
+                Gantt Timeline
+              </button>
+            </div>
+            {viewMode === 'graph' ? (
+              <DAGGraph
+                tasks={mergedTasks}
+                selectedTaskId={selectedTaskId}
+                onSelectTask={setSelectedTaskId}
+              />
+            ) : (
+              <GanttChart 
+                tasks={mergedTasks}
+                selectedTaskId={selectedTaskId}
+                onSelectTask={setSelectedTaskId}
+              />
+            )}
           </>
         ) : (
           <div style={{

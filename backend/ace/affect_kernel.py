@@ -8,9 +8,27 @@ except ImportError:
 
 @dataclass
 class AffectiveState:
+    # Core Affective Dimensions
     valence: float = 512.0   # 0=pessimistic, 512=neutral, 1024=optimistic
     arousal: float = 0.0     # 0=calm, 1024=maximum arousal
     tension: float = 0.0     # 0=relaxed, 1024=maximum contraction
+    
+    # [ PPN-010 ] Physical Biometrics (Multimodal Polytope Fusion)
+    heart_rate: float = 70.0       # bpm
+    hrv: float = 50.0              # ms
+    respiratory_rate: float = 16.0 # breaths/min
+    
+    def fuse_biometrics(self):
+        """
+        Sub-microsecond projection of raw biometrics into affective dimensions.
+        Avoids slow string-to-vector conversion.
+        """
+        # Baseline heuristics mapping biometrics to affective dimensions
+        # High HR + Low HRV + High RR = High Arousal, High Tension, Low Valence (Stress)
+        self.arousal = max(0.0, min(1024.0, (self.heart_rate - 60.0) * 10.0 + (self.respiratory_rate - 12.0) * 20.0))
+        self.tension = max(0.0, min(1024.0, (100.0 - self.hrv) * 10.0))
+        self.valence = max(0.0, min(1024.0, 512.0 + (self.hrv - 50.0) * 5.0 - (self.heart_rate - 70.0) * 2.0))
+
 
 
 class AffectKernel:

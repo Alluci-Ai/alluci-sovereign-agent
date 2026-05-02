@@ -179,6 +179,10 @@ export interface AppState {
         phi_total: number;
     };
     setPvtHealth: (val: Partial<AppState['pvtHealth']>) => void;
+
+    // ACE Flow Mode
+    flowMode: 'STANDARD' | 'DEEP_WORK' | 'PEAK_PERFORMANCE' | 'RECOVERY_MODE';
+    setFlowMode: (mode: AppState['flowMode']) => void;
     
     // Attachments (Sprint Interaction Upgrade)
     attachments: PendingAttachment[];
@@ -382,6 +386,10 @@ export const useStore = create<AppState>((set) => ({
     setPvtHealth: (val) => set((state) => ({
         pvtHealth: { ...state.pvtHealth, ...val }
     })),
+    
+    // ACE Flow Mode
+    flowMode: 'STANDARD',
+    setFlowMode: (mode) => set({ flowMode: mode }),
     
     attachments: [],
     setAttachments: (val) => set((state) => ({

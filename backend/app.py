@@ -11,6 +11,10 @@ from .logging_config import get_logger, configure_logging
 from .tracing_config import configure_tracing
 from . import services
 from .security.rate_limiter import get_fallback_limiter
+import os
+
+VERSION_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".version")
+VERSION = open(VERSION_FILE).read().strip() if os.path.exists(VERSION_FILE) else "unknown"
 
 logger = get_logger("PolytopeApp")
 
@@ -91,7 +95,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Alluci Sovereign Agent",
     description="Sovereign Executive Assistant with Polytopic Manifolds",
-    version="6.4.0",
+    version=VERSION,
     lifespan=lifespan,
     dependencies=[Depends(global_rate_limit)]
 )
@@ -136,7 +140,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 @app.get("/health", include_in_schema=False)
 async def health_check():
     from datetime import datetime, timezone
-    return {"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()}
+    return {"status": "ok", "version": VERSION, "components": {}, "timestamp": datetime.now(timezone.utc).isoformat()}
 
 @app.get("/ready", include_in_schema=False)
 async def root_ready():
@@ -145,7 +149,7 @@ async def root_ready():
 @app.get("/api/v1/health", include_in_schema=False)
 async def health_v1():
     from datetime import datetime, timezone
-    return {"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()}
+    return {"status": "ok", "version": VERSION, "components": {}, "timestamp": datetime.now(timezone.utc).isoformat()}
 
 @app.get("/api/v1/ready", include_in_schema=False)
 async def ready_v1():

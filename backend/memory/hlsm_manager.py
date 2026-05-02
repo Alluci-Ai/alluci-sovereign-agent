@@ -31,6 +31,7 @@ from sqlmodel import Session, select, col
 from ..logging_config import get_logger
 from ..ace.memory_decay import MemoryTopologyDecay
 from ..models import HLSMEpisodicEntry, HLSMWorkingEntry
+from ..inference.ppn import DiscreteProjectionKernel
 
 logger = get_logger("HLSM")
 
@@ -137,6 +138,9 @@ class HLSMManager:
         self.decay = MemoryTopologyDecay(half_life=L1_HALF_LIFE_SECONDS)
         self._consolidation_task: Optional[asyncio.Task] = None
         self._embed_model: Optional[Any] = None  # Lazy-loaded sentence-transformer
+        
+        # [ PPN-007 ] Simplicial H-LSM: Initialize the Discrete Projection Kernel
+        self.dpk = DiscreteProjectionKernel()
 
         logger.info(
             "[HLSM] Initialized. "
@@ -465,6 +469,9 @@ class HLSMManager:
             logger.debug("[HLSM L2] ChromaDB not available — skipping L2 promotion")
             return None
 
+        # [ PPN-008 ] Generate Topological Barcode (Simplicial Projection)
+        betti_signature = self.dpk.get_betti_signature(self.dpk.project_state(entry.content))
+
         meta = {
             "source": entry.source,
             "session_key": entry.session_key,
@@ -473,6 +480,7 @@ class HLSMManager:
             "valence_at_encoding": entry.valence_at_encoding,
             "topological_importance": entry.topological_importance,
             "betti_1_support": entry.betti_1_support,
+            "betti_signature": str(betti_signature),  # Topological Barcode
             "access_count": entry.access_count,
             "created_at": entry.created_at,
             "l1_id": entry.id,
@@ -518,6 +526,15 @@ class HLSMManager:
                 betti_support = float(meta.get("betti_1_support", 0.0)) if meta else 0.0
                 topo_imp = float(meta.get("topological_importance", 1.0)) if meta else 1.0
                 created_at = float(meta.get("created_at", time.time())) if meta else time.time()
+                
+                # [ PPN-009 ] Structural Homeomorphism Check
+                stored_betti = meta.get("betti_signature", "") if meta else ""
+                query_betti = str(self.dpk.get_betti_signature(self.dpk.project_state(query)))
+                
+                # If the query and memory share the same topological shape, strongly boost relevance
+                if stored_betti and stored_betti == query_betti:
+                    similarity = min(1.0, similarity + 0.5)
+                    topo_imp += 0.5
 
                 # Compute retention from creation time
                 retention = self.decay.calculate_retention(

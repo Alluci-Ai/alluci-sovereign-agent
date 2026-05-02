@@ -71,8 +71,11 @@ else
 fi
 # ── 4. Native Security Kernels ─────────────────────────────
 echo "[5/5] Compiling Native Security Kernels (DPK)..."
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-make -C "$SCRIPT_DIR/../backend/security"
+python scripts/build_dpk.py
+if [ $? -ne 0 ]; then
+ echo "[ SETUP ] WARNING: DPK native build failed. Python fallback will be used."
+ echo "[ SETUP ] Install g++ (Linux: sudo apt install g++) or Xcode CLI tools (macOS)."
+fi
 
 # ── Summary ────────────────────────────────────────────────
 echo ""

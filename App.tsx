@@ -136,6 +136,11 @@ const App: React.FC = () => {
             });
           } else if (method === 'usage.alert') {
             setActiveNudges(prev => [...prev, { id: `usage_${Date.now()}`, message: `Usage Alert: ${params.reason}` }]);
+          } else if (method === 'bridge.silenced') {
+            setActiveNudges(prev => [...prev, { 
+              id: `silenced_${Date.now()}`, 
+              message: `🔕 Inbound ${params.protocol} message from ${params.sender} silenced (${params.mode})` 
+            }]);
           } else if (method === 'model.fallback') {
             setModelFallbackMessage(`⚠ Primary model unavailable. Using ${params.fallback_model}`);
           } else if (method === 'compaction.status') {
@@ -159,6 +164,9 @@ const App: React.FC = () => {
               isRuptured: params.is_ruptured ?? false,
               phi_total: params.phi_total ?? 0
             });
+            if (params.flow_mode) {
+              useStore.getState().setFlowMode(params.flow_mode);
+            }
           } else if (method === 'manifold.rupture') {
             useStore.getState().setPvtHealth({ isRuptured: true });
           }
