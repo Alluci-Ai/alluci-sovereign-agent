@@ -9,9 +9,10 @@ from fastapi.testclient import TestClient
 @pytest.fixture
 def app_client(mock_settings):
     """Create a test client with mocked dependencies."""
-    with patch('backend.config.load_settings', return_value=mock_settings):
+    with patch('backend.config.settings', mock_settings), \
+         patch('backend.services.init_services', new_callable=AsyncMock), \
+         patch('backend.services.shutdown_services', new_callable=AsyncMock):
         
-        # We need to patch the lifespan to avoid real initialization
         from backend.app import app
         import backend.services as services
         
@@ -75,7 +76,7 @@ class TestHealthEndpoints:
         response = app_client.get("/health")
         assert response.status_code == 200
         data = response.json()
-        assert data["status"] == "healthy"
+        assert data["status"] == "ok"
         assert "timestamp" in data
 
     def test_readiness_check(self, app_client):
@@ -116,6 +117,8 @@ class TestInputSanitization:
     def test_injection_blocked(self, app_client, mock_settings):
         # Get auth token
         login_resp = app_client.post("/api/v1/auth/login", json={"key": mock_settings.POLYTOPE_MASTER_KEY})
+        if login_resp.status_code != 200:
+             print(f"DEBUG LOGIN FAIL: {login_resp.status_code} - {login_resp.text}")
         token = login_resp.json()["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 

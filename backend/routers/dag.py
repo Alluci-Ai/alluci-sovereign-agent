@@ -1,5 +1,5 @@
-from typing import Optional, List
-from fastapi import APIRouter, Depends, Request
+from typing import Optional
+from fastapi import APIRouter, Depends
 from sqlmodel import Session, select, desc
 from ..database import engine as db_engine
 from ..models import Run, TaskRecord as TaskRecordModel

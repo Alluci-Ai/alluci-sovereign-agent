@@ -1,7 +1,6 @@
 
-from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Depends, Request
-from ..models import TaskRecord as TaskRecordModel, TaskUpdate
+from ..models import TaskUpdate
 from ..security.auth import verify_authenticated
 from fastapi_csrf_protect import CsrfProtect
 from .. import services

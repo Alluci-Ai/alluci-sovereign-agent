@@ -6,7 +6,21 @@
     "plugin:@typescript-eslint/recommended",
     "plugin:react-hooks/recommended"
   ],
-  "ignorePatterns": ["dist", ".eslintrc.json"],
+  "ignorePatterns": [
+    "dist",
+    "build",
+    "node_modules",
+    "third-party",
+    "backend",
+    "venv",
+    ".venv",
+    "public",
+    "htmlcov",
+    "coverage",
+    "*.config.js",
+    "*.config.cjs",
+    ".eslintrc.json"
+  ],
   "parser": "@typescript-eslint/parser",
   "plugins": ["react-refresh"],
   "rules": {
@@ -15,6 +29,9 @@
       { "allowConstantExport": true }
     ],
     "@typescript-eslint/no-explicit-any": "warn",
-    "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }]
+    "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+    "@typescript-eslint/no-var-requires": "warn",
+    "no-empty": "warn",
+    "no-prototype-builtins": "warn"
   }
 }

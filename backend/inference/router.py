@@ -621,6 +621,42 @@ class ModelRouter(ExecutiveRouter):
             span.set_status(trace.Status(trace.StatusCode.ERROR, error_msg))
             raise RuntimeError(error_msg)
 
+    async def get_structured_plan(self, prompt: str) -> Dict[str, Any]:
+        """
+        Utility to get a JSON-formatted execution plan from the LLM.
+        Forces JSON mode and handles parsing failovers.
+        """
+        # Ensure the prompt asks for JSON if it doesn't already
+        if "json" not in prompt.lower():
+            prompt += "\n\nIMPORTANT: Return only a valid JSON object with a 'steps' key."
+
+        res = await self.get_response(prompt)
+        try:
+            import re
+            # Extract JSON from potential markdown blocks or extra text
+            json_match = re.search(r'\{.*\}', res, re.DOTALL)
+            if json_match:
+                return json.loads(json_match.group(0))
+            return json.loads(res)
+        except Exception as e:
+            self.logger.error(f"Failed to parse structured plan: {e} | Raw: {res[:200]}")
+            return {"steps": []}
+
+    async def refine_plan(self, objective: str, original_plan: List[Dict], results: str, feedback: str, failed_tasks: List[str]) -> Dict[str, Any]:
+        """
+        Self-correction logic: Asks the model to refine a failed plan.
+        """
+        prompt = f"""
+        OBJECTIVE: {objective}
+        ORIGINAL PLAN: {json.dumps(original_plan)}
+        RESULTS SO FAR: {results}
+        FEEDBACK: {feedback}
+        FAILED TASKS: {failed_tasks}
+
+        Please analyze why the plan failed and provide a refined JSON plan ('steps') to complete the objective.
+        """
+        return await self.get_structured_plan(prompt)
+
     async def get_fast_tactical_response(self, prompt: str) -> str:
         if not self.groq_api_key:
              return await self._gemini_request(prompt, use_pro=False)

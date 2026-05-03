@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
       - name: backend
-        image: alluci-backend:latest
+        image: alluci-backend:0.9.5-rc1
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8000
@@ -35,7 +35,7 @@ spec:
           limits:
             cpu: "500m"
             memory: "1Gi"
-        healthCheck:
+        livenessProbe:
           httpGet:
             path: /api/v1/health
             port: 8000

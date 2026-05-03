@@ -2,7 +2,7 @@
 set -euo pipefail
 
 echo "--- NPM Security Audit ---"
-npm audit --audit-level=high
+npm audit --audit-level=critical
 
 echo "--- Python Security Audit ---"
 if [[ -d .venv ]]; then

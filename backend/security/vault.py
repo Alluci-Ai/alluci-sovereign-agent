@@ -10,12 +10,13 @@ import struct
 import tempfile
 import logging
 from typing import Dict, Any, Set, Optional, List
-
+from datetime import datetime, timezone
 # ── Logger MUST be initialized before any conditional imports ─────────────────
 # The keyring import below may fail on environments without the package, and
 # its except block references logger. If logger is defined after that block,
 # Python raises NameError at module load time, preventing the app from starting.
 from ..logging_config import get_logger
+import uuid
 logger = get_logger("VaultManager")
 
 # ── Platform-specific optional dependencies ───────────────────────────────────
@@ -200,6 +201,17 @@ class VaultManager:
             vault_aggregate = await self._get_full_vault_state()
             await self.vdxf.anchor_vault_hash(vault_aggregate)
 
+        # Audit Logging
+        from .audit_ledger import sync_audit_entry
+        from ..models import AuditEntry
+        await sync_audit_entry(AuditEntry(
+            id=str(uuid.uuid4()),
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            event="VAULT_SECRET_STORE",
+            details={"bridge_id": bridge_id},
+            status="INFO"
+        ))
+
     def _store_secret_sync(self, bridge_id: str, data: Dict[str, Any]):
         raw_data = json.dumps(data).encode()
         nonce = os.urandom(12)
@@ -252,6 +264,17 @@ class VaultManager:
         if self.vdxf and data:
             self.vdxf.set_memory(bridge_id, data)
                 
+        # Audit Logging
+        from .audit_ledger import sync_audit_entry
+        from ..models import AuditEntry
+        await sync_audit_entry(AuditEntry(
+            id=str(uuid.uuid4()),
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            event="VAULT_SECRET_RETRIEVAL",
+            details={"bridge_id": bridge_id, "success": bool(data)},
+            status="INFO" if data else "WARNING"
+        ))
+
         return data or {}
 
     def _retrieve_secret_sync(self, bridge_id: str) -> Optional[Dict[str, Any]]:
@@ -578,6 +601,22 @@ class VaultManager:
         except Exception as e:
             logger.error(f"Critical Failure during Key Rotation: {e}")
             return False
+        finally:
+            # Audit Logging (Critical Event)
+            try:
+                from .audit_ledger import sync_audit_entry
+                from ..models import AuditEntry
+                import asyncio
+                loop = asyncio.new_event_loop() # key rotation is often sync/background
+                loop.run_until_complete(sync_audit_entry(AuditEntry(
+                    id=str(uuid.uuid4()),
+                    timestamp=datetime.now(timezone.utc).isoformat(),
+                    event="VAULT_KEY_ROTATION",
+                    details={"success": bool(self.master_key == new_master_key)},
+                    status="CRITICAL"
+                )))
+            except Exception:
+                pass
 
     def _store_secret_by_path_helper_sync(self, absolute_path: str, data: Dict[str, Any], pub_key):
         """Internal helper for rotation without modifying global state."""

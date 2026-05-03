@@ -15,7 +15,7 @@ class TestHealthEndpoints:
         """GET /health → 200, status=healthy (no auth required)."""
         res = app_client.get("/health")
         assert res.status_code == 200
-        assert res.json()["status"] == "healthy"
+        assert res.json()["status"] == "ok"
         assert "timestamp" in res.json()
 
     @pytest.mark.smoke

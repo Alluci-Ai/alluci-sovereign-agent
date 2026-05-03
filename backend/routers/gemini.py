@@ -1,9 +1,7 @@
 
-import logging
 from fastapi import APIRouter, HTTPException, Depends, Body, Request
 from ..security.auth import verify_authenticated
 from .. import services
-from ..config import settings
 from ..logging_config import get_logger
 
 logger = get_logger("GeminiRouter")

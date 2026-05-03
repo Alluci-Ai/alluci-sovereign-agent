@@ -1,6 +1,11 @@
-import torch
+try:
+    import torch
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+    HAS_TORCH = True
+except ImportError:
+    HAS_TORCH = False
+
 import logging
-from transformers import AutoModelForCausalLM, AutoTokenizer
 from typing import Optional
 
 logger = logging.getLogger("SpeculativeDecoder")
@@ -17,7 +22,7 @@ class SpeculativeDecoder:
         self, 
         target_model_id: str = "google/gemma-4-31B-it", 
         draft_model_id: str = "google/gemma-4-e2b",
-        device: str = "cuda" if torch.cuda.is_available() else "cpu"
+        device: str = "cuda" if (HAS_TORCH and torch.cuda.is_available()) else "cpu"
     ):
         self.device = device
         self.target_model_id = target_model_id

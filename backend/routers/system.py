@@ -1,14 +1,13 @@
 
-import logging
 from ..logging_config import get_logger
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional
+from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.responses import PlainTextResponse
 from sqlmodel import Session, select, text
 from ..config import settings
 from ..database import engine as db_engine
-from ..models import SystemStatus, AuditEntry
+from ..models import AuditEntry
 from ..security.auth import verify_authenticated
 from .. import services
 from fastapi_csrf_protect import CsrfProtect
@@ -178,3 +177,24 @@ async def get_pcl_opportunities(limit: int = 50, actioned: Optional[bool] = None
             query = query.where(PCLOpportunity.actioned == actioned)
         query = query.order_by(col(PCLOpportunity.detected_at).desc()).limit(limit)
         return session.exec(query).all()
+@router.get("/system/recovery-phrase", dependencies=[Depends(verify_authenticated)])
+async def get_recovery_phrase(request: Request, csrf_protect: CsrfProtect = Depends()):
+    """
+    Returns the BIP-39 recovery phrase for the current master key.
+    Requires active session and CSRF validation for high-security read.
+    """
+    # CSRF check for sensitive read
+    if settings.APP_ENV != "testing":
+        await csrf_protect.validate_csrf(request)
+
+    from ..security.recovery import MasterKeyRecovery
+    recovery = MasterKeyRecovery()
+    
+    # We use the current settings master key to generate the phrase
+    phrase = recovery.generate_recovery_phrase(settings.POLYTOPE_MASTER_KEY)
+    
+    return {
+        "status": "SUCCESS",
+        "phrase": phrase,
+        "instructions": "Store these 24 words in a secure, physical location. They can recover your Sovereign Agent if the master key is lost."
+    }

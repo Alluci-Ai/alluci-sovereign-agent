@@ -1,11 +1,10 @@
 
-import logging
 import json
 import uuid
 from datetime import datetime, timezone
 from ..logging_config import get_logger
 from datetime import date
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, Optional
 from ..security.auth import verify_authenticated
 from fastapi import APIRouter, HTTPException, Depends, Query, Body, Request
 from sqlmodel import Session, select, col

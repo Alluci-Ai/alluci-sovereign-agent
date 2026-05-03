@@ -49,7 +49,7 @@ describe('OnboardingFlow', () => {
         const beginButton = screen.getByText(/Let's Begin/i);
         fireEvent.click(beginButton);
         
-        expect(screen.getByText(/Identity Anchor/i)).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: /Sovereignty Level/i })).toBeInTheDocument();
     });
 
     it('calls setNeedsOnboarding(false) when the final step is finished', async () => {
@@ -70,19 +70,20 @@ describe('OnboardingFlow', () => {
         // Skip through steps (0 -> 1 -> 2 -> 3 -> 4)
         fireEvent.click(screen.getByText(/Let's Begin/i));
         
-        // Step 1: Identity
+        // Step 1: Sovereignty Level (Select Level 3)
+        fireEvent.click(screen.getByText(/Full Sovereign/i));
+        fireEvent.click(screen.getByText(/Next Step/i));
+
+        // Step 2: Identity
         fireEvent.change(screen.getByPlaceholderText(/e.g. Athena/i), { target: { value: 'TestAgent' } });
         fireEvent.click(screen.getByText(/Next Step/i));
         
-        // Step 2: Master Key
+        // Step 3: Keys
         fireEvent.change(screen.getByPlaceholderText(/security phrase/i), { target: { value: 'secure-key' } });
-        fireEvent.click(screen.getByText(/Next Step/i));
-
-        // Step 3: LLM Key
         fireEvent.change(screen.getByPlaceholderText(/AIzaSy/i), { target: { value: 'gemini-key' } });
         fireEvent.click(screen.getByText(/Next Step/i));
 
-        // Step 4: Finish
+        // Step 4: Skills & Finish
         const finishButton = screen.getByText(/Initialize Core/i);
         fireEvent.click(finishButton);
         

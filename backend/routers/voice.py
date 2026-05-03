@@ -1,5 +1,4 @@
 
-import logging
 from ..logging_config import get_logger
 from fastapi import APIRouter, HTTPException, Depends, Query, Response, File, UploadFile, Request
 from ..security.auth import verify_authenticated

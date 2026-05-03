@@ -4,10 +4,10 @@
 --extra-index-url https://download.pytorch.org/whl/cpu
 
 # ─── Web Framework ────────────────────────────────────────────────────────────
-fastapi==0.115.0
+fastapi>=0.136.1
 uvicorn[standard]==0.30.0
-python-multipart==0.0.9
-starlette>=0.37.2,<0.42.0
+python-multipart>=0.0.26
+starlette>=1.0.0
 
 # ─── Data Validation & Settings ───────────────────────────────────────────────
 pydantic==2.12.5
@@ -21,10 +21,11 @@ asyncpg==0.29.0              # PostgreSQL async driver (runtime)
 aiosqlite==0.20.0            # SQLite async support
 
 # ─── Security & Cryptography ──────────────────────────────────────────────────
-cryptography==43.0.0
-python-jose[cryptography]==3.3.0
+cryptography>=46.0.6
+python-jose[cryptography]>=3.4.0
 webauthn==2.1.0
 keyring==25.7.0              # OS Keychain integration for vault master key
+mnemonic==0.21               # BIP-39 seed phrase for master key recovery
 passlib[bcrypt]==1.7.4
 greenlet>=3.2.2              # Fixed conflict between playwright and gevent
 
@@ -53,7 +54,7 @@ slack-sdk==3.41.0
 chromadb==0.5.0
 sentence-transformers==3.0.1 # Embedding model (~80MB download on first use)
 numpy>=1.24.0                # Required for embedding operations
-torch>=2.0.0
+torch==2.2.2
 
 # ─── Cache & Rate Limiting ────────────────────────────────────────────────────
 redis[hiredis]>=5.0.0,<6.0.0
@@ -80,12 +81,12 @@ pywin32>=306; sys_platform == "win32"   # Windows Service support (windows_servi
 playwright>=1.58.0           # Updated to resolve greenlet conflicts
 duckduckgo-search>=6.0.0
 mss==9.0.1
-pypdf==4.3.1
+pypdf>=6.10.2
 python-docx==1.1.2
-secure==0.3.0
+secure>=2.0.1
 zeroconf==0.132.0
 fastapi-csrf-protect==1.0.7
 
 # ─── Audio & TTS ─────────────────────────────────────────────────────────────
-# whisper-cpp-python>=0.1.0     # Bridge to local whisper-cpp (Commented for basic testing)
+whisper-cpp-python>=0.1.0     # Bridge to local whisper-cpp
 # piper-python usually handled via subprocess in our case

@@ -641,10 +641,7 @@ class HeartbeatDaemon:
                 # [ PPN-011 ] Sleep State Evaluation (Dream Cycle)
                 from . import services
                 if getattr(services, "ace_engine", None):
-                    # Mock retrieving current global AffectiveState if ACE exists
-                    # In real usage, services.ace_engine.get_state() or similar is used.
-                    # We'll construct a mock baseline based on system CPU/Network or actual biometric stream
-                    current_affect = AffectiveState(arousal=50.0, tension=50.0, valence=512.0)
+                    current_affect = services.ace_engine.get_affective_state()
                     
                     if self._dream_orchestrator and await self._dream_orchestrator.evaluate_sleep_trigger(current_affect):
                         # Trigger the dream cycle, which suspends normal polling

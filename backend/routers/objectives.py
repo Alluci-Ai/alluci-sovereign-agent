@@ -78,7 +78,7 @@ async def execute_objective(
             manifest = {"autonomyLevel": request.autonomy_level}
 
         # 2. Policy Enforcement (ACE/Autonomy Gate)
-        from ..security.policyEngine import AceStateVector, ExecutionManifest, AutonomyLevel
+        from ..security.policyEngine import AceStateVector, ExecutionManifest
         
         ace_state = AceStateVector()
         if services.ace:

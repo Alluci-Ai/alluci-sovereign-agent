@@ -93,6 +93,7 @@ class Settings(BaseSettings):
     # Storage
     DATABASE_URL: str = "sqlite:///polytope_data.db"
     REDIS_URL: Optional[str] = None
+    POLYTOPE_STORAGE_ROOT: str = "~/.polytope"
     
     # Governance
     RATE_LIMIT_PER_MINUTE: int = 60
@@ -113,13 +114,13 @@ class Settings(BaseSettings):
     
     # Auth & Cookies
     AUTH_COOKIE_NAME: str = "alluci_daemon_token"
-    AUTH_COOKIE_SECURE: bool = False  # Set to True in production
+    AUTH_COOKIE_SECURE: bool = False  # Auto-enforced to True in production
     AUTH_COOKIE_SAMESITE: str = "lax"
     VERUS_AUTH_ENABLED: bool = False
     
     # WebAuthn
-    WEBAUTHN_RP_ID: str = "localhost"
-    WEBAUTHN_ORIGIN: str = "http://localhost:5173"
+    WEBAUTHN_RP_ID: Optional[str] = None
+    WEBAUTHN_ORIGIN: Optional[str] = None
     
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -138,6 +139,14 @@ class Settings(BaseSettings):
                 logger.critical("FATAL: Production requires PROD_DATABASE_URL")
                 sys.exit(1)
             return prod_url
+        return v
+
+    @field_validator("AUTH_COOKIE_SECURE")
+    @classmethod
+    def enforce_secure_cookies(cls, v: bool, info) -> bool:
+        app_env = info.data.get("APP_ENV", "development")
+        if app_env == "production":
+            return True
         return v
 
 def load_settings() -> Settings:

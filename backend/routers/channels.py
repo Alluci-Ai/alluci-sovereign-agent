@@ -1,10 +1,9 @@
-import logging
 import json
 import secrets
 import os
 import asyncio
-from typing import Dict, Any, Optional
-from fastapi import APIRouter, HTTPException, Depends, Body, Query, Header, Request
+from typing import Dict, Any
+from fastapi import APIRouter, HTTPException, Depends, Body, Query, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse
 from ..security.auth import verify_authenticated
 from .. import services

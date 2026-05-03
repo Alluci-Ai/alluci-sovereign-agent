@@ -1,12 +1,10 @@
 
-import logging
 from ..logging_config import get_logger
-from typing import Dict, Any, List
 from fastapi import APIRouter, HTTPException, Depends, Body, Request
 from ..security.auth import verify_authenticated
 from ..models import SoulManifest, SoulPreferences
 from .. import services
-from fastapi_limiter.depends import RateLimiter
+from ..security.rate_limit import RateLimiter
 from fastapi_csrf_protect import CsrfProtect
 from ..config import settings
 

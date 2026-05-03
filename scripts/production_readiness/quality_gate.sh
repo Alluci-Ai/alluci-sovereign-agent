@@ -2,7 +2,7 @@
 set -euo pipefail
 
 echo "--- Frontend Quality Gate ---"
-npm ci
+npm ci --legacy-peer-deps
 npm run lint
 npm run typecheck
 npm run test

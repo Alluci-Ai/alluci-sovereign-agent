@@ -79,7 +79,8 @@ class ExecutiveOrchestrator:
             self.adapter_registry, 
             session_factory=lambda: db_engine,
             max_concurrent=settings.MAX_CONCURRENT_TASKS,
-            approval_manager=self.approval_manager
+            approval_manager=self.approval_manager,
+            ace=self.ace
         )
 
     @property

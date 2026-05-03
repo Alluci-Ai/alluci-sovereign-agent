@@ -79,10 +79,18 @@ async def init_services(app_instance):
             _verus_auth._redis = redis_client
             logger.info("[ VERUSID ] Redis-backed challenge store active.")
         except Exception as e:
-            logger.error(f"[ CACHE ]: Redis initialization failed — rate limiting DISABLED: {e}")
+            logger.error(f"[ CACHE ]: Redis initialization failed: {e}")
             redis_client = None
             metrics.increment_counter("redis_init_failures_total")
+            if settings.APP_ENV == "production":
+                logger.critical("FATAL: Redis is mandatory in production environment. Aborting.")
+                import sys
+                sys.exit(1)
     else:
+        if settings.APP_ENV == "production":
+            logger.critical("FATAL: REDIS_URL not configured for production environment. Aborting.")
+            import sys
+            sys.exit(1)
         logger.warning("[ CACHE ]: REDIS_URL not configured. Rate limiting is INACTIVE.")
         metrics.increment_counter("redis_not_configured_total")
 
@@ -94,9 +102,9 @@ async def init_services(app_instance):
             "coordinate across multiple worker processes."
         )
 
-    # 2. Database & Data Layout
     create_db_and_tables()
-    vault_root = os.path.expanduser("~/.polytope/vaults")
+    storage_root = os.path.expanduser(settings.POLYTOPE_STORAGE_ROOT)
+    vault_root = os.path.join(storage_root, "vaults")
     os.makedirs(vault_root, exist_ok=True)
 
     # 3. Security Layer
@@ -125,7 +133,7 @@ async def init_services(app_instance):
     if not lite_mode:
         try:
             import chromadb
-            persist_dir = os.path.expanduser("~/.polytope/memory")
+            persist_dir = os.path.join(os.path.expanduser(settings.POLYTOPE_STORAGE_ROOT), "memory")
             os.makedirs(persist_dir, mode=0o700, exist_ok=True)
             chroma_client = chromadb.PersistentClient(path=persist_dir)
             chroma_collection = chroma_client.get_or_create_collection(

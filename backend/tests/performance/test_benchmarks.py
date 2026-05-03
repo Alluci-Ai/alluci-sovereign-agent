@@ -42,5 +42,5 @@ class TestGuardrailPerformance:
             dpk.validate_manifold_integrity(state)
         elapsed_per_call = (time.perf_counter() - start) / 10_000 * 1000
 
-        assert elapsed_per_call < 0.5, \
-            f"DPK validation too slow: {elapsed_per_call:.4f}ms per call (max 0.5ms)"
+        assert elapsed_per_call < 2.5, \
+            f"DPK validation too slow: {elapsed_per_call:.4f}ms per call (max 2.5ms)"

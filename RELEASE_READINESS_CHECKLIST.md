@@ -9,14 +9,14 @@ This checklist must be completed and signed off before any production release.
 - [ ] Type checks (backend & frontend) pass with no errors.
 
 ## 2. Environment & Configuration
-- [ ] Production secrets (JWT, CSRF, Master Key) are rotated and distinct.
-- [ ] Database migrations are up-to-date and verified (`alembic check`).
-- [ ] `APP_ENV` is set to `production`.
-- [ ] Rate limiting is active and tested.
+- [x] Production secrets (JWT, CSRF, Master Key) are rotated and distinct.
+- [x] Database migrations are up-to-date and verified (`alembic check`).
+- [x] `APP_ENV` is set to `production`.
+- [x] Rate limiting is active and tested.
 
 ## 3. Infrastructure & Deployment
-- [ ] Kubernetes manifests are verified.
-- [ ] Health and Readiness probes are correctly configured.
+- [x] Kubernetes manifests are verified.
+- [x] Health and Readiness probes are correctly configured.
 - [ ] Docker images are signed and SBOM is generated.
 - [ ] Rollback strategy is verified in staging.
 
@@ -28,7 +28,7 @@ This checklist must be completed and signed off before any production release.
 
 ## 5. Security & Compliance
 - [ ] VDXF integrity anchoring is enabled and verified.
-- [ ] CSP and other security headers are active and verified.
+- [x] CSP and other security headers are active and verified.
 - [ ] No private keys or secrets are committed to the repository.
 
 ---

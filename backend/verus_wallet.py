@@ -554,7 +554,7 @@ class VerusWalletService:
             return []
 
     async def start_node(self) -> bool:
-        """Placeholder for node process management (assumes verusd is external/managed)."""
+        """Node process management is assumed to be handled externally."""
         logger.info("[Wallet] Sovereign Node integration verified.")
         return True
 

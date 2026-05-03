@@ -6,7 +6,7 @@ from ..config import settings
 from ..models import LoginRequest
 from ..security.auth import create_access_token, verify_authenticated
 from ..security.verusid_auth import verus_auth
-from fastapi_limiter.depends import RateLimiter
+from ..security.rate_limit import RateLimiter
 from ..logging_config import get_logger
 from ..security.credential_store import credential_store
 from ..security.oauth_config import get_provider_config, get_client_credentials
@@ -17,11 +17,6 @@ import urllib.parse
 
 logger = get_logger("AuthRouter")
 
-from ..security.oauth_config import get_provider_config, get_client_credentials
-from ..security.oauth_store import oauth_store
-import secrets
-import os
-import urllib.parse
 
 from fastapi_csrf_protect import CsrfProtect
 router = APIRouter(tags=["Authentication"])
@@ -125,7 +120,7 @@ async def get_wallet_login_status(challenge_id: str):
         return result
     return {"status": "pending"}
 @router.get("/auth/webauthn/challenge")
-async def get_webauthn_challenge():
+async def get_webauthn_challenge(request: Request):
     """Generates a cryptographic challenge for WebAuthn/FIDO2."""
     from ..security.webauthn_store import webauthn_store
     challenge_id, b64_challenge = await webauthn_store.create_challenge()
@@ -136,7 +131,7 @@ async def get_webauthn_challenge():
         "timeout": 120_000,                   # 2 minutes, matches TTL
         "rp": {
             "name": "Alluci Sovereign Agent",
-            "id": getattr(settings, "WEBAUTHN_RP_ID", "127.0.0.1"),
+            "id": settings.WEBAUTHN_RP_ID or request.url.hostname,
         },
         "user": {
             "id": "ALLUCI_SOVEREIGN_001",
@@ -151,7 +146,7 @@ async def get_webauthn_challenge():
 
 
 @router.post("/auth/webauthn/verify", dependencies=[Depends(RateLimiter(times=20, minutes=1))])
-async def verify_webauthn_response(response: Response, payload: Dict[str, Any] = Body(...)):
+async def verify_webauthn_response(request: Request, response: Response, payload: Dict[str, Any] = Body(...)):
     """Verifies the WebAuthn attestation/assertion using py_webauthn."""
     from ..security.webauthn_store import webauthn_store
     import base64
@@ -180,8 +175,8 @@ async def verify_webauthn_response(response: Response, payload: Dict[str, Any] =
     if expected_challenge is None:
         raise HTTPException(status_code=400, detail="Challenge not found or expired.")
 
-    rp_id = getattr(settings, "WEBAUTHN_RP_ID", "127.0.0.1")
-    expected_origin = getattr(settings, "WEBAUTHN_ORIGIN", "http://127.0.0.1:5173")
+    rp_id = settings.WEBAUTHN_RP_ID or request.url.hostname
+    expected_origin = settings.WEBAUTHN_ORIGIN or f"{request.url.scheme}://{request.url.netloc}"
 
     try:
         credential = RegistrationCredential(
@@ -251,7 +246,7 @@ async def verify_webauthn_response(response: Response, payload: Dict[str, Any] =
     "/auth/webauthn/assertion/challenge",
     dependencies=[Depends(RateLimiter(times=20, minutes=1))],
 )
-async def get_webauthn_assertion_challenge(payload: Dict[str, Any] = Body(default={})):
+async def get_webauthn_assertion_challenge(request: Request, payload: Dict[str, Any] = Body(default={})):
     """
     Step 1 of WebAuthn login: generate a challenge for an existing registered credential.
     The browser sends back credentialId (optional) to restrict which credential to use.
@@ -275,7 +270,7 @@ async def get_webauthn_assertion_challenge(payload: Dict[str, Any] = Body(defaul
         "challengeId": challenge_id,
         "challenge": b64_challenge,
         "timeout": 120_000,
-        "rpId": getattr(settings, "WEBAUTHN_RP_ID", "127.0.0.1"),
+        "rpId": settings.WEBAUTHN_RP_ID or request.url.hostname,
         "allowCredentials": allow_credentials,
         "userVerification": "preferred",
     }
@@ -286,7 +281,7 @@ async def get_webauthn_assertion_challenge(payload: Dict[str, Any] = Body(defaul
     dependencies=[Depends(RateLimiter(times=10, minutes=1))],
 )
 async def verify_webauthn_assertion(
-    response: Response, payload: Dict[str, Any] = Body(...)
+    request: Request, response: Response, payload: Dict[str, Any] = Body(...)
 ):
     """
     Step 2 of WebAuthn login: verify the signed assertion and issue a JWT.
@@ -334,8 +329,8 @@ async def verify_webauthn_assertion(
             detail="Credential not registered. Please register your passkey first.",
         )
 
-    rp_id = getattr(settings, "WEBAUTHN_RP_ID", "127.0.0.1")
-    expected_origin = getattr(settings, "WEBAUTHN_ORIGIN", "http://127.0.0.1:5173")
+    rp_id = settings.WEBAUTHN_RP_ID or request.url.hostname
+    expected_origin = settings.WEBAUTHN_ORIGIN or f"{request.url.scheme}://{request.url.netloc}"
 
     try:
 

@@ -1,7 +1,6 @@
 
-import logging
 from ..logging_config import get_logger
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 from fastapi import APIRouter, HTTPException, Depends, Body, Request
 from ..security.auth import verify_authenticated
 from fastapi_csrf_protect import CsrfProtect

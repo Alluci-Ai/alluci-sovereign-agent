@@ -6,7 +6,7 @@
 * - Cleans up after each test
 */
 import '@testing-library/jest-dom';
-import { afterAll, afterEach, beforeAll } from 'vitest';
+import { afterAll, afterEach, beforeAll, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import { setupServer } from 'msw/node';
 import { http, HttpResponse } from 'msw';
@@ -46,10 +46,12 @@ export const server = setupServer(...handlers);
 
 beforeAll(() => {
  server.listen({ onUnhandledRequest: 'warn' });
+ vi.spyOn(global, 'fetch');
 });
 
 afterEach(() => {
  server.resetHandlers();  // Reset handlers after each test (no cross-contamination)
+ vi.mocked(fetch).mockReset();
  cleanup();               // Unmount React components
 });
 

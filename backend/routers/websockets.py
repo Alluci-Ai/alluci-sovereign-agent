@@ -1,13 +1,10 @@
 import os
-import logging
 from ..logging_config import get_logger
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
+from fastapi import APIRouter, WebSocket, Query
 from .. import services
 from ..security.auth import verify_token
-from fastapi_csrf_protect import CsrfProtect
 from jose import JWTError
 from ..config import settings
-from urllib.parse import urlparse
 
 logger = get_logger("WebsocketRouter")
 router = APIRouter(tags=["WebSockets"])

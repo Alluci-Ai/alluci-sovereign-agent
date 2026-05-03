@@ -21,7 +21,7 @@ class Executor:
     """
     def __init__(self, adapter_registry: AdapterRegistry, session_factory, 
                  max_concurrent: int = 5, task_timeout: float = 60.0,
-                 approval_manager=None):
+                 approval_manager=None, ace=None):
         self.registry = adapter_registry
         self.session_factory = session_factory
         self.semaphore = asyncio.Semaphore(max_concurrent)
@@ -33,8 +33,7 @@ class Executor:
         
         # [ PPN-017 ] Sovereign Kill Switch Daemon
         self.watch_auth = AppleWatchAuth()
-        # Mock watch presence for default testing, in prod this is streamed via Bluetooth
-        self.watch_auth.update_sensors(is_on_wrist=True, heart_rate=72.0)
+        self.ace = ace
 
     async def execute_dag(self, run_id: int, tasks: Dict[str, DAGTask]) -> Dict[str, DAGTask]:
         """
@@ -153,6 +152,15 @@ class Executor:
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), reraise=True)
     async def _execute_adapter(self, action: str, args: Dict[str, Any], task_id: str = "") -> Any:
         # [ PPN-017 ] Kill Switch Check before routing
+        # Synchronize watch_auth with real ACE biometrics if available
+        if self.ace:
+            state = self.ace.get_affective_state()
+            # If we have a heart rate, we assume it's on-wrist for the kill switch check
+            self.watch_auth.update_sensors(
+                is_on_wrist=state.heart_rate > 0, 
+                heart_rate=state.heart_rate
+            )
+
         if self.watch_auth.locked or not self.watch_auth.verify_liveness(action):
             raise PermissionError(f"Sovereign Kill Switch Active: Biological Liveness not verified for action '{action}'.")
             

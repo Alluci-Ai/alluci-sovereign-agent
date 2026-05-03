@@ -2,8 +2,12 @@ import logging
 import time
 import asyncio
 from typing import List, Dict, Optional
-import torch
-import torch.nn.functional as F
+try:
+    import torch
+    import torch.nn.functional as F
+except ImportError:
+    torch = None
+    F = None
 
 from ..ace.affect_kernel import AffectiveState
 from ..logging_config import get_logger

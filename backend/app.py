@@ -4,13 +4,12 @@ import contextlib
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, Response, Depends
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi_limiter.depends import RateLimiter
 
 from .config import settings
 from .logging_config import get_logger, configure_logging
 from .tracing_config import configure_tracing
 from . import services
-from .security.rate_limiter import get_fallback_limiter
+from .security.rate_limit import RateLimiter
 import os
 
 VERSION_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".version")
@@ -18,20 +17,6 @@ VERSION = open(VERSION_FILE).read().strip() if os.path.exists(VERSION_FILE) else
 
 logger = get_logger("PolytopeApp")
 
-_original_limiter_call = RateLimiter.__call__
-
-async def _resilient_limiter_call(self, request: Request, response: Response):
-    if services.redis_client:
-        return await _original_limiter_call(self, request, response)
-
-    times = getattr(self, "times", 60)
-    seconds = getattr(self, "seconds", 60)
-    minutes = getattr(self, "minutes", None)
-    if minutes is not None:
-        seconds = minutes * 60
-    await get_fallback_limiter().check(request, times=times, seconds=seconds)
-
-RateLimiter.__call__ = _resilient_limiter_call
 from .routers import auth, objectives, telemetry, system, vault, channels, voice, crons, wallet, sessions, config, soul, exec_approval, tasks, dag, websockets, memory, goals, sop, gemini
 from .security import csrf # Initialize CSRF config
 from .engine.errors import AdapterError
@@ -42,8 +27,7 @@ async def global_rate_limit(request: Request, response: Response):
     Global rate limit dependency. 
     Skips if Redis is not configured or available.
     """
-    if services.redis_client:
-        return await RateLimiter(times=settings.RATE_LIMIT_PER_MINUTE, seconds=60)(request, response)
+    return await RateLimiter(times=settings.RATE_LIMIT_PER_MINUTE, seconds=60)(request, response)
 
 # global initialization outside lifespan to avoid recursive instrumentation hooks
 configure_logging(app_env=settings.APP_ENV)
@@ -173,9 +157,12 @@ async def add_security_headers(request: Request, call_next):
 
     response = await call_next(request)
     
-    from secure import Secure
-    secure_headers = Secure()
-    secure_headers.framework.fastapi(response)
+    import secure
+    secure_headers = secure.Secure()
+    try:
+        secure_headers.set_headers(response)
+    except Exception as e:
+        logger.error(f"[ SECURITY_HEADERS_ERROR ] {e}")
 
     # HSTS for production and secure development
     if (settings.APP_ENV == "production" or 

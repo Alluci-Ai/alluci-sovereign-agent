@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { useStore } from '../useStore';
+import { useStore, type ActiveView } from '../useStore';
 
 describe('useStore', () => {
  beforeEach(() => {
@@ -18,7 +18,7 @@ describe('useStore', () => {
  });
 
  it('setActiveView accepts all valid views', () => {
-   const views = ['chat', 'dag', 'memory', 'agents', 'analytics', 'config', 'audit'];
+   const views: ActiveView[] = ['chat', 'dag', 'memory', 'agents', 'analytics', 'config', 'audit'];
    for (const view of views) {
      useStore.getState().setActiveView(view);
      expect(useStore.getState().activeView).toBe(view);

@@ -38,6 +38,8 @@ os.environ.update({
     "APP_ENV":               "testing",
     "POLYTOPE_MASTER_KEY":   Fernet.generate_key().decode(),
     "JWT_SECRET_KEY":        "test-jwt-secret-do-not-use-in-production-32chars",
+    "CSRF_SECRET_KEY":       "test-csrf-secret-key-12345678",
+    "DB_PASSWORD":           "test-db-password",
     "GEMINI_API_KEY":        "test-gemini-key-placeholder",
     "DATABASE_URL":          "sqlite:///./test_polytope.db",
     "OTEL_SDK_DISABLED":     "true",
@@ -157,6 +159,7 @@ def mock_settings():
     settings.AUTH_COOKIE_NAME = "alluci_daemon_token"
     settings.AUTH_COOKIE_SECURE = False
     settings.AUTH_COOKIE_HTTPONLY = True
+    settings.AUTH_COOKIE_SAMESITE = "lax"
     settings.VERUS_RPC_HOST = "127.0.0.1"
     settings.VERUS_RPC_PORT = 27486
     settings.WEBAUTHN_RP_ID = "localhost"
@@ -365,7 +368,7 @@ def app_client(mock_settings, temp_db):
         async def mock_rate_limit(self, request: Request, response: Response):
             pass
             
-        with patch('fastapi_limiter.depends.RateLimiter.__call__', new=mock_rate_limit):
+        with patch('backend.security.rate_limit.RateLimiter.__call__', new=mock_rate_limit):
             client = TestClient(app, raise_server_exceptions=True)
             
             from itsdangerous import URLSafeTimedSerializer
