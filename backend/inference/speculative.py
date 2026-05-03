@@ -15,7 +15,7 @@ class SpeculativeDecoder:
     """
     def __init__(
         self, 
-        target_model_id: str = "google/gemma-4-31b-dense", 
+        target_model_id: str = "google/gemma-4-31B-it", 
         draft_model_id: str = "google/gemma-4-e2b",
         device: str = "cuda" if torch.cuda.is_available() else "cpu"
     ):

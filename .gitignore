@@ -93,3 +93,7 @@ backend/security/build/
 *.so
 *.dylib
 *.dll
+
+# Large Assets & Reports
+models/
+reports/

@@ -41,6 +41,19 @@ Unsure where to begin contributing to Alluci? You can start by looking through t
 * Use `Ruff` for linting and formatting.
 * Ensure all API calls are proxied through `router.py`.
 
+### Third-Party Subtree Management
+
+* Changes to `third-party/*` subtrees are discouraged.
+* Any changes to vendored code must include a `PROVENANCE.md` file explaining the rationale, version drift, and security impact.
+* Pull Requests modifying `third-party/` must be labeled with `third-party-review` and require explicit sign-off from a security maintainer.
+
+## Production Readiness
+
+Every Pull Request must pass the automated quality gates:
+1. `make quality` must return a PASS.
+2. A `Release Readiness Report` must be attached to the PR.
+3. No placeholder digests (`PIN_THIS_DIGEST`) are allowed in deployment manifests.
+
 ## Security
 
 Please report security vulnerabilities for the Alluci project responsibly. Do not open public issues for security vulnerabilities.

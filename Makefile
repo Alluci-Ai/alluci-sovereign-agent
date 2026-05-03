@@ -48,13 +48,12 @@ doctor:
 	@$(PYTHON) scripts/verify_local.py
 
 preflight:
-	@./scripts/preflight.sh
+	@./scripts/production_readiness/preflight.sh
 
 quality: preflight
-	. .venv/bin/activate && python -m pytest backend/tests/ -x -q
-	. .venv/bin/activate && python -m mypy backend/ --ignore-missing-imports
-	npm run typecheck
-	npm run test
+	@echo "--- Running Production Quality Gate ---"
+	@./scripts/production_readiness/generate_release_report.py
+	@echo "--- Quality Gate PASSED ---"
 
 logs:
 	@tail -f backend.log frontend.log

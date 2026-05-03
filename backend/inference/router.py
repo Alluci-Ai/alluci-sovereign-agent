@@ -8,6 +8,7 @@ import platform
 from typing import Literal, Dict, Any, List, Optional
 from ..logging_config import get_logger
 from .executive import ExecutiveRouter
+from .speculative import SpeculativeDecoder
 
 logger = get_logger("ModelRouter")
 
@@ -60,6 +61,19 @@ class ModelRouter(ExecutiveRouter):
         self.logger = get_logger("ModelRouter")
         self.settings = settings
         self.ws_gateway = None
+
+        # ── LOCAL: Native LCE (Speculative Decoding) ────────────────────────
+        self.lce_enabled = getattr(settings, "LOCAL_LCE_ENABLED", False)
+        self.lce_decoder = None
+        if self.lce_enabled:
+            target_path = getattr(settings, "LOCAL_GEMMA_TARGET_PATH", "./models/gemma-4-31b-dense")
+            draft_path = getattr(settings, "LOCAL_GEMMA_DRAFT_PATH", "./models/gemma-4-e2b")
+            self.lce_decoder = SpeculativeDecoder(
+                target_model_id=target_path,
+                draft_model_id=draft_path
+            )
+            # We don't load_models here to save VRAM until actually needed or during 'warmup'
+            self.logger.info("Local Cognitive Engine (LCE) initialized.")
 
         # ── LOCAL: Ollama (PRIMARY) ───────────────────────────────────────────
         self.ollama_url = getattr(settings, "OLLAMA_URL", "http://localhost:11434")
@@ -308,6 +322,18 @@ class ModelRouter(ExecutiveRouter):
         )
         return result if isinstance(result, str) else result.generated_text
 
+    async def _lce_request(self, prompt: str) -> str:
+        """Local Cognitive Engine via Native Speculative Decoding."""
+        if not self.lce_decoder:
+            raise RuntimeError("LCE Decoder not initialized")
+        
+        # Lazy loading of models
+        if not self.lce_decoder.target_model:
+            self.logger.info("LCE: Loading Gemma 4 models into VRAM...")
+            self.lce_decoder.load_models()
+            
+        return await self.lce_decoder.generate_response(prompt)
+
     async def _gemini_request(self, prompt: str, use_pro: bool = False, json_mode: bool = False) -> str:
         """Cloud Failover 1: Gemini."""
         model = self.gemini_pro if use_pro else self.gemini_flash
@@ -448,6 +474,17 @@ class ModelRouter(ExecutiveRouter):
                     errors.append(f"Groq (tactical): {e}")
                     span.add_event("Groq tactical failover")
                     self.logger.warning("Tactical Groq failed, continuing: %s", e)
+
+            # ── Attempt 0: Native LCE (High performance local) ───────────────
+            if self.lce_enabled:
+                try:
+                    self.logger.info("[LCE] Routing to local Gemma 4 (Speculative)")
+                    span.set_attribute("model_provider", "native_lce")
+                    return await self._lce_request(prompt)
+                except Exception as e:
+                    errors.append(f"Native LCE: {e}")
+                    span.add_event("Native LCE failover", attributes={"error": str(e)})
+                    self.logger.warning("Native LCE failed, continuing: %s", e)
 
             # ── Attempt 1: Ollama (PRIMARY — local, fully private) ────────────
             if self.ollama_ready:

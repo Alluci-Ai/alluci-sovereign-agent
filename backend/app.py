@@ -32,7 +32,7 @@ async def _resilient_limiter_call(self, request: Request, response: Response):
     await get_fallback_limiter().check(request, times=times, seconds=seconds)
 
 RateLimiter.__call__ = _resilient_limiter_call
-from .routers import auth, objectives, telemetry, system, vault, channels, voice, crons, wallet, sessions, config, soul, exec_approval, tasks, dag, websockets, memory, goals, sop
+from .routers import auth, objectives, telemetry, system, vault, channels, voice, crons, wallet, sessions, config, soul, exec_approval, tasks, dag, websockets, memory, goals, sop, gemini
 from .security import csrf # Initialize CSRF config
 from .engine.errors import AdapterError
 
@@ -275,6 +275,7 @@ app.include_router(sessions.router, prefix="/api/v1")
 app.include_router(config.router, prefix="/api/v1")
 app.include_router(soul.router, prefix="/api/v1")
 app.include_router(exec_approval.router, prefix="/api/v1")
+app.include_router(gemini.router, prefix="/api/v1")
 
 # Observability — /api/v1/metrics (Prometheus scrape endpoint)
 from .metrics import metrics_router

@@ -150,7 +150,25 @@ Alluci coordinates across a secure multi-bridge ecosystem, providing unified acc
 
 ---
 
-## License
+## 🛠️ Production Readiness Suite
+
+Alluci Sovereign Agent includes a rigorous production readiness suite to ensure stability, security, and supply-chain integrity.
+
+To run the full quality gate locally:
+```bash
+make quality
+```
+
+This script executes:
+- **Preflight**: Validates toolchain and registry reachability.
+- **Quality**: Runs full frontend and backend test suites, linting, and type checking.
+- **Security**: Performs `npm audit`, `pip-audit`, and `detect-secrets` scanning.
+- **Deploy**: Validates deployment manifests for immutable image digests.
+- **Reporting**: Generates a timestamped markdown report in `reports/`.
+
+---
+
+## 📜 License
 
 **Copyright © 2026 Alluci-Ai. All Rights Reserved.**
 
