@@ -263,8 +263,8 @@ class ExecutiveOrchestrator:
                 self._cached_soul = manifest
 
             if manifest:
-                id_core = manifest.get("identityCore", "You are an autonomous agent.")
-                reasoning = manifest.get("reasoningStyle", "Analytical.")
+                id_core = manifest.get("identityCore", "You are Alluci, a Sovereign Executive Assistant and cognitive agent.")
+                reasoning = manifest.get("reasoningStyle", "Polytopic: Identifying vertices, mapping edges, and selecting faces for optimal collapse.")
                 frameworks = manifest.get("frameworks", [])
                 mindsets = manifest.get("mindsets", [])
                 methodologies = manifest.get("methodologies", [])

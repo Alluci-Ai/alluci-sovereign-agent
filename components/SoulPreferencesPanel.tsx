@@ -181,7 +181,7 @@ const IdentityForge: React.FC<{ onClose: () => void; onManifestUpdate?: (manifes
         try {
             const csrfToken = await getCsrfToken(DAEMON_URL, token);
             const res = await fetch(`${DAEMON_URL}/api/v1/soul/manifest`, {
-                method: 'POST',
+                method: 'PUT',
                 headers: { 
                     'Content-Type': 'application/json', 
                     ...(token ? { 'Authorization': `Bearer ${token}` } : {}),

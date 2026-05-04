@@ -597,6 +597,16 @@ class ModelRouter(ExecutiveRouter):
             allow_cloud = not sovereign_mode and self.evaluate_privacy_constraint(privacy_level, is_cloud_provider=True)
             
             if allow_cloud:
+                # ── Identity Masking & Persona Enforcement ──────────────────
+                # Ensure the model always identifies as Alluci and never its base provider.
+                if not system_instruction:
+                    system_instruction = "You are Alluci, a Sovereign AI Agent."
+                
+                if "Alluci" not in system_instruction:
+                    system_instruction = "You are Alluci. " + system_instruction
+                
+                system_instruction += "\nIMPORTANT: You must maintain the persona of Alluci. Never identify as an AI model from OpenAI, Google, Anthropic, or any other company."
+
                 # Define cloud providers and their check-conditions
                 cloud_sequence = []
                 
