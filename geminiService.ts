@@ -226,30 +226,42 @@ export class AlluciGeminiService {
     const state = useStore.getState();
     const token = state.accessToken || this.getAuthToken();
     
-    if (token) {
-      try {
-        const csrfToken = await getCsrfToken(this.DAEMON_URL, token);
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
-
-        const response = await fetch(`${this.DAEMON_URL}/api/v1/gemini/proxy`, {
-          method: 'POST',
-          headers: headers,
-          body: JSON.stringify({ prompt: text, complexity: 'MEDIUM' }),
-          credentials: 'include'
-        });
-        if (response.ok) {
-          const data = await response.json();
-          return data.result || "[ SIGNAL_LOST ]";
-        } else {
-          const errData = await response.json().catch(() => ({ detail: response.statusText }));
-          return `[ ERROR ]: Backend failure (${response.status}): ${errData.detail || "Unknown error"}`;
-        }
-      } catch (e: any) {
-        return `[ ERROR ]: Daemon connection failed: ${e.message}`;
-      }
+    if (!token) {
+      return "[ ERROR ]: Authentication required. Please log in via the Sovereign Identity portal.";
     }
-    return "[ ERROR ]: Authentication required. Please log in via the Sovereign Identity portal.";
+
+    const executeRequest = async (forceCsrf = false) => {
+      const csrfToken = await getCsrfToken(this.DAEMON_URL, token, forceCsrf);
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
+
+      return await fetch(`${this.DAEMON_URL}/api/v1/gemini/proxy`, {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify({ prompt: text, complexity: 'MEDIUM' }),
+        credentials: 'include'
+      });
+    };
+
+    try {
+      let response = await executeRequest();
+      
+      // If 403 (CSRF Invalid), try refreshing once
+      if (response.status === 403) {
+        console.warn("[ GEMINI_PROXY ]: CSRF Invalid, retrying with forced refresh...");
+        response = await executeRequest(true);
+      }
+
+      if (response.ok) {
+        const data = await response.json();
+        return data.result || "[ SIGNAL_LOST ]";
+      } else {
+        const errData = await response.json().catch(() => ({ detail: response.statusText }));
+        return `[ ERROR ]: Backend failure (${response.status}): ${errData.detail || "Unknown error"}`;
+      }
+    } catch (e: any) {
+      return `[ ERROR ]: Daemon connection failed: ${e.message}`;
+    }
   }
 
   async speak(text: string, onAudio: (base64: string) => void) {
