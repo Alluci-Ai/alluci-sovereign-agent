@@ -15,6 +15,7 @@ import {
     Info
 } from 'lucide-react';
 import { ApiManifoldKeys } from '../types';
+import { useStore } from '../store/useStore';
 
 const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
 
@@ -79,6 +80,8 @@ const ApiWizard: React.FC<ApiWizardProps> = ({ isOpen, onClose, apiKeys, onSave 
 
     const handlePrev = () => { if (currentStep > 0) setCurrentStep(currentStep - 1); };
 
+    const { setAccessToken } = useStore();
+
     const handleDaemonLogin = async () => {
         setIsAuthenticating(true); setAuthError("");
         try {
@@ -86,8 +89,19 @@ const ApiWizard: React.FC<ApiWizardProps> = ({ isOpen, onClose, apiKeys, onSave 
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ key: masterKey }), credentials: 'include'
             });
-            if (res.ok) handleNext(); else setAuthError("Invalid key.");
-        } catch (e) { setAuthError("Daemon unreachable."); } finally { setIsAuthenticating(false); }
+            if (res.ok) {
+                const data = await res.json();
+                localStorage.setItem('alluci_access_token', data.token);
+                setAccessToken(data.token);
+                handleNext();
+            } else {
+                setAuthError("Invalid key.");
+            }
+        } catch (e) { 
+            setAuthError("Daemon unreachable."); 
+        } finally { 
+            setIsAuthenticating(false); 
+        }
     };
 
     const updateKey = (category: string, provider: string, val: string) => {

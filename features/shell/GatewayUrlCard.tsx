@@ -15,7 +15,10 @@ export const GatewayUrlCard: React.FC = () => {
     const handleSave = () => {
         setSaving(true);
         localStorage.setItem('VITE_DAEMON_URL', daemonUrl);
-        if (authToken) localStorage.setItem('AUTH_TOKEN', authToken);
+        if (authToken) {
+            localStorage.setItem('alluci_access_token', authToken);
+            localStorage.setItem('AUTH_TOKEN', authToken);
+        }
         if (sessionKey) localStorage.setItem('SESSION_KEY', sessionKey);
 
         // Push explicitly into Zustand if available or reload window
