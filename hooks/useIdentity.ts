@@ -22,8 +22,8 @@ export const useIdentityAuth = () => {
             if (res.ok) {
                 const data = await res.json();
                 setAuthStatus("SUCCESS: Sovereign Identity Verified.");
-                localStorage.setItem('alluci_access_token', data.token); // Persist for services
-                setAccessToken(data.token);
+                localStorage.setItem('alluci_access_token', data.access_token); // Persist for services
+                setAccessToken(data.access_token);
                 setMasterKeyInput("");
             } else {
                 setAuthStatus("FAILURE: Invalid Key.");

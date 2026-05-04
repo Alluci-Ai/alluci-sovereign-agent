@@ -91,8 +91,9 @@ const ApiWizard: React.FC<ApiWizardProps> = ({ isOpen, onClose, apiKeys, onSave 
             });
             if (res.ok) {
                 const data = await res.json();
-                localStorage.setItem('alluci_access_token', data.token);
-                setAccessToken(data.token);
+                const token = data.access_token;
+                localStorage.setItem('alluci_access_token', token);
+                setAccessToken(token);
                 handleNext();
             } else {
                 setAuthError("Invalid key.");
