@@ -238,7 +238,12 @@ export class AlluciGeminiService {
       return await fetch(`${this.DAEMON_URL}/api/v1/gemini/proxy`, {
         method: 'POST',
         headers: headers,
-        body: JSON.stringify({ prompt: text, complexity: 'MEDIUM', inference_mode: inferenceMode }),
+        body: JSON.stringify({ 
+          prompt: text, 
+          complexity: 'MEDIUM', 
+          inference_mode: inferenceMode,
+          session_id: state.sessionId
+        }),
         credentials: 'include'
       });
     };

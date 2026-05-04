@@ -112,9 +112,12 @@ async def init_services(app_instance):
     vault_manager = vault
     sovereign_identity = SovereignIdentity(settings, vault=vault)
     await sovereign_identity.load_keys()
+    
+    # 3.5. Usage & Cost Analytics (Moved up to support router logging)
+    usage_tracker = UsageTracker(db_engine)
 
     # 4. Inference Layer
-    router = ModelRouter(settings, vault=vault)
+    router = ModelRouter(settings, vault=vault, analytics=usage_tracker)
     scanner = GuardrailScanner(router)
 
     # 5. Affective Engine
@@ -161,8 +164,8 @@ async def init_services(app_instance):
     memory = hlsm_manager
     logger.info("[ HLSM ] H-LSM memory system online: L0+L1+L2 active")
 
-    # 8. Usage & Cost Analytics
-    usage_tracker = UsageTracker(db_engine)
+    # 8. Usage & Cost Analytics (Assigned above)
+    # usage_tracker = UsageTracker(db_engine)
 
     # 9. Communication & Approval Layers (Injected into Orchestrator)
     ws_gw = JsonRpcGateway(jwt_secret=settings.JWT_SECRET_KEY)

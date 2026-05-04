@@ -1,4 +1,5 @@
 
+from typing import Optional, Dict, Any
 from fastapi import APIRouter, HTTPException, Depends, Body, Request
 from ..security.auth import verify_authenticated
 from .. import services
@@ -14,7 +15,8 @@ async def gemini_proxy(
     prompt: str = Body(...),
     complexity: str = Body("MEDIUM"),
     privacy_level: str = Body("PUBLIC"),
-    inference_mode: str = Body("HYBRID")
+    inference_mode: str = Body("HYBRID"),
+    session_id: Optional[str] = Body(None)
 ):
     """
     Proxies requests to the local Gemma 4 model or fallback providers.
@@ -35,7 +37,8 @@ async def gemini_proxy(
             system_instruction=system_instruction,
             complexity=complexity,
             privacy_level=privacy_level,
-            inference_mode=inference_mode
+            inference_mode=inference_mode,
+            session_id=session_id
         )
         return {"result": response}
     except Exception as e:

@@ -57,10 +57,11 @@ class ModelRouter(ExecutiveRouter):
     Tactical (Groq) → Local (Ollama) → Local Fallback (LM Studio) → Optional (HF) → Cloud Failovers.
     Implements the ExecutiveRouter interface for LCE Decoupling.
     """
-    def __init__(self, settings, vault=None):
+    def __init__(self, settings, vault=None, analytics=None):
         self.logger = get_logger("ModelRouter")
         self.settings = settings
         self.vault = vault
+        self.analytics = analytics
         self.ws_gateway = None
 
         # ── LOCAL: Native LCE (Speculative Decoding) ────────────────────────
@@ -357,7 +358,7 @@ class ModelRouter(ExecutiveRouter):
             
         return await asyncio.to_thread(self.lce_decoder.generate_response_sync, full_prompt)
 
-    async def _gemini_request(self, prompt: str, use_pro: bool = False, json_mode: bool = False, system_instruction: str = "") -> str:
+    async def _gemini_request(self, prompt: str, use_pro: bool = False, json_mode: bool = False, system_instruction: str = "", session_id: Optional[str] = None) -> str:
         """Cloud Failover 1: Gemini."""
         if not self.gemini_flash and self.vault:
             # Attempt to pull key from vault and re-configure
@@ -372,22 +373,34 @@ class ModelRouter(ExecutiveRouter):
         model = self.gemini_pro if use_pro else self.gemini_flash
         if not model:
             raise RuntimeError("Gemini not configured")
+        
         generation_config = {}
         if json_mode:
             generation_config = {"response_mime_type": "application/json"}
         
-        # Gemini uses 'contents' with a list of parts, we prepend the system instruction if it supports it
-        # or use system_instruction parameter if available in the SDK
-        contents = []
+        # Inject system instruction if present
         if system_instruction:
-            # Note: Depending on SDK version, system_instruction might be passed in GenerativeModel init
-            # But for simple failover, we'll prepend it to the user prompt if not already handled
             prompt = f"{system_instruction}\n\n{prompt}"
             
         response = await model.generate_content_async(prompt, generation_config=generation_config)
+        
+        # Log Usage
+        if self.analytics and session_id:
+            try:
+                meta = response.usage_metadata
+                self.analytics.record_turn(
+                    session_key=session_id,
+                    model=model.model_name.split("/")[-1],
+                    provider="Google",
+                    input_tokens=meta.prompt_token_count,
+                    output_tokens=meta.candidates_token_count
+                )
+            except Exception as e:
+                self.logger.warning(f"Failed to record Gemini usage: {e}")
+
         return response.text
 
-    async def _openai_request(self, prompt: str, use_strong: bool = False, json_mode: bool = False, system_instruction: str = "") -> str:
+    async def _openai_request(self, prompt: str, use_strong: bool = False, json_mode: bool = False, system_instruction: str = "", session_id: Optional[str] = None) -> str:
         """Cloud Failover 2: OpenAI."""
         if not self.openai_client:
             raise RuntimeError("OpenAI not configured")
@@ -405,7 +418,23 @@ class ModelRouter(ExecutiveRouter):
         if json_mode:
             kwargs["response_format"] = {"type": "json_object"}
         response = await self.openai_client.chat.completions.create(**kwargs)
-        return response.choices[0].message.content
+        
+        content = response.choices[0].message.content
+
+        # Log Usage
+        if self.analytics and session_id:
+            try:
+                self.analytics.record_turn(
+                    session_key=session_id,
+                    model=model,
+                    provider="OpenAI",
+                    input_tokens=response.usage.prompt_tokens,
+                    output_tokens=response.usage.completion_tokens
+                )
+            except Exception as e:
+                self.logger.warning(f"Failed to record OpenAI usage: {e}")
+
+        return content
 
     async def _generic_openai_request(self, prompt: str, client: Any, name: str, use_strong: bool = False, system_instruction: str = "") -> str:
         """Handles generic OpenAI-compatible providers like DeepSeek, Together, OpenRouter."""
@@ -527,7 +556,8 @@ class ModelRouter(ExecutiveRouter):
         privacy_level: Literal["PUBLIC", "SENSITIVE", "AIRGAPPED"] = "PUBLIC",
         psi: float = 0.0,
         system_instruction: str = "",
-        inference_mode: Literal["LOCAL", "CLOUD", "TACTICAL", "HYBRID"] = "HYBRID"
+        inference_mode: Literal["LOCAL", "CLOUD", "TACTICAL", "HYBRID"] = "HYBRID",
+        session_id: Optional[str] = None
     ) -> str:
         from ..tracing_config import get_tracer
         from opentelemetry import trace
@@ -612,11 +642,11 @@ class ModelRouter(ExecutiveRouter):
                 
                 # Gemini Failover (Vault-aware lazy loading)
                 if GEMINI_AVAILABLE and (self.vault or self.gemini_flash):
-                    cloud_sequence.append(("Gemini", lambda p: self._gemini_request(p, use_pro=use_strong, json_mode=json_mode, system_instruction=system_instruction)))
+                    cloud_sequence.append(("Gemini", lambda p: self._gemini_request(p, use_pro=use_strong, json_mode=json_mode, system_instruction=system_instruction, session_id=session_id)))
                 
                 # OpenAI Failover
                 if OPENAI_AVAILABLE and (self.vault or self.openai_client):
-                    cloud_sequence.append(("OpenAI", lambda p: self._openai_request(p, use_strong=use_strong, json_mode=json_mode, system_instruction=system_instruction)))
+                    cloud_sequence.append(("OpenAI", lambda p: self._openai_request(p, use_strong=use_strong, json_mode=json_mode, system_instruction=system_instruction, session_id=session_id)))
                 
                 # Anthropic Failover
                 if ANTHROPIC_AVAILABLE and (self.vault or self.anthropic_client):
