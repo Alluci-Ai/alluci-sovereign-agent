@@ -7,7 +7,8 @@ export const useInteractions = (
     isConnected: boolean,
     handleAudioOutput: (audio: string) => Promise<void>,
     refreshAuditLog: () => void,
-    fileInputRef: React.RefObject<HTMLInputElement | null>
+    fileInputRef: React.RefObject<HTMLInputElement | null>,
+    sovereignMode: boolean = true
 ) => {
     const { 
         setTranscriptions, 
@@ -34,7 +35,8 @@ export const useInteractions = (
 
         try {
             if (geminiServiceRef.current) {
-                const responseText = await geminiServiceRef.current.processMultimodal(text, files);
+                const mode = sovereignMode ? 'LOCAL' : 'CLOUD';
+                const responseText = await geminiServiceRef.current.processMultimodal(text, files, mode);
 
                 // Check if aborted during the call
                 if (controller.signal.aborted) {

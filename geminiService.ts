@@ -222,7 +222,7 @@ export class AlluciGeminiService {
     }
   }
 
-  async processMultimodal(text: string, files: FilePart[]): Promise<string> {
+  async processMultimodal(text: string, files: FilePart[], inferenceMode: string = 'HYBRID'): Promise<string> {
     const state = useStore.getState();
     const token = state.accessToken || this.getAuthToken();
     
@@ -238,7 +238,7 @@ export class AlluciGeminiService {
       return await fetch(`${this.DAEMON_URL}/api/v1/gemini/proxy`, {
         method: 'POST',
         headers: headers,
-        body: JSON.stringify({ prompt: text, complexity: 'MEDIUM' }),
+        body: JSON.stringify({ prompt: text, complexity: 'MEDIUM', inference_mode: inferenceMode }),
         credentials: 'include'
       });
     };

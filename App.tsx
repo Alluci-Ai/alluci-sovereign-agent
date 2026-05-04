@@ -138,7 +138,7 @@ const App: React.FC = () => {
     handlePaste,
     removeAttachment,
     abortControllerRef
-  } = useInteractions(geminiServiceRef, isConnected, handleAudioOutput, refreshAuditLog, fileInputRef);
+  } = useInteractions(geminiServiceRef, isConnected, handleAudioOutput, refreshAuditLog, fileInputRef, sovereignMode);
 
   const saveApiKeysToDaemon = async (keys: ApiManifoldKeys) => {
     try {

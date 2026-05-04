@@ -13,7 +13,8 @@ async def gemini_proxy(
     request: Request,
     prompt: str = Body(...),
     complexity: str = Body("MEDIUM"),
-    privacy_level: str = Body("PUBLIC")
+    privacy_level: str = Body("PUBLIC"),
+    inference_mode: str = Body("HYBRID")
 ):
     """
     Proxies requests to the local Gemma 4 model or fallback providers.
@@ -33,7 +34,8 @@ async def gemini_proxy(
             prompt=prompt,
             system_instruction=system_instruction,
             complexity=complexity,
-            privacy_level=privacy_level
+            privacy_level=privacy_level,
+            inference_mode=inference_mode
         )
         return {"result": response}
     except Exception as e:

@@ -526,7 +526,8 @@ class ModelRouter(ExecutiveRouter):
         complexity: Literal["LOW", "MEDIUM", "HIGH"] = "MEDIUM", 
         privacy_level: Literal["PUBLIC", "SENSITIVE", "AIRGAPPED"] = "PUBLIC",
         psi: float = 0.0,
-        system_instruction: str = ""
+        system_instruction: str = "",
+        inference_mode: Literal["LOCAL", "CLOUD", "TACTICAL", "HYBRID"] = "HYBRID"
     ) -> str:
         from ..tracing_config import get_tracer
         from opentelemetry import trace
@@ -573,12 +574,13 @@ class ModelRouter(ExecutiveRouter):
             # ── Step 1: Local Inference (Highest Priority) ───────────────────
             # Try LCE (Native Gemma 4), then Ollama, then LM Studio.
             local_providers = []
-            if self.lce_enabled:
-                local_providers.append(("Native LCE", lambda p: self._lce_request(p, system_instruction=system_instruction)))
-            if self.ollama_ready:
-                local_providers.append(("Ollama", lambda p: self._ollama_request(p, use_strong=use_strong, json_mode=json_mode, system_instruction=system_instruction)))
-            if self.lm_studio_client:
-                local_providers.append(("LM Studio", lambda p: self._lm_studio_request(p, use_strong=use_strong, system_instruction=system_instruction)))
+            if inference_mode in ["HYBRID", "LOCAL"]:
+                if self.lce_enabled:
+                    local_providers.append(("Native LCE", lambda p: self._lce_request(p, system_instruction=system_instruction)))
+                if self.ollama_ready:
+                    local_providers.append(("Ollama", lambda p: self._ollama_request(p, use_strong=use_strong, json_mode=json_mode, system_instruction=system_instruction)))
+                if self.lm_studio_client:
+                    local_providers.append(("LM Studio", lambda p: self._lm_studio_request(p, use_strong=use_strong, system_instruction=system_instruction)))
 
             for name, provider_fn in local_providers:
                 try:

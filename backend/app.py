@@ -22,11 +22,13 @@ from .security import csrf # Initialize CSRF config
 from .engine.errors import AdapterError
 
 
-async def global_rate_limit(request: Request, response: Response):
+async def global_rate_limit(request: Request = None, response: Response = None):
     """
     Global rate limit dependency. 
     Skips if Redis is not configured or available.
     """
+    if request is None:
+        return
     return await RateLimiter(times=settings.RATE_LIMIT_PER_MINUTE, seconds=60)(request, response)
 
 # global initialization outside lifespan to avoid recursive instrumentation hooks
