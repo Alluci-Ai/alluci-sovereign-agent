@@ -142,18 +142,28 @@ const App: React.FC = () => {
 
   const saveApiKeysToDaemon = async (keys: ApiManifoldKeys) => {
     try {
-      const csrfToken = await getCsrfToken(DAEMON_URL, accessToken);
+      const token = accessToken || localStorage.getItem('alluci_access_token');
+      if (!token) {
+        console.error("No access token available for key save");
+        return;
+      }
+
+      const csrfToken = await getCsrfToken(DAEMON_URL, token);
       const res = await fetch(`${DAEMON_URL}/api/v1/vault/keys`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
+          'Authorization': `Bearer ${token}`,
           ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
         },
         body: JSON.stringify(keys),
         credentials: 'include'
       });
       if (res.ok) setApiKeys(keys);
+      else {
+          const err = await res.json().catch(() => ({ detail: res.statusText }));
+          console.error("Save failed:", err.detail);
+      }
     } catch (e) { console.error("Failed to save keys", e); }
   };
 

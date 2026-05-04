@@ -239,8 +239,12 @@ export const useStore = create<AppState>((set) => ({
     setDaemonStatus: (val) => set({ daemonStatus: val }),
     setHarmonicStatus: (val) => set({ harmonicStatus: val }),
     setIsCameraActive: (val) => set({ isCameraActive: val }),
-    accessToken: null,
-    setAccessToken: (val) => set({ accessToken: val }),
+    accessToken: localStorage.getItem('alluci_access_token'),
+    setAccessToken: (val) => {
+        if (val) localStorage.setItem('alluci_access_token', val);
+        else localStorage.removeItem('alluci_access_token');
+        set({ accessToken: val });
+    },
     needsOnboarding: false,
     setNeedsOnboarding: (val) => set({ needsOnboarding: val }),
     updateAvailable: false,
@@ -433,7 +437,7 @@ export const useStore = create<AppState>((set) => ({
         attachments: typeof val === 'function' ? val(state.attachments) : val
     })),
     hydrate: async () => {
-        const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
+        const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
         // Only attempt hydration if the session signal cookie exists
         if (!document.cookie.includes('alluci_session=1')) return;
         
