@@ -57,9 +57,10 @@ class ModelRouter(ExecutiveRouter):
     Tactical (Groq) → Local (Ollama) → Local Fallback (LM Studio) → Optional (HF) → Cloud Failovers.
     Implements the ExecutiveRouter interface for LCE Decoupling.
     """
-    def __init__(self, settings):
+    def __init__(self, settings, vault=None):
         self.logger = get_logger("ModelRouter")
         self.settings = settings
+        self.vault = vault
         self.ws_gateway = None
 
         # ── LOCAL: Native LCE (Speculative Decoding) ────────────────────────
@@ -335,6 +336,16 @@ class ModelRouter(ExecutiveRouter):
 
     async def _gemini_request(self, prompt: str, use_pro: bool = False, json_mode: bool = False) -> str:
         """Cloud Failover 1: Gemini."""
+        if not self.gemini_flash and self.vault:
+            # Attempt to pull key from vault and re-configure
+            keys = await self.vault.retrieve_secret("alluci_api_keys") or {}
+            gemini_key = keys.get("llm", {}).get("googleCloud")
+            if gemini_key:
+                genai.configure(api_key=gemini_key)
+                self.gemini_flash = genai.GenerativeModel("gemini-2.0-flash")
+                self.gemini_pro = genai.GenerativeModel("gemini-2.5-pro-preview-05-06")
+                self.logger.info("Gemini models initialized from vault.")
+
         model = self.gemini_pro if use_pro else self.gemini_flash
         if not model:
             raise RuntimeError("Gemini not configured")

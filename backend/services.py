@@ -114,7 +114,7 @@ async def init_services(app_instance):
     await sovereign_identity.load_keys()
 
     # 4. Inference Layer
-    router = ModelRouter(settings)
+    router = ModelRouter(settings, vault=vault)
     scanner = GuardrailScanner(router)
 
     # 5. Affective Engine
