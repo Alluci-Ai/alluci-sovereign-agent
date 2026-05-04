@@ -242,6 +242,7 @@ class ModelRouter(ExecutiveRouter):
         prompt: str,
         use_strong: bool = False,
         json_mode: bool = False,
+        system_instruction: str = ""
     ) -> str:
         """
         Primary inference via local Ollama daemon.
@@ -262,9 +263,14 @@ class ModelRouter(ExecutiveRouter):
         timeout = getattr(self.settings, "OLLAMA_TIMEOUT_SECONDS", 120)
         num_gpu = getattr(self.settings, "OLLAMA_NUM_GPU", 35)
 
+        messages = []
+        if system_instruction:
+            messages.append({"role": "system", "content": system_instruction})
+        messages.append({"role": "user", "content": prompt})
+
         payload: Dict[str, Any] = {
             "model": model,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": messages,
             "stream": False,
             "options": {
                 "num_ctx": 512 if lite else (2048 if ram_mb < 6000 else 4096),
@@ -294,14 +300,21 @@ class ModelRouter(ExecutiveRouter):
         self,
         prompt: str,
         use_strong: bool = False,
+        system_instruction: str = ""
     ) -> str:
         """LM Studio via OpenAI-compatible API — local fallback after Ollama."""
         if not self.lm_studio_client:
             raise RuntimeError("LM Studio not configured")
         model = getattr(self.settings, "LM_STUDIO_MODEL", "local-model")
+        
+        messages = []
+        if system_instruction:
+            messages.append({"role": "system", "content": system_instruction})
+        messages.append({"role": "user", "content": prompt})
+
         response = await self.lm_studio_client.chat.completions.create(
             model=model,
-            messages=[{"role": "user", "content": prompt}],
+            messages=messages,
             max_tokens=2048,
         )
         return response.choices[0].message.content
@@ -310,23 +323,33 @@ class ModelRouter(ExecutiveRouter):
         self,
         prompt: str,
         use_strong: bool = False,
+        system_instruction: str = ""
     ) -> str:
         """HuggingFace Inference API (Serverless or Dedicated)."""
         if not self.hf_client:
             raise RuntimeError("HuggingFace client not initialised")
+        
+        full_prompt = prompt
+        if system_instruction:
+            full_prompt = f"{system_instruction}\n\nUser: {prompt}"
+
         result = await self.hf_client.text_generation(
-            prompt=prompt,
+            prompt=full_prompt,
             max_new_tokens=1024,
             temperature=0.7,
             return_full_text=False,
         )
         return result if isinstance(result, str) else result.generated_text
 
-    async def _lce_request(self, prompt: str) -> str:
+    async def _lce_request(self, prompt: str, system_instruction: str = "") -> str:
         """Local Cognitive Engine via Native Speculative Decoding."""
         if not self.lce_decoder:
             raise RuntimeError("LCE Decoder not initialized")
         
+        full_prompt = prompt
+        if system_instruction:
+            full_prompt = f"System: {system_instruction}\n\nUser: {prompt}"
+            
         # Lazy loading of models
         if not self.lce_decoder.target_model:
             self.logger.info("LCE: Loading Gemma 4 models into VRAM...")
@@ -334,7 +357,7 @@ class ModelRouter(ExecutiveRouter):
             
         return await self.lce_decoder.generate_response(prompt)
 
-    async def _gemini_request(self, prompt: str, use_pro: bool = False, json_mode: bool = False) -> str:
+    async def _gemini_request(self, prompt: str, use_pro: bool = False, json_mode: bool = False, system_instruction: str = "") -> str:
         """Cloud Failover 1: Gemini."""
         if not self.gemini_flash and self.vault:
             # Attempt to pull key from vault and re-configure
@@ -352,24 +375,39 @@ class ModelRouter(ExecutiveRouter):
         generation_config = {}
         if json_mode:
             generation_config = {"response_mime_type": "application/json"}
+        
+        # Gemini uses 'contents' with a list of parts, we prepend the system instruction if it supports it
+        # or use system_instruction parameter if available in the SDK
+        contents = []
+        if system_instruction:
+            # Note: Depending on SDK version, system_instruction might be passed in GenerativeModel init
+            # But for simple failover, we'll prepend it to the user prompt if not already handled
+            prompt = f"{system_instruction}\n\n{prompt}"
+            
         response = await model.generate_content_async(prompt, generation_config=generation_config)
         return response.text
 
-    async def _openai_request(self, prompt: str, use_strong: bool = False, json_mode: bool = False) -> str:
+    async def _openai_request(self, prompt: str, use_strong: bool = False, json_mode: bool = False, system_instruction: str = "") -> str:
         """Cloud Failover 2: OpenAI."""
         if not self.openai_client:
             raise RuntimeError("OpenAI not configured")
         model = "gpt-4o" if use_strong else "gpt-4o-mini"
+        
+        messages = []
+        if system_instruction:
+            messages.append({"role": "system", "content": system_instruction})
+        messages.append({"role": "user", "content": prompt})
+
         kwargs: Dict[str, Any] = {
             "model": model,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": messages,
         }
         if json_mode:
             kwargs["response_format"] = {"type": "json_object"}
         response = await self.openai_client.chat.completions.create(**kwargs)
         return response.choices[0].message.content
 
-    async def _generic_openai_request(self, prompt: str, client: Any, name: str, use_strong: bool = False) -> str:
+    async def _generic_openai_request(self, prompt: str, client: Any, name: str, use_strong: bool = False, system_instruction: str = "") -> str:
         """Handles generic OpenAI-compatible providers like DeepSeek, Together, OpenRouter."""
         model_map = {
             "DeepSeek": ("deepseek-reasoner" if use_strong else "deepseek-chat"),
@@ -377,34 +415,51 @@ class ModelRouter(ExecutiveRouter):
             "OpenRouter": "google/gemma-2-9b-it", # Fallback to Gemma family in cloud if possible
         }
         model = model_map.get(name, "default")
+        
+        messages = []
+        if system_instruction:
+            messages.append({"role": "system", "content": system_instruction})
+        messages.append({"role": "user", "content": prompt})
+
         response = await client.chat.completions.create(
             model=model,
-            messages=[{"role": "user", "content": prompt}],
+            messages=messages,
             max_tokens=4096,
         )
         return response.choices[0].message.content
 
-    async def _anthropic_request(self, prompt: str, use_strong: bool = False) -> str:
+    async def _anthropic_request(self, prompt: str, use_strong: bool = False, system_instruction: str = "") -> str:
         """Cloud Failover 3: Anthropic."""
         if not self.anthropic_client:
             raise RuntimeError("Anthropic not configured")
         model = "claude-3-7-sonnet-20250219" if use_strong else "claude-3-5-haiku-20241022"
-        message = await self.anthropic_client.messages.create(
-            model=model,
-            max_tokens=4096,
-            messages=[{"role": "user", "content": prompt}]
-        )
+        
+        kwargs: Dict[str, Any] = {
+            "model": model,
+            "max_tokens": 4096,
+            "messages": [{"role": "user", "content": prompt}]
+        }
+        if system_instruction:
+            kwargs["system"] = system_instruction
+
+        message = await self.anthropic_client.messages.create(**kwargs)
         return message.content[0].text
 
-    async def _kimi_request(self, prompt: str, thinking: bool = True) -> str:
+    async def _kimi_request(self, prompt: str, thinking: bool = True, system_instruction: str = "") -> str:
         """NVIDIA NIM integration for Kimi k2.5."""
         if not self.nvidia_nim_api_key:
             raise RuntimeError("NVIDIA NIM API Key missing")
         invoke_url = "https://integrate.api.nvidia.com/v1/chat/completions"
         headers = {"Authorization": f"Bearer {self.nvidia_nim_api_key}", "Accept": "application/json"}
+        
+        messages = []
+        if system_instruction:
+            messages.append({"role": "system", "content": system_instruction})
+        messages.append({"role": "user", "content": prompt})
+
         payload = {
             "model": "moonshotai/kimi-k2.5",
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": messages,
             "max_tokens": 16384,
             "temperature": 1.00,
             "chat_template_kwargs": {"thinking": thinking},
@@ -415,24 +470,38 @@ class ModelRouter(ExecutiveRouter):
             data = response.json()
             return data["choices"][0]["message"]["content"]
 
-    async def _cohere_request(self, prompt: str, use_strong: bool = False) -> str:
+    async def _cohere_request(self, prompt: str, use_strong: bool = False, system_instruction: str = "") -> str:
         """Failover 7: Cohere."""
         if not self.cohere_client:
             raise RuntimeError("Cohere not configured")
         model = "command-r-plus" if use_strong else "command-r"
-        response = await self.cohere_client.chat(model=model, message=prompt, max_tokens=4096)
+        
+        kwargs: Dict[str, Any] = {
+            "model": model,
+            "message": prompt,
+            "max_tokens": 4096
+        }
+        if system_instruction:
+            kwargs["preamble"] = system_instruction # Cohere uses 'preamble' for system instructions
+
+        response = await self.cohere_client.chat(**kwargs)
         return response.text
 
-    async def _bedrock_request(self, prompt: str, use_strong: bool = False) -> str:
+    async def _bedrock_request(self, prompt: str, use_strong: bool = False, system_instruction: str = "") -> str:
         """Failover 8: AWS Bedrock."""
         if not self.bedrock_session:
             raise RuntimeError("AWS Bedrock not configured")
         model_id = "anthropic.claude-3-sonnet-20240229-v1:0" if use_strong else "anthropic.claude-3-haiku-20240307-v1:0"
-        body = json.dumps({
+        
+        payload: Dict[str, Any] = {
             "anthropic_version": "bedrock-2023-05-31",
             "max_tokens": 4096,
             "messages": [{"role": "user", "content": prompt}]
-        }).encode("utf-8")
+        }
+        if system_instruction:
+            payload["system"] = system_instruction
+
+        body = json.dumps(payload).encode("utf-8")
         async with self.bedrock_session.client("bedrock-runtime") as client:
             response = await client.invoke_model(body=body, modelId=model_id, accept="application/json", contentType="application/json")
             response_body = await response["body"].read()
@@ -456,7 +525,8 @@ class ModelRouter(ExecutiveRouter):
         prompt: str, 
         complexity: Literal["LOW", "MEDIUM", "HIGH"] = "MEDIUM", 
         privacy_level: Literal["PUBLIC", "SENSITIVE", "AIRGAPPED"] = "PUBLIC",
-        psi: float = 0.0
+        psi: float = 0.0,
+        system_instruction: str = ""
     ) -> str:
         from ..tracing_config import get_tracer
         from opentelemetry import trace
@@ -504,11 +574,11 @@ class ModelRouter(ExecutiveRouter):
             # Try LCE (Native Gemma 4), then Ollama, then LM Studio.
             local_providers = []
             if self.lce_enabled:
-                local_providers.append(("Native LCE", self._lce_request))
+                local_providers.append(("Native LCE", lambda p: self._lce_request(p, system_instruction=system_instruction)))
             if self.ollama_ready:
-                local_providers.append(("Ollama", lambda p: self._ollama_request(p, use_strong=use_strong, json_mode=json_mode)))
+                local_providers.append(("Ollama", lambda p: self._ollama_request(p, use_strong=use_strong, json_mode=json_mode, system_instruction=system_instruction)))
             if self.lm_studio_client:
-                local_providers.append(("LM Studio", lambda p: self._lm_studio_request(p, use_strong=use_strong)))
+                local_providers.append(("LM Studio", lambda p: self._lm_studio_request(p, use_strong=use_strong, system_instruction=system_instruction)))
 
             for name, provider_fn in local_providers:
                 try:
@@ -529,33 +599,33 @@ class ModelRouter(ExecutiveRouter):
                 cloud_sequence = []
                 
                 if self.gemini_flash or self.gemini_pro:
-                    cloud_sequence.append(("Gemini", lambda p: self._gemini_request(p, use_pro=use_strong, json_mode=json_mode)))
+                    cloud_sequence.append(("Gemini", lambda p: self._gemini_request(p, use_pro=use_strong, json_mode=json_mode, system_instruction=system_instruction)))
                 
                 if self.openai_client:
-                    cloud_sequence.append(("OpenAI", lambda p: self._openai_request(p, use_strong=use_strong, json_mode=json_mode)))
+                    cloud_sequence.append(("OpenAI", lambda p: self._openai_request(p, use_strong=use_strong, json_mode=json_mode, system_instruction=system_instruction)))
                 
                 if self.anthropic_client:
-                    cloud_sequence.append(("Anthropic", lambda p: self._anthropic_request(p, use_strong=use_strong)))
+                    cloud_sequence.append(("Anthropic", lambda p: self._anthropic_request(p, use_strong=use_strong, system_instruction=system_instruction)))
                 
                 if self.groq_api_key:
-                    cloud_sequence.append(("Groq", self.get_fast_tactical_response))
+                    cloud_sequence.append(("Groq", lambda p: self.get_fast_tactical_response(p, system_instruction=system_instruction)))
                 
                 if self.hf_client:
-                    cloud_sequence.append(("HuggingFace", lambda p: self._huggingface_request(p, use_strong=use_strong)))
+                    cloud_sequence.append(("HuggingFace", lambda p: self._huggingface_request(p, use_strong=use_strong, system_instruction=system_instruction)))
 
                 # Add smaller providers / OpenRouter / etc.
                 for name, client in [("DeepSeek", self.deepseek_client), ("OpenRouter", self.openrouter_client), ("Together", self.together_client)]:
                     if client:
-                        cloud_sequence.append((name, lambda p, c=client, n=name: self._generic_openai_request(p, c, n, use_strong)))
+                        cloud_sequence.append((name, lambda p, c=client, n=name: self._generic_openai_request(p, c, n, use_strong, system_instruction=system_instruction)))
 
                 if self.cohere_client:
-                    cloud_sequence.append(("Cohere", lambda p: self._cohere_request(p, use_strong=use_strong)))
+                    cloud_sequence.append(("Cohere", lambda p: self._cohere_request(p, use_strong=use_strong, system_instruction=system_instruction)))
                 
                 if self.bedrock_session:
-                    cloud_sequence.append(("AWS Bedrock", lambda p: self._bedrock_request(p, use_strong=use_strong)))
+                    cloud_sequence.append(("AWS Bedrock", lambda p: self._bedrock_request(p, use_strong=use_strong, system_instruction=system_instruction)))
 
                 if self.nvidia_nim_api_key:
-                    cloud_sequence.append(("Kimi", lambda p: self._kimi_request(p, thinking=use_strong)))
+                    cloud_sequence.append(("Kimi", lambda p: self._kimi_request(p, thinking=use_strong, system_instruction=system_instruction)))
 
                 # Exhaustive scan of all configured cloud APIs
                 for name, provider_fn in cloud_sequence:
@@ -582,7 +652,7 @@ class ModelRouter(ExecutiveRouter):
             span.set_status(trace.Status(trace.StatusCode.ERROR, error_msg))
             raise RuntimeError(error_msg)
 
-    async def get_structured_plan(self, prompt: str) -> Dict[str, Any]:
+    async def get_structured_plan(self, prompt: str, system_instruction: str = "") -> Dict[str, Any]:
         """
         Utility to get a JSON-formatted execution plan from the LLM.
         Forces JSON mode and handles parsing failovers.
@@ -591,7 +661,7 @@ class ModelRouter(ExecutiveRouter):
         if "json" not in prompt.lower():
             prompt += "\n\nIMPORTANT: Return only a valid JSON object with a 'steps' key."
 
-        res = await self.get_response(prompt)
+        res = await self.get_response(prompt, system_instruction=system_instruction)
         try:
             import re
             # Extract JSON from potential markdown blocks or extra text
@@ -618,11 +688,17 @@ class ModelRouter(ExecutiveRouter):
         """
         return await self.get_structured_plan(prompt)
 
-    async def get_fast_tactical_response(self, prompt: str) -> str:
+    async def get_fast_tactical_response(self, prompt: str, system_instruction: str = "") -> str:
         if not self.groq_api_key:
-             return await self._gemini_request(prompt, use_pro=False)
+             return await self._gemini_request(prompt, use_pro=False, system_instruction=system_instruction)
+        
+        messages = []
+        if system_instruction:
+            messages.append({"role": "system", "content": system_instruction})
+        messages.append({"role": "user", "content": prompt})
+
         headers = {"Authorization": f"Bearer {self.groq_api_key}", "Content-Type": "application/json"}
-        payload = {"model": "llama-3.3-70b-versatile", "messages": [{"role": "user", "content": prompt}], "temperature": 0.2, "max_tokens": 1024}
+        payload = {"model": "llama-3.3-70b-versatile", "messages": messages, "temperature": 0.2, "max_tokens": 1024}
         async with httpx.AsyncClient(timeout=10.0) as client:
             try:
                 response = await client.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload)
@@ -630,7 +706,7 @@ class ModelRouter(ExecutiveRouter):
                 data = response.json()
                 return data["choices"][0]["message"]["content"]
             except Exception:
-                return await self._gemini_request(prompt, use_pro=False)
+                return await self._gemini_request(prompt, use_pro=False, system_instruction=system_instruction)
 
     async def generate_speech(self, text: str, voice_id: str = "pNInz6obpgDQGcFmaJgB") -> bytes:
         if not self.elevenlabs_api_key: raise RuntimeError("ElevenLabs credentials missing.")

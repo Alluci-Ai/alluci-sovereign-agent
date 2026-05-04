@@ -20,17 +20,9 @@ class Planner:
         Generates a valid DAG from the objective, influenced by the Soul's context and skills.
         """
         # Augment objective with the Soul's context and affective state
-        augmented_prompt = f"""
-        {context}
+        prompt_with_psi = f"AFFECTIVE TENSION (psi): {psi:.2f}\n\nOBJECTIVE: \"{objective}\"\n\nBased on the Identity and current Affective Tension, create a plan."
         
-        AFFECTIVE TENSION (psi): {psi:.2f}
-        
-        OBJECTIVE: "{objective}"
-        
-        Based on the Identity, Reasoning Style, Available Skills, and current Affective Tension, create a plan.
-        """
-        
-        raw_plan = await self.router.get_structured_plan(augmented_prompt)
+        raw_plan = await self.router.get_structured_plan(prompt_with_psi, system_instruction=context)
         steps = raw_plan.get("steps", [])
         
         if not steps:

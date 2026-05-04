@@ -23,9 +23,15 @@ async def gemini_proxy(
         raise HTTPException(status_code=503, detail="Inference router not ready")
     
     try:
+        # Fetch the full Soul Manifest context for personality injection
+        system_instruction = ""
+        if services.orchestrator:
+            system_instruction = await services.orchestrator._build_system_context()
+
         # Route to the local Gemma 4 model (or failover)
         response = await services.router.get_response(
             prompt=prompt,
+            system_instruction=system_instruction,
             complexity=complexity,
             privacy_level=privacy_level
         )
