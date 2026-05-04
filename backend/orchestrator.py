@@ -246,16 +246,22 @@ class ExecutiveOrchestrator:
                             content=f"Error: {e}"
                         )
 
-    async def _build_system_context(self) -> str:
+    async def _build_system_context(self, include_memory: bool = True) -> str:
         """
         Constructs the cognitive context for the Planner based on the 
         active Soul Manifest (Identity, Cognition) and Verified Skills.
         """
         context_parts = []
         
-        # 1. Identity & Cognition Layer
+        # 1. Identity & Cognition Layer (Fast Retrieval)
         try:
-            manifest = await self.vault.retrieve_secret("soul_manifest")
+            # Check for a memory-cached manifest first to avoid vault overhead
+            if hasattr(self, "_cached_soul") and self._cached_soul:
+                manifest = self._cached_soul
+            else:
+                manifest = await self.vault.retrieve_secret("soul_manifest")
+                self._cached_soul = manifest
+
             if manifest:
                 id_core = manifest.get("identityCore", "You are an autonomous agent.")
                 reasoning = manifest.get("reasoningStyle", "Analytical.")
@@ -312,9 +318,7 @@ class ExecutiveOrchestrator:
                 self.logger.error(f"[ SKILLS ] Error scanning for skills: {e}")
 
         # 3. H-LSM Memory Context (Hierarchical Long-Short Manifold)
-        # Retrieves relevant memories across all three tiers and injects
-        # them into the planning context for informed objective execution.
-        if self.hlsm:
+        if self.hlsm and include_memory:
             try:
                 # Get current affective state for modulated retrieval
                 psi = 0.0
@@ -324,28 +328,21 @@ class ExecutiveOrchestrator:
                     psi = min(1.0, float(affective.tension) / 1024.0)
                     valence = min(1.0, float(affective.valence) / 1024.0)
 
-                # Retrieve context from H-LSM (the objective is not yet known here,
-                # so we use the soul identity core as the retrieval seed)
-                retrieval_seed = "\n".join(context_parts[:3]) if context_parts else "agent execution"
+                # Use a fast-path for conversational retrieval
+                retrieval_seed = "\n".join(context_parts[:2]) if context_parts else "general assistance"
                 memory_ctx = await self.hlsm.retrieve_context(
                     objective=retrieval_seed,
                     psi=psi,
                     valence=valence,
                     session_key=getattr(self, "_current_session_key", ""),
-                    max_per_tier=5,
+                    max_per_tier=3, # Reduced for chat speed
                 )
 
                 memory_block = memory_ctx.to_prompt_block()
                 if memory_block:
                     context_parts.append(memory_block)
-                    self.logger.debug(
-                        f"[Orchestrator] H-LSM context injected: "
-                        f"L0={len(memory_ctx.working_memories)}, "
-                        f"L1={len(memory_ctx.episodic_memories)}, "
-                        f"L2={len(memory_ctx.semantic_memories)}"
-                    )
             except Exception as e:
-                self.logger.error(f"[Orchestrator] H-LSM retrieval failed (non-fatal): {e}", exc_info=True)
+                self.logger.debug(f"[Orchestrator] Memory retrieval skipped: {e}")
 
         return "\n".join(context_parts)
 

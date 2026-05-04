@@ -355,7 +355,7 @@ class ModelRouter(ExecutiveRouter):
             self.logger.info("LCE: Loading Gemma 4 models into VRAM...")
             self.lce_decoder.load_models()
             
-        return await self.lce_decoder.generate_response(prompt)
+        return await self.lce_decoder.generate_response(full_prompt)
 
     async def _gemini_request(self, prompt: str, use_pro: bool = False, json_mode: bool = False, system_instruction: str = "") -> str:
         """Cloud Failover 1: Gemini."""
