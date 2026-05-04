@@ -6,6 +6,7 @@ except ImportError:
     HAS_TORCH = False
 
 import logging
+import asyncio
 from typing import Optional
 
 logger = logging.getLogger("SpeculativeDecoder")
@@ -49,18 +50,12 @@ class SpeculativeDecoder:
         )
         logger.info("Speculative Decoding engine initialized.")
 
-    async def generate_response(self, prompt: str, max_new_tokens: int = 1024) -> str:
-        """
-        Generates text using HuggingFace's native speculative decoding support 
-        by passing the draft model as `assistant_model`.
-        """
+    def generate_response_sync(self, prompt: str, max_new_tokens: int = 1024) -> str:
+        """Synchronous version for thread-pooled execution."""
         if not self.target_model or not self.draft_model:
-            raise RuntimeError("Models not loaded. Call load_models() first.")
+            raise RuntimeError("Models not loaded.")
             
         inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
-        
-        logger.info("Running Speculative Decoding (Draft-Verification Loop)...")
-        # Native integration in transformers >= 4.38 supports assistant_model for speculative decoding
         outputs = self.target_model.generate(
             **inputs,
             assistant_model=self.draft_model,
@@ -68,9 +63,14 @@ class SpeculativeDecoder:
             do_sample=True,
             temperature=0.7
         )
-        
-        response = self.tokenizer.decode(outputs[0][inputs.input_ids.shape[-1]:], skip_special_tokens=True)
-        return response
+        return self.tokenizer.decode(outputs[0][inputs.input_ids.shape[-1]:], skip_special_tokens=True)
+
+    async def generate_response(self, prompt: str, max_new_tokens: int = 1024) -> str:
+        """
+        Generates text using HuggingFace's native speculative decoding support 
+        by passing the draft model as `assistant_model`.
+        """
+        return await asyncio.to_thread(self.generate_response_sync, prompt, max_new_tokens)
 
 if __name__ == "__main__":
     # Test execution block

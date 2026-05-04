@@ -350,12 +350,12 @@ class ModelRouter(ExecutiveRouter):
         if system_instruction:
             full_prompt = f"System: {system_instruction}\n\nUser: {prompt}"
             
-        # Lazy loading of models
+        # Load models in a thread if not already in VRAM to prevent blocking the event loop
         if not self.lce_decoder.target_model:
             self.logger.info("LCE: Loading Gemma 4 models into VRAM...")
-            self.lce_decoder.load_models()
+            await asyncio.to_thread(self.lce_decoder.load_models)
             
-        return await self.lce_decoder.generate_response(full_prompt)
+        return await asyncio.to_thread(self.lce_decoder.generate_response_sync, full_prompt)
 
     async def _gemini_request(self, prompt: str, use_pro: bool = False, json_mode: bool = False, system_instruction: str = "") -> str:
         """Cloud Failover 1: Gemini."""
@@ -598,13 +598,16 @@ class ModelRouter(ExecutiveRouter):
                 # Define cloud providers and their check-conditions
                 cloud_sequence = []
                 
-                if self.gemini_flash or self.gemini_pro:
+                # Gemini Failover (Vault-aware lazy loading)
+                if GEMINI_AVAILABLE and (self.vault or self.gemini_flash):
                     cloud_sequence.append(("Gemini", lambda p: self._gemini_request(p, use_pro=use_strong, json_mode=json_mode, system_instruction=system_instruction)))
                 
-                if self.openai_client:
+                # OpenAI Failover
+                if OPENAI_AVAILABLE and (self.vault or self.openai_client):
                     cloud_sequence.append(("OpenAI", lambda p: self._openai_request(p, use_strong=use_strong, json_mode=json_mode, system_instruction=system_instruction)))
                 
-                if self.anthropic_client:
+                # Anthropic Failover
+                if ANTHROPIC_AVAILABLE and (self.vault or self.anthropic_client):
                     cloud_sequence.append(("Anthropic", lambda p: self._anthropic_request(p, use_strong=use_strong, system_instruction=system_instruction)))
                 
                 if self.groq_api_key:
