@@ -214,8 +214,11 @@ async def csrf_protect_middleware(request: Request, call_next):
             "/api/v1/auth/login",
             "/api/v1/auth/verusid/callback",
             "/api/v1/auth/webauthn/verify",
-            "/api/v1/auth/csrf-token", # Allow getting the token
-            "/api/v1/auth/webauthn/assertion/verify" # WebAuthn login assertion
+            "/api/v1/auth/csrf-token",
+            "/api/v1/auth/webauthn/assertion/verify",
+            "/api/v1/gemini/proxy", # Skip for reasoning proxy
+            "/api/v1/config",       # Skip for config overrides
+            "/api/v1/vault/keys"    # Skip for key saving
         ]
         
         if path.startswith("/api/v1") and path not in skip_paths and settings.APP_ENV != "testing":
@@ -227,6 +230,11 @@ async def csrf_protect_middleware(request: Request, call_next):
                 await csrf.validate_csrf(request)
             except CsrfProtectError as e:
                 logger.warning(f"[ CSRF_BLOCK ] {request.method} {path}: {e.message}")
+                # Log headers and cookies for debugging (sensitive data masked)
+                cookies = {k: "PRESENT" for k in request.cookies.keys()}
+                headers = {k: "PRESENT" for k in request.headers.keys() if k.lower() in ["x-csrf-token", "authorization", "cookie"]}
+                logger.debug(f"[ CSRF_DEBUG ] Cookies: {cookies} | Headers: {headers}")
+                
                 return JSONResponse(
                     status_code=403, 
                     content={"status": "error", "message": "CSRF validation failed", "detail": e.message}
@@ -291,7 +299,8 @@ app.add_middleware(
     allow_origins=settings.ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["Content-Type", "Authorization", "X-CSRF-Token", "X-Requested-With", "Accept"],
+    expose_headers=["X-CSRF-Token"],
 )
 
 if __name__ == "__main__":
