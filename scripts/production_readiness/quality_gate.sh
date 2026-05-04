@@ -13,4 +13,12 @@ if [[ -d .venv ]]; then
 fi
 
 python3 -m pip install -r requirements.txt -r requirements-dev.txt
-python3 -m pytest backend/tests -q
+
+echo "Running production-readiness check..."
+# Ensure no mocks are left in core logic
+grep -r "SIMULATION" backend/engine | grep -v "logger" && { echo "ERROR: Simulated logic found in backend/engine"; exit 1; } || true
+
+echo "Running tests with coverage (Threshold: 82%)..."
+python3 -m pytest backend/tests --cov=backend --cov-fail-under=82 -q
+
+echo "SUCCESS: Quality Gate Passed."

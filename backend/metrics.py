@@ -27,6 +27,23 @@ ACTIVE_CONNECTIONS = Gauge(
     "Number of active WebSocket connections"
 )
 
+INFERENCE_FAILOVER = Counter(
+    "alluci_inference_failover_total",
+    "Total number of inference routing failover events",
+    ["source_tier", "target_tier"]
+)
+
+DREAM_CYCLE_LOSS = Gauge(
+    "alluci_dream_cycle_loss",
+    "Latest DPO training loss from the Dream Cycle Forge"
+)
+
+MEMORY_CONSOLIDATION_TOTAL = Counter(
+    "alluci_memory_consolidation_total",
+    "Total number of H-LSM memory consolidation sweeps",
+    ["tier"]
+)
+
 # ── Middleware ────────────────────────────────────────────────────────────────
 
 async def metrics_middleware(request: Request, call_next):

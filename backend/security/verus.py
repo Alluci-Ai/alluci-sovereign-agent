@@ -21,18 +21,31 @@ class SovereignIdentity:
     Executive Manifests. Uses Ed25519 when keys are available,
     falls back to SHA256 hash for unsigned local mode.
     """
-    def __init__(self, settings: Settings):
+    def __init__(self, settings: Settings, vault=None):
         self.verus_id = settings.VERUS_ID_IDENTITY
         self.private_key_hex = settings.VERUS_ID_PRIVATE_KEY
-        self.enabled = bool(self.verus_id and self.private_key_hex)
+        self.enabled = bool(self.verus_id)
         self._private_key = None
+        self._vault = vault
         
-        if self.enabled and ED25519_AVAILABLE:
+        # If key missing from settings, check vault
+        if self.enabled and not self.private_key_hex and vault:
+            logger.info(f"[SOVEREIGN] Private key missing in settings, checking vault for '{self.verus_id}'")
+            # This is a bit of a chicken-and-egg, but we assume the vault 
+            # might have the key stored under 'verusid_signing'
             try:
-                # Load Ed25519 private key from hex seed
-                seed_bytes = bytes.fromhex(self.private_key_hex)
-                self._private_key = Ed25519PrivateKey.from_private_bytes(seed_bytes[:32])
-                logger.info(f"Sovereign Identity Active (Ed25519): {self.verus_id}")
+                # We need to run this sync if possible or handle it in a different way
+                # For now, we'll look for a dedicated secret
+                pass 
+            except Exception:
+                pass
+
+        if self.enabled and (self.private_key_hex or self._vault) and ED25519_AVAILABLE:
+            try:
+                if self.private_key_hex:
+                    seed_bytes = bytes.fromhex(self.private_key_hex)
+                    self._private_key = Ed25519PrivateKey.from_private_bytes(seed_bytes[:32])
+                    logger.info(f"Sovereign Identity Active (Ed25519): {self.verus_id}")
             except Exception as e:
                 logger.warning(f"Ed25519 key load failed, falling back to hash: {e}")
                 self._private_key = None
@@ -40,6 +53,21 @@ class SovereignIdentity:
             logger.warning("Sovereign Identity Active (Hash-only — cryptography ed25519 not available)")
         else:
             logger.warning("Sovereign Identity Inactive (Standard Mode)")
+
+    async def load_keys(self):
+        """Asynchronously loads keys from vault if not already loaded from settings."""
+        if self._private_key or not self._vault or not self.enabled:
+            return
+
+        try:
+            secrets = await self._vault.retrieve_secret("sovereign_identity")
+            if secrets and "private_key" in secrets:
+                self.private_key_hex = secrets["private_key"]
+                seed_bytes = bytes.fromhex(self.private_key_hex)
+                self._private_key = Ed25519PrivateKey.from_private_bytes(seed_bytes[:32])
+                logger.info(f"[SOVEREIGN] Identity key loaded from Vault for {self.verus_id}")
+        except Exception as e:
+            logger.error(f"[SOVEREIGN] Failed to load identity key from Vault: {e}")
 
     def sign_manifest(self, manifest: Dict[str, Any]) -> Dict[str, Any]:
         """

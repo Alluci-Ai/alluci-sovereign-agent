@@ -484,6 +484,8 @@ class ModelRouter(ExecutiveRouter):
                 except Exception as e:
                     errors.append(f"Native LCE: {e}")
                     span.add_event("Native LCE failover", attributes={"error": str(e)})
+                    from ..metrics import INFERENCE_FAILOVER
+                    INFERENCE_FAILOVER.labels(source_tier="native_lce", target_tier="ollama").inc()
                     self.logger.warning("Native LCE failed, continuing: %s", e)
 
             # ── Attempt 1: Ollama (PRIMARY — local, fully private) ────────────
@@ -497,6 +499,8 @@ class ModelRouter(ExecutiveRouter):
                 except Exception as e:
                     errors.append(f"Ollama: {e}")
                     span.add_event("Ollama failover", attributes={"error": str(e)})
+                    from ..metrics import INFERENCE_FAILOVER
+                    INFERENCE_FAILOVER.labels(source_tier="ollama", target_tier="lm_studio").inc()
                     self.logger.warning("Ollama failed, continuing: %s", e)
                     self.ollama_ready = self._probe_ollama()
 
@@ -545,6 +549,8 @@ class ModelRouter(ExecutiveRouter):
                 except Exception as e:
                     errors.append(f"Gemini: {e}")
                     span.add_event("Gemini failover", attributes={"error": str(e)})
+                    from ..metrics import INFERENCE_FAILOVER
+                    INFERENCE_FAILOVER.labels(source_tier="gemini", target_tier="openai").inc()
                     self.logger.warning("Gemini failed: %s", e)
 
             # ── Attempt 5: OpenAI ─────────────────────────────────────────────

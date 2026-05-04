@@ -12,7 +12,7 @@ export class BridgeManager {
   private verusIdentity: string | null = null;
   private manifoldIntegrity: number = 1.0;
   private access_token: string | null = null;
-  private logger: any;
+  private logger: Console | { error: (msg: string) => void };
 
   constructor(security: SovereignSecurityManager) {
     this.security = security;
@@ -155,7 +155,7 @@ export class BridgeManager {
    * [ ENTERPRISE_CORE_ACTUALIZATION ]
    * Executes workspace-level sovereign actions across Slack, Teams, and G-Suite.
    */
-  async executeEnterpriseTask(bridgeId: string, taskType: string, payload: any): Promise<boolean> {
+  async executeEnterpriseTask(bridgeId: string, taskType: string, payload: Record<string, unknown>): Promise<boolean> {
     const daemonUrl = import.meta.env?.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
     const res = await fetch(`${daemonUrl}/api/v1/channels/${bridgeId}/enterprise`, {
       method: "POST",

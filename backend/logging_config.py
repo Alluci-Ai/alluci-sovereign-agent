@@ -103,6 +103,30 @@ def configure_logging(app_env: str = "development") -> None:
     root_logger.addHandler(handler)
     root_logger.setLevel(logging.INFO if is_production else logging.DEBUG)
 
+    # Initialize Sentry if DSN is provided
+    try:
+        from .config import settings
+        if settings.SENTRY_DSN and is_production:
+            import sentry_sdk
+            from sentry_sdk.integrations.fastapi import FastApiIntegration
+            from sentry_sdk.integrations.redis import RedisIntegration
+            from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+            
+            sentry_sdk.init(
+                dsn=settings.SENTRY_DSN,
+                traces_sample_rate=settings.SENTRY_TRACES_SAMPLE_RATE,
+                environment=app_env,
+                integrations=[
+                    FastApiIntegration(),
+                    RedisIntegration(),
+                    SqlalchemyIntegration(),
+                ],
+            )
+            logger.info("Sentry monitoring online.")
+    except (ImportError, Exception) as e:
+        # We don't want to crash boot if Sentry fails to load
+        pass
+
     # Quiet noisy third-party loggers
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
     logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)

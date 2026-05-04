@@ -25,16 +25,26 @@ spec:
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8000
+        env:
+        - name: APP_ENV
+          value: "production"
+        - name: POLYTOPE_STORAGE_ROOT
+          value: "/data"
         envFrom:
         - secretRef:
             name: alluci-secrets
+        volumeMounts:
+        - name: vault-storage
+          mountPath: /data/vaults
+        - name: memory-storage
+          mountPath: /data/memory
         resources:
           requests:
             cpu: "250m"
             memory: "512Mi"
           limits:
-            cpu: "500m"
-            memory: "1Gi"
+            cpu: "1000m" # Boosted for Dream Cycle (DPO training)
+            memory: "2Gi" # Boosted for Dream Cycle
         livenessProbe:
           httpGet:
             path: /api/v1/health
@@ -52,3 +62,10 @@ spec:
           allowPrivilegeEscalation: false
           runAsNonRoot: true
           runAsUser: 1000
+      volumes:
+      - name: vault-storage
+        persistentVolumeClaim:
+          claimName: alluci-vault-pvc
+      - name: memory-storage
+        persistentVolumeClaim:
+          claimName: alluci-memory-pvc

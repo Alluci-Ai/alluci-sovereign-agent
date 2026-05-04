@@ -255,13 +255,13 @@ const App: React.FC = () => {
       {needsOnboarding && <OnboardingWizard />}
       <ExecApprovalModal />
       {activeAuth && <AuthPortal connection={activeAuth} onComplete={handleAuthComplete} onCancel={() => setActiveAuth(null)} />}
-      <MobileMenu isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} onAction={(v) => { setIsMobileMenuOpen(false); setActiveView(v as any); }} />
+      <MobileMenu isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} onAction={(v) => { setIsMobileMenuOpen(false); setActiveView(v as import('./store/useStore').ActiveView); }} />
 
       <SystemHeader isConnected={isConnected} accentColor={accentColor} handleConnect={handleConnect} sovereignMode={sovereignMode} setSovereignMode={setSovereignMode} />
 
       <div className="app-shell__body">
         <ErrorBoundary>
-          <Sidebar audioStream={audioStream as any} videoRef={videoRef} isCameraActive={isCameraActive} toggleCamera={toggleCamera} bridgeManagerRef={bridgeManagerRef} accentColor={accentColor} />
+          <Sidebar audioStream={audioStream} videoRef={videoRef} isCameraActive={isCameraActive} toggleCamera={toggleCamera} bridgeManagerRef={bridgeManagerRef} accentColor={accentColor} />
         </ErrorBoundary>
 
         <main className={`app-shell__main ${isSidebarCollapsed ? 'app-shell__main--expanded' : ''}`} style={{ flexDirection: 'row', display: 'flex' }}>

@@ -4,31 +4,31 @@ import logging
 import asyncio
 from typing import Dict, Any, Optional
 import redis.asyncio as redis
-from .config import settings
-from .database import create_db_and_tables, engine as db_engine
-from .security.vault import VaultManager
-from .security.verus import SovereignIdentity
-from .inference.router import ModelRouter
-from .security.guardrail import GuardrailScanner
-from .ace.engine import AffectiveEngine
-from .skill_manager import SkillManager
-from .memory.manager import MemoryManager
-from .memory.hlsm_manager import HLSMManager
-from .analytics import UsageTracker
-from .orchestrator import ExecutiveOrchestrator
-from .tasks import TaskManager
-from .inference.local_bridge import LocalInferenceBridge
-from .ws_gateway import JsonRpcGateway
-from .exec_approval import ExecApprovalManager
-from .cron_engine import CronEngine
-from .config_editor import ConfigEditor
-from .updater import updater as updater_instance
-from .log_streamer import log_buffer
-from .device_manager import DeviceManager
-from .goals.engine import goal_engine as goal_engine_instance
-from .sop.engine import sop_engine as sop_engine_instance
-from .pcl import ProactiveCognitionLoop
-from .logging_config import get_logger
+from backend.config import settings
+from backend.database import create_db_and_tables, engine as db_engine
+from backend.security.vault import VaultManager
+from backend.security.verus import SovereignIdentity
+from backend.inference.router import ModelRouter
+from backend.security.guardrail import GuardrailScanner
+from backend.ace.engine import AffectiveEngine
+from backend.skill_manager import SkillManager
+from backend.memory.manager import MemoryManager
+from backend.memory.hlsm_manager import HLSMManager
+from backend.analytics import UsageTracker
+from backend.orchestrator import ExecutiveOrchestrator
+from backend.tasks import TaskManager
+from backend.inference.local_bridge import LocalInferenceBridge
+from backend.ws_gateway import JsonRpcGateway
+from backend.exec_approval import ExecApprovalManager
+from backend.cron_engine import CronEngine
+from backend.config_editor import ConfigEditor
+from backend.updater import updater as updater_instance
+from backend.log_streamer import log_buffer
+from backend.device_manager import DeviceManager
+from backend.goals.engine import goal_engine as goal_engine_instance
+from backend.sop.engine import sop_engine as sop_engine_instance
+from backend.pcl import ProactiveCognitionLoop
+from backend.logging_config import get_logger
 
 logger = get_logger("PolytopeServices")
 
@@ -59,14 +59,14 @@ updater = updater_instance
 channel_registry: Dict[str, Any] = {}
 
 async def init_services(app_instance):
-    global vault, router, ace, orchestrator, task_manager, skill_manager, sovereign_identity
+    global vault, vault_manager, router, ace, orchestrator, task_manager, skill_manager, sovereign_identity
     global local_inference, ws_gw, usage_tracker, cron_engine, config_editor, exec_approval
-    global memory, hlsm_manager, redis_client, scanner, device_manager, pcl
+    global memory, hlsm_manager, redis_client, scanner, device_manager, pcl, goal_engine, sop_engine
 
     logger.info("[ SERVICES ] Initializing global system components...")
 
     # 1. Redis Cache
-    from .metrics import metrics
+    from backend.metrics import metrics
     if settings.REDIS_URL:
         try:
             redis_client = redis.from_url(settings.REDIS_URL, encoding="utf-8")
@@ -75,7 +75,7 @@ async def init_services(app_instance):
             logger.info(f"[ CACHE ]: Redis distributed rate limiter online: {settings.REDIS_URL}")
 
             # Wire Redis into VerusID auth for persistent challenge storage
-            from .security.verusid_auth import verus_auth as _verus_auth
+            from backend.security.verusid_auth import verus_auth as _verus_auth
             _verus_auth._redis = redis_client
             logger.info("[ VERUSID ] Redis-backed challenge store active.")
         except Exception as e:
@@ -109,8 +109,9 @@ async def init_services(app_instance):
 
     # 3. Security Layer
     vault = VaultManager(settings.POLYTOPE_MASTER_KEY)
-    globals()["vault_manager"] = vault
-    sovereign_identity = SovereignIdentity(settings)
+    vault_manager = vault
+    sovereign_identity = SovereignIdentity(settings, vault=vault)
+    await sovereign_identity.load_keys()
 
     # 4. Inference Layer
     router = ModelRouter(settings)
@@ -125,7 +126,6 @@ async def init_services(app_instance):
     # 7. Persistent H-LSM Memory System
     # Initialize the three-tier Hierarchical Long-Short Manifold manager.
     # L0 backed by Redis (if available), L1 by SQL, L2 by ChromaDB.
-    global hlsm_manager, memory
 
     # Build ChromaDB collection for L2 semantic tier
     chroma_collection = None
@@ -164,7 +164,11 @@ async def init_services(app_instance):
     # 8. Usage & Cost Analytics
     usage_tracker = UsageTracker(db_engine)
 
-    # 9. Executive Orchestrator
+    # 9. Communication & Approval Layers (Injected into Orchestrator)
+    ws_gw = JsonRpcGateway(jwt_secret=settings.JWT_SECRET_KEY)
+    exec_approval = ExecApprovalManager(db_engine, ws_gateway=ws_gw)
+
+    # 10. Executive Orchestrator
     orchestrator = ExecutiveOrchestrator(
         router=router,
         vault=vault,
@@ -178,26 +182,19 @@ async def init_services(app_instance):
         hlsm_manager=hlsm_manager,      # H-LSM (new)
     )
 
-    # 10. Task Manager
+    # 11. Task Manager
     task_manager = TaskManager()
 
-    # 11. Local Inference Bridge
+    # 12. Local Inference Bridge
     local_inference = LocalInferenceBridge(settings)
-
-    # 12. WebSocket Gateway
-    ws_gw = JsonRpcGateway(jwt_secret=settings.JWT_SECRET_KEY)
-    
-    # 13. Approval System
-    exec_approval = ExecApprovalManager(db_engine, ws_gateway=ws_gw)
     
     # Wire references
-    orchestrator.approval_manager = exec_approval
-    orchestrator.executor.approval_manager = exec_approval
     orchestrator.ws_gateway = ws_gw
     router.ws_gateway = ws_gw
+    orchestrator.executor.approval_manager = exec_approval
 
     # Register HLSMMemoryAdapter (replaces the old MemoryAdapter)
-    from .adapters.memory_adapter import HLSMMemoryAdapter
+    from backend.adapters.memory_adapter import HLSMMemoryAdapter
     orchestrator.adapter_registry.register(HLSMMemoryAdapter(hlsm_manager))
     logger.info("[ ADAPTERS ] HLSMMemoryAdapter registered — hlsm_search/hlsm_store/hlsm_recall tools active.")
 
@@ -226,20 +223,19 @@ async def init_services(app_instance):
     await _init_channels(vault_root)
 
     # Start background token refresh loops for OAuth bridges
-    from .config import settings as cfg
     oauth_refresh_config = {
         "slack":       {"token_url": "https://slack.com/api/tooling.tokens.rotate",
-                        "client_id": getattr(cfg,"SLACK_CLIENT_ID",""),
-                        "client_secret": getattr(cfg,"SLACK_CLIENT_SECRET","")},
+                        "client_id": getattr(settings,"SLACK_CLIENT_ID",""),
+                        "client_secret": getattr(settings,"SLACK_CLIENT_SECRET","")},
         "discord":     {"token_url": "https://discord.com/api/oauth2/token",
-                        "client_id": getattr(cfg,"DISCORD_CLIENT_ID",""),
-                        "client_secret": getattr(cfg,"DISCORD_CLIENT_SECRET","")},
+                        "client_id": getattr(settings,"DISCORD_CLIENT_ID",""),
+                        "client_secret": getattr(settings,"DISCORD_CLIENT_SECRET","")},
         "google_chat": {"token_url": "https://oauth2.googleapis.com/token",
-                        "client_id": getattr(cfg,"GOOGLE_CLIENT_ID",""),
-                        "client_secret": getattr(cfg,"GOOGLE_CLIENT_SECRET","")},
+                        "client_id": getattr(settings,"GOOGLE_CLIENT_ID",""),
+                        "client_secret": getattr(settings,"GOOGLE_CLIENT_SECRET","")},
         "msteams":     {"token_url": "https://login.microsoftonline.com/common/oauth2/v2.0/token",
-                        "client_id": getattr(cfg,"MSTEAMS_CLIENT_ID",""),
-                        "client_secret": getattr(cfg,"MSTEAMS_CLIENT_SECRET","")},
+                        "client_id": getattr(settings,"MSTEAMS_CLIENT_ID",""),
+                        "client_secret": getattr(settings,"MSTEAMS_CLIENT_SECRET","")},
     }
     for bridge_id, ocfg in oauth_refresh_config.items():
         adapter = channel_registry.get(bridge_id)
@@ -256,7 +252,7 @@ async def init_services(app_instance):
 
     # 20b. Wire H-LSM into HeartbeatDaemon for log_only and pcl_signal actions
     if orchestrator and orchestrator.heartbeat and hlsm_manager:
-        orchestrator.heartbeat.inject_hlsm(hlsm_manager)
+        orchestrator.heartbeat.inject_hlsm(hlsm_manager, router=router, settings=settings)
         logger.info("[ HB ] H-LSM injected into HeartbeatDaemon")
 
     # 21. Background Services
@@ -279,27 +275,27 @@ async def init_services(app_instance):
     logger.info("[ SERVICES ] All core systems actualized.")
 
 async def _init_channels(vault_root: str):
-    from .bridges.telegram import TelegramBridge
-    from .bridges.whatsapp import WhatsAppBridge
-    from .bridges.discord import DiscordBridge
-    from .bridges.slack import SlackBridge
-    from .bridges.email import EmailBridge
-    from .bridges.signal import SignalBridge
-    from .bridges.google_chat import GoogleChatBridge
-    from .bridges.nostr import NostrBridge
-    from .bridges.imessage import IMessageBridge
-    from .bridges.instagram import InstagramBridge
-    from .bridges.facebook import FacebookBridge
-    from .bridges.x_twitter import XBridge
-    from .bridges.msteams import MSTeamsBridge
-    from .bridges.wechat import WeChatBridge
-    from .bridges.iwatch import IWatchBridge
-    from .bridges.icloud import ICloudBridge
-    from .bridges.gmail import GmailBridge
-    from .bridges.gdrive import GDriveBridge
-    from .bridges.webchat import WebChatBridge
-    from .bridges.iphone import IPhoneBridge
-    from .bridges.verus_wallet import VerusWalletBridge
+    from backend.bridges.telegram import TelegramBridge
+    from backend.bridges.whatsapp import WhatsAppBridge
+    from backend.bridges.discord import DiscordBridge
+    from backend.bridges.slack import SlackBridge
+    from backend.bridges.email import EmailBridge
+    from backend.bridges.signal import SignalBridge
+    from backend.bridges.google_chat import GoogleChatBridge
+    from backend.bridges.nostr import NostrBridge
+    from backend.bridges.imessage import IMessageBridge
+    from backend.bridges.instagram import InstagramBridge
+    from backend.bridges.facebook import FacebookBridge
+    from backend.bridges.x_twitter import XBridge
+    from backend.bridges.msteams import MSTeamsBridge
+    from backend.bridges.wechat import WeChatBridge
+    from backend.bridges.iwatch import IWatchBridge
+    from backend.bridges.icloud import ICloudBridge
+    from backend.bridges.gmail import GmailBridge
+    from backend.bridges.gdrive import GDriveBridge
+    from backend.bridges.webchat import WebChatBridge
+    from backend.bridges.iphone import IPhoneBridge
+    from backend.bridges.verus_wallet import VerusWalletBridge
 
     async def broadcast_bridge_event(event: str, data: Any):
         if ws_gw:

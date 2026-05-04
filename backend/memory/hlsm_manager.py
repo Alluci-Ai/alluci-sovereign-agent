@@ -378,16 +378,17 @@ class HLSMManager:
                         "LIMIT :limit"
                     ).bindparams(q=f"%{clean_query}%", limit=limit)).fetchall()
             else:
-                # PostgreSQL ILIKE
+                # PostgreSQL High-Performance FTS (Native tsvector)
+                # This assumes a GIN index on content (handled in Phase 3 hardening)
                 raw = session.exec(sa_text(
                     "SELECT id, content, source, session_key, psi_at_encoding, "
                     "topological_importance, betti_1_support, access_count, "
                     "last_accessed, retention_score "
                     "FROM hlsm_episodic "
-                    "WHERE content ILIKE :q "
-                    "ORDER BY last_accessed DESC "
+                    "WHERE to_tsvector('english', content) @@ plainto_tsquery('english', :q) "
+                    "ORDER BY ts_rank(to_tsvector('english', content), plainto_tsquery('english', :q)) DESC "
                     "LIMIT :limit"
-                ).bindparams(q=f"%{query}%", limit=limit)).fetchall()
+                ).bindparams(q=query, limit=limit)).fetchall()
 
             for row in raw:
                 (entry_id, content, source, session_key, psi_enc,
@@ -787,6 +788,11 @@ class HLSMManager:
         """
         logger.info("[HLSM] Starting consolidation sweep...")
         summary = {"promoted": 0, "pruned_l1": 0, "pruned_l2": 0, "pruned_l0": 0}
+        
+        from ..metrics import MEMORY_CONSOLIDATION_TOTAL
+        MEMORY_CONSOLIDATION_TOTAL.labels(tier="L0").inc()
+        MEMORY_CONSOLIDATION_TOTAL.labels(tier="L1").inc()
+        MEMORY_CONSOLIDATION_TOTAL.labels(tier="L2").inc()
 
         # ── L1 Promotion and Pruning ──────────────────────────────────────────
         l1_entries = await asyncio.to_thread(self._load_all_l1_for_consolidation)

@@ -94,6 +94,10 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite:///polytope_data.db"
     REDIS_URL: Optional[str] = None
     POLYTOPE_STORAGE_ROOT: str = "~/.polytope"
+
+    # Observability
+    SENTRY_DSN: Optional[str] = None
+    SENTRY_TRACES_SAMPLE_RATE: float = 0.1
     
     # Governance
     RATE_LIMIT_PER_MINUTE: int = 60
@@ -121,6 +125,9 @@ class Settings(BaseSettings):
     # WebAuthn
     WEBAUTHN_RP_ID: Optional[str] = None
     WEBAUTHN_ORIGIN: Optional[str] = None
+    
+    # Modes
+    LITE_MODE: bool = False
     
     model_config = SettingsConfigDict(
         env_file=".env",

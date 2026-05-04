@@ -61,6 +61,7 @@ redis[hiredis]>=5.0.0,<6.0.0
 fastapi-limiter==0.1.6
 
 # ─── Observability & Logging ──────────────────────────────────────────────────
+sentry-sdk[fastapi,redis,sqlalchemy]>=2.0.0
 structlog>=24.1.0
 psutil==6.0.0
 opentelemetry-api==1.25.0

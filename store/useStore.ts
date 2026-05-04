@@ -16,6 +16,43 @@ export type ActiveView =
     | 'agents' | 'config' | 'logs' | 'debug' | 'wallet' | 'node' | 'dag' | 'pvt';
 export type Theme = 'light' | 'dark';
 
+export interface Nudge {
+    id: string;
+    message: string;
+    type?: string;
+    action?: string;
+}
+
+export interface CanvasNode {
+    id: string;
+    type: 'TEXT' | 'IMAGE' | 'DATA';
+    content: string;
+    x: number;
+    y: number;
+}
+
+export interface CloudFile {
+    id: string;
+    name: string;
+    size: number;
+    type: string;
+    url: string;
+}
+
+export interface SocialEvent {
+    platform: string;
+    type: string;
+    msg: string;
+    time: string;
+}
+
+export interface EnterpriseEvent {
+    platform: string;
+    type: string;
+    msg: string;
+    time: string;
+}
+
 export interface AppState {
     // Connection & System Status
     isConnected: boolean;
@@ -99,18 +136,18 @@ export interface AppState {
     updateAgent: (updates: Partial<AppState['agent']> | ((prev: AppState['agent']) => Partial<AppState['agent']>)) => void;
 
     // ACE & Canvas
-    activeNudges: any[];
-    canvasNodes: any[];
-    setActiveNudges: (fn: (prev: any[]) => any[]) => void;
-    setCanvasNodes: (fn: (prev: any[]) => any[]) => void;
+    activeNudges: Nudge[];
+    canvasNodes: CanvasNode[];
+    setActiveNudges: (fn: (prev: Nudge[]) => Nudge[]) => void;
+    setCanvasNodes: (fn: (prev: CanvasNode[]) => CanvasNode[]) => void;
 
     // External Events
-    cloudFiles: any[];
-    socialEvents: any[];
-    enterpriseEvents: any[];
-    setCloudFiles: (val: any[] | ((prev: any[]) => any[])) => void;
-    setSocialEvents: (val: any[] | ((prev: any[]) => any[])) => void;
-    setEnterpriseEvents: (val: any[] | ((prev: any[]) => any[])) => void;
+    cloudFiles: CloudFile[];
+    socialEvents: SocialEvent[];
+    enterpriseEvents: EnterpriseEvent[];
+    setCloudFiles: (val: CloudFile[] | ((prev: CloudFile[]) => CloudFile[])) => void;
+    setSocialEvents: (val: SocialEvent[] | ((prev: SocialEvent[]) => SocialEvent[])) => void;
+    setEnterpriseEvents: (val: EnterpriseEvent[] | ((prev: EnterpriseEvent[]) => EnterpriseEvent[])) => void;
 
     // Manifests
     baseManifest: SoulManifest | null;

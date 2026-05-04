@@ -606,10 +606,10 @@ class HeartbeatDaemon:
         self.logger = get_logger("Heartbeat")
         self._dream_orchestrator = None
 
-    def inject_hlsm(self, hlsm) -> None:
+    def inject_hlsm(self, hlsm, router=None, settings=None) -> None:
         """Called by services.py after HLSMManager is initialised."""
         self._hlsm = hlsm
-        self._dream_orchestrator = SleepStateOrchestrator(hlsm)
+        self._dream_orchestrator = SleepStateOrchestrator(hlsm, router, settings)
 
     def _get_db(self):
         if self.db_engine:
