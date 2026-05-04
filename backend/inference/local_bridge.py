@@ -113,11 +113,11 @@ class LocalInferenceBridge:
         
         if model is None:
             if is_lite or ram_mb < 2000:
-                model = "tinyllama:1.1b"
+                model = "gemma2:2b"
             elif ram_mb < 8000:
-                model = "phi3:mini"
+                model = "gemma2:2b"
             else:
-                model = "mistral:7b-instruct-v0.3-q4_K_M"
+                model = "gemma2:9b"
         
         # Dynamic Tuning
         num_ctx = 2048

@@ -47,7 +47,10 @@ class BridgeSettings(BaseModel):
 
 class InferenceSettings(BaseModel):
     OLLAMA_URL: str = "http://localhost:11434"
-    OLLAMA_MODEL_STRONG: str = "llama3.3:70b"
+    OLLAMA_MODEL_STRONG: str = "gemma2:27b"
+    OLLAMA_MODEL_MEDIUM: str = "gemma2:9b"
+    OLLAMA_MODEL_LIGHT: str = "gemma2:2b"
+    OLLAMA_MODEL_LITE: str = "gemma2:2b"
     SOVEREIGN_MODE: bool = False
     GEMINI_API_KEY: Optional[str] = None
     OPENAI_API_KEY: Optional[str] = None
@@ -88,7 +91,9 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: Optional[str] = None
     ANTHROPIC_API_KEY: Optional[str] = None
     OLLAMA_URL: str = "http://localhost:11434"
-    OLLAMA_MODEL_STRONG: str = "llama3.3:70b"
+    OLLAMA_MODEL_STRONG: str = "gemma2:27b"
+    OLLAMA_MODEL_MEDIUM: str = "gemma2:9b"
+    OLLAMA_MODEL_LIGHT: str = "gemma2:2b"
     
     # Storage
     DATABASE_URL: str = "sqlite:///polytope_data.db"

@@ -250,14 +250,13 @@ class ModelRouter(ExecutiveRouter):
         lite = getattr(self.settings, "LITE_MODE", False)
 
         if lite or ram_mb < 2000:
-            model = getattr(self.settings, "OLLAMA_MODEL_LITE", "tinyllama:1.1b")
-        elif ram_mb < 6000:
-            model = getattr(self.settings, "OLLAMA_MODEL_LIGHT", "phi3:mini")
+            model = getattr(self.settings, "OLLAMA_MODEL_LITE", "gemma2:2b")
+        elif ram_mb < 8000:
+            model = getattr(self.settings, "OLLAMA_MODEL_LIGHT", "gemma2:2b")
         elif use_strong and ram_mb >= 16000:
-            model = getattr(self.settings, "OLLAMA_MODEL_STRONG", "llama3.3:70b")
+            model = getattr(self.settings, "OLLAMA_MODEL_STRONG", "gemma2:27b")
         else:
-            model = getattr(self.settings, "OLLAMA_MODEL_MEDIUM",
-                            "mistral:7b-instruct-v0.3-q4_K_M")
+            model = getattr(self.settings, "OLLAMA_MODEL_MEDIUM", "gemma2:9b")
 
         timeout = getattr(self.settings, "OLLAMA_TIMEOUT_SECONDS", 120)
         num_gpu = getattr(self.settings, "OLLAMA_NUM_GPU", 35)
@@ -357,6 +356,21 @@ class ModelRouter(ExecutiveRouter):
         if json_mode:
             kwargs["response_format"] = {"type": "json_object"}
         response = await self.openai_client.chat.completions.create(**kwargs)
+        return response.choices[0].message.content
+
+    async def _generic_openai_request(self, prompt: str, client: Any, name: str, use_strong: bool = False) -> str:
+        """Handles generic OpenAI-compatible providers like DeepSeek, Together, OpenRouter."""
+        model_map = {
+            "DeepSeek": ("deepseek-reasoner" if use_strong else "deepseek-chat"),
+            "Together": "meta-llama/Llama-3.3-70b-instruct-turbo",
+            "OpenRouter": "google/gemma-2-9b-it", # Fallback to Gemma family in cloud if possible
+        }
+        model = model_map.get(name, "default")
+        response = await client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=4096,
+        )
         return response.choices[0].message.content
 
     async def _anthropic_request(self, prompt: str, use_strong: bool = False) -> str:
@@ -475,143 +489,73 @@ class ModelRouter(ExecutiveRouter):
                     span.add_event("Groq tactical failover")
                     self.logger.warning("Tactical Groq failed, continuing: %s", e)
 
-            # ── Attempt 0: Native LCE (High performance local) ───────────────
+            # ── Step 1: Local Inference (Highest Priority) ───────────────────
+            # Try LCE (Native Gemma 4), then Ollama, then LM Studio.
+            local_providers = []
             if self.lce_enabled:
-                try:
-                    self.logger.info("[LCE] Routing to local Gemma 4 (Speculative)")
-                    span.set_attribute("model_provider", "native_lce")
-                    return await self._lce_request(prompt)
-                except Exception as e:
-                    errors.append(f"Native LCE: {e}")
-                    span.add_event("Native LCE failover", attributes={"error": str(e)})
-                    from ..metrics import INFERENCE_FAILOVER
-                    INFERENCE_FAILOVER.labels(source_tier="native_lce", target_tier="ollama").inc()
-                    self.logger.warning("Native LCE failed, continuing: %s", e)
-
-            # ── Attempt 1: Ollama (PRIMARY — local, fully private) ────────────
+                local_providers.append(("Native LCE", self._lce_request))
             if self.ollama_ready:
-                try:
-                    res = await self._ollama_request(
-                        prompt, use_strong=use_strong, json_mode=json_mode
-                    )
-                    span.set_attribute("model_provider", "ollama")
-                    return res
-                except Exception as e:
-                    errors.append(f"Ollama: {e}")
-                    span.add_event("Ollama failover", attributes={"error": str(e)})
-                    from ..metrics import INFERENCE_FAILOVER
-                    INFERENCE_FAILOVER.labels(source_tier="ollama", target_tier="lm_studio").inc()
-                    self.logger.warning("Ollama failed, continuing: %s", e)
-                    self.ollama_ready = self._probe_ollama()
-
-            # ── Attempt 2: LM Studio (local fallback) ────────────────────────
+                local_providers.append(("Ollama", lambda p: self._ollama_request(p, use_strong=use_strong, json_mode=json_mode)))
             if self.lm_studio_client:
+                local_providers.append(("LM Studio", lambda p: self._lm_studio_request(p, use_strong=use_strong)))
+
+            for name, provider_fn in local_providers:
                 try:
-                    await self._notify_fallback("LM Studio (local)")
-                    res = await self._lm_studio_request(prompt, use_strong=use_strong)
-                    span.set_attribute("model_provider", "lm_studio")
+                    self.logger.info(f"[LOCAL_SCAN] Trying {name}...")
+                    res = await provider_fn(prompt)
+                    span.set_attribute("model_provider", name.lower().replace(" ", "_"))
                     return res
                 except Exception as e:
-                    errors.append(f"LM Studio: {e}")
-                    span.add_event("LM Studio failover", attributes={"error": str(e)})
-                    self.logger.warning("LM Studio failed: %s", e)
+                    errors.append(f"{name}: {e}")
+                    self.logger.warning(f"{name} failed, trying next local: {e}")
 
-            # ── Attempt 3: HuggingFace (optional) ────────────────────────────
-            if self.hf_client:
-                try:
-                    await self._notify_fallback("HuggingFace Inference")
-                    res = await self._huggingface_request(prompt, use_strong=use_strong)
-                    span.set_attribute("model_provider", "huggingface")
-                    return res
-                except Exception as e:
-                    errors.append(f"HuggingFace: {e}")
-                    span.add_event("HuggingFace failover", attributes={"error": str(e)})
-                    self.logger.warning("HuggingFace failed: %s", e)
-
-            # ── Cloud providers (skipped if SOVEREIGN_MODE=True or privacy is SENSITIVE/AIRGAPPED) ──────────────
+            # ── Step 2: Cloud Fallback (If allowed) ─────────────────────────
             sovereign_mode = getattr(self.settings, "SOVEREIGN_MODE", False)
             allow_cloud = not sovereign_mode and self.evaluate_privacy_constraint(privacy_level, is_cloud_provider=True)
             
-            if not allow_cloud:
-                error_msg = (
-                    f"Cloud providers disabled due to SOVEREIGN_MODE={sovereign_mode} or PRIVACY_LEVEL={privacy_level}. "
-                    "All local providers failed. Errors: " + "; ".join(errors)
-                )
-                span.set_status(trace.Status(trace.StatusCode.ERROR, error_msg))
-                raise RuntimeError(error_msg)
+            if allow_cloud:
+                # Define cloud providers and their check-conditions
+                cloud_sequence = []
+                
+                if self.gemini_flash or self.gemini_pro:
+                    cloud_sequence.append(("Gemini", lambda p: self._gemini_request(p, use_pro=use_strong, json_mode=json_mode)))
+                
+                if self.openai_client:
+                    cloud_sequence.append(("OpenAI", lambda p: self._openai_request(p, use_strong=use_strong, json_mode=json_mode)))
+                
+                if self.anthropic_client:
+                    cloud_sequence.append(("Anthropic", lambda p: self._anthropic_request(p, use_strong=use_strong)))
+                
+                if self.groq_api_key:
+                    cloud_sequence.append(("Groq", self.get_fast_tactical_response))
+                
+                if self.hf_client:
+                    cloud_sequence.append(("HuggingFace", lambda p: self._huggingface_request(p, use_strong=use_strong)))
 
-            # ── Attempt 4: Gemini ─────────────────────────────────────────────
-            if self.gemini_flash or self.gemini_pro:
-                try:
-                    res = await self._gemini_request(prompt, use_pro=use_strong, json_mode=json_mode)
-                    span.set_attribute("model_provider", "gemini")
-                    return res
-                except Exception as e:
-                    errors.append(f"Gemini: {e}")
-                    span.add_event("Gemini failover", attributes={"error": str(e)})
-                    from ..metrics import INFERENCE_FAILOVER
-                    INFERENCE_FAILOVER.labels(source_tier="gemini", target_tier="openai").inc()
-                    self.logger.warning("Gemini failed: %s", e)
+                # Add smaller providers / OpenRouter / etc.
+                for name, client in [("DeepSeek", self.deepseek_client), ("OpenRouter", self.openrouter_client), ("Together", self.together_client)]:
+                    if client:
+                        cloud_sequence.append((name, lambda p, c=client, n=name: self._generic_openai_request(p, c, n, use_strong)))
 
-            # ── Attempt 5: OpenAI ─────────────────────────────────────────────
-            if self.openai_client:
-                try:
-                    await self._notify_fallback("OpenAI (GPT-4o)")
-                    res = await self._openai_request(prompt, use_strong=use_strong, json_mode=json_mode)
-                    span.set_attribute("model_provider", "openai")
-                    return res
-                except Exception as e:
-                    errors.append(f"OpenAI: {e}")
-                    span.add_event("OpenAI failover", attributes={"error": str(e)})
-                    self.logger.warning("OpenAI failed: %s", e)
+                if self.cohere_client:
+                    cloud_sequence.append(("Cohere", lambda p: self._cohere_request(p, use_strong=use_strong)))
+                
+                if self.bedrock_session:
+                    cloud_sequence.append(("AWS Bedrock", lambda p: self._bedrock_request(p, use_strong=use_strong)))
 
-            # ── Attempt 6: Anthropic ──────────────────────────────────────────
-            if self.anthropic_client:
-                try:
-                    await self._notify_fallback("Anthropic (Claude 3.7)")
-                    res = await self._anthropic_request(prompt, use_strong=use_strong)
-                    span.set_attribute("model_provider", "anthropic")
-                    return res
-                except Exception as e:
-                    errors.append(f"Anthropic: {e}")
-                    self.logger.warning("Anthropic failed: %s", e)
+                if self.nvidia_nim_api_key:
+                    cloud_sequence.append(("Kimi", lambda p: self._kimi_request(p, thinking=use_strong)))
 
-            # ── Attempts 7–10: DeepSeek, OpenRouter, Together, Cohere ─────────
-            for name, client, model_strong, model_light in [
-                ("DeepSeek",     self.deepseek_client, "DeepSeek-R1",  "deepseek-chat"),
-                ("OpenRouter",   self.openrouter_client, "meta-llama/llama-3.3-70b-instruct", "meta-llama/llama-3.3-70b-instruct"),
-                ("Together",     self.together_client, "meta-llama/Llama-3-70b-chat-hf", "meta-llama/Llama-3-70b-chat-hf"),
-            ]:
-                if client:
+                # Exhaustive scan of all configured cloud APIs
+                for name, provider_fn in cloud_sequence:
                     try:
+                        self.logger.info(f"[CLOUD_SCAN] Falling back to {name}...")
                         await self._notify_fallback(name)
-                        model = model_strong if (use_strong or name == "DeepSeek") and "azure" in str(getattr(client, "base_url", "")) else model_light
-                        response = await client.chat.completions.create(model=model, messages=[{"role": "user", "content": prompt}], max_tokens=4096)
-                        span.set_attribute("model_provider", name.lower())
-                        return response.choices[0].message.content
+                        res = await provider_fn(prompt)
+                        span.set_attribute("model_provider", name.lower().replace(" ", "_"))
+                        return res
                     except Exception as e:
                         errors.append(f"{name}: {e}")
-                        self.logger.warning("%s failed: %s", name, e)
-
-            if self.cohere_client:
-                try:
-                    await self._notify_fallback("Cohere (Command R+)")
-                    res = await self._cohere_request(prompt, use_strong=use_strong)
-                    span.set_attribute("model_provider", "cohere")
-                    return res
-                except Exception as e:
-                    errors.append(f"Cohere: {e}")
-                    self.logger.warning("Cohere failed: %s", e)
-
-            if self.bedrock_session:
-                try:
-                    await self._notify_fallback("AWS Bedrock (Claude 3)")
-                    res = await self._bedrock_request(prompt, use_strong=use_strong)
-                    span.set_attribute("model_provider", "bedrock")
-                    return res
-                except Exception as e:
-                    errors.append(f"AWS Bedrock: {e}")
-                    self.logger.warning("AWS Bedrock failed: %s", e)
 
             if self.nvidia_nim_api_key:
                 try:
