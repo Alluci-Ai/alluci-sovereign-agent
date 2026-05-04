@@ -78,7 +78,7 @@ export class AlluciSovereignService {
     // ─── H-LSM Memory REST API ──────────────────────────────────────────────
 
     private async _fetch(path: string, options: RequestInit = {}) {
-        const token = localStorage.getItem('polytope_token');
+        const token = localStorage.getItem('alluci_access_token');
         const headers = {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',

@@ -223,7 +223,9 @@ export class AlluciGeminiService {
   }
 
   async processMultimodal(text: string, files: FilePart[]): Promise<string> {
-    const token = this.getAuthToken();
+    const state = useStore.getState();
+    const token = state.accessToken || this.getAuthToken();
+    
     if (token) {
       try {
         const csrfToken = await getCsrfToken(this.DAEMON_URL, token);
@@ -239,10 +241,15 @@ export class AlluciGeminiService {
         if (response.ok) {
           const data = await response.json();
           return data.result || "[ SIGNAL_LOST ]";
+        } else {
+          const errData = await response.json().catch(() => ({ detail: response.statusText }));
+          return `[ ERROR ]: Backend failure (${response.status}): ${errData.detail || "Unknown error"}`;
         }
-      } catch { }
+      } catch (e: any) {
+        return `[ ERROR ]: Daemon connection failed: ${e.message}`;
+      }
     }
-    return "[ ERROR ]: No API key configured. Please authenticate with the backend.";
+    return "[ ERROR ]: Authentication required. Please log in via the Sovereign Identity portal.";
   }
 
   async speak(text: string, onAudio: (base64: string) => void) {
