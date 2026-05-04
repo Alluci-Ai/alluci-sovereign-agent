@@ -51,19 +51,24 @@ def verify_token(token: str) -> dict:
     except JWTError:
         raise
 
-async def verify_authenticated(request: Request, token: str = Depends(oauth2_scheme)):
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
+async def verify_authenticated(request: Request):
+    token: Optional[str] = None
     
-    # If header is missing or empty, check cookies
+    # 1. Check Authorization Header
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+    
+    # 2. Check Cookie Fallback
     if not token or token == "undefined":
         token = request.cookies.get(settings.AUTH_COOKIE_NAME)
     
     if not token:
-        raise credentials_exception
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     try:
         verify_token(token)
