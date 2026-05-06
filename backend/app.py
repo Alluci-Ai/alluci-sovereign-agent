@@ -22,14 +22,19 @@ from .security import csrf # Initialize CSRF config
 from .engine.errors import AdapterError
 
 
-async def global_rate_limit(request: Request = None, response: Response = None):
+async def global_rate_limit(request: Request, response: Response):
     """
     Global rate limit dependency. 
     Skips if Redis is not configured or available.
     """
-    if request is None:
+    # [ PUBLIC_FIX ]: Hardened rate limit check to prevent errors if Redis is down
+    try:
+        if not services.redis_client:
+            return
+        return await RateLimiter(times=settings.RATE_LIMIT_PER_MINUTE, seconds=60)(request, response)
+    except Exception as e:
+        logger.warning(f"[ RATE_LIMIT_SKIPPED ] Redis unavailable: {e}")
         return
-    return await RateLimiter(times=settings.RATE_LIMIT_PER_MINUTE, seconds=60)(request, response)
 
 # global initialization outside lifespan to avoid recursive instrumentation hooks
 configure_logging(app_env=settings.APP_ENV)
@@ -49,9 +54,10 @@ async def lifespan(app: FastAPI):
     init_jwt_keys(private_key, public_key)
     logger.info("[ JWT ] RS256 keypair loaded from vault.")
     
-    # SEC-001: WebAuthn Redis Initialization
-    from .security.webauthn_store import webauthn_store, WebAuthnChallengeStore
+    # SEC-001: Redis Store Initializations
     if services.redis_client:
+        # [ LOCAL_FIX ]: Ensure absolute imports work correctly in local dev environment
+        from .security.webauthn_store import webauthn_store, WebAuthnChallengeStore
         import backend.security.webauthn_store as _wa_store_module
         _wa_store_module.webauthn_store = WebAuthnChallengeStore(services.redis_client)
         logger.info("[ WEBAUTHN ] Challenge store backed by Redis.")
@@ -63,6 +69,7 @@ async def lifespan(app: FastAPI):
         
         from .security.credential_store import credential_store
         await credential_store.load_from_vault()
+        
         from .security.verusid_auth import verus_auth
         verus_auth._redis = services.redis_client
         logger.info("[ VERUSID ] Challenge store backed by Redis.")
@@ -110,16 +117,21 @@ async def global_exception_handler(request: Request, exc: Exception):
     Excludes FastAPI/Starlette internal exceptions to avoid breaking standard behaviors.
     """
     if isinstance(exc, (StarletteHTTPException, RequestValidationError)):
-        # Re-raise to let FastAPI's default handlers take over
         raise exc
 
+    # [ PUBLIC_FIX ]: Mask stack traces in production to prevent information leakage
     logger.error(f"[ GLOBAL_ERROR ] {request.method} {request.url.path}: {exc}", exc_info=True)
+    
+    detail = str(exc)
+    if settings.APP_ENV == "production":
+        detail = "An internal server error occurred. Please contact the administrator or check the logs."
+
     return JSONResponse(
         status_code=500,
         content={
             "status": "error", 
             "message": "Internal Server Error",
-            "detail": str(exc) if settings.APP_ENV != "production" else "Check system logs"
+            "detail": detail
         },
     )
 
@@ -141,19 +153,16 @@ async def health_v1():
 async def ready_v1():
     return {"status": "ready"}
 
-# Moved to bottom to ensure it's the outermost middleware for response headers
+
+# ── Middleware ──────────────────────────────────────────────────────────────
 
 from .metrics import metrics_middleware
-
-# Add after the security headers middleware:
 app.middleware("http")(metrics_middleware)
 
-# SEC-002: Security Headers — Nonce-based CSP
 from .security.csp import generate_nonce
 
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
-    # 1. Generate a fresh nonce for every request
     nonce = generate_nonce()
     request.state.csp_nonce = nonce
 
@@ -166,13 +175,13 @@ async def add_security_headers(request: Request, call_next):
     except Exception as e:
         logger.error(f"[ SECURITY_HEADERS_ERROR ] {e}")
 
-    # HSTS for production and secure development
+    # [ PUBLIC_FIX ]: Strict HSTS for production
     if (settings.APP_ENV == "production" or 
         request.headers.get("x-forwarded-proto") == "https" or
         settings.AUTH_COOKIE_SECURE):
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
 
-    # Nonce-based CSP — no more unsafe-inline or unsafe-eval
+    # [ PUBLIC_FIX ]: Hardened CSP with nonce
     response.headers["Content-Security-Policy"] = (
         f"default-src 'self'; "
         f"script-src 'self' 'nonce-{nonce}'; "
@@ -189,7 +198,6 @@ async def add_security_headers(request: Request, call_next):
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     return response
 
-# SEC-003: Request Body Size Limit Middleware (10MB)
 MAX_SIZE = 10 * 1024 * 1024  # 10MB
 @app.middleware("http")
 async def limit_request_size(request: Request, call_next):
@@ -199,30 +207,31 @@ async def limit_request_size(request: Request, call_next):
             return JSONResponse(status_code=413, content={"detail": "Request Entity Too Large"})
     return await call_next(request)
 
-# SEC-004: Global CSRF Validation for Mutating Routes
 @app.middleware("http")
 async def csrf_protect_middleware(request: Request, call_next):
     """
-    Enforces CSRF protection for all POST, PUT, PATCH, and DELETE operations
-    within the /api/v1/ prefix, excluding authentication entry points.
+    Enforces CSRF protection for all mutating operations.
     """
     if request.method == "OPTIONS":
         return await call_next(request)
 
     if request.method in ["POST", "PUT", "PATCH", "DELETE"]:
         path = request.url.path
-        # Skip CSRF for login/auth entry points and health checks
+        
+        # [ PUBLIC_FIX ]: Sync skip_paths with official VerusID LoginConsent endpoints
         skip_paths = [
             "/api/v1/auth/login",
-            "/api/v1/auth/verusid/callback",
+            "/api/v1/auth/verusid/webhook",    # New official webhook
             "/api/v1/auth/webauthn/verify",
             "/api/v1/auth/csrf-token",
             "/api/v1/auth/webauthn/assertion/verify",
-            "/api/v1/gemini/proxy", # Skip for reasoning proxy
-            "/api/v1/config"        # Skip for config overrides
+            "/api/v1/gemini/proxy", 
         ]
         
-        if path.startswith("/api/v1") and path not in skip_paths and settings.APP_ENV != "testing":
+        # [ LOCAL_FIX ]: Allow CSRF bypass during testing/dev if specified, 
+        # but enforce it strictly in production.
+        is_testing = settings.APP_ENV == "testing"
+        if path.startswith("/api/v1") and path not in skip_paths and not is_testing:
             from fastapi_csrf_protect import CsrfProtect
             from fastapi_csrf_protect.exceptions import CsrfProtectError
             
@@ -231,11 +240,6 @@ async def csrf_protect_middleware(request: Request, call_next):
                 await csrf.validate_csrf(request)
             except CsrfProtectError as e:
                 logger.warning(f"[ CSRF_BLOCK ] {request.method} {path}: {e.message}")
-                # Log headers and cookies for debugging (sensitive data masked)
-                cookies = {k: "PRESENT" for k in request.cookies.keys()}
-                headers = {k: "PRESENT" for k in request.headers.keys() if k.lower() in ["x-csrf-token", "authorization", "cookie"]}
-                logger.debug(f"[ CSRF_DEBUG ] Cookies: {cookies} | Headers: {headers}")
-                
                 return JSONResponse(
                     status_code=403, 
                     content={"status": "error", "message": "CSRF validation failed", "detail": e.message}
@@ -249,9 +253,11 @@ async def csrf_protect_middleware(request: Request, call_next):
                 
     return await call_next(request)
 
+
+# ── Router Registration ─────────────────────────────────────────────────────
+
 from .security.auth import verify_authenticated
 
-# Register Routers (Versioned API)
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(objectives.router, prefix="/api/v1")
 app.include_router(tasks.router, prefix="/api/v1")
@@ -273,28 +279,19 @@ app.include_router(soul.router, prefix="/api/v1")
 app.include_router(exec_approval.router, prefix="/api/v1")
 app.include_router(gemini.router, prefix="/api/v1")
 
-# Observability — /api/v1/metrics (Prometheus scrape endpoint)
 from .metrics import metrics_router
 app.include_router(metrics_router, prefix="/api/v1", dependencies=[Depends(verify_authenticated)])
 
 from fastapi.responses import RedirectResponse
 
-@app.api_route("/api/{path:path}",
-    methods=["GET","POST","PUT","DELETE","PATCH","OPTIONS"],
-    include_in_schema=False)
+@app.api_route("/api/{path:path}", methods=["GET","POST","PUT","DELETE","PATCH","OPTIONS"], include_in_schema=False)
 async def legacy_api_redirect(path: str):
-    """
-    Redirect unversioned /api/ paths to /api/v1/ for backward compat.
-    Guard prevents recursive /api/v1/v1/... loops.
-    """
     if path.startswith("v1/") or path == "v1":
-        # This should have been caught by a router. If we're here, it's a 404.
         return JSONResponse(status_code=404, content={"detail": "Not Found"})
-    
     return RedirectResponse(url=f"/api/v1/{path}", status_code=307)
 
 
-# SEC-005: CORS Policy — OUTERMOST to ensure headers on errors
+# [ PUBLIC_FIX ]: CORS must be the OUTERMOST middleware to handle preflights correctly.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,
