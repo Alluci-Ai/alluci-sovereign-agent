@@ -242,7 +242,7 @@ export class AlluciGeminiService {
           prompt: text, 
           complexity: 'MEDIUM', 
           inference_mode: inferenceMode,
-          session_id: state.sessionId
+          session_id: state.activeSessionKey
         }),
         credentials: 'include'
       });
