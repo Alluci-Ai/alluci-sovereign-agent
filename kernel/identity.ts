@@ -53,10 +53,13 @@ export class KeyStore {
 
     rotateIdentity(): { publicKey: string } {
         if (isBrowser) {
-            // Browser Key rotation: Use a dummy for now or WebCrypto (async issue)
-            // Since this is sync, we use a random string as public key for now
-            const dummyPub = `pub_${Math.random().toString(36).substring(2)}`;
-            const dummyPriv = `priv_${Math.random().toString(36).substring(2)}`;
+            // [ SEC-005 ] Use WebCrypto for secure random generation in browser
+            const array = new Uint32Array(8);
+            window.crypto.getRandomValues(array);
+            const randomHex = Array.from(array).map(b => b.toString(16).padStart(8, '0')).join('');
+            
+            const dummyPub = `pub_${randomHex.substring(0, 32)}`;
+            const dummyPriv = `priv_${randomHex.substring(32, 64)}`;
             localStorage.setItem('alluci_pub_key', dummyPub);
             localStorage.setItem('alluci_priv_key', dummyPriv);
             return { publicKey: dummyPub };
@@ -93,8 +96,10 @@ export class IdentityManager {
 
     signData(data: any): string {
         if (isBrowser) {
-            // Simplified signing for browser client
-            return `sig_${Math.random().toString(36).substring(2)}`;
+            // [ SEC-005 ] Improved randomness for browser signing
+            const array = new Uint32Array(4);
+            window.crypto.getRandomValues(array);
+            return `sig_${Array.from(array).map(b => b.toString(16).padStart(8, '0')).join('')}`;
         }
         crypto_lib = require('node:crypto');
         buffer_lib = require('node:buffer');

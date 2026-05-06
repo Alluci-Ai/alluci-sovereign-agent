@@ -119,6 +119,7 @@ class Settings(BaseSettings):
     VERUS_LITE_MODE: bool = False
     VERUS_ID_IDENTITY: Optional[str] = None
     VERUS_ID_PRIVATE_KEY: Optional[str] = None
+    VERUS_SYSTEM_ID: str = "i5w5MuNik5NtLcYmNzcvaoixooEebB6MGV"  # VRSC
     UNOFFICIAL_BRIDGES_ENABLED: bool = False
     
     # Auth & Cookies

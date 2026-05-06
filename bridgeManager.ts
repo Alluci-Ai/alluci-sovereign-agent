@@ -16,6 +16,7 @@ export class BridgeManager {
 
   constructor(security: SovereignSecurityManager) {
     this.security = security;
+    this.logger = console;
   }
 
   setAccessToken(token: string | null) {
@@ -118,7 +119,8 @@ export class BridgeManager {
 
   async retrieveFromCloud(bridgeId: string, fileId: string): Promise<string | null> {
     try {
-      const res = await fetch(`/api/v1/channels/${bridgeId}/retrieve/${encodeURIComponent(fileId)}`, {
+      const daemonUrl = import.meta.env?.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
+      const res = await fetch(`${daemonUrl}/api/v1/channels/${bridgeId}/retrieve/${encodeURIComponent(fileId)}`, {
         credentials: 'include'
       });
       if (!res.ok) return null;

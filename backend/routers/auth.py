@@ -56,7 +56,7 @@ async def login(response: Response, payload: LoginRequest):
         response.set_cookie(
             key="alluci_session",
             value="1",
-            httponly=False,
+            httponly=True,
             secure=settings.AUTH_COOKIE_SECURE,
             samesite=settings.AUTH_COOKIE_SAMESITE,
             max_age=86400
@@ -72,53 +72,44 @@ async def logout(response: Response, request: Request, csrf_protect: CsrfProtect
     response.delete_cookie("alluci_session")
     return {"status": "SUCCESS", "message": "Logged out."}
 
-@router.get("/auth/verusid/challenge")
-async def get_verusid_challenge(identity: str = Query("")):
-    """Generates a login challenge for Verus Mobile scan."""
+@router.get("/auth/verusid/login-request")
+async def get_verusid_login_request(request: Request):
+    """Generates a full LoginConsentRequest with QR deeplink."""
     if not settings.VERUS_AUTH_ENABLED:
         raise HTTPException(status_code=501, detail="VerusID Authentication not enabled")
-    return verus_auth.create_login_challenge(identity)
+        
+    daemon_url = os.getenv("DAEMON_PUBLIC_URL", str(request.base_url).rstrip("/api/v1"))
+    redirect_uri = f"{daemon_url}/api/v1/auth/verusid/webhook"
 
-@router.post("/auth/verusid/callback", dependencies=[Depends(RateLimiter(times=20, minutes=1))])
-async def verusid_callback(response: Response, payload: Dict[str, str] = Body(...)):
-    """Verifies the signed challenge and issues a JWT."""
-    identity = payload.get("identity")
-    signature = payload.get("signature")
-    challenge_id = payload.get("challenge_id")
-    
-    if not all([identity, signature, challenge_id]):
-        raise HTTPException(status_code=400, detail="Missing identity, signature, or challenge_id")
-    
-    is_valid = await verus_auth.verify_login_response({"identity": identity, "signature": signature, "challenge_id": challenge_id})
-    if is_valid:
-        token = create_access_token(data={"sub": identity, "vauth": True})
-        response.set_cookie(
-            key=settings.AUTH_COOKIE_NAME,
-            value=token,
-            httponly=True,
-            secure=settings.AUTH_COOKIE_SECURE,
-            samesite=settings.AUTH_COOKIE_SAMESITE,
-            max_age=86400
+    try:
+        result = await verus_auth.get_verusid_login_request(
+            signing_id=settings.VERUS_ID_IDENTITY or "Alluci@",
+            redirect_uri=redirect_uri
         )
-        response.set_cookie(
-            key="alluci_session",
-            value="1",
-            httponly=False,
-            secure=settings.AUTH_COOKIE_SECURE,
-            samesite=settings.AUTH_COOKIE_SAMESITE,
-            max_age=86400
-        )
-        return {"access_token": token, "token_type": "bearer", "identity": identity}
-    
-    raise HTTPException(status_code=401, detail="VerusID signature verification failed")
-
-@router.get("/wallet/login/status/{challenge_id}")
-async def get_wallet_login_status(challenge_id: str):
-    """Polls for the result of a specific login challenge."""
-    result = await verus_auth.get_login_status(challenge_id)
-    if result:
         return result
-    return {"status": "pending"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/auth/verusid/status/{challenge_id}")
+async def get_verusid_login_status(challenge_id: str):
+    """Checks if a login has been completed for the given challenge_id."""
+    status_data = await verus_auth.get_login_status(challenge_id)
+    if status_data:
+        identity = status_data.get("identity")
+        token = create_access_token(data={"sub": identity, "vauth": True})
+        return {
+            "status": "SUCCESS", 
+            "identity": identity,
+            "access_token": token
+        }
+    return {"status": "PENDING"}
+
+@router.post("/auth/verusid/webhook")
+async def verusid_webhook(payload: Dict[str, Any] = Body(...)):
+    """Webhook for Verus Mobile to POST the signed LoginConsentResponse."""
+    is_valid = await verus_auth.verify_login_response(payload)
+    return {"status": "accepted" if is_valid else "rejected"}
+
 @router.get("/auth/webauthn/challenge")
 async def get_webauthn_challenge(request: Request):
     """Generates a cryptographic challenge for WebAuthn/FIDO2."""
@@ -222,7 +213,7 @@ async def verify_webauthn_response(request: Request, response: Response, payload
         response.set_cookie(
             key="alluci_session",
             value="1",
-            httponly=False,
+            httponly=True,
             secure=settings.AUTH_COOKIE_SECURE,
             samesite=settings.AUTH_COOKIE_SAMESITE,
             max_age=86400
@@ -380,7 +371,7 @@ async def verify_webauthn_assertion(
         response.set_cookie(
             key="alluci_session",
             value="1",
-            httponly=False,
+            httponly=True,
             secure=settings.AUTH_COOKIE_SECURE,
             samesite=settings.AUTH_COOKIE_SAMESITE,
             max_age=86400
@@ -430,4 +421,3 @@ async def oauth_authorize(provider_id: str = Query(...)):
         
     authorize_url = f"{provider['auth_url']}?{urllib.parse.urlencode(params)}"
     return {"authorize_url": authorize_url, "state": state}
-

@@ -15,6 +15,11 @@ from .config import Settings
 from .security.verus import SovereignIdentity
 from .database import engine as db_engine
 
+try:
+    import torch
+except ImportError:
+    torch = None
+
 # Engine Modules
 from .engine.planner import Planner
 from .engine.executor import Executor
@@ -581,10 +586,31 @@ class ExecutiveOrchestrator:
                     "manifest": signed_manifest
                 }
             
+            # --- H-LSM Post-Execution Memory Formation ---
+            if self.hlsm:
+                try:
+                    final_psi = 0.0
+                    final_valence = 0.5
+                    if self.ace:
+                        final_state = self.ace.get_affective_state()
+                        final_psi = min(1.0, float(final_state.tension) / 1024.0)
+                        final_valence = min(1.0, float(final_state.valence) / 1024.0)
+
+                    await self.hlsm.encode_from_execution(
+                        run_id=run_id,
+                        tasks=updated_tasks,
+                        objective=objective,
+                        session_key=getattr(self, "_current_session_key", ""),
+                        psi=final_psi,
+                        valence=final_valence,
+                    )
+                except Exception as e:
+                    self.logger.error(f"[Orchestrator] H-LSM encoding failed (non-fatal): {e}")
+
             # --- Audit Logging (AAP-005) ---
             if polytope_state:
                 # Compute geodesic drift with KCM
-                if hasattr(self, "geodesic_cost"):
+                if hasattr(self, "geodesic_cost") and torch:
                     goal_betti = torch.tensor([1, 1, 1])
                     drift = self.geodesic_cost.compute(
                         torch.tensor(polytope_state.betti), 
@@ -639,26 +665,6 @@ class ExecutiveOrchestrator:
             "feedback": feedback
         }
 
-        # H-LSM Post-Execution Memory Formation
-        if self.hlsm:
-            try:
-                # Re-get affective state at completion time
-                final_psi = 0.0
-                final_valence = 0.5
-                if self.ace:
-                    final_state = self.ace.get_affective_state()
-                    final_psi = min(1.0, float(final_state.tension) / 1024.0)
-                    final_valence = min(1.0, float(final_state.valence) / 1024.0)
-
-                encoded = await self.hlsm.encode_from_execution(
-                    run_id=run_id,
-                    tasks=updated_tasks,
-                    objective=objective,
-                    session_key=getattr(self, "_current_session_key", ""),
-                    psi=final_psi,
-                    valence=final_valence,
-                )
-                self.logger.info(f"[Orchestrator] H-LSM encoded {encoded} memories from run {run_id}")
             except Exception as e:
                 self.logger.error(f"[Orchestrator] H-LSM encoding failed (non-fatal): {e}", exc_info=True)
 

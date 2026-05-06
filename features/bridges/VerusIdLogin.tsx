@@ -18,11 +18,7 @@ export const VerusIdLogin: React.FC<VerusIdLoginProps> = ({ onComplete, onCancel
     const fetchLoginRequest = async () => {
         setStatus('loading');
         try {
-            // redirect_uri is where the Verus Mobile app will post the response
-            // In a real local setup, this would be a public tunnel URL (ngrok/cloudflare)
-            // or the agent's actual endpoint.
-            const redirectUri = `${window.location.protocol}//${window.location.host}/api/v1/wallet/login/verify`;
-            const res = await fetch(`${DAEMON_URL}/api/v1/wallet/login/request?redirect_uri=${encodeURIComponent(redirectUri)}`);
+            const res = await fetch(`${DAEMON_URL}/api/v1/auth/verusid/login-request`);
             if (!res.ok) throw new Error("Failed to fetch login request");
 
             const data = await res.json();
@@ -42,19 +38,24 @@ export const VerusIdLogin: React.FC<VerusIdLoginProps> = ({ onComplete, onCancel
     useEffect(() => {
         if (status !== 'pending' || !loginData) return;
 
-        // The challenge_id is inside the VDXF request object
-        const challengeId = loginData.request?.challenge?.challenge_id;
+        // The challenge_id is returned at the top level of the response
+        const challengeId = loginData.challenge_id;
         if (!challengeId) return;
 
         const interval = setInterval(async () => {
             try {
-                const res = await fetch(`${DAEMON_URL}/api/v1/wallet/login/status/${challengeId}`);
+                const res = await fetch(`${DAEMON_URL}/api/v1/auth/verusid/status/${challengeId}`);
                 if (!res.ok) return;
 
                 const data = await res.json();
                 if (data.status === 'SUCCESS') {
                     setStatus('success');
                     clearInterval(interval);
+
+                    // Store access token
+                    if (data.access_token) {
+                        localStorage.setItem('alluci_access_token', data.access_token);
+                    }
 
                     // Delay calling onComplete to show success state
                     setTimeout(() => {

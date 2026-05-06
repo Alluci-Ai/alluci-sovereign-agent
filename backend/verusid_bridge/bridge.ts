@@ -1,12 +1,11 @@
-import VerusIdInterface from "./verusid-ts-client/src/VerusIdInterface";
+import { VerusIdInterface } from 'verusid-ts-client';
 import {
-    LoginConsentChallenge,
-    LoginConsentResponse,
-    RequestedPermission,
-    RedirectUri,
-    IDENTITY_VIEW,
-    LOGIN_CONSENT_WEBHOOK_VDXF_KEY
-} from "./verus-typescript-primitives/src";
+  LoginConsentChallenge,
+  LoginConsentResponse,
+  primitives,
+  I_ADDR_VERSION
+} from 'verus-typescript-primitives';
+import { randomBytes } from 'crypto';
 import type { AxiosRequestConfig } from 'axios';
 
 async function main() {
@@ -20,21 +19,25 @@ async function main() {
     const payload = JSON.parse(args[1]);
 
     if (command === "create-request") {
-        const { signing_id, wif, challenge_id, redirect_uri, rpc_url, rpc_user, rpc_pass } = payload;
+        const { signing_id, wif, redirect_uri, rpc_url, rpc_user, rpc_pass, system_id } = payload;
 
         const config: AxiosRequestConfig = {
             auth: (rpc_user && rpc_pass) ? { username: rpc_user, password: rpc_pass } : undefined
         } as AxiosRequestConfig;
 
-        const verusIdClient = new VerusIdInterface("i5w5MuNik5NtLcYmNzcvaoixooEebB6MGV", rpc_url, config);
+        // Use system_id if provided, default to VRSC iaddress
+        const verusIdClient = new VerusIdInterface(system_id || "i5w5MuNik5NtLcYmNzcvaoixooEebB6MGV", rpc_url, config);
+
+        const randID = Buffer.from(randomBytes(20));
+        const challengeId = primitives.toBase58Check(randID, I_ADDR_VERSION);
 
         const challenge = new LoginConsentChallenge({
-            challenge_id: challenge_id,
+            challenge_id: challengeId,
             requested_access: [
-                new RequestedPermission(IDENTITY_VIEW.vdxfid)
+                new primitives.RequestedPermission("", primitives.IDENTITY_VIEW.vdxfid)
             ],
             redirect_uris: [
-                new RedirectUri(redirect_uri, LOGIN_CONSENT_WEBHOOK_VDXF_KEY.vdxfid)
+                new primitives.RedirectUri(redirect_uri, primitives.LOGIN_CONSENT_WEBHOOK_VDXF_KEY.vdxfid)
             ],
             created_at: Math.floor(Date.now() / 1000)
         });
@@ -42,24 +45,25 @@ async function main() {
         const request = await verusIdClient.createLoginConsentRequest(signing_id, challenge, wif);
         console.log(JSON.stringify({
             request: request.toJson(),
-            deeplink: request.toWalletDeeplinkUri()
+            deeplink: request.toWalletDeeplinkUri(),
+            challenge_id: challengeId
         }));
     } else if (command === "verify-response") {
-        const { response, rpc_url, rpc_user, rpc_pass } = payload;
+        const { response, rpc_url, rpc_user, rpc_pass, system_id } = payload;
 
         const config: AxiosRequestConfig = {
             auth: (rpc_user && rpc_pass) ? { username: rpc_user, password: rpc_pass } : undefined
         } as AxiosRequestConfig;
 
-        const verusIdClient = new VerusIdInterface("VRSC", rpc_url, config);
-        const loginResponse = new LoginConsentResponse(response);
-
-        const verified = await verusIdClient.verifyLoginConsentResponse(loginResponse);
+        const verusIdClient = new VerusIdInterface(system_id || "i5w5MuNik5NtLcYmNzcvaoixooEebB6MGV", rpc_url, config);
+        
+        // verusid-ts-client handle verification directly with the raw response
+        const result = await verusIdClient.verifyLoginConsentResponse(response);
 
         console.log(JSON.stringify({
-            verified,
-            signing_id: loginResponse.signing_id,
-            decision: loginResponse.decision.toJson()
+            verified: result.verified,
+            signing_id: result.signingId,
+            decision: result.decision ? result.decision.toJson() : null
         }));
     } else {
         console.error("Unknown command:", command);

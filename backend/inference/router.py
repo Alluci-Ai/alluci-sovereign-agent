@@ -683,15 +683,6 @@ class ModelRouter(ExecutiveRouter):
                     except Exception as e:
                         errors.append(f"{name}: {e}")
 
-            if self.nvidia_nim_api_key:
-                try:
-                    await self._notify_fallback("Kimi (k2.5)")
-                    res = await self._kimi_request(prompt, thinking=use_strong)
-                    span.set_attribute("model_provider", "kimi")
-                    return res
-                except Exception as e:
-                    errors.append(f"Kimi: {e}")
-                    self.logger.warning("Kimi failed: %s", e)
 
             error_msg = "All inference providers failed: " + "; ".join(errors)
             span.set_status(trace.Status(trace.StatusCode.ERROR, error_msg))

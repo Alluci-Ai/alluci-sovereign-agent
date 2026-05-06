@@ -171,12 +171,21 @@ const App: React.FC = () => {
     geminiServiceRef.current = new AlluciGeminiService();
     const loadInitialData = async () => {
       try {
-        const res = await fetch(`${DAEMON_URL}/api/v1/vault/keys`, { credentials: 'include' });
+        const token = localStorage.getItem('alluci_access_token');
+        const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+
+        const res = await fetch(`${DAEMON_URL}/api/v1/vault/keys`, { 
+          headers,
+          credentials: 'include' 
+        });
         if (res.ok) {
           const keys = await res.json();
           if (keys && Object.keys(keys).length > 0) setApiKeys(keys);
         }
-        const soulRes = await fetch(`${DAEMON_URL}/api/v1/soul/manifest`, { credentials: 'include' });
+        const soulRes = await fetch(`${DAEMON_URL}/api/v1/soul/manifest`, { 
+          headers,
+          credentials: 'include' 
+        });
         if (soulRes.ok) {
           const manifest = await soulRes.json();
           if (manifest) {
@@ -184,7 +193,9 @@ const App: React.FC = () => {
             setBaseManifest(manifest);
           }
         }
-      } catch (e) { }
+      } catch (e) {
+        console.error("[App] loadInitialData failed:", e);
+      }
     };
     loadInitialData();
     if (connections.length === 0) setConnections(INITIAL_CONNECTIONS);

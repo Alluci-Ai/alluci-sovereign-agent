@@ -219,8 +219,7 @@ async def csrf_protect_middleware(request: Request, call_next):
             "/api/v1/auth/csrf-token",
             "/api/v1/auth/webauthn/assertion/verify",
             "/api/v1/gemini/proxy", # Skip for reasoning proxy
-            "/api/v1/config",       # Skip for config overrides
-            "/api/v1/vault/keys"    # Skip for key saving
+            "/api/v1/config"        # Skip for config overrides
         ]
         
         if path.startswith("/api/v1") and path not in skip_paths and settings.APP_ENV != "testing":

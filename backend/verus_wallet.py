@@ -481,6 +481,49 @@ class VerusWalletService:
         except Exception as e:
             return {"error": str(e)}
 
+    async def get_manifest(self) -> Dict[str, Any]:
+        """
+        [ VDXF-003 ] Fetches the sovereign agent manifest from VDXF contentmultimap.
+        Provides a decentralized source of truth for the agent's personality and goals.
+        """
+        if not self.identity:
+            return {}
+        try:
+            id_data = await self.rpc.get_identity(self.identity)
+            cmm = id_data.get("identity", {}).get("contentmultimap", {})
+            # Use @ symbol to denote a VDXF key (simplified for now)
+            manifest_key = "alluci.manifest.v1@"
+            manifests = cmm.get(manifest_key, [])
+            return manifests[-1] if manifests else {}
+        except Exception as e:
+            logger.error(f"[Wallet] Manifest fetch failed: {e}")
+            return {}
+
+    async def update_manifest(self, manifest: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        [ VDXF-004 ] Saves the sovereign agent manifest to VDXF contentmultimap.
+        """
+        if not self.identity:
+            return {"success": False, "error": "No identity configured"}
+        try:
+            id_data = await self.rpc.get_identity(self.identity)
+            identity = id_data.get("identity", {})
+            cmm = identity.get("contentmultimap", {})
+            manifest_key = "alluci.manifest.v1@"
+            
+            manifests = cmm.get(manifest_key, [])
+            # Add timestamp and versioning
+            manifest["last_updated"] = datetime.now(timezone.utc).isoformat()
+            manifests.append(manifest)
+            cmm[manifest_key] = manifests[-10:] # Keep last 10 versions
+            
+            identity["contentmultimap"] = cmm
+            txid = await self.rpc.update_identity(identity)
+            return {"success": True, "txid": txid}
+        except Exception as e:
+            logger.error(f"[Wallet] Manifest update failed: {e}")
+            return {"success": False, "error": str(e)}
+
     async def update_identity_data(self, key: str, value: Any) -> Dict[str, Any]:
         """Updates VDXF data on the agent's VerusID via contentmultimap."""
         if not self.identity:

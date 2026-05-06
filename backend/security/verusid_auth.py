@@ -66,7 +66,8 @@ class VerusIDAuth:
             "redirect_uri": redirect_uri,
             "rpc_url": settings.VERUS_PUBLIC_RPC_URL,
             "rpc_user": settings.VERUS_RPC_USER,
-            "rpc_pass": settings.VERUS_RPC_PASSWORD
+            "rpc_pass": settings.VERUS_RPC_PASSWORD,
+            "system_id": settings.VERUS_SYSTEM_ID
         }
         
         try:
@@ -87,7 +88,7 @@ class VerusIDAuth:
                 raise Exception(f"Bridge failed: {err_msg}")
                 
             res = json.loads(stdout.decode())
-            challenge_id = res.get("request", {}).get("challenge", {}).get("challenge_id")
+            challenge_id = res.get("challenge_id")
             if challenge_id:
                 data = ["formal_ssid", time.time(), signing_id]
                 if self._redis:
@@ -113,7 +114,8 @@ class VerusIDAuth:
             "response": response_data,
             "rpc_url": settings.VERUS_PUBLIC_RPC_URL,
             "rpc_user": settings.VERUS_RPC_USER,
-            "rpc_pass": settings.VERUS_RPC_PASSWORD
+            "rpc_pass": settings.VERUS_RPC_PASSWORD,
+            "system_id": settings.VERUS_SYSTEM_ID
         }
         
         try:
