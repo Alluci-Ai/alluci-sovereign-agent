@@ -223,8 +223,8 @@ class TopologyMapper:
                 stress = ctypes.c_int()
                 _native_lib.topology_mapper_update(
                     self._handle,
-                    float(signal.valence),
-                    float(signal.arousal),
+                    signal.valence,
+                    signal.arousal,
                     ctypes.byref(c_val),
                     ctypes.byref(c_ar),
                     ctypes.byref(stress)
