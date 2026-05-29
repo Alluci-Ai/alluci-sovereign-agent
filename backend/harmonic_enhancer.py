@@ -101,7 +101,7 @@ class LatticeAnalyzer:
                 c_arr = (ctypes.c_float * len(series))(*series)
                 strength = ctypes.c_float()
                 cycle_len = ctypes.c_int()
-                res = _native_lib.lattice_analyze(c_arr, int(len(series)), ctypes.byref(strength), ctypes.byref(cycle_len))
+                res = _native_lib.lattice_analyze(c_arr, len(series), ctypes.byref(strength), ctypes.byref(cycle_len))
                 if res:
                     return LatticeDescriptor(
                         periodicity_strength=strength.value,

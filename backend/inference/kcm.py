@@ -64,7 +64,7 @@ class KCMGeodesicCost:
             try:
                 curr_ptr = b_curr.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
                 goal_ptr = b_goal.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
-                res = _native_lib.kcm_geodesic_cost(curr_ptr, goal_ptr, float(psi), int(len(b_curr)))
+                res = _native_lib.kcm_geodesic_cost(curr_ptr, goal_ptr, psi, len(b_curr))
                 return float(res)
             except Exception as e:
                 logger.warning(f"Error in native cost call: {e}. Falling back to Python.")
