@@ -121,7 +121,7 @@ class EntropySpikeDetector:
                     if z_score > self.SPIKE_THRESHOLD:
                         logger.warning(f"[MONITOR] Entropy Spike Detected! Z={z_score:.2f}")
 
-                res = _native_lib.entropy_push(self._handle, float(h_norm))
+                res = _native_lib.entropy_push(self._handle, h_norm)
                 return bool(res)
             except Exception as e:
                 logger.warning(f"Error in native push call: {e}. Falling back to Python.")
