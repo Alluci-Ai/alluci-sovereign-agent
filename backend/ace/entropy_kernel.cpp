@@ -1,5 +1,4 @@
 #include <cmath>
-#include <algorithm>
 #include <cstdlib>
 
 extern "C" {
