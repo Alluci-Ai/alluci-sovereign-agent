@@ -145,23 +145,23 @@ class BTMMapper:
 
     def map(self, data: TelemetryData) -> AffectiveState:
         if getattr(self, '_handle', None) is not None and _native_lib is not None:
-            has_hrv = 1 if (data.hrv and data.hrv > 0) else 0
-            hrv_val = float(data.hrv) if has_hrv else 0.0
+            hrv_val = float(data.hrv) if (data.hrv is not None and data.hrv > 0) else 0.0
+            has_hrv = 1 if (data.hrv is not None and data.hrv > 0) else 0
             
-            has_gsr = 1 if (data.gsr is not None) else 0
-            gsr_val = float(data.gsr) if has_gsr else 0.0
+            gsr_val = float(data.gsr) if data.gsr is not None else 0.0
+            has_gsr = 1 if data.gsr is not None else 0
             
-            has_stress = 1 if (data.stress_score is not None) else 0
-            stress_val = float(data.stress_score) if has_stress else 0.0
+            stress_val = float(data.stress_score) if data.stress_score is not None else 0.0
+            has_stress = 1 if data.stress_score is not None else 0
             
-            has_hr = 1 if data.hr else 0
-            hr_val = float(data.hr) if has_hr else 0.0
+            hr_val = float(data.hr) if data.hr is not None else 0.0
+            has_hr = 1 if data.hr is not None else 0
             
-            has_rr = 1 if data.respiratory_rate else 0
-            rr_val = float(data.respiratory_rate) if has_rr else 0.0
+            rr_val = float(data.respiratory_rate) if data.respiratory_rate is not None else 0.0
+            has_rr = 1 if data.respiratory_rate is not None else 0
             
-            has_val = 1 if (data.valence is not None) else 0
-            valence_val = float(data.valence) if has_val else 0.0
+            valence_val = float(data.valence) if data.valence is not None else 0.0
+            has_val = 1 if data.valence is not None else 0
             
             out_val = ctypes.c_float()
             out_ar = ctypes.c_float()
