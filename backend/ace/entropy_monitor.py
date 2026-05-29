@@ -91,7 +91,7 @@ class EntropySpikeDetector:
 
     @property
     def history(self):
-        if getattr(self, '_handle', None) is not None:
+        if getattr(self, '_handle', None) is not None and _native_lib is not None:
             count = ctypes.c_int()
             threshold = ctypes.c_float()
             arr = (ctypes.c_float * self._window_size)()
@@ -106,7 +106,7 @@ class EntropySpikeDetector:
         self._py_history = deque(value, maxlen=self._window_size)
 
     def push(self, h_norm: float) -> bool:
-        if getattr(self, '_handle', None) is not None:
+        if getattr(self, '_handle', None) is not None and _native_lib is not None:
             try:
                 count = ctypes.c_int()
                 threshold = ctypes.c_float()

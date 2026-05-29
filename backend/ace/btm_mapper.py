@@ -109,7 +109,7 @@ class BTMMapper:
 
     @property
     def _hrv_history(self):
-        if getattr(self, '_handle', None) is not None:
+        if getattr(self, '_handle', None) is not None and _native_lib is not None:
             count = ctypes.c_int()
             gsr_count = ctypes.c_int()
             max_hrv = ctypes.c_float()
@@ -121,7 +121,7 @@ class BTMMapper:
 
     @property
     def _gsr_history(self):
-        if getattr(self, '_handle', None) is not None:
+        if getattr(self, '_handle', None) is not None and _native_lib is not None:
             count = ctypes.c_int()
             gsr_count = ctypes.c_int()
             max_hrv = ctypes.c_float()
@@ -133,7 +133,7 @@ class BTMMapper:
 
     @property
     def _max_hrv_observed(self):
-        if getattr(self, '_handle', None) is not None:
+        if getattr(self, '_handle', None) is not None and _native_lib is not None:
             count = ctypes.c_int()
             gsr_count = ctypes.c_int()
             max_hrv = ctypes.c_float()
@@ -144,7 +144,7 @@ class BTMMapper:
         return self._py_max_hrv_observed
 
     def map(self, data: TelemetryData) -> AffectiveState:
-        if getattr(self, '_handle', None) is not None:
+        if getattr(self, '_handle', None) is not None and _native_lib is not None:
             has_hrv = 1 if (data.hrv and data.hrv > 0) else 0
             hrv_val = float(data.hrv) if has_hrv else 0.0
             
@@ -217,7 +217,7 @@ class BTMMapper:
         return AffectiveState(valence=valence, arousal=arousal, tension=tension)
 
     def compute_psi(self, hrv_raw: int = 0, gsr_raw: int = 0) -> int:
-        if getattr(self, '_handle', None) is not None:
+        if getattr(self, '_handle', None) is not None and _native_lib is not None:
             try:
                 return _native_lib.btm_compute_psi(int(hrv_raw), int(gsr_raw))
             except Exception as e:

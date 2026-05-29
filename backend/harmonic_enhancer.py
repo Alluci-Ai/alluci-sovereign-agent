@@ -197,7 +197,7 @@ class TopologyMapper:
 
     @property
     def history(self):
-        if getattr(self, '_handle', None) is not None:
+        if getattr(self, '_handle', None) is not None and _native_lib is not None:
             count = ctypes.c_int()
             val_arr = (ctypes.c_float * self.MAX_HISTORY)()
             ar_arr = (ctypes.c_float * self.MAX_HISTORY)()
@@ -216,7 +216,7 @@ class TopologyMapper:
         self._py_history = list(value)
 
     def update(self, signal: AttentionSignal) -> Tuple[Tuple[float, float], bool]:
-        if getattr(self, '_handle', None) is not None:
+        if getattr(self, '_handle', None) is not None and _native_lib is not None:
             try:
                 c_val = ctypes.c_float()
                 c_ar = ctypes.c_float()
