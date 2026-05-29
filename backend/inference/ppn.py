@@ -2,6 +2,12 @@ import math
 import numpy as np
 from typing import Tuple, Optional, List
 from ..ace.affect_kernel import AffectiveState
+import ctypes
+import os
+import platform
+import logging
+
+logger = logging.getLogger("PPN")
 
 try:
     import torch
@@ -21,6 +27,49 @@ try:
     import gudhi
 except ImportError:
     gudhi = None
+
+
+# Load native library
+_native_lib = None
+try:
+    _dir = os.path.dirname(os.path.abspath(__file__))
+    _build_dir = os.path.join(_dir, "build")
+    _system = platform.system()
+    _candidates = {
+        "Darwin": os.path.join(_build_dir, "libtopology_kernel.dylib"),
+        "Linux":  os.path.join(_build_dir, "libtopology_kernel.so"),
+        "Windows": os.path.join(_build_dir, "topology_kernel.dll"),
+    }
+    _lib_path = _candidates.get(_system)
+    
+    if _lib_path and os.path.isfile(_lib_path):
+        _native_lib = ctypes.CDLL(_lib_path)
+        
+        _native_lib.topology_compute.argtypes = [
+            ctypes.POINTER(ctypes.c_float),
+            ctypes.c_int,
+            ctypes.c_int,
+            ctypes.POINTER(ctypes.c_float)
+        ]
+        _native_lib.topology_compute.restype = None
+        
+        _native_lib.simplex_counts.argtypes = [
+            ctypes.POINTER(ctypes.c_float),
+            ctypes.c_int,
+            ctypes.c_int,
+            ctypes.c_float,
+            ctypes.POINTER(ctypes.c_int32),
+            ctypes.POINTER(ctypes.c_int32),
+            ctypes.POINTER(ctypes.c_int32)
+        ]
+        _native_lib.simplex_counts.restype = None
+        logger.info("[PPN] Native C++ Topology Kernel Loaded.")
+    else:
+        logger.info("[PPN] Native Topology kernel not found. Using Python fallback.")
+except Exception as e:
+    logger.warning(f"[PPN] Failed to initialize native instance: {e}. Falling back to Python.")
+    _native_lib = None
+
 
 class PPNEmbeddingModule:
     """
@@ -70,6 +119,15 @@ class PPNEmbeddingModule:
             return np.zeros(4)
         if n == 1:
             return np.array([1.0, 0.0, 0.0, 0.0])
+
+        if _native_lib:
+            # Flatten to contiguous C array
+            pts = np.ascontiguousarray(points, dtype=np.float32).flatten()
+            betti_out = (ctypes.c_float * 4)()
+            pts_ptr = pts.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
+            
+            _native_lib.topology_compute(pts_ptr, n, points.shape[1], betti_out)
+            return np.array([betti_out[0], betti_out[1], betti_out[2], betti_out[3]])
 
         # 1. Build Adjacency Matrix (Rips Complex epsilon=0.5)
         diff = points[:, np.newaxis, :] - points[np.newaxis, :, :]
@@ -162,6 +220,17 @@ class PPNEmbeddingModule:
         n = points.shape[0]
         if n < 3: return (n, 0, 0)
 
+        if _native_lib:
+            pts = np.ascontiguousarray(points, dtype=np.float32).flatten()
+            pts_ptr = pts.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
+            
+            v = ctypes.c_int32()
+            e = ctypes.c_int32()
+            f = ctypes.c_int32()
+            
+            _native_lib.simplex_counts(pts_ptr, n, self.manifold_dim, ctypes.c_float(0.5), ctypes.byref(v), ctypes.byref(e), ctypes.byref(f))
+            return (v.value, e.value, f.value)
+
         # 1. Vertices
         v = n
         
@@ -247,7 +316,7 @@ class PolytopePlannerInference:
     def generate_manifold(self, state: AffectiveState):
         # Uses the affective state to seed the manifold generation
         x = np.ones((1, 384)) * state.valence
-        _, _, _, points, _, _, _, _, _, _ = self.ppn(x, psi=state.affective_tension_psi, affect_state=state)
+        _, _, _, points, _, _, _, _, _, _ = self.ppn(x, psi=state.tension / 1024.0, affect_state=state)
         return points.reshape(-1)
 
 class DiscreteProjectionKernel:

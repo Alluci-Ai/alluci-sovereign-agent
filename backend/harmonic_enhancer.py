@@ -1,12 +1,69 @@
-
-import numpy as np
+import ctypes
+import os
+import platform
 import logging
-from .logging_config import get_logger
+import numpy as np
 from datetime import datetime, timezone
 from typing import List, Any, Tuple
 from pydantic import BaseModel, Field
+from .logging_config import get_logger
 
 logger = get_logger("HarmonicEnhancer")
+
+_native_lib = None
+try:
+    _dir = os.path.dirname(os.path.abspath(__file__))
+    _build_dir = os.path.join(_dir, "ace", "build")
+    _system = platform.system()
+    _candidates = {
+        "Darwin": os.path.join(_build_dir, "libharmonic_kernel.dylib"),
+        "Linux":  os.path.join(_build_dir, "libharmonic_kernel.so"),
+        "Windows": os.path.join(_build_dir, "harmonic_kernel.dll"),
+    }
+    _lib_path = _candidates.get(_system)
+    
+    if _lib_path and os.path.isfile(_lib_path):
+        _native_lib = ctypes.CDLL(_lib_path)
+        
+        _native_lib.lattice_analyze.argtypes = [
+            ctypes.POINTER(ctypes.c_float),
+            ctypes.c_int,
+            ctypes.POINTER(ctypes.c_float),
+            ctypes.POINTER(ctypes.c_int)
+        ]
+        _native_lib.lattice_analyze.restype = ctypes.c_int
+        
+        _native_lib.topology_mapper_new.argtypes = [ctypes.c_int]
+        _native_lib.topology_mapper_new.restype = ctypes.c_void_p
+        
+        _native_lib.topology_mapper_free.argtypes = [ctypes.c_void_p]
+        _native_lib.topology_mapper_free.restype = None
+        
+        _native_lib.topology_mapper_update.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_float,
+            ctypes.c_float,
+            ctypes.POINTER(ctypes.c_float),
+            ctypes.POINTER(ctypes.c_float),
+            ctypes.POINTER(ctypes.c_int)
+        ]
+        _native_lib.topology_mapper_update.restype = None
+        
+        _native_lib.topology_mapper_get_state.argtypes = [
+            ctypes.c_void_p,
+            ctypes.POINTER(ctypes.c_float),
+            ctypes.POINTER(ctypes.c_float),
+            ctypes.POINTER(ctypes.c_int)
+        ]
+        _native_lib.topology_mapper_get_state.restype = None
+        
+        logger.info("[HarmonicEnhancer] Native C++ Kernel Loaded.")
+    else:
+        logger.info("[HarmonicEnhancer] Native kernel not found. Using Python fallback.")
+except Exception as e:
+    logger.warning(f"[HarmonicEnhancer] Failed to initialize native instance: {e}. Falling back to Python.")
+    _native_lib = None
+
 
 # --- Data Models ---
 
@@ -27,6 +84,7 @@ class HarmonicState(BaseModel):
     in_stress_basin: bool
     ikigai_deficit: bool
 
+
 # --- Core Components ---
 
 class LatticeAnalyzer:
@@ -38,15 +96,29 @@ class LatticeAnalyzer:
         if len(series) < 5:
             return LatticeDescriptor(periodicity_strength=0.0, cycle_length=0, is_looping=False)
 
-        # Normalize
+        if _native_lib:
+            try:
+                c_arr = (ctypes.c_float * len(series))(*series)
+                strength = ctypes.c_float()
+                cycle_len = ctypes.c_int()
+                res = _native_lib.lattice_analyze(c_arr, int(len(series)), ctypes.byref(strength), ctypes.byref(cycle_len))
+                if res:
+                    return LatticeDescriptor(
+                        periodicity_strength=strength.value,
+                        cycle_length=cycle_len.value,
+                        is_looping=strength.value > 0.7 and cycle_len.value < 3
+                    )
+                else:
+                    return LatticeDescriptor(periodicity_strength=0.0, cycle_length=0, is_looping=False)
+            except Exception as e:
+                logger.warning(f"Error in native lattice analyze: {e}. Falling back to Python.")
+
+        # Fallback to pure-Python implementation
         arr = np.array(series)
         arr = (arr - np.mean(arr)) / (np.std(arr) + 1e-6)
-        
-        # Autocorrelation
         result = np.correlate(arr, arr, mode='full')
-        result = result[result.size // 2:] # Keep positive lags
+        result = result[result.size // 2:]
         
-        # Find peaks (skipping lag 0)
         peaks = []
         for i in range(1, len(result) - 1):
             if result[i-1] < result[i] > result[i+1]:
@@ -55,18 +127,16 @@ class LatticeAnalyzer:
         if not peaks:
             return LatticeDescriptor(periodicity_strength=0.0, cycle_length=0, is_looping=False)
             
-        # Sort by correlation strength
         peaks.sort(key=lambda x: x[1], reverse=True)
-        best_lag, strength = peaks[0]
-        
-        # Normalize strength (0-1 approx)
-        norm_strength = min(1.0, strength / len(series))
+        best_lag, strength_val = peaks[0]
+        norm_strength = min(1.0, strength_val / len(series))
         
         return LatticeDescriptor(
             periodicity_strength=norm_strength,
             cycle_length=best_lag,
             is_looping=norm_strength > 0.7 and best_lag < 3
         )
+
 
 class PrimeMapper:
     """
@@ -83,10 +153,10 @@ class PrimeMapper:
         return True
 
     def compute_weight(self, task_identifier: str) -> float:
-        # Hash task to integer
         h = sum(ord(c) for c in task_identifier)
         is_qp = self.is_quasi_prime(h)
         return 1.0 if is_qp else 0.5
+
 
 class TopologyMapper:
     """
@@ -94,26 +164,84 @@ class TopologyMapper:
     Clusters signals into attractor basins.
     """
     def __init__(self):
-        self.history: List[Tuple[float, float]] = [] # (valence, arousal)
         self.MAX_HISTORY = 50
+        self._handle = None
+        
+        # Python fallback fields
+        self._py_history: List[Tuple[float, float]] = []
+        
+        if _native_lib:
+            try:
+                self._handle = _native_lib.topology_mapper_new(self.MAX_HISTORY)
+            except Exception as e:
+                logger.warning(f"Failed to instantiate native topology mapper: {e}")
+                self._handle = None
+
+    def __del__(self):
+        self.cleanup()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.cleanup()
+
+    def cleanup(self):
+        if getattr(self, '_handle', None) is not None:
+            try:
+                _native_lib.topology_mapper_free(self._handle)
+            except Exception:
+                pass
+            self._handle = None
+
+    @property
+    def history(self):
+        if getattr(self, '_handle', None) is not None:
+            count = ctypes.c_int()
+            val_arr = (ctypes.c_float * self.MAX_HISTORY)()
+            ar_arr = (ctypes.c_float * self.MAX_HISTORY)()
+            _native_lib.topology_mapper_get_state(self._handle, val_arr, ar_arr, ctypes.byref(count))
+            return [(val_arr[i], ar_arr[i]) for i in range(count.value)]
+        return self._py_history
+
+    @history.setter
+    def history(self, value):
+        if getattr(self, '_handle', None) is not None:
+            self.cleanup()
+        self._py_history = list(value)
 
     def update(self, signal: AttentionSignal) -> Tuple[Tuple[float, float], bool]:
-        self.history.append((signal.valence, signal.arousal))
-        if len(self.history) > self.MAX_HISTORY:
-            self.history.pop(0)
+        if getattr(self, '_handle', None) is not None:
+            try:
+                c_val = ctypes.c_float()
+                c_ar = ctypes.c_float()
+                stress = ctypes.c_int()
+                _native_lib.topology_mapper_update(
+                    self._handle,
+                    float(signal.valence),
+                    float(signal.arousal),
+                    ctypes.byref(c_val),
+                    ctypes.byref(c_ar),
+                    ctypes.byref(stress)
+                )
+                return (c_val.value, c_ar.value), bool(stress.value)
+            except Exception as e:
+                logger.warning(f"Error in native topology update: {e}. Falling back to Python.")
+
+        # Fallback to pure-Python implementation
+        self._py_history.append((signal.valence, signal.arousal))
+        if len(self._py_history) > self.MAX_HISTORY:
+            self._py_history.pop(0)
             
-        # Compute Centroid
-        if not self.history:
+        if not self._py_history:
             return (0.5, 0.5), False
             
-        arr = np.array(self.history)
+        arr = np.array(self._py_history)
         centroid = np.mean(arr, axis=0)
         c_val, c_ar = centroid[0], centroid[1]
-        
-        # Detect Stress Basin (High Arousal, Low Valence)
         in_stress_basin = (c_ar > 0.7) and (c_val < 0.3)
-        
         return (c_val, c_ar), in_stress_basin
+
 
 # --- Main Module ---
 
@@ -140,14 +268,11 @@ class HarmonicAssistant:
         if len(self.signal_buffer) > self.BUFFER_SIZE:
             self.signal_buffer.pop(0)
 
-        # 1. Update Lattice (using Focus series)
         focus_series = [s.focus for s in self.signal_buffer]
         lattice_desc = self.lattice.analyze(focus_series)
         
-        # 2. Update Topology
         centroid, stress = self.topology.update(signal)
         
-        # 3. Check Ikigai Alignment (Drop in Valence)
         ikigai_deficit = signal.valence < 0.3
         
         self.current_state = HarmonicState(
@@ -157,7 +282,6 @@ class HarmonicAssistant:
             ikigai_deficit=ikigai_deficit
         )
         
-        # Trigger Protocols
         if lattice_desc.is_looping:
             logger.warning("PROTOCOL: Interrupt-Loop Triggered (Cycle < 3, Strength > 0.7)")
         
@@ -174,50 +298,38 @@ class HarmonicAssistant:
         """
         ranked = []
         
-        # Get current state factors
         V_norm = self.signal_buffer[-1].valence if self.signal_buffer else 0.5
         L = self.current_state.current_lattice.periodicity_strength
         focus_penalty = self.signal_buffer[-1].focus if self.signal_buffer else 1.0
         
         for task in tasks:
-            # Handle both object and dict access
             t_id = getattr(task, 'id', str(task))
             t_desc = getattr(task, 'args', {}).get('description', '')
             
-            # W: Prime Weight
             W = self.primes.compute_weight(t_id + t_desc)
             
-            # Combined Score Formula
             combined_score = (0.4 * V_norm) + (0.3 * (1.0 - L)) + (0.3 * W)
             
-            # Structural Novelty: A deterministic hash proxy for unexplored vectors
-            # Instead of a simulation string, we rely on the task ID topology.
             import hashlib
             h_obj = hashlib.md5((t_id + str(len(t_desc))).encode('utf-8'))
             structural_novelty = int(h_obj.hexdigest()[:4], 16) / 65535.0
             
-            # Base Impact (T-10): Dynamic weighting based on relevance and tension
-            # Semantic relevance proxy: description length and keyword matching
             desc_len = len(t_desc)
             semantic_relevance = min(1.0, desc_len / 300.0) 
             base_impact = (semantic_relevance * 0.7) + (psi * 0.3)
             
-            # P = clamp(...) * FocusPenalty
             raw_p = (base_impact * 0.5) + (combined_score * 0.3) + (structural_novelty * 0.2)
-            p = max(0.0, min(1.0, raw_p)) * (0.5 + (0.5 * focus_penalty)) # Soften penalty
+            p = max(0.0, min(1.0, raw_p)) * (0.5 + (0.5 * focus_penalty))
             
-            # Ikigai Boost
             if self.current_state.ikigai_deficit and W > 0.8:
-                p += 0.2 # Boost prime tasks (Love/Connection mapping)
+                p += 0.2
             
-            # Assign score (dynamically add attribute if possible)
             try:
                 setattr(task, 'priority_score', p)
             except Exception:
-                pass # If dict or immutable
+                pass
                 
             ranked.append((p, task))
             
-        # Sort descending
         ranked.sort(key=lambda x: x[0], reverse=True)
         return [r[1] for r in ranked]
