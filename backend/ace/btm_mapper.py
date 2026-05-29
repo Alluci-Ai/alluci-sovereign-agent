@@ -193,7 +193,7 @@ class BTMMapper:
             arousal = max(0.0, min(1024.0, raw_arousal * 256.0))
 
         if data.gsr is not None:
-            self._py_gsr_history.append(float(data.gsr))
+            self._py_gsr_history.append(data.gsr)
             if len(self._py_gsr_history) >= 2:
                 gsr_gradient = self._py_gsr_history[-1] - self._py_gsr_history[-2]
                 gsr_arousal = max(0.0, min(1024.0, gsr_gradient * 4.0 * 256.0))
@@ -219,7 +219,7 @@ class BTMMapper:
     def compute_psi(self, hrv_raw: int = 0, gsr_raw: int = 0) -> int:
         if getattr(self, '_handle', None) is not None and _native_lib is not None:
             try:
-                return _native_lib.btm_compute_psi(int(hrv_raw), int(gsr_raw))
+                return _native_lib.btm_compute_psi(hrv_raw, gsr_raw)
             except Exception as e:
                 logger.warning(f"Error in native compute_psi: {e}. Falling back to Python.")
         
