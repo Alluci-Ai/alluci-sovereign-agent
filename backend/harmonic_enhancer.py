@@ -188,10 +188,11 @@ class TopologyMapper:
 
     def cleanup(self):
         if getattr(self, '_handle', None) is not None:
-            try:
-                _native_lib.topology_mapper_free(self._handle)
-            except Exception:
-                pass
+            if _native_lib is not None:
+                try:
+                    _native_lib.topology_mapper_free(self._handle)
+                except Exception:
+                    pass
             self._handle = None
 
     @property
@@ -200,9 +201,13 @@ class TopologyMapper:
             count = ctypes.c_int()
             val_arr = (ctypes.c_float * self.MAX_HISTORY)()
             ar_arr = (ctypes.c_float * self.MAX_HISTORY)()
-            _native_lib.topology_mapper_get_state(self._handle, val_arr, ar_arr, ctypes.byref(count))
-            return [(val_arr[i], ar_arr[i]) for i in range(count.value)]
+            try:
+                _native_lib.topology_mapper_get_state(self._handle, val_arr, ar_arr, ctypes.byref(count))
+                return [(val_arr[i], ar_arr[i]) for i in range(count.value)]
+            except Exception:
+                pass
         return self._py_history
+
 
     @history.setter
     def history(self, value):

@@ -82,10 +82,11 @@ class EntropySpikeDetector:
 
     def cleanup(self):
         if getattr(self, '_handle', None) is not None:
-            try:
-                _native_lib.entropy_free(self._handle)
-            except Exception:
-                pass
+            if _native_lib is not None:
+                try:
+                    _native_lib.entropy_free(self._handle)
+                except Exception:
+                    pass
             self._handle = None
 
     @property
