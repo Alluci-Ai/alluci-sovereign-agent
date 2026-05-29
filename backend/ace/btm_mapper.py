@@ -148,19 +148,19 @@ class BTMMapper:
             hrv_val = float(data.hrv) if (data.hrv is not None and data.hrv > 0) else 0.0
             has_hrv = 1 if (data.hrv is not None and data.hrv > 0) else 0
             
-            gsr_val = float(data.gsr) if data.gsr is not None else 0.0
+            gsr_val = data.gsr if data.gsr is not None else 0.0
             has_gsr = 1 if data.gsr is not None else 0
             
-            stress_val = float(data.stress_score) if data.stress_score is not None else 0.0
+            stress_val = data.stress_score if data.stress_score is not None else 0.0
             has_stress = 1 if data.stress_score is not None else 0
             
             hr_val = float(data.hr) if data.hr is not None else 0.0
             has_hr = 1 if data.hr is not None else 0
             
-            rr_val = float(data.respiratory_rate) if data.respiratory_rate is not None else 0.0
+            rr_val = data.respiratory_rate if data.respiratory_rate is not None else 0.0
             has_rr = 1 if data.respiratory_rate is not None else 0
             
-            valence_val = float(data.valence) if data.valence is not None else 0.0
+            valence_val = data.valence if data.valence is not None else 0.0
             has_val = 1 if data.valence is not None else 0
             
             out_val = ctypes.c_float()
