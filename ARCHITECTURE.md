@@ -37,4 +37,54 @@ The `ModelRouter` manages a fleet of LLM providers. It uses **Fail-Safe Cognitiv
 3. **Emergency**: Groq/DeepSeek (Low-Latency burst).
 
 ---
+
+## 6. Sovereign Agent Standing Orders (Heartbeat Daemon)
+
+This file is read by the `HeartbeatDaemon` every 15 minutes.
+Checked items (`- [x]`) are active. Unchecked items (`- [ ]`) are ignored.
+
+NETWORK CONSENT: Orders that make external HTTP requests must include `[NETWORK_OK]`.
+Orders WITHOUT this marker that attempt network access will be blocked.
+
+### 6.1 Project Hygiene
+- [ ] Monitor `tasks.md` for changes and suggest prioritization updates.
+- [ ] Scan `/logs` for critical error bursts and summarize.
+
+### 6.2 External Awareness
+- [ ] Monitor `https://news.ycombinator.com` for "AI Agent" keywords. (Requires Web Tool)
+- [ ] Check `inbox/` directory for new data dumps.
+
+### 6.3 Autonomy
+- [ ] If `tasks.md` has overdue items, draft a proactive Slack message asking for status.
+
+## 7. Security Operations Guide
+
+### 7.1 Secret Management
+
+The Alluci Sovereign Agent uses a tiered secret retrieval strategy to ensure maximum security and sovereignty.
+
+#### Secret Priority Chain
+1. **Environment Variables**: Highest priority. Overrides everything.
+2. **OS Keychain (keyring)**: Recommended for local sovereign deployments. Uses the system's native secure storage (macOS Keychain, GNOME Keyring, Windows Credential Manager).
+3. **Defaults**: Lowest priority.
+
+#### Configuration
+- `SECRETS_PROVIDER`: Set to `keyring` (default) to use the OS keychain.
+- `KEYRING_SERVICE`: The name of the service in the keychain (default: `alluci-sovereign`).
+
+#### Purge Incident Response (v6.3)
+Committed TLS private material (`certs/privkey.pem`) was identified and purged from the repository.
+**Action Required**:
+1. All instances must rotate their TLS certificates immediately.
+2. Ensure `certs/` and `*.pem` are ignored via `.gitignore` (implemented).
+3. Do not commit `.env` or keychain export files.
+
+### 7.2 Certificate Rotation
+To rotate certificates in a production environment:
+1. Generate new keys locally or via Let's Encrypt.
+2. Mount the new `certs/` directory into the NGINX container.
+3. Reload NGINX: `docker exec alluci-nginx nginx -s reload`.
+
+---
 *Created by Alluci-Ai Sovereign Agent Framework v4.3*
+
