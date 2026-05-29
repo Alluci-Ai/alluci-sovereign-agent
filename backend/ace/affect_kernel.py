@@ -1,9 +1,47 @@
+import ctypes
+import os
+import platform
+import logging
 from dataclasses import dataclass
+
+logger = logging.getLogger("AffectKernel")
+
 try:
     import torch
     HAS_TORCH = True
 except ImportError:
     HAS_TORCH = False
+
+# Load native library
+_native_lib = None
+try:
+    _dir = os.path.dirname(os.path.abspath(__file__))
+    _build_dir = os.path.join(_dir, "build")
+    _system = platform.system()
+    _candidates = {
+        "Darwin": os.path.join(_build_dir, "libaffect_kernel.dylib"),
+        "Linux":  os.path.join(_build_dir, "libaffect_kernel.so"),
+        "Windows": os.path.join(_build_dir, "affect_kernel.dll"),
+    }
+    _lib_path = _candidates.get(_system)
+    
+    if _lib_path and os.path.isfile(_lib_path):
+        _native_lib = ctypes.CDLL(_lib_path)
+        _native_lib.affect_apply_batch.argtypes = [
+            ctypes.POINTER(ctypes.c_float),
+            ctypes.POINTER(ctypes.c_float),
+            ctypes.c_int,
+            ctypes.c_int32,
+            ctypes.c_int32,
+            ctypes.c_int32
+        ]
+        _native_lib.affect_apply_batch.restype = None
+        logger.info("[AffectKernel] Native C++ Kernel Loaded.")
+    else:
+        logger.info("[AffectKernel] Native kernel not found. Using Python fallback.")
+except Exception as e:
+    logger.warning(f"[AffectKernel] Failed to initialize native instance: {e}. Falling back to Python.")
+    _native_lib = None
 
 
 @dataclass
@@ -30,7 +68,6 @@ class AffectiveState:
         self.valence = max(0.0, min(1024.0, 512.0 + (self.hrv - 50.0) * 5.0 - (self.heart_rate - 70.0) * 2.0))
 
 
-
 class AffectKernel:
     """
     Integer-based affective deformation kernel.
@@ -48,14 +85,13 @@ class AffectKernel:
     def apply(self, raw_val: float, state: AffectiveState) -> float:
         """
         Apply affective deformation to a single scalar value.
-
-        Formula:
-            tension_coeff = 1024 + (tension × 8)
-            dilated = (raw_int × (1024 + arousal)) >> 10
-            dilated += int(valence × 512) >> 2
-            final = clamp((dilated × 1024) // tension_coeff, -32767, 32767)
-            return final / 2048.0
         """
+        if _native_lib:
+            in_arr = (ctypes.c_float * 1)(raw_val)
+            out_arr = (ctypes.c_float * 1)()
+            _native_lib.affect_apply_batch(out_arr, in_arr, 1, int(state.tension), int(state.arousal), int(state.valence))
+            return out_arr[0]
+
         # 1. Tension coefficient — contraction denominator
         tension_coeff = self.NEUTRAL_TENSION + int(state.tension * 8)
 
@@ -76,10 +112,22 @@ class AffectKernel:
         """Batch-apply deformation to an entire embedding tensor."""
         if not HAS_TORCH:
             raise ImportError("PyTorch required for apply_tensor. Install 'torch' to enable tensor deformation.")
-        # Optimization: use vectorized torch operations if possible, 
-        # but the spec provides a scalar loop for precision matching with C++ ref.
-        # However, for performance on tensors, we should vectorize.
-        
+            
+        if _native_lib:
+            t_contig = t.contiguous().to(torch.float32)
+            out = torch.empty_like(t_contig)
+            
+            n = t_contig.numel()
+            out_ptr = ctypes.cast(out.data_ptr(), ctypes.POINTER(ctypes.c_float))
+            in_ptr = ctypes.cast(t_contig.data_ptr(), ctypes.POINTER(ctypes.c_float))
+            
+            _native_lib.affect_apply_batch(
+                out_ptr, in_ptr, n, 
+                int(state.tension), int(state.arousal), int(state.valence)
+            )
+            return out.reshape_as(t)
+
+        # Fallback to Python / PyTorch ops
         # 1. Tension coefficient
         tension_coeff = self.NEUTRAL_TENSION + int(state.tension * 8)
         
