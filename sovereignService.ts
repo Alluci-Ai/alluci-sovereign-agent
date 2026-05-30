@@ -20,10 +20,12 @@ export class AlluciSovereignService {
     constructor() { }
 
     async connect(callbacks: SovereignCallbacks, token: string) {
-        this.socket = new WebSocket(`${this.WS_URL}?token=${token}`);
+        this.socket = new WebSocket(this.WS_URL);
 
         this.socket.onopen = () => {
             console.log("[ SOVEREIGN ]: Connected.");
+            // Send auth token as the first frame
+            this.socket?.send(JSON.stringify({ type: 'auth', token }));
             callbacks.onOpen();
         };
 
@@ -79,12 +81,18 @@ export class AlluciSovereignService {
 
     private async _fetch(path: string, options: RequestInit = {}) {
         const token = localStorage.getItem('alluci_access_token');
-        const headers = {
-            'Authorization': `Bearer ${token}`,
+        const headers: HeadersInit = {
             'Content-Type': 'application/json',
             ...(options.headers || {}),
         };
-        const resp = await fetch(`${this.DAEMON_URL}/api/v1${path}`, { ...options, headers });
+        if (token) {
+            (headers as any)['Authorization'] = `Bearer ${token}`;
+        }
+        const resp = await fetch(`${this.DAEMON_URL}/api/v1${path}`, { 
+            ...options, 
+            headers,
+            credentials: 'include'
+        });
         if (!resp.ok) {
             const err = await resp.json().catch(() => ({ detail: resp.statusText }));
             throw new Error(err.detail || `Request failed: ${resp.status}`);

@@ -2,13 +2,18 @@ import logging
 import time
 import asyncio
 import psutil
-from typing import List, Dict, Optional
-try:
+from typing import List, Dict, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
     import torch
     import torch.nn.functional as F
-except ImportError:
-    torch = None
-    F = None
+else:
+    try:
+        import torch
+        import torch.nn.functional as F
+    except ImportError:
+        torch = None
+        F = None
 
 from backend.ace.affect_kernel import AffectiveState
 from backend.logging_config import get_logger
@@ -219,8 +224,11 @@ class SleepStateOrchestrator:
             await self.teacher_distiller.distill_external_reasoning()
             
             # Phase 3: Dynamic Weight Loading (LoRA Forge)
-            dummy_dataset = [{"prompt": "test", "chosen": "A", "rejected": "B"}]
-            await self.trainer.run_training_step(dummy_dataset)
+            distilled_pairs = getattr(self.distiller, '_last_distilled_pairs', [])
+            if distilled_pairs:
+                await self.trainer.run_training_step(distilled_pairs)
+            else:
+                logger.info("[DREAM] Skipping DPO Forge — no real training data available this cycle.")
             
             logger.info("=========== WAKING FROM SLEEP STATE ===========")
             

@@ -1,10 +1,13 @@
+import asyncio
+import json
 import os
-from ..logging_config import get_logger
-from fastapi import APIRouter, WebSocket, Query
+from typing import Optional
+from fastapi import APIRouter, WebSocket, Query, HTTPException, status
 from .. import services
 from ..security.auth import verify_token
 from jose import JWTError
 from ..config import settings
+from ..logging_config import get_logger
 
 logger = get_logger("WebsocketRouter")
 router = APIRouter(tags=["WebSockets"])
@@ -34,64 +37,100 @@ def _verify_origin(websocket: WebSocket) -> bool:
     logger.warning(f"[WS] Blocked connection from unauthorized origin: {origin}")
     return False
 
-async def authenticate_ws(websocket: WebSocket, token: str):
-    """Verifies token from query string or cookies."""
+async def authenticate_ws_handshake(websocket: WebSocket) -> Optional[str]:
+    """
+    Extracts and verifies JWT token from cookies or query string before acceptance.
+    """
+    token = websocket.cookies.get(settings.AUTH_COOKIE_NAME)
     if not token:
-        token = websocket.cookies.get("alluci_daemon_token")
+        token = websocket.query_params.get("token")
+        if token:
+            logger.warning("[WS] Query param token authentication is deprecated. Use HttpOnly cookies or message auth.")
     
-    if not token:
-        await websocket.close(code=4001, reason="Authentication required")
-        return False
+    if not token or token == "undefined":
+        return None
     
     try:
         verify_token(token)
-        return True
+        return token
     except JWTError:
-        await websocket.close(code=4003, reason="Invalid token")
-        return False
+        return None
 
 @router.websocket("/ws/sovereign")
-async def sovereign_websocket_endpoint(websocket: WebSocket, token: str = Query(None)):
+async def sovereign_websocket_endpoint(websocket: WebSocket):
     """Main communication manifold for the Sovereign Identity."""
-    await websocket.accept()
     if not _verify_origin(websocket):
-        await websocket.close(code=4003, reason="Origin not allowed")
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Origin not allowed")
         return
         
-    if not await authenticate_ws(websocket, token):
-        return
+    token = await authenticate_ws_handshake(websocket)
+    if not token:
+        # Fallback: Accept and wait for first auth message
+        await websocket.accept()
+        try:
+            raw = await asyncio.wait_for(websocket.receive_text(), timeout=5.0)
+            msg = json.loads(raw)
+            if msg.get("type") == "auth":
+                token = msg.get("token")
+                verify_token(token)
+            else:
+                await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Authentication required")
+                return
+        except Exception:
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid token or authentication timeout")
+            return
+    else:
+        await websocket.accept()
         
     if not services.ws_gw:
         await websocket.close(code=1001)
         return
-    await services.ws_gw.handle_connection(websocket)
+    await services.ws_gw.handle_connection(websocket, already_accepted=True)
 
 @router.websocket("/ws/admin")
-async def admin_websocket_endpoint(websocket: WebSocket, token: str = Query(None)):
+async def admin_websocket_endpoint(websocket: WebSocket):
     """JSON-RPC 2.0 gateway for real-time admin operations."""
-    await websocket.accept()
     if not _verify_origin(websocket):
-        await websocket.close(code=4003, reason="Origin not allowed")
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Origin not allowed")
         return
 
-    if not await authenticate_ws(websocket, token):
-        return
+    token = await authenticate_ws_handshake(websocket)
+    if not token:
+        # Fallback: Accept and let the gateway handle JSON-RPC hello authentication
+        await websocket.accept()
+    else:
+        await websocket.accept()
         
     if not services.ws_gw:
         await websocket.close(code=1001)
         return
-    await services.ws_gw.handle_connection(websocket)
+    await services.ws_gw.handle_connection(websocket, already_accepted=True)
 
 @router.websocket("/api/logs/stream")
-async def log_stream_endpoint(websocket: WebSocket, token: str = Query(None)):
+async def log_stream_endpoint(websocket: WebSocket):
     """Live system telemetry and log streaming."""
-    await websocket.accept()
     if not _verify_origin(websocket):
-        await websocket.close(code=4003, reason="Origin not allowed")
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Origin not allowed")
         return
 
-    if not await authenticate_ws(websocket, token):
-        return
+    token = await authenticate_ws_handshake(websocket)
+    if not token:
+        # Fallback: Accept and wait for first auth message
+        await websocket.accept()
+        try:
+            raw = await asyncio.wait_for(websocket.receive_text(), timeout=5.0)
+            msg = json.loads(raw)
+            if msg.get("type") == "auth":
+                token = msg.get("token")
+                verify_token(token)
+            else:
+                await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Authentication required")
+                return
+        except Exception:
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid token or authentication timeout")
+            return
+    else:
+        await websocket.accept()
         
     from ..log_streamer import log_stream_handler
-    await log_stream_handler.handle(websocket)
+    await log_stream_handler.handle(websocket, already_accepted=True)

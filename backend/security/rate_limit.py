@@ -1,7 +1,6 @@
 from fastapi import Request, Response, HTTPException
 from fastapi_limiter.depends import RateLimiter as FastAPIRateLimiter
 from .rate_limiter import get_fallback_limiter
-from .. import services
 from ..config import settings
 import logging
 
@@ -32,21 +31,16 @@ class RateLimiter:
         )
 
     async def __call__(self, request: Request, response: Response):
-        if services.redis_client:
-            try:
-                return await self._limiter(request, response)
-            except Exception as e:
-                if settings.APP_ENV == "production":
-                    logger.error(f"Redis rate limiter failed in PRODUCTION: {e}")
-                    raise HTTPException(status_code=500, detail="Distributed rate limiter failure")
-                logger.warning(f"Redis rate limiter failed, falling back: {e}")
+        try:
+            return await self._limiter(request, response)
+        except Exception as e:
+            if settings.APP_ENV == "production":
+                logger.error(f"Redis rate limiter failed in PRODUCTION: {e}")
+                raise HTTPException(status_code=500, detail="Distributed rate limiter failure")
+            logger.warning(f"Redis rate limiter unavailable, falling back: {e}")
         
-        if settings.APP_ENV == "production":
-            logger.error("Rate limiter invoked without Redis in PRODUCTION.")
-            raise HTTPException(status_code=500, detail="Distributed rate limiter unavailable")
-
         # Fallback to in-memory limiter
-        total_seconds = (
+        total_seconds = int(
             self.milliseconds / 1000 + 
             self.seconds + 
             self.minutes * 60 + 

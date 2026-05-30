@@ -5,7 +5,7 @@ import hashlib
 import json
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
-from sqlmodel import Session, select
+from sqlmodel import Session, select, desc
 from ..database import engine as db_engine
 from ..models import AuditLog, AuditEntry
 from ..config import settings
@@ -16,7 +16,7 @@ logger = get_logger("AuditLedger")
 # Global lock to prevent race conditions on rolling hash
 audit_lock = asyncio.Lock()
 
-async def sync_audit_entry(entry: AuditEntry):
+async def sync_audit_entry(entry: AuditEntry, topo: Optional[dict] = None):
     """
     Persists an audit entry to the database append-only log.
     Computes a rolling SHA-256 chain hash for tamper evidence.
@@ -25,16 +25,16 @@ async def sync_audit_entry(entry: AuditEntry):
     async with audit_lock:
         try:
             # We use a thread pool for DB operations as SQLModel/SQLAlchemy Session is sync
-            return await asyncio.to_thread(_sync_audit_entry_sync, entry)
+            return await asyncio.to_thread(_sync_audit_entry_sync, entry, topo)
         except Exception as e:
             logger.error(f"Audit sync failed: {e}")
             return {"status": "ERROR", "message": str(e)}
 
-def _sync_audit_entry_sync(entry: AuditEntry):
+def _sync_audit_entry_sync(entry: AuditEntry, topo: Optional[dict] = None):
     with Session(db_engine) as session:
         # 1. Compute rolling chain hash (hash of previous entry's hash + new content)
         prev = session.exec(
-            select(AuditLog).order_by(AuditLog.id.desc()).limit(1)
+            select(AuditLog).order_by(desc(AuditLog.id)).limit(1)
         ).first()
         prev_hash = prev.integrity_hash if prev else "genesis"
         
@@ -56,6 +56,13 @@ def _sync_audit_entry_sync(entry: AuditEntry):
             details=details_str,
             status=entry.status or "INFO",
             integrity_hash=integrity_hash,
+            # Topological fields (when provided)
+            betti=json.dumps(topo["betti"]) if topo and "betti" in topo else None,
+            phi_total=topo.get("phi_total") if topo else None,
+            coherence=topo.get("coherence") if topo else None,
+            psi=topo.get("psi") if topo else None,
+            merkle_attribution_hash=topo.get("merkle_hash") if topo else None,
+            pvt_json=json.dumps(topo["pvt"]) if topo and "pvt" in topo else None,
         )
         session.add(log_row)
         session.commit()
@@ -81,7 +88,7 @@ async def read_audit_log(limit: int = 100, offset: int = 0, status: Optional[str
 
 def _read_audit_log_sync(limit: int, offset: int, status: Optional[str]):
     with Session(db_engine) as session:
-        stmt = select(AuditLog).order_by(AuditLog.id.desc()).offset(offset).limit(limit)
+        stmt = select(AuditLog).order_by(desc(AuditLog.id)).offset(offset).limit(limit)
         if status:
             stmt = stmt.where(AuditLog.status == status)
         rows = session.exec(stmt).all()

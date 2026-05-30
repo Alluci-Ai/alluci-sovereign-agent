@@ -126,7 +126,7 @@ class JsonRpcGateway:
         self.register_method("manifold.pvt", self._rpc_manifold_pvt,
                             schema={"description": "Query the current PVT (Pressure/Volume/Temperature) manifold health state."})
 
-    def register_method(self, name: str, handler, schema: Dict[str, Any] = None):
+    def register_method(self, name: str, handler, schema: Optional[Dict[str, Any]] = None):
         """Register a JSON-RPC method with optional schema documentation."""
         self._methods[name] = {
             "handler": handler,
@@ -135,9 +135,10 @@ class JsonRpcGateway:
 
     # ── WebSocket Lifecycle ───────────────────────────────────────────────
 
-    async def handle_connection(self, websocket: WebSocket):
+    async def handle_connection(self, websocket: WebSocket, already_accepted: bool = False):
         """Full lifecycle for a single WebSocket connection."""
-        await websocket.accept()
+        if not already_accepted:
+            await websocket.accept()
 
         # ── Step 1: Hello Handshake (auth required within 5 s) ────────────
         client = await self._authenticate(websocket)
@@ -181,13 +182,17 @@ class JsonRpcGateway:
 
             token = msg.get("params", {}).get("token") or msg.get("token")
             if not token:
+                token = websocket.cookies.get("alluci_daemon_token")
+                
+            if not token:
                 await websocket.send_text(
                     _rpc_error(msg.get("id"), AUTH_REQUIRED, "Missing auth token")
                 )
                 await websocket.close(code=4001, reason="Auth required")
                 return None
 
-            payload = jwt.decode(token, self.jwt_secret, algorithms=["HS256"])
+            from .security.auth import verify_token
+            payload = verify_token(token)
             subject = payload.get("sub", "unknown")
 
             import uuid

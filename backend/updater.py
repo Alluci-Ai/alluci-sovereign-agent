@@ -39,6 +39,16 @@ class UpdateManager:
         logger.info("[ UPDATER ] Initializing background version monitor...")
         self.checking_task = asyncio.create_task(self._monitor_loop())
 
+    async def stop(self):
+        """Gracefully stop the background monitor loop."""
+        if self.checking_task and not self.checking_task.done():
+            self.checking_task.cancel()
+            try:
+                await self.checking_task
+            except asyncio.CancelledError:
+                pass
+            logger.info("[ UPDATER ] Background version monitor stopped.")
+
     async def _monitor_loop(self):
         while True:
             await self.check_for_updates()

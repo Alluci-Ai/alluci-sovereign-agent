@@ -2,7 +2,7 @@
 import os
 import sys
 import logging
-from typing import List, Optional
+from typing import List, Optional, Literal
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import BaseModel, Field, field_validator
 from .logging_config import get_logger
@@ -125,7 +125,7 @@ class Settings(BaseSettings):
     # Auth & Cookies
     AUTH_COOKIE_NAME: str = "alluci_daemon_token"
     AUTH_COOKIE_SECURE: bool = False  # Auto-enforced to True in production
-    AUTH_COOKIE_SAMESITE: str = "lax"
+    AUTH_COOKIE_SAMESITE: Literal["lax", "none", "strict"] = "lax"
     VERUS_AUTH_ENABLED: bool = False
     
     # WebAuthn

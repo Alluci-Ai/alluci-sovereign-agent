@@ -34,7 +34,6 @@ logger = get_logger("PolytopeServices")
 
 # Global Service Instances
 vault: Optional[VaultManager] = None
-vault_manager: Optional[VaultManager] = None
 router: Optional[ModelRouter] = None
 ace: Optional[AffectiveEngine] = None
 orchestrator: Optional[ExecutiveOrchestrator] = None
@@ -47,7 +46,7 @@ usage_tracker: Optional[UsageTracker] = None
 cron_engine: Optional[CronEngine] = None
 config_editor: Optional[ConfigEditor] = None
 exec_approval: Optional[ExecApprovalManager] = None
-memory: Optional[MemoryManager] = None
+memory: Optional[HLSMManager] = None
 hlsm_manager: Optional[HLSMManager] = None
 redis_client: Optional[redis.Redis] = None
 scanner: Optional[GuardrailScanner] = None
@@ -59,7 +58,7 @@ updater = updater_instance
 channel_registry: Dict[str, Any] = {}
 
 async def init_services(app_instance):
-    global vault, vault_manager, router, ace, orchestrator, task_manager, skill_manager, sovereign_identity
+    global vault, router, ace, orchestrator, task_manager, skill_manager, sovereign_identity
     global local_inference, ws_gw, usage_tracker, cron_engine, config_editor, exec_approval
     global memory, hlsm_manager, redis_client, scanner, device_manager, pcl, goal_engine, sop_engine
 
@@ -109,7 +108,6 @@ async def init_services(app_instance):
 
     # 3. Security Layer
     vault = VaultManager(settings.POLYTOPE_MASTER_KEY)
-    vault_manager = vault
     sovereign_identity = SovereignIdentity(settings, vault=vault)
     await sovereign_identity.load_keys()
     
@@ -278,6 +276,7 @@ async def init_services(app_instance):
     logger.info("[ SERVICES ] All core systems actualized.")
 
 async def _init_channels(vault_root: str):
+    assert vault is not None, "Vault must be initialized"
     from backend.bridges.telegram import TelegramBridge
     from backend.bridges.whatsapp import WhatsAppBridge
     from backend.bridges.discord import DiscordBridge
@@ -329,7 +328,7 @@ async def _init_channels(vault_root: str):
     for ch_name, adapter in channel_registry.items():
         if hasattr(adapter, "on_event"):
             adapter.on_event = broadcast_bridge_event
-        if hasattr(adapter, "on_inbound"):
+        if hasattr(adapter, "on_inbound") and orchestrator is not None:
             adapter.on_inbound = orchestrator.handle_inbound_message
 
     # Auto-connect channels

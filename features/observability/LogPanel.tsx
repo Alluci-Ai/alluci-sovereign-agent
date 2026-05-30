@@ -41,7 +41,10 @@ export const LogPanel: React.FC = () => {
             : `${proto}//${window.location.host}`;
 
         const connect = () => {
-            const ws = new WebSocket(`${host}/api/logs/stream?token=${accessToken}`);
+            const ws = new WebSocket(`${host}/api/logs/stream`);
+            ws.onopen = () => {
+                ws.send(JSON.stringify({ type: 'auth', token: accessToken }));
+            };
             ws.onmessage = (event) => {
                 if (isPausedRef.current) return;
                 try {

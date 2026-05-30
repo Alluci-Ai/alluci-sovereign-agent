@@ -69,7 +69,7 @@ class TaskRecord(SQLModel, table=True):
 
 class UsageLog(SQLModel, table=True):
     """Per-turn token usage log for cost analytics."""
-    __tablename__ = "usage_log"
+    __tablename__ = "usage_log"  # type: ignore
     id: Optional[int] = Field(default=None, primary_key=True)
     session_key: str = Field(index=True)
     model: str
@@ -83,7 +83,7 @@ class UsageLog(SQLModel, table=True):
 
 class ModelPricing(SQLModel, table=True):
     """Per-model pricing table ($ per 1M tokens)."""
-    __tablename__ = "model_pricing"
+    __tablename__ = "model_pricing"  # type: ignore
     id: Optional[int] = Field(default=None, primary_key=True)
     model_id: str = Field(unique=True, index=True)
     input_price_per_1m: float = 0.0
@@ -98,7 +98,7 @@ class ChannelAccount(SQLModel, table=True):
     Multiple account identities for a single bridge type (e.g. 2 Slack workspaces).
     Sovereign Spec §2.3 - Multi-Entity Routing
     """
-    __tablename__ = "channel_account"
+    __tablename__ = "channel_account"  # type: ignore
     id: Optional[int] = Field(default=None, primary_key=True)
     channel_type: str = Field(index=True) # "slack", "telegram", etc.
     account_label: str
@@ -108,7 +108,7 @@ class ChannelAccount(SQLModel, table=True):
 
 class CronJob(SQLModel, table=True):
     """Scheduled job definition with delivery routing."""
-    __tablename__ = "cron_job"
+    __tablename__ = "cron_job"  # type: ignore
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str
     schedule_type: str  # "interval", "cron", "run_at"
@@ -127,7 +127,7 @@ class CronJob(SQLModel, table=True):
 
 class CronRun(SQLModel, table=True):
     """Run history record for a cron job."""
-    __tablename__ = "cron_run"
+    __tablename__ = "cron_run"  # type: ignore
     id: Optional[int] = Field(default=None, primary_key=True)
     job_id: int = Field(foreign_key="cron_job.id", index=True)
     started_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -138,7 +138,7 @@ class CronRun(SQLModel, table=True):
 
 class GoalRecord(SQLModel, table=True):
     """Sovereign Goal tracking manifold."""
-    __tablename__ = "goal_record"
+    __tablename__ = "goal_record"  # type: ignore
     id: Optional[int] = Field(default=None, primary_key=True)
     title: str
     description: Optional[str] = None
@@ -152,7 +152,7 @@ class GoalRecord(SQLModel, table=True):
 
 class SOPRecord(SQLModel, table=True):
     """Standard Operating Procedure (SOP) repository."""
-    __tablename__ = "sop_record"
+    __tablename__ = "sop_record"  # type: ignore
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str
     description: Optional[str] = None
@@ -164,7 +164,7 @@ class SOPRecord(SQLModel, table=True):
 
 class ExecPolicy(SQLModel, table=True):
     """Persistent allow/deny policies for tool execution approval."""
-    __tablename__ = "exec_policy"
+    __tablename__ = "exec_policy"  # type: ignore
     id: Optional[int] = Field(default=None, primary_key=True)
     tool_name: str = Field(index=True)
     command_pattern: str  # exact command or "*" for wildcard
@@ -176,7 +176,7 @@ class ExecPolicy(SQLModel, table=True):
 
 class SessionConfig(SQLModel, table=True):
     """Per-session parameter overrides (model, thinking level, etc.)."""
-    __tablename__ = "session_config"
+    __tablename__ = "session_config"  # type: ignore
     id: Optional[int] = Field(default=None, primary_key=True)
     session_key: str = Field(unique=True, index=True)
     label: Optional[str] = None
@@ -302,7 +302,7 @@ class AgentRecord(SQLModel, table=True):
     LLM model, system prompt override, heartbeat orders (JSON array), and
     an optional partial soul manifest override.
     """
-    __tablename__ = "agent_record"
+    __tablename__ = "agent_record"  # type: ignore
 
     id: str = Field(primary_key=True)                          # short UUID
     name: str = Field(nullable=False)
@@ -327,7 +327,7 @@ class HeartbeatOrderRecord(SQLModel, table=True):
     Used for: last-fired UI display, cooldown enforcement, outcome tracking,
     and pcl_signal history.
     """
-    __tablename__ = "heartbeat_order_record"
+    __tablename__ = "heartbeat_order_record"  # type: ignore
 
     id: Optional[int] = Field(default=None, primary_key=True)
     order_id: str = Field(index=True)
@@ -343,7 +343,7 @@ class HeartbeatOrderRecord(SQLModel, table=True):
 
 class DiscordGuildMapping(SQLModel, table=True):
     """Mapping of Discord Guilds to preferred routing channels (Sovereign Spec §2.3)."""
-    __tablename__ = "discord_guild_mapping"
+    __tablename__ = "discord_guild_mapping"  # type: ignore
     id: Optional[int] = Field(default=None, primary_key=True)
     guild_id: str = Field(unique=True, index=True)
     guild_name: Optional[str] = None
@@ -355,7 +355,7 @@ class AgentChannelSubscription(SQLModel, table=True):
     Persists per-agent channel subscription state.
     Controls which bridge channels an agent is permitted to read/write.
     """
-    __tablename__ = "agent_channel_subscription"
+    __tablename__ = "agent_channel_subscription"  # type: ignore
 
     id: Optional[int] = Field(default=None, primary_key=True)
     agent_id: str = Field(index=True, nullable=False)
@@ -366,7 +366,7 @@ class AgentChannelSubscription(SQLModel, table=True):
         nullable=False,
     )
 
-    class Config:
+    class Config:  # type: ignore
         # Enforce unique (agent_id, channel_id) pairs at the ORM level
         # The migration also enforces this as a DB-level unique constraint.
         pass
@@ -380,7 +380,7 @@ class HLSMEpisodicEntry(SQLModel, table=True):
     Searchable via FTS5 (SQLite) or full-text index (PostgreSQL).
     Promoted to L2 ChromaDB when access_count >= PROMOTION_THRESHOLD.
     """
-    __tablename__ = "hlsm_episodic"
+    __tablename__ = "hlsm_episodic"  # type: ignore
 
     id: str = Field(primary_key=True)                          # UUID string
     content: str = Field(nullable=False)                       # Memory text
@@ -408,7 +408,7 @@ class HLSMWorkingEntry(SQLModel, table=True):
     provides a persistent fallback when Redis is unavailable (LITE_MODE).
     TTL is enforced by the manager, not a database trigger.
     """
-    __tablename__ = "hlsm_working"
+    __tablename__ = "hlsm_working"  # type: ignore
 
     id: str = Field(primary_key=True)
     session_key: str = Field(nullable=False, index=True)
@@ -423,7 +423,7 @@ class PCLOpportunity(SQLModel, table=True):
     Used for deduplication, cooldown enforcement, and outcome tracking.
     Stores the last N opportunities per detector for pattern analysis.
     """
-    __tablename__ = "pcl_opportunity"
+    __tablename__ = "pcl_opportunity"  # type: ignore
 
     id: str = Field(primary_key=True)          # Deterministic ID: sha256(detector+condition)[:16]
     detector_name: str = Field(index=True)
@@ -456,7 +456,7 @@ class PCLWorldModelSnapshot(SQLModel, table=True):
     Stores the last 48 hours of world model states (auto-pruned).
     Used by the PCL dashboard and for pattern analysis.
     """
-    __tablename__ = "pcl_world_snapshot"
+    __tablename__ = "pcl_world_snapshot"  # type: ignore
 
     id: Optional[int] = Field(default=None, primary_key=True)
     cycle_number: int = Field(index=True)
@@ -472,7 +472,7 @@ class PCLWorldModelSnapshot(SQLModel, table=True):
 
 class MessageLog(SQLModel, table=True):
     """Full transcript record for sessions (Sovereign Spec §5.1)."""
-    __tablename__ = "message_log"
+    __tablename__ = "message_log"  # type: ignore
     id: Optional[int] = Field(default=None, primary_key=True)
     session_key: str = Field(index=True)
     role: str  # "user", "assistant", "tool", "system"
@@ -502,7 +502,7 @@ class AuditEntry(BaseModel):
 
 class AuditLog(SQLModel, table=True):
     """Immutable, append-only audit log stored in the database."""
-    __tablename__ = "audit_log"
+    __tablename__ = "audit_log"  # type: ignore
     id: Optional[int] = Field(default=None, primary_key=True)
     event_id: str = Field(index=True)          # UUID from AuditEntry
     timestamp: datetime = Field(
@@ -514,9 +514,17 @@ class AuditLog(SQLModel, table=True):
     status: str = Field(default="INFO")
     integrity_hash: Optional[str] = None       # SHA-256 of previous entry chain
 
+    # Topological barcode fields (merged from audit_log.py)
+    betti: Optional[str] = None                    # JSON array of betti numbers
+    phi_total: Optional[float] = None              # Integrated information
+    coherence: Optional[float] = None              # Manifold coherence
+    psi: Optional[float] = None                    # Affective tension
+    merkle_attribution_hash: Optional[str] = None  # H_P from TopologicalAuditLog
+    pvt_json: Optional[str] = None                 # JSON string of {P, V, T}
+
 class Device(SQLModel, table=True):
     """Device identity for node authentication (Sovereign Spec §4.3)."""
-    __tablename__ = "device"
+    __tablename__ = "device"  # type: ignore
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str
     public_key: str = Field(unique=True, index=True)
@@ -528,7 +536,7 @@ class Device(SQLModel, table=True):
 
 class DeviceBinding(SQLModel, table=True):
     """Binding between a device and an agent node/resource."""
-    __tablename__ = "device_binding"
+    __tablename__ = "device_binding"  # type: ignore
     id: Optional[int] = Field(default=None, primary_key=True)
     device_id: int = Field(foreign_key="device.id", index=True)
     agent_id: str = Field(index=True)
@@ -537,7 +545,7 @@ class DeviceBinding(SQLModel, table=True):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 class PresenceBeacon(SQLModel, table=True):
     """Real-time presence beacon for administrative instances and nodes."""
-    __tablename__ = "presence_beacon"
+    __tablename__ = "presence_beacon"  # type: ignore
     id: Optional[int] = Field(default=None, primary_key=True)
     client_id: str = Field(unique=True, index=True)
     subject: str

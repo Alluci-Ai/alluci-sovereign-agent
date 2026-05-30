@@ -59,31 +59,59 @@ class IWatchBridge(BridgeAdapter):
         self._load_devices()
 
     # ── Persistence ───────────────────────────────────────────────────────────
-
+ 
     def _devices_path(self) -> str:
         return os.path.join(self.vault_path, "paired_devices.json")
-
+ 
     def _load_devices(self) -> None:
-        path = self._devices_path()
-        if os.path.exists(path):
+        if self.vault_manager:
             try:
-                with open(path) as f:
-                    self._paired_devices = json.load(f)
-                self.logger.debug(
-                    f"[IWATCH] Loaded {len(self._paired_devices)} paired devices."
-                )
+                devices = self.vault_manager._retrieve_secret_sync("iwatch_paired_devices")
+                if devices:
+                    self._paired_devices = devices
+                    self.logger.debug(
+                        f"[IWATCH] Loaded {len(self._paired_devices)} paired devices from encrypted vault."
+                    )
             except Exception as e:
-                self.logger.error(f"[IWATCH] Failed to load devices: {e}")
-
+                self.logger.error(f"[IWATCH] Failed to load devices from vault: {e}")
+        else:
+            path = self._devices_path()
+            if os.path.exists(path):
+                try:
+                    with open(path) as f:
+                        self._paired_devices = json.load(f)
+                    self.logger.debug(
+                        f"[IWATCH] Loaded {len(self._paired_devices)} paired devices from disk fallback."
+                    )
+                except Exception as e:
+                    self.logger.error(f"[IWATCH] Failed to load devices: {e}")
+ 
     def _save_devices(self) -> None:
-        path = self._devices_path()
-        with open(path, "w") as f:
-            json.dump(self._paired_devices, f)
-        os.chmod(path, 0o600)
+        if self.vault_manager:
+            try:
+                self.vault_manager._store_secret_sync("iwatch_paired_devices", self._paired_devices)
+                self.logger.info("[IWATCH] Paired devices secured in encrypted vault.")
+                
+                # Shred the plaintext fallback file if it exists
+                path = self._devices_path()
+                if os.path.exists(path):
+                    try:
+                        with open(path, "wb") as f:
+                            f.write(os.urandom(os.path.getsize(path)))
+                        os.remove(path)
+                    except Exception:
+                        pass
+            except Exception as e:
+                self.logger.error(f"[IWATCH] Failed to save paired devices to vault: {e}")
+        else:
+            path = self._devices_path()
+            with open(path, "w") as f:
+                json.dump(self._paired_devices, f)
+            os.chmod(path, 0o600)
 
     # ── Connection ────────────────────────────────────────────────────────────
 
-    async def connect(self, credentials: Dict[str, Any] = None) -> bool:
+    async def connect(self, credentials: Optional[Dict[str, Any]] = None) -> bool:
         """iWatch bridge is always available (no external service required)."""
         self.is_connected = True
         self.logger.info(
@@ -187,7 +215,7 @@ class IWatchBridge(BridgeAdapter):
         try:
             import pyotp
             totp = pyotp.TOTP(seed_b32, digits=self.TOTP_DIGITS, interval=self.TOTP_STEP)
-            return totp.at(ts or time.time())
+            return totp.at(int(ts or time.time()))
         except ImportError:
             # Fallback pure-Python TOTP (requires only hmac + struct + hashlib)
             import base64
@@ -207,7 +235,7 @@ class IWatchBridge(BridgeAdapter):
         """Verify TOTP code with ±TOTP_WINDOW tolerance."""
         now = time.time()
         for delta in range(-self.TOTP_WINDOW, self.TOTP_WINDOW + 1):
-            ts = now + delta * self.TOTP_STEP
+            ts = int(now + delta * self.TOTP_STEP)
             if self._compute_totp(seed_b32, ts) == code:
                 return True
         return False

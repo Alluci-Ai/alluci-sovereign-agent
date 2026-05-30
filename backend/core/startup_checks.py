@@ -3,7 +3,9 @@ import os
 import sys
 from dotenv import load_dotenv
 
-load_dotenv(override=True)
+# Prevent overriding test environment variables during test suite execution
+override = os.environ.get("APP_ENV") != "testing"
+load_dotenv(override=override)
 
 FORBIDDEN_SECRET_VALUES = {
     "testing_csrf_key_auto_generated",

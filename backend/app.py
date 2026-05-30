@@ -22,19 +22,21 @@ from .security import csrf # Initialize CSRF config
 from .engine.errors import AdapterError
 
 
+from fastapi import HTTPException
+
 async def global_rate_limit(request: Request, response: Response):
     """
-    Global rate limit dependency. 
-    Skips if Redis is not configured or available.
+    Global rate limit. Always enforced — falls back to in-memory
+    sliding window if Redis is unavailable.
     """
-    # [ PUBLIC_FIX ]: Hardened rate limit check to prevent errors if Redis is down
     try:
-        if not services.redis_client:
-            return
         return await RateLimiter(times=settings.RATE_LIMIT_PER_MINUTE, seconds=60)(request, response)
+    except HTTPException:
+        raise  # Re-raise 429s — that's the whole point
     except Exception as e:
-        logger.warning(f"[ RATE_LIMIT_SKIPPED ] Redis unavailable: {e}")
-        return
+        logger.warning(f"[ RATE_LIMIT ] Primary limiter error, using fallback: {e}")
+        from .security.rate_limiter import get_fallback_limiter
+        await get_fallback_limiter().check(request, times=settings.RATE_LIMIT_PER_MINUTE, seconds=60)
 
 # global initialization outside lifespan to avoid recursive instrumentation hooks
 configure_logging(app_env=settings.APP_ENV)
@@ -50,6 +52,7 @@ async def lifespan(app: FastAPI):
 
     # SEC-001: Initialize RS256 JWT keypair from vault
     from .security.auth import init_jwt_keys
+    assert services.vault is not None, "Vault service must be initialized"
     private_key, public_key = await services.vault.get_or_create_jwt_keypair()
     init_jwt_keys(private_key, public_key)
     logger.info("[ JWT ] RS256 keypair loaded from vault.")
@@ -135,22 +138,52 @@ async def global_exception_handler(request: Request, exc: Exception):
         },
     )
 
+from datetime import datetime, timezone
+
+async def _check_health(app) -> dict:
+    """Checks actual component health for readiness probes."""
+    components = {}
+
+    # Redis
+    redis = getattr(app.state, 'redis_client', None) if hasattr(app, 'state') else services.redis_client
+    if redis:
+        try:
+            await redis.ping()
+            components["redis"] = "ok"
+        except Exception:
+            components["redis"] = "error"
+    else:
+        components["redis"] = "not_configured"
+
+    # Database
+    try:
+        from sqlmodel import Session, select
+        from .database import engine as db_engine
+        with Session(db_engine) as session:
+            session.exec(select(1))
+        components["database"] = "ok"
+    except Exception:
+        components["database"] = "error"
+
+    overall = "ok" if all(v in ("ok", "not_configured") for v in components.values()) else "degraded"
+    return {
+        "status": overall,
+        "version": VERSION,
+        "components": components,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+
 @app.get("/health", include_in_schema=False)
-async def health_check():
-    from datetime import datetime, timezone
-    return {"status": "ok", "version": VERSION, "components": {}, "timestamp": datetime.now(timezone.utc).isoformat()}
+@app.get("/api/v1/health", include_in_schema=False)
+async def health_check(request: Request):
+    return await _check_health(request.app)
 
 @app.get("/ready", include_in_schema=False)
-async def root_ready():
-    return {"status": "ready"}
-
-@app.get("/api/v1/health", include_in_schema=False)
-async def health_v1():
-    from datetime import datetime, timezone
-    return {"status": "ok", "version": VERSION, "components": {}, "timestamp": datetime.now(timezone.utc).isoformat()}
-
 @app.get("/api/v1/ready", include_in_schema=False)
-async def ready_v1():
+async def readiness_check(request: Request):
+    result = await _check_health(request.app)
+    if result["status"] != "ok":
+        return JSONResponse(status_code=503, content=result)
     return {"status": "ready"}
 
 
@@ -171,7 +204,7 @@ async def add_security_headers(request: Request, call_next):
     import secure
     secure_headers = secure.Secure()
     try:
-        secure_headers.set_headers(response)
+        secure_headers.framework.fastapi(response)
     except Exception as e:
         logger.error(f"[ SECURITY_HEADERS_ERROR ] {e}")
 

@@ -120,9 +120,10 @@ class LogStreamHandler:
     def __init__(self, log_buffer: LogBuffer):
         self.log_buffer = log_buffer
 
-    async def handle(self, websocket: WebSocket):
+    async def handle(self, websocket: WebSocket, already_accepted: bool = False):
         """Full lifecycle for a single log stream WebSocket connection."""
-        await websocket.accept()
+        if not already_accepted:
+            await websocket.accept()
 
         config = {"level": None, "session_key": None, "auto_follow": True}
         queue = self.log_buffer.subscribe()

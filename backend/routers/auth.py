@@ -18,6 +18,13 @@ import urllib.parse
 logger = get_logger("AuthRouter")
 
 
+def _pad(s: str) -> str:
+    """Ensure safe base64url padding."""
+    s = s.rstrip("=")
+    return s + "=" * (-len(s) % 4)
+
+
+
 from fastapi_csrf_protect import CsrfProtect
 router = APIRouter(tags=["Authentication"])
 
@@ -68,8 +75,20 @@ async def login(response: Response, payload: LoginRequest):
 @router.post("/auth/logout")
 async def logout(response: Response, request: Request, csrf_protect: CsrfProtect = Depends()):
     await csrf_protect.validate_csrf(request)
-    response.delete_cookie(settings.AUTH_COOKIE_NAME)
-    response.delete_cookie("alluci_session")
+    response.delete_cookie(
+        key=settings.AUTH_COOKIE_NAME,
+        path="/",
+        httponly=True,
+        secure=settings.AUTH_COOKIE_SECURE,
+        samesite=settings.AUTH_COOKIE_SAMESITE,
+    )
+    response.delete_cookie(
+        key="alluci_session",
+        path="/",
+        httponly=True,
+        secure=settings.AUTH_COOKIE_SECURE,
+        samesite=settings.AUTH_COOKIE_SAMESITE,
+    )
     return {"status": "SUCCESS", "message": "Logged out."}
 
 @router.get("/auth/verusid/login-request")
@@ -91,12 +110,31 @@ async def get_verusid_login_request(request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/auth/verusid/status/{challenge_id}")
-async def get_verusid_login_status(challenge_id: str):
+async def get_verusid_login_status(challenge_id: str, response: Response):
     """Checks if a login has been completed for the given challenge_id."""
     status_data = await verus_auth.get_login_status(challenge_id)
     if status_data:
         identity = status_data.get("identity")
         token = create_access_token(data={"sub": identity, "vauth": True})
+        
+        # Set cookies just like other successful authentication flows
+        response.set_cookie(
+            key=settings.AUTH_COOKIE_NAME,
+            value=token,
+            httponly=True,
+            secure=settings.AUTH_COOKIE_SECURE,
+            samesite=settings.AUTH_COOKIE_SAMESITE,
+            max_age=86400,
+        )
+        response.set_cookie(
+            key="alluci_session",
+            value="1",
+            httponly=True,
+            secure=settings.AUTH_COOKIE_SECURE,
+            samesite=settings.AUTH_COOKIE_SAMESITE,
+            max_age=86400
+        )
+        
         return {
             "status": "SUCCESS", 
             "identity": identity,
@@ -144,7 +182,11 @@ async def verify_webauthn_response(request: Request, response: Response, payload
     
     try:
         from webauthn import verify_registration_response
-        from webauthn.helpers.structs import RegistrationCredential
+        from webauthn.helpers.structs import (
+            RegistrationCredential,
+            AuthenticatorAttestationResponse,
+            PublicKeyCredentialType,
+        )
     except ImportError:
         raise HTTPException(
             status_code=501,
@@ -156,32 +198,39 @@ async def verify_webauthn_response(request: Request, response: Response, payload
     raw_id = payload.get("rawId")
     response_data = payload.get("response", {})
 
-    if not all([challenge_id, credential_id, raw_id,
-                response_data.get("attestationObject"),
-                response_data.get("clientDataJSON")]):
-        raise HTTPException(status_code=400, detail="Missing required WebAuthn fields")
+    if not isinstance(challenge_id, str):
+        raise HTTPException(status_code=400, detail="Invalid or missing challengeId")
+
+    if not isinstance(credential_id, str) or not isinstance(raw_id, str) or not isinstance(response_data, dict):
+        raise HTTPException(status_code=400, detail="Invalid WebAuthn metadata fields")
+
+    attestation_object = response_data.get("attestationObject")
+    client_data_json = response_data.get("clientDataJSON")
+
+    if not isinstance(attestation_object, str) or not isinstance(client_data_json, str):
+        raise HTTPException(status_code=400, detail="Missing or invalid WebAuthn response payload")
 
     # Atomically consume the challenge — prevents replay
     expected_challenge = await webauthn_store.consume_challenge(challenge_id)
     if expected_challenge is None:
         raise HTTPException(status_code=400, detail="Challenge not found or expired.")
 
-    rp_id = settings.WEBAUTHN_RP_ID or request.url.hostname
+    rp_id = settings.WEBAUTHN_RP_ID or request.url.hostname or "localhost"
     expected_origin = settings.WEBAUTHN_ORIGIN or f"{request.url.scheme}://{request.url.netloc}"
 
     try:
         credential = RegistrationCredential(
             id=credential_id,
-            raw_id=base64.urlsafe_b64decode(raw_id + "=="),
-            response={
-                "attestation_object": base64.urlsafe_b64decode(
-                    response_data["attestationObject"] + "=="
+            raw_id=base64.urlsafe_b64decode(_pad(raw_id)),
+            response=AuthenticatorAttestationResponse(
+                attestation_object=base64.urlsafe_b64decode(
+                    _pad(attestation_object)
                 ),
-                "client_data_json": base64.urlsafe_b64decode(
-                    response_data["clientDataJSON"] + "=="
+                client_data_json=base64.urlsafe_b64decode(
+                    _pad(client_data_json)
                 ),
-            },
-            type="public-key",
+            ),
+            type=PublicKeyCredentialType.PUBLIC_KEY,
         )
 
         verification = verify_registration_response(
@@ -254,7 +303,7 @@ async def get_webauthn_assertion_challenge(request: Request, payload: Dict[str, 
         # Allow any registered credential
         allow_credentials = [
             {"type": "public-key", "id": cid}
-            for cid in credential_store.list_credentials()
+            for cid in await credential_store.list_credentials()
         ]
 
     return {
@@ -283,7 +332,11 @@ async def verify_webauthn_assertion(
 
     try:
         from webauthn import verify_authentication_response
-        from webauthn.helpers.structs import AuthenticationCredential
+        from webauthn.helpers.structs import (
+            AuthenticationCredential,
+            AuthenticatorAssertionResponse,
+            PublicKeyCredentialType,
+        )
     except ImportError:
         raise HTTPException(
             status_code=501,
@@ -295,17 +348,18 @@ async def verify_webauthn_assertion(
     raw_id = payload.get("rawId")
     response_data = payload.get("response", {})
 
-    if not all(
-        [
-            challenge_id,
-            credential_id,
-            raw_id,
-            response_data.get("authenticatorData"),
-            response_data.get("clientDataJSON"),
-            response_data.get("signature"),
-        ]
-    ):
-        raise HTTPException(status_code=400, detail="Missing required assertion fields")
+    if not isinstance(challenge_id, str):
+        raise HTTPException(status_code=400, detail="Invalid or missing challengeId")
+
+    if not isinstance(credential_id, str) or not isinstance(raw_id, str) or not isinstance(response_data, dict):
+        raise HTTPException(status_code=400, detail="Invalid WebAuthn metadata fields")
+
+    authenticator_data = response_data.get("authenticatorData")
+    client_data_json = response_data.get("clientDataJSON")
+    signature = response_data.get("signature")
+
+    if not isinstance(authenticator_data, str) or not isinstance(client_data_json, str) or not isinstance(signature, str):
+        raise HTTPException(status_code=400, detail="Missing or invalid WebAuthn assertion payload")
 
     # Atomically consume the challenge — prevents replay attacks
     expected_challenge = await webauthn_store.consume_challenge(challenge_id)
@@ -320,27 +374,23 @@ async def verify_webauthn_assertion(
             detail="Credential not registered. Please register your passkey first.",
         )
 
-    rp_id = settings.WEBAUTHN_RP_ID or request.url.hostname
+    rp_id = settings.WEBAUTHN_RP_ID or request.url.hostname or "localhost"
     expected_origin = settings.WEBAUTHN_ORIGIN or f"{request.url.scheme}://{request.url.netloc}"
 
     try:
-
-        def _pad(s: str) -> str:
-            return s + "=" * (-len(s) % 4)
-
         credential = AuthenticationCredential(
             id=credential_id,
             raw_id=base64.urlsafe_b64decode(_pad(raw_id)),
-            response={
-                "authenticator_data": base64.urlsafe_b64decode(
-                    _pad(response_data["authenticatorData"])
+            response=AuthenticatorAssertionResponse(
+                authenticator_data=base64.urlsafe_b64decode(
+                    _pad(authenticator_data)
                 ),
-                "client_data_json": base64.urlsafe_b64decode(
-                    _pad(response_data["clientDataJSON"])
+                client_data_json=base64.urlsafe_b64decode(
+                    _pad(client_data_json)
                 ),
-                "signature": base64.urlsafe_b64decode(_pad(response_data["signature"])),
-            },
-            type="public-key",
+                signature=base64.urlsafe_b64decode(_pad(signature)),
+            ),
+            type=PublicKeyCredentialType.PUBLIC_KEY,
         )
 
         verification = verify_authentication_response(

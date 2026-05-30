@@ -34,7 +34,8 @@ from .security.avl_gate import AVLGate
 from .ace.entropy_monitor import EntropySpikeDetector
 from .inference.kcm import KCMGeodesicCost
 from .security.health_monitor import PVTManifoldHealthMonitor
-from .security.audit_log import TopologicalAuditLog
+from .security.audit_ledger import sync_audit_entry
+from .models import AuditEntry
 from .ace.memory_decay import MemoryTopologyDecay
 from .inference.ppn import PPNEmbeddingModule
 from .inference.holoid import HoloidConsensus
@@ -44,8 +45,8 @@ from .memory.hlsm_manager import HLSMManager, HLSMContext
 
 class ExecutiveOrchestrator:
     def __init__(self, router: ModelRouter, vault: VaultManager, ace: AffectiveEngine, 
-                 settings: Settings, skill_manager: SkillManager = None, 
-                 approval_manager=None, analytics=None, vault_root: str = None,
+                 settings: Settings, skill_manager: Optional[SkillManager] = None, 
+                 approval_manager=None, analytics=None, vault_root: Optional[str] = None,
                  memory_manager=None, hlsm_manager=None):
         self.settings = settings
         self.logger = get_logger("ExecutiveOrchestrator")
@@ -70,7 +71,6 @@ class ExecutiveOrchestrator:
         self.entropy_monitor = EntropySpikeDetector()
         self.geodesic_cost = KCMGeodesicCost()
         self.health_monitor = PVTManifoldHealthMonitor()
-        self.audit_log = TopologicalAuditLog()
         self.memory_decay = MemoryTopologyDecay()
         
         # Heartbeat System
@@ -105,7 +105,7 @@ class ExecutiveOrchestrator:
             task.cancel()
             self.logger.info(f"[Orchestrator] Run {run_id} cancelled by user.")
 
-        from sqlmodel import Session, select
+        from sqlmodel import Session, select, col
         from .models import Run, TaskRecord
         from .database import engine as db_engine_local
 
@@ -116,7 +116,7 @@ class ExecutiveOrchestrator:
 
             stmt = select(TaskRecord).where(
                 TaskRecord.run_id == run_id,
-                TaskRecord.status.in_(["pending", "running"])
+                col(TaskRecord.status).in_(["pending", "running"])
             )
             tasks = session.exec(stmt).all()
             for t in tasks:
@@ -133,7 +133,7 @@ class ExecutiveOrchestrator:
 
     async def preview_plan(self, objective: str) -> list:
         """Generate a plan without executing it. Returns DAG task list for preview."""
-        context = await self._build_soul_context()
+        context = await self._build_system_context()
         tasks = await self.planner.generate_plan(objective, context=context)
         return [
             {
@@ -152,7 +152,7 @@ class ExecutiveOrchestrator:
 
     async def stop_background_services(self):
         if self.heartbeat_task:
-            self.heartbeat.stop()
+            await self.heartbeat.stop()
             await self.heartbeat_task
         self.logger.info("Background services stopped.")
 
@@ -162,6 +162,7 @@ class ExecutiveOrchestrator:
         Process a message received from a connected channel adapter.
         Turns the message body into an autonomous objective.
         """
+        from opentelemetry import trace
         from .tracing_config import get_tracer
         tracer = get_tracer("Orchestrator")
 
@@ -185,7 +186,7 @@ class ExecutiveOrchestrator:
                     psi_val = 0.0
                     if self.ace:
                         s = self.ace.get_affective_state()
-                        psi_val = min(1.0, float(s.tension) / 1024.0)
+                        psi_val = min(1.0, s.tension / 1024.0)
                     await self.hlsm.encode_message(
                         content=f"[{protocol}] From {sender}: {body}",
                         session_key=session_key,
@@ -330,8 +331,8 @@ class ExecutiveOrchestrator:
                 valence = 0.5
                 if self.ace:
                     affective = self.ace.get_affective_state()
-                    psi = min(1.0, float(affective.tension) / 1024.0)
-                    valence = min(1.0, float(affective.valence) / 1024.0)
+                    psi = min(1.0, affective.tension / 1024.0)
+                    valence = min(1.0, affective.valence / 1024.0)
 
                 # Use a fast-path for conversational retrieval
                 retrieval_seed = "\n".join(context_parts[:2]) if context_parts else "general assistance"
@@ -363,6 +364,8 @@ class ExecutiveOrchestrator:
                 self._embed_model = SentenceTransformer('all-MiniLM-L6-v2')
             
             embedding = self._embed_model.encode(objective, convert_to_tensor=True)
+            import torch
+            assert torch is not None and isinstance(embedding, torch.Tensor)
             input_tensor = embedding.unsqueeze(0).expand(10, -1)
             
             # 2. Get Affective State (PPN-001/002)
@@ -546,7 +549,8 @@ class ExecutiveOrchestrator:
             "plan_hash": hash(str(current_plan)),
             "timestamp": asyncio.get_event_loop().time()
         })
-        self._save_manifest(run_id, signed_manifest.get("signature"))
+        signature = str(signed_manifest.get("signature") or "")
+        self._save_manifest(run_id, signature)
         self.logger.info(f"📜 Manifest Signed by {signed_manifest['signer']}")
 
         # 6. Execution Loop
@@ -593,8 +597,8 @@ class ExecutiveOrchestrator:
                     final_valence = 0.5
                     if self.ace:
                         final_state = self.ace.get_affective_state()
-                        final_psi = min(1.0, float(final_state.tension) / 1024.0)
-                        final_valence = min(1.0, float(final_state.valence) / 1024.0)
+                        final_psi = min(1.0, final_state.tension / 1024.0)
+                        final_valence = min(1.0, final_state.valence / 1024.0)
 
                     await self.hlsm.encode_from_execution(
                         run_id=run_id,
@@ -619,9 +623,23 @@ class ExecutiveOrchestrator:
                     )
                     self.logger.info(f"📈 Manifold Geodesic Drift: {drift:.4f}")
                 
-                # Log with PVT triple for forensic reconstruction
-                pvt_triple = self.health_monitor.get_last_pvt() if hasattr(self, 'health_monitor') else None
-                self.audit_log.log_entry(objective, polytope_state, results_summary, pvt=pvt_triple)
+                import uuid
+                audit_entry = AuditEntry(
+                    timestamp=datetime.now(timezone.utc).isoformat(),
+                    id=str(uuid.uuid4()),
+                    event="OBJECTIVE_EXECUTION",
+                    details={"objective": objective, "result_summary": results_summary[:500]},
+                    status="INFO"
+                )
+                topo = {
+                    "betti": polytope_state.betti if hasattr(polytope_state, "betti") else [],
+                    "phi_total": getattr(polytope_state, "phi_total", 0.0),
+                    "coherence": getattr(polytope_state, "coherence", 1.0),
+                    "psi": getattr(polytope_state, "affective_tension_psi", 0.0),
+                    "pvt": health_report.get("pvt", {}),
+                } if polytope_state else None
+
+                await sync_audit_entry(audit_entry, topo=topo)
            
             # --- AVL Security Gate (PPN-006) ---
             # Verify the completion against the manifold state
@@ -650,7 +668,7 @@ class ExecutiveOrchestrator:
                     tasks = await self.planner.refine_plan(
                         objective, current_plan, results_summary, feedback, failed_tasks
                     )
-                    current_plan = [t.dict() for t in tasks.values()]
+                    current_plan = [t.model_dump() for t in tasks.values()]
                 except Exception as e:
                     self.logger.error(f"Refinement failed for run {run_id}: {e}")
                     self._update_run_status(run_id, RunStatus.FAILED, feedback=f"Refinement error: {type(e).__name__}: {e}")
@@ -665,8 +683,6 @@ class ExecutiveOrchestrator:
             "feedback": feedback
         }
 
-            except Exception as e:
-                self.logger.error(f"[Orchestrator] H-LSM encoding failed (non-fatal): {e}", exc_info=True)
 
     async def execute_research(self, objective: str) -> Dict[str, Any]:
         """
@@ -694,14 +710,16 @@ class ExecutiveOrchestrator:
         # Phase 2: Search & Fetch
         for query in queries[:3]: # Limit to top 3 queries for safety
             self.logger.info(f"🌐 Searching: {query}")
-            search_tool = self.adapter_registry.get_adapter("web_search")
+            search_tool = self.adapter_registry.get("web_search")
+            assert search_tool is not None, "Web search tool must be registered"
             search_data = await search_tool.execute({"query": query})
             
             # Fetch top 2 results
             links = [res["link"] for res in search_data.get("results", [])[:2]]
             for link in links:
                 self.logger.info(f"📄 Fetching: {link}")
-                fetch_tool = self.adapter_registry.get_adapter("web_fetch")
+                fetch_tool = self.adapter_registry.get("web_fetch")
+                assert fetch_tool is not None, "Web fetch tool must be registered"
                 content = await fetch_tool.execute({"url": link})
                 research_results.append({
                     "source": link,
@@ -787,9 +805,10 @@ class ExecutiveOrchestrator:
             session.add(run)
             session.commit()
             session.refresh(run)
+            assert run.id is not None, "Run ID must be generated"
             return run.id
 
-    def _update_run_status(self, run_id: int, status: str, score: float = 0.0, feedback: str = None):
+    def _update_run_status(self, run_id: int, status: str, score: float = 0.0, feedback: Optional[str] = None):
         with Session(db_engine) as session:
             run = session.get(Run, run_id)
             if run:

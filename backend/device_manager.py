@@ -146,13 +146,16 @@ class DeviceManager:
         """
         Generates or rotates a high-entropy binding token for an approved device.
         Tokens default to a 30-day sliding window.
+        Stores a secure SHA-256 hash of the token in the database.
         """
         with Session(db_engine) as session:
             device = session.get(Device, device_id)
             if not device or device.status != "approved":
                 raise ValueError("Device binding rejected: Device must be in 'approved' state.")
 
-            new_token = base64.urlsafe_b64encode(os.urandom(48)).decode()
+            # Generate high-entropy token
+            raw_token = base64.urlsafe_b64encode(os.urandom(48)).decode()
+            hashed_token = hashlib.sha256(raw_token.encode()).hexdigest()
             
             stmt = select(DeviceBinding).where(
                 DeviceBinding.device_id == device_id,
@@ -162,11 +165,11 @@ class DeviceManager:
             if not binding:
                 binding = DeviceBinding(device_id=device_id, agent_id=agent_id)
             
-            binding.token = new_token
+            binding.token = hashed_token
             binding.expires_at = datetime.now(timezone.utc) + timedelta(days=30)
             session.add(binding)
             session.commit()
-            return new_token
+            return raw_token
 
     @staticmethod
     def get_local_capabilities() -> Dict[str, Any]:
