@@ -5,6 +5,7 @@ import { useStore } from '../../store/useStore';
 interface CommandBarProps {
     textInput: string;
     setTextInput: (val: string) => void;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     attachments: any[];
     removeAttachment: (idx: number) => void;
     fileInputRef: React.RefObject<HTMLInputElement | null>;

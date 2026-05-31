@@ -69,6 +69,7 @@ Object.defineProperty(globalThis, 'crypto', {
      return arr;
    },
    subtle: {
+     // eslint-disable-next-line @typescript-eslint/no-unused-vars
      digest: async (_algo: string, data: BufferSource) => new ArrayBuffer(32),
      generateKey: async () => ({ type: 'secret' }),
      encrypt: async (_algo: unknown, _key: unknown, data: BufferSource) => data,

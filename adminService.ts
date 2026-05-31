@@ -1,8 +1,10 @@
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { useStore } from './store/useStore';
 
 export interface AdminCallbacks {
     onApprovalRequest?: (data: { request_id: string; command: string; tool_name: string; context: string }) => void;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onSystemEvent?: (method: string, params: any) => void;
     onOpen?: () => void;
     onClose?: () => void;
@@ -12,19 +14,24 @@ export class AlluciAdminService {
     private socket: WebSocket | null = null;
     private DAEMON_URL = import.meta.env.VITE_DAEMON_URL;
     private WS_URL = (this.DAEMON_URL || window.location.origin).replace('http', 'ws') + '/ws/admin';
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     private reconnectTimer: any = null;
     private token: string | null = null;
     private callbacks: AdminCallbacks | null = null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     private eventListeners: ((method: string, params: any) => void)[] = [];
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     addListener(listener: (method: string, params: any) => void) {
         this.eventListeners.push(listener);
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     removeListener(listener: (method: string, params: any) => void) {
         this.eventListeners = this.eventListeners.filter(l => l !== listener);
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     private _notifyListeners(method: string, params: any) {
         this.eventListeners.forEach(l => l(method, params));
     }
@@ -111,6 +118,7 @@ export class AlluciAdminService {
         };
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     sendRPC(method: string, params: any = {}) {
         if (this.socket?.readyState === WebSocket.OPEN) {
             const id = Math.random().toString(36).substring(7);

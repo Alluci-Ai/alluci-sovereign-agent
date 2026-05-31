@@ -14,6 +14,7 @@ describe('SessionsPanel', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (useStore as any).mockReturnValue({
             sessions: [],
             setSessions: mockSetSessions,

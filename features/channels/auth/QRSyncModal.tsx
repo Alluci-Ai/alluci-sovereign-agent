@@ -40,6 +40,7 @@ export const QRSyncModal: React.FC<{
             if (!res.ok) throw new Error(await res.text());
             const data = await res.json();
             if (data.qr_url) setWechatQr(data.qr_url);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (e: any) {
             setError(e.message);
         } finally {
@@ -48,6 +49,7 @@ export const QRSyncModal: React.FC<{
     };
 
     useEffect(() => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const handleEvent = (method: string, params: any) => {
             if (method === 'bridge.status' && params.bridge_id === bridgeId) {
                 if (params.status === 'CONNECTED') {
@@ -65,6 +67,7 @@ export const QRSyncModal: React.FC<{
         setIsLoading(true);
         setError(null);
         try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             let creds: Record<string, any> = {};
 
             if (bridgeId === 'wa') {
@@ -89,6 +92,7 @@ export const QRSyncModal: React.FC<{
             if (!activated?.connected) throw new Error(`Bridge activation failed.`);
 
             onComplete(JSON.stringify(creds), "");
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (e: any) {
             setError(e.message || "Activation Failed");
         } finally {

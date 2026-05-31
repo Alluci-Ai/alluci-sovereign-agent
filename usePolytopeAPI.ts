@@ -34,6 +34,7 @@ export const usePolytopeAPI = () => {
       );
       
       return result.result;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       console.error("Daemon link failure:", error);
       return `[ ERROR ]: ${error.message || "Daemon manifold unreachable."}`;

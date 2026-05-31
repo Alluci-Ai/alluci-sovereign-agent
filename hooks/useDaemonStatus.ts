@@ -12,6 +12,7 @@ export const useDaemonStatus = () => {
             try {
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 2000);
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const headers: any = {};
                 if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
 
@@ -52,5 +53,6 @@ export const useDaemonStatus = () => {
             mounted = false;
             clearInterval(interval);
         };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [setDaemonStatus, setHarmonicStatus]);
 };

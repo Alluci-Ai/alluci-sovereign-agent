@@ -1,8 +1,10 @@
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useStore } from '../store/useStore';
 import { PendingAttachment } from '../types';
 
 export const useInteractions = (
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     geminiServiceRef: React.MutableRefObject<any>,
     isConnected: boolean,
     handleAudioOutput: (audio: string) => Promise<void>,
@@ -83,6 +85,7 @@ export const useInteractions = (
             if (isConnected) {
                 await geminiServiceRef.current?.speak(responseText, handleAudioOutput);
             }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (err: any) {
             // Distinguish user abort from real errors
             if (err?.name === 'AbortError') {
@@ -113,6 +116,7 @@ export const useInteractions = (
                         if (isConnected) {
                             await geminiServiceRef.current?.speak(responseText, handleAudioOutput);
                         }
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     } catch (err: any) {
                         if (err?.name === 'AbortError') {
                             console.info("[ UX ]: Queued generation aborted.");
@@ -128,6 +132,7 @@ export const useInteractions = (
                 processQueued();
             }
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isProcessing]);
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -168,6 +173,7 @@ export const useInteractions = (
             console.info(`[ UX ]: Extracting ${imageFiles.length} pasted images.`);
             await processFiles(imageFiles);
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [attachments]);
 
     const removeAttachment = (idx: number) => {

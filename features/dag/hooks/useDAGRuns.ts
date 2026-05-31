@@ -36,6 +36,7 @@ export function useDAGRuns({ status, limit = 20, autoRefresh = true, agent_id = 
       const data = await res.json();
       setRuns(prev => replace ? data.runs : [...prev, ...data.runs]);
       setTotal(data.total);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
       setError(e.message);
     } finally {

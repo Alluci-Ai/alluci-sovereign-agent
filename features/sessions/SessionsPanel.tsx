@@ -37,6 +37,7 @@ export const SessionsPanel: React.FC = () => {
                 // If backend is up but sessions endpoint fails, still clear loading
                 if (sessions.length === 0) setSessions([]);
             }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (err: any) {
             console.warn('[SessionsPanel] Manifold sync interrupted:', err.message);
             // PROACTIVE FALLBACK: If we have no sessions and the server is down,
@@ -54,6 +55,7 @@ export const SessionsPanel: React.FC = () => {
         fetchSessions();
         const interval = setInterval(() => fetchSessions(), 30000);
         return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [accessToken]);
 
     const handleNewSession = () => {

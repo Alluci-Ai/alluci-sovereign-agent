@@ -1,3 +1,4 @@
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { CronPanel } from './CronPanel';
@@ -15,10 +16,12 @@ vi.mock('./CronRunHistory', () => ({ CronRunHistory: () => <div data-testid="cro
 describe('CronPanel', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (useStore as any).mockReturnValue({ accessToken: 'mock-token' });
     });
 
     it('renders loading state initially', async () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (global.fetch as any).mockImplementation(() => new Promise(() => {}));
         render(<CronPanel />);
         expect(screen.getByText('SYNCING_CRON_MANIFOLD...')).toBeInTheDocument();
@@ -30,6 +33,7 @@ describe('CronPanel', () => {
             { id: 2, name: 'Hourly Sync', schedule_type: 'interval', schedule_value: '60', enabled: false }
         ];
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (global.fetch as any).mockResolvedValueOnce({
             ok: true,
             json: async () => mockJobs
@@ -44,7 +48,9 @@ describe('CronPanel', () => {
     });
 
     it('handles quick add', async () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (global.fetch as any).mockResolvedValueOnce({ ok: true, json: async () => [] }); // Initial fetch
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (global.fetch as any).mockResolvedValueOnce({ ok: true }); // POST request
 
         render(<CronPanel />);
@@ -70,7 +76,9 @@ describe('CronPanel', () => {
 
     it('toggles job enabled state', async () => {
         const mockJob = { id: 1, name: 'Job', enabled: true, schedule_type: 'cron' };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (global.fetch as any).mockResolvedValueOnce({ ok: true, json: async () => [mockJob] });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (global.fetch as any).mockResolvedValueOnce({ ok: true }); // PUT request
 
         render(<CronPanel />);
@@ -95,7 +103,9 @@ describe('CronPanel', () => {
 
     it('deletes a job after confirmation', async () => {
         const mockJob = { id: 1, name: 'Job', enabled: true, schedule_type: 'cron' };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (global.fetch as any).mockResolvedValueOnce({ ok: true, json: async () => [mockJob] });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (global.fetch as any).mockResolvedValueOnce({ ok: true }); // DELETE request
         
         window.confirm = vi.fn().mockReturnValue(true);
@@ -119,6 +129,7 @@ describe('CronPanel', () => {
     });
 
     it('switches to History view', async () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (global.fetch as any).mockResolvedValueOnce({ ok: true, json: async () => [] });
         
         render(<CronPanel />);

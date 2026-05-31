@@ -10,6 +10,7 @@ interface NodeBindingEditorProps {
 
 export const NodeBindingEditor: React.FC<NodeBindingEditorProps> = ({ agentId }) => {
     const { accessToken } = useStore();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [devices, setDevices] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [bindingState, setBindingState] = useState<Record<string, { loading: boolean, token: string | null }>>({});
@@ -24,6 +25,7 @@ export const NodeBindingEditor: React.FC<NodeBindingEditorProps> = ({ agentId })
                 if (res.ok) {
                     const data = await res.json();
                     // For binding UI, we only care about approved devices
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     setDevices(data.devices?.filter((d: any) => d.status === 'approved') || []);
                 }
             } catch (err) {
@@ -50,6 +52,7 @@ export const NodeBindingEditor: React.FC<NodeBindingEditorProps> = ({ agentId })
             } else {
                 throw new Error(data.detail || 'Binding failed');
             }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (err: any) {
             alert(`Binding synchronization failed: ${err.message}`);
             setBindingState(prev => ({ ...prev, [deviceId]: { loading: false, token: null } }));

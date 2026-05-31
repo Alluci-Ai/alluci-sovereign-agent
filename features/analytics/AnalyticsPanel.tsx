@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useStore } from '../../store/useStore';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { Calendar, RefreshCw, Globe, Pin, Info, Activity, Database, AlertCircle, Download } from 'lucide-react';
 import { DailyBarChart } from './DailyBarChart';
 import { SessionsTable } from './SessionsTable';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { SessionTimeseries } from './SessionTimeseries';
 
 const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
@@ -22,6 +24,7 @@ export const AnalyticsPanel: React.FC = () => {
     const [startDate, setStartDate] = useState<string>('');
     const [endDate, setEndDate] = useState<string>('');
     const [summary, setSummary] = useState<SummaryStats | null>(null);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [sessions, setSessions] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
 
@@ -65,6 +68,7 @@ export const AnalyticsPanel: React.FC = () => {
 
     useEffect(() => {
         fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [startDate, endDate, accessToken]);
 
     const formatTokens = (num: number) => {

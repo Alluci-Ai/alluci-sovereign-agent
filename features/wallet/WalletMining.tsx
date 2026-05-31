@@ -5,6 +5,7 @@ import { useStore } from '../../store/useStore';
 const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
 
 interface WalletMiningProps {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mining: any;
     chains: string[];
     onStateChange: () => void;

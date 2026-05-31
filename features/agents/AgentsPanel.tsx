@@ -8,6 +8,7 @@ const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
 
 export const AgentsPanel: React.FC = () => {
     const { accessToken } = useStore();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [agents, setAgents] = useState<any[]>([]);
     const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
@@ -32,6 +33,7 @@ export const AgentsPanel: React.FC = () => {
 
     useEffect(() => {
         fetchAgents();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [accessToken]);
 
     const handleCreate = async () => {

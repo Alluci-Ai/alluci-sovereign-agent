@@ -12,6 +12,7 @@ interface TerminalViewProps {
     copyText: (text: string) => void;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const TerminalView: React.FC<TerminalViewProps> = ({ getFormattedTime, copyText }) => {
     const { transcriptions, isProcessing } = useStore();
     const messagesEndRef = useRef<HTMLDivElement | null>(null);

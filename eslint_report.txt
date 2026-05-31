@@ -1,0 +1,30 @@
+
+> alluci-sovereign-agent@0.1.1.1-beta lint
+> eslint . --max-warnings=500
+
+
+/Users/alluci/Downloads/alluci-sovereign-agent-main/components/TaskPanel.tsx
+  236:126  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  257:103  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/alluci/Downloads/alluci-sovereign-agent-main/features/ace/AffectiveEnginePanel.tsx
+   74:50  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   83:50  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   92:47  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  117:46  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/alluci/Downloads/alluci-sovereign-agent-main/features/analytics/DailyBarChart.tsx
+  88:56  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/alluci/Downloads/alluci-sovereign-agent-main/features/config/ConfigPanel.tsx
+  109:50  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/alluci/Downloads/alluci-sovereign-agent-main/features/wallet/WalletOverview.tsx
+  102:52   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  102:108  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/alluci/Downloads/alluci-sovereign-agent-main/kernel/executionManifest.ts
+  4:17  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+✖ 11 problems (0 errors, 11 warnings)
+

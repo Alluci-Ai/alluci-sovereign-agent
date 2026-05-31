@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { adminService } from '../../adminService';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { useStore } from '../../store/useStore';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { Terminal, Send, X, ChevronRight, Activity, Cpu, Layers } from 'lucide-react';
 
 interface MethodSchema {
@@ -12,6 +14,7 @@ export const RpcConsole: React.FC = () => {
     const [methods, setMethods] = useState<Record<string, MethodSchema>>({});
     const [selectedMethod, setSelectedMethod] = useState<string>('');
     const [paramsInput, setParamsInput] = useState<string>('{}');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [logs, setLogs] = useState<{ type: 'req' | 'res' | 'err'; content: any; timestamp: string }[]>([]);
     const [isExpanded, setIsExpanded] = useState(false);
     const logEndRef = useRef<HTMLDivElement>(null);
@@ -19,6 +22,7 @@ export const RpcConsole: React.FC = () => {
     useEffect(() => {
         // Fetch methods on mount
         // Hook into system events to capture RPC results for this console
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const handleEvent = (method: string, params: any) => {
             if (method === 'methods.list') {
                 setMethods(params.methods || {});

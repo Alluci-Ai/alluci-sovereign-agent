@@ -50,6 +50,7 @@ export const SecureTunnelModal: React.FC<{
         setIsLoading(true);
         setError(null);
         try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             let creds: Record<string, any> = {};
 
             if (bridgeId === 'imessage') {
@@ -70,6 +71,7 @@ export const SecureTunnelModal: React.FC<{
             if (!activated?.connected) throw new Error(`Bridge activation failed.`);
 
             onComplete(JSON.stringify(creds), "");
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (e: any) {
             setError(e.message || "Activation Failed");
         } finally {

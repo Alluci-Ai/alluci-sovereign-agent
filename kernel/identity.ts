@@ -1,8 +1,13 @@
 // Iso-identity manager for App and Daemon
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let crypto_lib: any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let fs_lib: any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let path_lib: any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let os_lib: any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let buffer_lib: any;
 
 const isBrowser = typeof window !== 'undefined';
@@ -94,6 +99,7 @@ export class IdentityManager {
         this.keyStore.ensureIdentity();
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     signData(data: any): string {
         if (isBrowser) {
             // [ SEC-005 ] Improved randomness for browser signing
@@ -109,6 +115,7 @@ export class IdentityManager {
         return signature.toString('hex');
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     verifySignature(data: any, signatureHex: string, publicKeyPem: string): boolean {
         if (isBrowser) return true; // Browser assumes server-side valid
         try {

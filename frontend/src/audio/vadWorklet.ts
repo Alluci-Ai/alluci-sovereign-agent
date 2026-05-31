@@ -7,8 +7,10 @@ declare abstract class AudioWorkletProcessor {
     abstract process(inputs: Float32Array[][], outputs: Float32Array[][], parameters: Record<string, Float32Array>): boolean;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 declare function registerProcessor(name: string, processorCtor: (new (options?: any) => AudioWorkletProcessor)): void;
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 interface AudioChunkManifest {
     pcmFrameBuffer: Float32Array;
     containsActiveSpeech: boolean;
@@ -30,6 +32,7 @@ class VADProcessor extends AudioWorkletProcessor {
         this.rollingCache = new Float32Array(this.TARGET_WINDOW_SIZE);
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     process(inputs: Float32Array[][], outputs: Float32Array[][], parameters: Record<string, Float32Array>): boolean {
         // We only care about the first input and its first channel (mono)
         const inputChannel = inputs[0]?.[0];

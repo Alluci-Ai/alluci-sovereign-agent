@@ -26,6 +26,7 @@ interface LiquidBarSegmentProps {
  * Each segment springs independently for a "liquid wave" effect.
  */
 const LiquidBarSegment: React.FC<LiquidBarSegmentProps> = ({
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     isActive, color, liquidFill, liquidGlow, index, total,
 }) => {
     // Each segment uses its own spring for staggered viscous motion
@@ -122,6 +123,7 @@ export const CircularVisualizer: React.FC<{ stream: MediaStream | null; active: 
     const canvasRef = useRef<HTMLCanvasElement>(null);
     useEffect(() => {
         if (!stream || !active) return;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
         const analyser = audioCtx.createAnalyser();
         const source = audioCtx.createMediaStreamSource(stream);

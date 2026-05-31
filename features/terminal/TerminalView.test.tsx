@@ -28,6 +28,7 @@ vi.mock('../chat/ReadingIndicator', () => ({
 
 describe('TerminalView', () => {
     const mockProps = {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         getFormattedTime: (iso: string) => '12:00:00',
         copyText: vi.fn()
     };
@@ -38,6 +39,7 @@ describe('TerminalView', () => {
     });
 
     it('renders idle state when transcriptions are empty', () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (useStore as any).mockReturnValue({
             transcriptions: [],
             isProcessing: false
@@ -66,6 +68,7 @@ describe('TerminalView', () => {
             }
         ];
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (useStore as any).mockReturnValue({
             transcriptions: mockTranscriptions,
             isProcessing: false
@@ -81,6 +84,7 @@ describe('TerminalView', () => {
     });
 
     it('renders compaction divider when isCompaction is true', () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (useStore as any).mockReturnValue({
             transcriptions: [{
                 isUser: false,
@@ -98,6 +102,7 @@ describe('TerminalView', () => {
     });
 
     it('shows reading indicator when isProcessing is true', () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (useStore as any).mockReturnValue({
             transcriptions: [],
             isProcessing: true

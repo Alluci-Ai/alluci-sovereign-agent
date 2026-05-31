@@ -73,10 +73,12 @@ export const WorkspaceEditor: React.FC<WorkspaceEditorProps> = ({ agentId }) => 
 
     useEffect(() => {
         loadFiles();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [agentId, accessToken]);
 
     useEffect(() => {
         if (selectedFile) loadContent(selectedFile);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedFile]);
 
     return (

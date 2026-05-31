@@ -12,6 +12,7 @@ const mockConnections: Connection[] = [
         authType: 'OAUTH2',
         accountAlias: 'test@icloud.com',
         isEncrypted: true,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         autonomyLevel: 'SOVEREIGN' as any
     },
     {
@@ -21,6 +22,7 @@ const mockConnections: Connection[] = [
         status: 'DISCONNECTED',
         authType: 'TOKEN',
         isEncrypted: true,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         autonomyLevel: 'SEMI_AUTONOMOUS' as any
     }
 ];

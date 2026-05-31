@@ -2,6 +2,7 @@ import React from 'react';
 import { ArrowUpRight, ArrowDownLeft, RefreshCcw, Coins, CodeXml } from 'lucide-react';
 
 interface WalletTransactionsProps {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     recent?: any[];
 }
 

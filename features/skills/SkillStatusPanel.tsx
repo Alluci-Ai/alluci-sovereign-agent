@@ -6,6 +6,7 @@ const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
 
 export const SkillStatusPanel: React.FC<{ skillId: string }> = ({ skillId }) => {
     const { accessToken } = useStore();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [status, setStatus] = useState<any>(null);
 
     useEffect(() => {

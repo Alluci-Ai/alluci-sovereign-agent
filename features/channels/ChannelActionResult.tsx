@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ChevronDown, ChevronRight, Activity } from 'lucide-react';
 
 interface ChannelActionResultProps {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     result: any;
     onDismiss: () => void;
 }

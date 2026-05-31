@@ -11,6 +11,7 @@ interface VerusIdLoginProps {
 const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
 
 export const VerusIdLogin: React.FC<VerusIdLoginProps> = ({ onComplete, onCancel }) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [loginData, setLoginData] = useState<any>(null);
     const [status, setStatus] = useState<'idle' | 'loading' | 'pending' | 'verifying' | 'success' | 'error'>('idle');
     const [error, setError] = useState<string | null>(null);
@@ -24,6 +25,7 @@ export const VerusIdLogin: React.FC<VerusIdLoginProps> = ({ onComplete, onCancel
             const data = await res.json();
             setLoginData(data);
             setStatus('pending');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (err: any) {
             setError(err.message);
             setStatus('error');

@@ -2,6 +2,7 @@
 import { useRef, useCallback } from 'react';
 import { useStore } from '../store/useStore';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const useCamera = (geminiServiceRef: React.RefObject<any>, isConnected: boolean) => {
   const { isCameraActive, setIsCameraActive } = useStore();
   const videoRef = useRef<HTMLVideoElement | null>(null);

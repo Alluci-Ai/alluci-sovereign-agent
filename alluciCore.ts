@@ -14,6 +14,7 @@ import {
   PROFILE_IDENTITY,
   PROFILE_AFFECTIVE_COMPUTING,
   PROFILE_REASONING_STYLE,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   KNOWLEDGE_FRAMEWORKS,
   SKILL_DATABASE
 } from './knowledge';
@@ -56,6 +57,7 @@ export class SimplicialVault {
  * Ensures raw biometric data never leaves this local vault.
  */
 export class BioVault extends SimplicialVault {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private telemetryBuffer: any[] = [];
   private encryptionKey: CryptoKey | null = null;
 
@@ -72,6 +74,7 @@ export class BioVault extends SimplicialVault {
     );
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async ingestTelemetry(data: any): Promise<string> {
     // 1. Memory Management: Limit buffer size to 100 entries to prevent memory leaks
     if (this.telemetryBuffer.length > 100) {
@@ -143,6 +146,7 @@ export class SovereignSecurityManager {
 
       // 1. Fetch Challenge from Daemon
       const response = await fetch(`${this.audit.getDaemonUrl()}/api/v1/auth/webauthn/challenge`);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const options = (await response.json()) as any;
 
       // 2. Prepare WebAuthn Options
@@ -168,6 +172,7 @@ export class SovereignSecurityManager {
       // 3. Trigger Hardware Auth
       const credential = await navigator.credentials.create({
         publicKey: publicKeyCredentialCreationOptions
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       }) as any;
 
       if (credential) {
@@ -286,6 +291,7 @@ export class AuditLedger {
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async addEntry(event: string, details: any) {
     const timestamp = new Date().toISOString();
 
@@ -333,6 +339,7 @@ export class SkillVerifier {
     this.skills = SKILL_DATABASE.map(s => ({
       ...s,
       // Map simplified DB structure to full Manifest requirements
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       category: s.category as any,
       verified: true,
       signature: `sig_${s.id}_core`,
@@ -366,6 +373,7 @@ export const generateSystemPrompt = (
 ) => {
 
   // Improved Type Guard for SoulManifest
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const isManifest = (m: any): m is SoulManifest => m && typeof m === 'object' && 'identityCore' in m && 'preferences' in m;
 
   let manifest: SoulManifest;

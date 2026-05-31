@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useStore } from '../../store/useStore';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { Coins, Layers } from 'lucide-react';
 
 const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
@@ -34,6 +35,7 @@ export const SessionCostDisplay: React.FC = () => {
                 if (res.ok) {
                     const series = await res.json();
                     if (series.length > 0) {
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         const aggregate = series.reduce((acc: any, cur: any) => ({
                             input_tokens: acc.input_tokens + cur.input_tokens,
                             output_tokens: acc.output_tokens + cur.output_tokens,

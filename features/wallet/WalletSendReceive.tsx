@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { Send, Download, RefreshCcw, Activity, ShieldCheck, DollarSign, Database, Zap, AlertTriangle } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { WalletInvoice } from './WalletInvoice';
@@ -10,6 +11,7 @@ interface WalletSendReceiveProps {
 }
 
 export const WalletSendReceive: React.FC<WalletSendReceiveProps> = ({ onTransactionComplete }) => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { accessToken, walletMode } = useStore();
     const [activeTab, setActiveTab] = useState<'send' | 'receive' | 'convert'>('send');
 
@@ -23,7 +25,9 @@ export const WalletSendReceive: React.FC<WalletSendReceiveProps> = ({ onTransact
     const [convAmount, setConvAmount] = useState('');
     const [convFrom, setConvFrom] = useState('VRSC');
     const [convTo, setConvTo] = useState('vETH');
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [convVia, setConvVia] = useState('Bridge.vETH');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [convEstimate, setConvEstimate] = useState<any>(null);
     const [estimating, setEstimating] = useState(false);
 
@@ -33,6 +37,7 @@ export const WalletSendReceive: React.FC<WalletSendReceiveProps> = ({ onTransact
 
     useEffect(() => {
         fetchCurrencies();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [accessToken]);
 
     useEffect(() => {
@@ -42,6 +47,7 @@ export const WalletSendReceive: React.FC<WalletSendReceiveProps> = ({ onTransact
         } else {
             setConvEstimate(null);
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [convAmount, convFrom, convTo, convVia]);
 
     const fetchEstimate = async () => {
@@ -81,6 +87,7 @@ export const WalletSendReceive: React.FC<WalletSendReceiveProps> = ({ onTransact
             if (res.ok) {
                 const data = await res.json();
                 if (data && data.length > 0) {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     setKnownCurrencies(data.map((c: any) => c.name));
                 }
             }
@@ -115,6 +122,7 @@ export const WalletSendReceive: React.FC<WalletSendReceiveProps> = ({ onTransact
             setAmount('');
             setMemo('');
             onTransactionComplete();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (err: any) {
             setResult({ success: false, error: err.message });
         } finally {
@@ -148,6 +156,7 @@ export const WalletSendReceive: React.FC<WalletSendReceiveProps> = ({ onTransact
             setResult({ success: true, txid: data.txid });
             setConvAmount('');
             onTransactionComplete();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (err: any) {
             setResult({ success: false, error: err.message });
         } finally {

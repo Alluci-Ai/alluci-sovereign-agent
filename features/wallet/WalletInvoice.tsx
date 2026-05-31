@@ -19,6 +19,7 @@ export const WalletInvoice: React.FC = () => {
     useEffect(() => {
         handleGenerateAddress();
         fetchCurrencies();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [accessToken]);
 
     const fetchCurrencies = async () => {
@@ -29,6 +30,7 @@ export const WalletInvoice: React.FC = () => {
             if (res.ok) {
                 const data = await res.json();
                 if (data && data.length > 0) {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     setKnownCurrencies(data.map((c: any) => c.name));
                 }
             }

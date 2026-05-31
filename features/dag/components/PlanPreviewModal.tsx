@@ -37,6 +37,7 @@ export const PlanPreviewModal: React.FC<Props> = ({ objective, onClose, onExecut
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         setTasks(data.tasks || []);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (e: any) {
         setError(e.message);
       } finally {

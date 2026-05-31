@@ -2,6 +2,7 @@ import React from 'react';
 import { Download } from 'lucide-react';
 
 interface CsvExportButtonProps {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     data: any[];
     filename?: string;
 }

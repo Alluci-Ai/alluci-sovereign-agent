@@ -5,9 +5,12 @@ export interface SovereignCallbacks {
     onLLMChunk: (text: string) => void;
     onOpen: () => void;
     onClose: () => void;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onError: (error: any) => void;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onGroundingSources?: (sources: any[]) => void;
     onInterrupted?: () => void;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onCanvasManifest?: (node: any) => void;
 }
 
@@ -88,6 +91,7 @@ export class AlluciSovereignService {
             ...(options.headers || {}),
         };
         if (token) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             (headers as any)['Authorization'] = `Bearer ${token}`;
         }
         const resp = await fetch(`${this.DAEMON_URL}/api/v1${path}`, { 

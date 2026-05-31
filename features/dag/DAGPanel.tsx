@@ -97,6 +97,7 @@ export const DAGPanel: React.FC = () => {
       
       refreshRuns();
       if (data.run_id) setSelectedRunId(data.run_id);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
       console.error('[DAGPanel] Objective execution failed:', e);
     }

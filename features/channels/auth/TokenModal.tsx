@@ -30,6 +30,7 @@ export const TokenModal: React.FC<{
     const [signalPhone, setSignalPhone] = useState("");
 
     useEffect(() => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const handleEvent = (method: string, params: any) => {
             if (method === 'bridge.status' && params.bridge_id === bridgeId) {
                 if (params.status === 'CONNECTED') {
@@ -49,6 +50,7 @@ export const TokenModal: React.FC<{
         setIsLoading(true);
         setError(null);
         try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             let creds: Record<string, any> = {};
 
             if (bridgeId === 'tg') {
@@ -80,6 +82,7 @@ export const TokenModal: React.FC<{
             if (!activated?.connected) throw new Error(`Bridge activation failed.`);
 
             onComplete(JSON.stringify(creds), "");
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (e: any) {
             setError(e.message || "Activation Failed");
         } finally {

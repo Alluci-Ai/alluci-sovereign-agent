@@ -47,6 +47,7 @@ const GlassSlider: React.FC<GlassSliderProps> = ({
         handleMove(e.clientX);
         e.currentTarget.setPointerCapture(e.pointerId);
         // Haptic: "Surface Break"
+        // eslint-disable-next-line no-empty
         try { navigator?.vibrate?.(8); } catch { }
     };
 
@@ -59,6 +60,7 @@ const GlassSlider: React.FC<GlassSliderProps> = ({
         setIsDragging(false);
         e.currentTarget.releasePointerCapture(e.pointerId);
         // Haptic: "Release Snap"
+        // eslint-disable-next-line no-empty
         try { navigator?.vibrate?.(4); } catch { }
     };
 

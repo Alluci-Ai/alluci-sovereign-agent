@@ -36,6 +36,7 @@ export const useVoice = () => {
         } catch (err) {
             console.error('Failed to start recording', err);
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [accessToken, setIsVoiceRecording, setVoiceTranscription, setTextInput]);
 
     const stopRecording = useCallback(() => {

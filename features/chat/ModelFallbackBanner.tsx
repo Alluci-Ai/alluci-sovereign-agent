@@ -14,6 +14,7 @@ export const ModelFallbackBanner: React.FC = () => {
             const timer = setTimeout(() => setModelFallbackMessage(null), 10000);
             return () => clearTimeout(timer);
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [modelFallbackMessage]);
 
     if (!modelFallbackMessage) return null;

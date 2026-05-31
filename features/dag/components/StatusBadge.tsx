@@ -1,6 +1,7 @@
 
 import React from 'react';
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 type TaskStatusType = 'pending' | 'running' | 'completed' | 'failed' | 'skipped' | 'active' | 'queued';
 
 const STATUS_STYLES: Record<string, React.CSSProperties> = {

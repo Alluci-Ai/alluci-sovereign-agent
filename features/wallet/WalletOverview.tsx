@@ -1,8 +1,10 @@
 import React from 'react';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { Cpu, DollarSign, Database, ShieldCheck, Activity, Globe } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 
 interface WalletOverviewProps {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     data: any;
 }
 
@@ -17,7 +19,8 @@ export const WalletOverview: React.FC<WalletOverviewProps> = ({ data }) => {
     });
 
     const chains = data.pbaas_chains || ['VRSC'];
-    const activeBalance = data.balances?.find((b: any) => b.currency === activeChain)?.amount || 0;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const activeBalance = data.balances?.find((b: { currency: string, amount: number }) => b.currency === activeChain)?.amount || 0;
 
     return (
         <div className="space-y-6">
@@ -95,7 +98,7 @@ export const WalletOverview: React.FC<WalletOverviewProps> = ({ data }) => {
                         </div>
                     </div>
                     <div className="space-y-3">
-                        {data.balances?.filter((b: any) => b.currency !== activeChain).slice(0, 4).map((b: any) => (
+                        {data.balances?.filter((b: { currency: string, amount: number }) => b.currency !== activeChain).slice(0, 4).map((b: { currency: string, amount: number }) => (
                             <div key={b.currency} className="flex items-center justify-between group/item cursor-pointer" onClick={() => setActiveChain(b.currency)}>
                                 <span className="text-xs font-medium text-text-tertiary group-hover/item:text-text-secondary transition-colors underline decoration-dotted decoration-white/20 underline-offset-2">{b.currency}</span>
                                 <span className="font-mono text-xs text-text-primary">{formatter.format(b.amount)}</span>

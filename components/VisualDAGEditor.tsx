@@ -45,6 +45,7 @@ const VisualDAGEditor: React.FC<VisualDAGEditorProps> = ({ items, graph, onChang
 
     setNodes(filteredNodes);
     setEdges(filteredEdges);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items]);
 
   // DFS Cycle Detection

@@ -11,6 +11,7 @@ interface SessionTimeseriesProps {
 
 export const SessionTimeseries: React.FC<SessionTimeseriesProps> = ({ sessionKey }) => {
     const { accessToken } = useStore();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [data, setData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -26,6 +27,7 @@ export const SessionTimeseries: React.FC<SessionTimeseriesProps> = ({ sessionKey
                     const timeseries = await res.json();
 
                     // Format data for chart
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     const chartData = timeseries.map((t: any, idx: number) => ({
                         turn: `Turn ${idx + 1}`,
                         tokens: t.input_tokens + t.output_tokens,

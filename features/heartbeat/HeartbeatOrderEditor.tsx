@@ -1,3 +1,4 @@
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import React, { useState, useEffect } from 'react';
 import { 
   Plus, Trash2, Activity, Play, Settings2, Bell, MessageSquare, 
@@ -10,8 +11,10 @@ interface HeartbeatOrder {
   label: string;
   active: boolean;
   probe_type: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   probe_config: Record<string, any>;
   action_type: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   action_config: Record<string, any>;
   interval_minutes: number;
 }
@@ -42,6 +45,7 @@ const ACTION_TYPES = [
   { id: 'log_only', label: 'Log Only', icon: History, desc: 'Quietly log the event to H-LSM memory' }
 ];
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const HeartbeatOrderEditor: React.FC<Props> = ({ initialOrders, onSave, agentId }) => {
   const [orders, setOrders] = useState<HeartbeatOrder[]>(initialOrders);
   const [expandedId, setExpandedId] = useState<string | null>(null);

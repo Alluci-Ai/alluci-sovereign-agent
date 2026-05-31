@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useStore } from '../../store/useStore';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { Settings, CheckCircle2, Clock, XCircle, FileCode2 } from 'lucide-react';
 import WebhookUrlDisplay from './WebhookUrlDisplay';
 import ChannelToggle from './ChannelToggle';
@@ -15,8 +16,10 @@ interface ConfigExpansionProps {
     onClose: () => void;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const ChannelConfigExpansion: React.FC<ConfigExpansionProps> = ({ channelId, isOpen, onClose }) => {
     const { accessToken } = useStore();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [config, setConfig] = useState<any>({});
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);

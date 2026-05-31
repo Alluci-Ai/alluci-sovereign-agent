@@ -1,3 +1,4 @@
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { test, expect, Page } from '@playwright/test';
 
 test.describe('O-5: Swarm Execution & WebSockets Flow', () => {

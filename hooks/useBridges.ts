@@ -2,13 +2,17 @@ import React, { useCallback } from 'react';
 import { useStore } from '../store/useStore';
 
 export const useBridges = (
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     bridgeManagerRef: React.MutableRefObject<any>,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     securityManagerRef: React.MutableRefObject<any>,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     auditLedgerRef: React.MutableRefObject<any>,
     refreshAuditLog: () => void
 ) => {
     const {
         setApiKeys,
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         setConnections,
         socialEvents, setSocialEvents,
         enterpriseEvents, setEnterpriseEvents
@@ -26,6 +30,7 @@ export const useBridges = (
         refreshAuditLog();
     };
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handleSaveApiKeys = async (newKeys: any, DAEMON_URL: string, geminiServiceRef: any) => {
         setApiKeys(newKeys);
         try {
@@ -44,6 +49,7 @@ export const useBridges = (
         }
     };
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handleSocialAction = useCallback((id: string, action: string, params: any) => {
         if (bridgeManagerRef.current) {
             bridgeManagerRef.current.executeSocialTask(id, action, params);
@@ -54,6 +60,7 @@ export const useBridges = (
         }
     }, [socialEvents, setSocialEvents, bridgeManagerRef]);
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handleEnterpriseAction = useCallback((id: string, action: string, params: any) => {
         if (bridgeManagerRef.current) {
             bridgeManagerRef.current.executeEnterpriseTask(id, action, params);

@@ -11,6 +11,7 @@ vi.mock('../../store/useStore', () => ({
 
 // Mock Visualizers
 vi.mock('../../components/Visualizers', () => ({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     RealtimeBarVisualizer: ({ label, value }: any) => <div data-testid={`viz-${label}`}>{value}</div>,
     CircularVisualizer: () => <div data-testid="circular-viz" />
 }));
@@ -18,9 +19,11 @@ vi.mock('../../components/Visualizers', () => ({
 describe('AffectiveEnginePanel', () => {
     const mockProps = {
         audioStream: null,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         videoRef: { current: null } as any,
         isCameraActive: false,
         toggleCamera: vi.fn(),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         bridgeManagerRef: { current: { retrieveFromCloud: vi.fn() } } as any,
         accentColor: '#0077FF'
     };
@@ -50,6 +53,7 @@ describe('AffectiveEnginePanel', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (useStore as any).mockReturnValue(mockStore);
     });
 

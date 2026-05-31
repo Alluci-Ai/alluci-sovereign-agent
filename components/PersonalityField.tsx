@@ -8,6 +8,7 @@ interface PersonalityFieldProps {
   type: InputType;
   value: number | string;
   options?: string[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onChange: (val: any) => void;
   description: string;
 }

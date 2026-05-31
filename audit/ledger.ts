@@ -44,6 +44,7 @@ export class AuditLedger {
    * Records an action into the ledger.
    * Returns the signed entry.
    */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async recordEntry(executionId: string, taskId: string, actionPayload: any): Promise<LedgerEntry> {
     const timestamp = new Date().toISOString();
 

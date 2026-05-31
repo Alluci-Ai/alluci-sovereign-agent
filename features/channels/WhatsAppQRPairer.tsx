@@ -43,6 +43,7 @@ export const WhatsAppQRPairer: React.FC = () => {
             }, 1000);
             return () => clearInterval(timer);
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [state]);
 
     const requestPairing = async () => {

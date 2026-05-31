@@ -33,6 +33,7 @@ const mockConfig = {
 describe('ConfigPanel', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (useStore as any).mockReturnValue({
             accessToken: 'test-token'
         });

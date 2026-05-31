@@ -2,6 +2,7 @@ import React from 'react';
 import { AlluciGeminiService } from '../geminiService';
 import { AlluciSovereignService, SovereignCallbacks } from '../sovereignService';
 import { useStore } from '../store/useStore';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { clamp01 } from '../alluciCore';
 
 export const useSovereignConnection = (

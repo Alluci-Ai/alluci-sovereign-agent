@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useStore } from '../store/useStore';
 import { SoulManifest, SoulConciseness } from '../types';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const useSoulAdaptation = (geminiService: any) => {
     const {
         biometrics: { emotional: userEmotional, physical: userPhysical, cognitive: userCognitive },

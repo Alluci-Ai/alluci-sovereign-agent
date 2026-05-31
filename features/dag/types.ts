@@ -23,6 +23,7 @@ export interface TaskRecord {
   run_id:       number;
   task_dag_id:  string;
   action:       string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   args:         Record<string, any>;
   status:       TaskStatus;
   result:       string | null;

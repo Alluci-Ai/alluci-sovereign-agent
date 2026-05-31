@@ -29,6 +29,7 @@ describe('WalletPanel', () => {
         vi.useRealTimers();
         storeState.walletMode = 'lite';
         storeState.walletStatus = 'offline';
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (useStore as any).mockReturnValue(storeState);
     });
 
@@ -37,6 +38,7 @@ describe('WalletPanel', () => {
     });
 
     it('renders loading state initially', async () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (global.fetch as any).mockImplementation(() => new Promise(() => {})); // Never resolves
         render(<WalletPanel />);
         expect(screen.getByText('Syncing wallet with Verus network...')).toBeInTheDocument();
@@ -53,6 +55,7 @@ describe('WalletPanel', () => {
             pbaas_chains: ['VRSCTEST']
         };
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (global.fetch as any).mockResolvedValueOnce({
             ok: true,
             json: async () => mockDashboard
@@ -70,6 +73,7 @@ describe('WalletPanel', () => {
 
     it('handles switching to Sovereign mode', async () => {
         const mockDashboard = { connected: true };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (global.fetch as any).mockResolvedValue({ ok: true, json: async () => mockDashboard });
         
         window.confirm = vi.fn().mockReturnValue(true);
@@ -93,6 +97,7 @@ describe('WalletPanel', () => {
     });
 
     it('toggles between Dashboard and Node tabs', async () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (global.fetch as any).mockResolvedValue({ ok: true, json: async () => ({ connected: true }) });
         
         render(<WalletPanel />);
@@ -111,6 +116,7 @@ describe('WalletPanel', () => {
 
     it('polls for updates every 15 seconds', async () => {
         vi.useFakeTimers();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (global.fetch as any).mockResolvedValue({ ok: true, json: async () => ({ connected: true }) });
         
         render(<WalletPanel />);

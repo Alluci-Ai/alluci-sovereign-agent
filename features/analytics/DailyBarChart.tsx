@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { useStore } from '../../store/useStore';
 
@@ -12,6 +13,7 @@ interface DailyBarChartProps {
 
 export const DailyBarChart: React.FC<DailyBarChartProps> = ({ startDate, endDate, mode }) => {
     const { accessToken } = useStore();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [data, setData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -30,6 +32,7 @@ export const DailyBarChart: React.FC<DailyBarChartProps> = ({ startDate, endDate
                 if (res.ok) {
                     const series = await res.json();
 
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     const chartData = series.map((d: any) => {
                         const dateObj = new Date(d.date);
                         // Convert to Local day to avoid UTC shift bug if needed, or stick to UTC string parsing.
@@ -81,7 +84,8 @@ export const DailyBarChart: React.FC<DailyBarChartProps> = ({ startDate, endDate
         }
     };
 
-    const CustomTooltip = ({ active, payload, label }: any) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const CustomTooltip = ({ active, payload }: any) => {
         if (active && payload && payload.length) {
             const dataPoint = payload[0].payload;
             return (

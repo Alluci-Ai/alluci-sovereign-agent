@@ -15,6 +15,7 @@ interface Props {
   onRetry: () => void;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const JsonBlock: React.FC<{ value: any; label: string }> = ({ value, label }) => {
   const [open, setOpen] = useState(true);
   const str = typeof value === 'string' ? value : JSON.stringify(value, null, 2);

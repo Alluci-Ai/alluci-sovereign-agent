@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useStore } from '../../store/useStore';
 import { Terminal, Filter, Download, Pause, Play, Trash2 } from 'lucide-react';
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const DAEMON_WS_URL = import.meta.env.VITE_DAEMON_WS_URL || 'ws://127.0.0.1:8000';
 
 interface LogEntry {
@@ -10,7 +11,9 @@ interface LogEntry {
     logger: string;
     message: string;
     session_key?: string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     payload?: any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     [key: string]: any;
 }
 

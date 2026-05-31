@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useStore } from '../../store/useStore';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { Save, X, Activity, Server, ArrowRight, Clock, Target, Shield } from 'lucide-react';
 import { CronJob } from './CronPanel';
 
@@ -16,6 +17,7 @@ export const CronJobForm: React.FC<CronJobFormProps> = ({ job, onSave, onCancel 
     const [formData, setFormData] = useState<Partial<CronJob>>(job);
     const [saving, setSaving] = useState(false);
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const update = (field: keyof CronJob, value: any) => {
         setFormData(prev => ({ ...prev, [field]: value }));
     };

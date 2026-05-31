@@ -47,6 +47,7 @@ describe('useStore', () => {
 
  // ── Connections State ────────────────────────────────────────────────────
  it('setConnections replaces the connections array', () => {
+   // eslint-disable-next-line @typescript-eslint/no-explicit-any
    const mockConns = [{ id: 'slack', name: 'Slack', status: 'CONNECTED' }] as any;
    useStore.getState().setConnections(mockConns);
    expect(useStore.getState().connections).toHaveLength(1);

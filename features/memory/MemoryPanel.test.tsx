@@ -25,10 +25,12 @@ vi.mock('../../components/Memory/ConsolidationTrigger', () => ({ ConsolidationTr
 describe('MemoryPanel', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (useStore as any).mockReturnValue({ accessToken: 'mock-token' });
     });
 
     it('renders empty state when no memories exist', async () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (sovereignService.listMemories as any).mockResolvedValueOnce({ entries: [] });
         render(<MemoryPanel onClose={() => {}} />);
         
@@ -44,6 +46,7 @@ describe('MemoryPanel', () => {
             { id: 'mem-3', content: 'Semantic memory', tier: 2, retention_score: 1.0, source: 'RESEARCH' }
         ];
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (sovereignService.listMemories as any).mockResolvedValueOnce({ entries: mockMemories });
         
         render(<MemoryPanel onClose={() => {}} />);
@@ -60,10 +63,12 @@ describe('MemoryPanel', () => {
     });
 
     it('handles searching memories', async () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (sovereignService.listMemories as any).mockResolvedValueOnce({ entries: [] });
         const mockSearchResults = [
             { id: 'search-1', content: 'Found memory', tier: 1 }
         ];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (sovereignService as any)._fetch.mockResolvedValueOnce(mockSearchResults);
 
         render(<MemoryPanel onClose={() => {}} />);
@@ -76,12 +81,15 @@ describe('MemoryPanel', () => {
             expect(screen.getByText('Found memory')).toBeInTheDocument();
         });
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         expect((sovereignService as any)._fetch).toHaveBeenCalledWith(expect.stringContaining('/memory/search?q=test%20query'));
     });
 
     it('handles deleting a memory', async () => {
         const mockMemory = { id: 'delete-me', content: 'Delete this', tier: 1, retention_score: 0.5 };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (sovereignService.listMemories as any).mockResolvedValueOnce({ entries: [mockMemory] });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (sovereignService.deleteMemory as any).mockResolvedValueOnce({ status: 'SUCCESS' });
 
         render(<MemoryPanel onClose={() => {}} />);
@@ -100,6 +108,7 @@ describe('MemoryPanel', () => {
     });
 
     it('renders HLSM components', async () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (sovereignService.listMemories as any).mockResolvedValueOnce({ entries: [] });
         render(<MemoryPanel onClose={() => {}} />);
         expect(screen.getByTestId('hlsm-stats')).toBeInTheDocument();

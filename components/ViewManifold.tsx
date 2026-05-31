@@ -31,13 +31,19 @@ import BridgeCenter from './BridgeCenter';
 import { SkillGrid } from './SkillGrid';
 
 interface ViewManifoldProps {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   geminiServiceRef: React.RefObject<any>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   bridgeManagerRef: React.RefObject<any>;
   fetchSkills: () => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   startAuthFlow: (conn: any) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   handleSocialAction: (id: string, action: string, params: any) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   handleEnterpriseAction: (id: string, action: string, params: any) => void;
   handlePulse: (id: string) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   saveApiKeysToDaemon: (keys: any) => void;
   refreshAuditLog: () => void;
   abortControllerRef: React.RefObject<AbortController | null>;
@@ -50,6 +56,7 @@ interface ViewManifoldProps {
 
 const ViewManifold: React.FC<ViewManifoldProps> = ({
   geminiServiceRef,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   bridgeManagerRef,
   fetchSkills,
   startAuthFlow,

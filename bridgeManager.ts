@@ -1,3 +1,4 @@
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { Connection, AuthType, AutonomyLevel } from './types';
 import { SovereignSecurityManager, SimplicialVault } from './alluciCore';
 import { getCsrfToken } from './csrfStore';

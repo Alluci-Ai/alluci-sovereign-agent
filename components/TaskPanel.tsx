@@ -57,6 +57,7 @@ export const TaskPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             if (timelineFilter !== 'ALL') params.append('timeline', timelineFilter);
             const res = await fetch(`${DAEMON_URL}/api/v1/tasks?${params.toString()}`).catch(() => null);
             if (res && res.ok) setTasks(await res.json());
+        // eslint-disable-next-line no-empty
         } catch (e) { }
     }, [statusFilter, priorityFilter, timelineFilter, activeAgentId]);
 
@@ -145,7 +146,7 @@ export const TaskPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                         <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>Status</span>
                         <div style={{ display: 'flex', gap: 2, background: 'var(--fill-quaternary)', borderRadius: 8, padding: 2, border: '1px solid var(--separator)' }}>
                             {['all', 'active', 'completed'].map(s => (
-                                <button key={s} onClick={() => setStatusFilter(s as any)} style={{
+                                        <button key={s} onClick={() => setStatusFilter(s as 'all' | 'active' | 'completed')} style={{
                                     padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 500,
                                     border: 'none', cursor: 'pointer',
                                     background: statusFilter === s ? 'var(--glass-bg-hover)' : 'transparent',
@@ -230,7 +231,7 @@ export const TaskPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                         <div style={{ display: 'flex', gap: 4, alignItems: 'center', opacity: 0.5, transition: 'opacity 0.15s' }}
                             onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
                             onMouseLeave={e => (e.currentTarget.style.opacity = '0.5')}>
-                            <select value={task.priority} onChange={(e) => executeUpdate(task, { priority: e.target.value as any })} className="glass-input" style={{ fontSize: 11, padding: '2px 4px', width: 60 }}>
+                                    <select value={task.priority} onChange={(e) => executeUpdate(task, { priority: e.target.value as "LOW" | "MEDIUM" | "HIGH" | "URGENT" })} className="glass-input" style={{ fontSize: 11, padding: '2px 4px', width: 60 }}>
                                 <option value="LOW">Low</option><option value="MEDIUM">Med</option><option value="HIGH">High</option><option value="URGENT">Urg</option>
                             </select>
                             <input type="date" className="glass-input" value={task.due_date || ''} onChange={(e) => executeUpdate(task, { due_date: e.target.value })} style={{ fontSize: 11, padding: '2px 4px', width: 120 }} />
@@ -250,7 +251,7 @@ export const TaskPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                 background: 'var(--fill-quaternary)',
                 border: '1px solid var(--separator)',
             }}>
-                <select value={newTaskPriority} onChange={(e) => setNewTaskPriority(e.target.value as any)} className="glass-input" style={{ width: 70, fontSize: 12, padding: '6px 6px' }}>
+                <select value={newTaskPriority} onChange={(e) => setNewTaskPriority(e.target.value as "LOW" | "MEDIUM" | "HIGH" | "URGENT")} className="glass-input" style={{ width: 70, fontSize: 12, padding: '6px 6px' }}>
                     <option value="LOW">Low</option><option value="MEDIUM">Med</option><option value="HIGH">High</option><option value="URGENT">Urg</option>
                 </select>
                 <input value={newTaskDesc} onChange={(e) => setNewTaskDesc(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleAddTask()} placeholder="New task..." className="glass-input" style={{ flex: 1, fontSize: 13 }} />

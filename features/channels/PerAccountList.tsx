@@ -10,6 +10,7 @@ interface PerAccountListProps {
 
 export const PerAccountList: React.FC<PerAccountListProps> = ({ channelId }) => {
     const { accessToken } = useStore();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [accounts, setAccounts] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 

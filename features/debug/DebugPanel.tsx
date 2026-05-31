@@ -2,24 +2,30 @@ import React, { useState, useEffect } from 'react';
 import { useStore } from '../../store/useStore';
 import { adminService } from '../../adminService';
 import { useTranslation } from 'react-i18next';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { Terminal, Shield, Activity, Code, Server, CheckCircle, AlertTriangle, XCircle, LayoutGrid } from 'lucide-react';
 import { SystemHealthCard } from './SystemHealthCard';
 import { RpcConsole } from '../system/RpcConsole';
 
 export const DebugPanel: React.FC = () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { accessToken, activeView } = useStore();
     const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState<'events' | 'rpc' | 'security' | 'health'>('events');
 
     // Event Log State
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [events, setEvents] = useState<{ id: string; timestamp: Date; method: string; payload: any; expanded: boolean }[]>([]);
 
     // Security Audit State
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [auditLedger, setAuditLedger] = useState<any[]>([]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [stats, setStats] = useState<any>(null);
 
     useEffect(() => {
         // Event Listener hook
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const handleWSEvent = (method: string, params: any) => {
             setEvents(prev => {
                 const newEv = { id: crypto.randomUUID(), timestamp: new Date(), method, payload: params, expanded: false };

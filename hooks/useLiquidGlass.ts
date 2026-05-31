@@ -80,7 +80,9 @@ export function useLiquidGlass(options: LiquidGlassOptions = {}): LiquidGlassRet
     const {
         compressScale = 0.96,
         bulgeScale = 1.05,
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         stiffness: _stiffness = 300,
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         damping: _damping = 20,
         haptics = true,
         variant = 'button',
@@ -112,6 +114,7 @@ export function useLiquidGlass(options: LiquidGlassOptions = {}): LiquidGlassRet
 
     /* ── Phase transitions ──────────────────────────────────────────── */
 
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const onMouseEnter = useCallback((e: React.MouseEvent) => {
         if (disabled) return;
         setPhase('hover');

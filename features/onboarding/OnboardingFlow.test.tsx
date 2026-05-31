@@ -12,15 +12,20 @@ vi.mock('../../store/useStore', () => ({
 // Mock framer-motion to avoid animation issues in tests
 vi.mock('framer-motion', () => ({
     motion: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         div: ({ children, ...props }: any) => <div {...props}>{children}</div>,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         h1: ({ children, ...props }: any) => <h1 {...props}>{children}</h1>,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         p: ({ children, ...props }: any) => <p {...props}>{children}</p>
     },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     AnimatePresence: ({ children }: any) => <>{children}</>
 }));
 
 describe('OnboardingFlow', () => {
     it('renders the welcome step initially', () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (useStore as any).mockReturnValue({
             onboardingStep: 0,
             setOnboardingStep: vi.fn(),
@@ -33,6 +38,7 @@ describe('OnboardingFlow', () => {
 
     it('navigates to next step when Continue/Next is clicked', () => {
         // Step 0 button is "Let's Begin"
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const nextStep = vi.fn();
         // The component uses internal state for 'step', but 'onboardingStep' from store might be what's intended to be mocked if it was used.
         // Looking at the code, it uses local 'step' state initialized to 0.
@@ -40,6 +46,7 @@ describe('OnboardingFlow', () => {
         // So I just need to click the button.
         
         const setNeedsOnboarding = vi.fn();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (useStore as any).mockReturnValue({
             setNeedsOnboarding,
             accessToken: 'mock-token'
@@ -54,6 +61,7 @@ describe('OnboardingFlow', () => {
 
     it('calls setNeedsOnboarding(false) when the final step is finished', async () => {
         const setNeedsOnboarding = vi.fn();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (useStore as any).mockReturnValue({
             setNeedsOnboarding,
             accessToken: 'mock-token'

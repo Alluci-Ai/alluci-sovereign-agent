@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useStore } from '../store/useStore';
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
 
 export const useBiometrics = () => {
@@ -41,5 +42,6 @@ export const useBiometrics = () => {
         return () => {
             window.removeEventListener('alluci.system.telemetry', handleTelemetry as EventListener);
         };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [updateBiometrics, setHarmonicStatus, biometrics.hr, biometrics.hrv, biometrics.respiratoryRate]);
 };

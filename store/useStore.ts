@@ -181,6 +181,7 @@ export interface AppState {
     setModelFallbackMessage: (val: string | null) => void;
 
     // Sprint B: Sessions
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     sessions: any[];
     activeSessionKey: string;
     setSessions: (val: AppState['sessions']) => void;

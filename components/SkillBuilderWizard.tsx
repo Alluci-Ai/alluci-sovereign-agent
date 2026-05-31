@@ -10,6 +10,7 @@ const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
 
 interface StepProps {
   data: Partial<SkillManifest>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   update: (key: string, value: any) => void;
   next: () => void;
   back?: () => void;
@@ -360,6 +361,7 @@ const SkillBuilderWizard: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     capabilities: []
   });
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const update = (key: string, value: any) => {
     setManifest(prev => ({ ...prev, [key]: value }));
   };
@@ -411,6 +413,7 @@ const SkillBuilderWizard: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       } else {
         alert("Failed to save to Daemon. Is it running?");
       }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
       console.error(e);
       alert(e.message || "Network Error: Could not connect to Sovereign Daemon.");

@@ -11,6 +11,7 @@ export const useAudioOutput = () => {
   const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
 
   useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
     return () => {
       audioContextRef.current?.close();

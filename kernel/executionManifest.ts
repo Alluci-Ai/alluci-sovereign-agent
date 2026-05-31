@@ -1,6 +1,5 @@
 // kernel/executionManifest.ts — RE-APPLIED FIX
 const isBrowser = typeof window !== 'undefined';
-let crypto_lib: any;
 
 import { IdentityManager } from './identity';
 import {
@@ -77,6 +76,7 @@ export class ExecutionManifestFactory {
 
         const manifest: ExecutionManifest = {
             version: MANIFEST_VERSION,
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
             executionId: isBrowser ? crypto.randomUUID() : require('node:crypto').randomUUID(),
             rootPublicKey: this.identity.getRootPublicKey(),
             deviceFingerprint: this.getDeviceFingerprint(),
@@ -89,6 +89,7 @@ export class ExecutionManifestFactory {
             biometricGate,
             plannerVersion: this.plannerVersion,
             modelVersion: this.modelVersion,
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
             nonce: isBrowser ? crypto.randomUUID() : require('node:crypto').randomUUID(),
         };
 
@@ -139,6 +140,7 @@ export class ExecutionManifestFactory {
             const hashArray = Array.from(new Uint8Array(hashBuffer));
             return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
         }
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
         return require('node:crypto').createHash('sha256').update(input).digest('hex');
     }
 
@@ -164,8 +166,10 @@ export class ExecutionManifestFactory {
         if (process.env.DEVICE_FINGERPRINT) return process.env.DEVICE_FINGERPRINT;
         try {
             // eslint-disable-next-line @typescript-eslint/no-require-imports
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
             const os = require('node:os') as typeof import('node:os');
             const data = `${os.hostname()}-${os.platform()}-${os.arch()}`;
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
             return require('node:crypto').createHash('sha256').update(data).digest('hex').substring(0, 16).toUpperCase();
         } catch {
             return 'FALLBACK_NODE_ID';

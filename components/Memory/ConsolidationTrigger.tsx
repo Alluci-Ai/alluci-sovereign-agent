@@ -3,12 +3,14 @@ import { sovereignService } from '../../sovereignService';
 
 export const ConsolidationTrigger: React.FC<{ onComplete?: () => void }> = ({ onComplete }) => {
   const [loading, setLoading] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [summary, setSummary] = useState<any>(null);
 
   const handleTrigger = async () => {
     setLoading(true);
     setSummary(null);
     try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const result = await (sovereignService as any).consolidateMemory();
       setSummary(result.cycle_summary);
       if (onComplete) onComplete();

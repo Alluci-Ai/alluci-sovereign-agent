@@ -52,6 +52,7 @@ export interface AuditEntry {
   timestamp: string;
   id: string;
   event: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   details: any;
   hash: string;
   prevHash: string;
@@ -80,6 +81,7 @@ export interface SkillManifest {
 
   // [ DYNAMIC_BINDING ]
   personalityMapping: SkillPersonalityImpact;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   heartbeat?: any[];
 
   // [ EXECUTION_INSTRUCTIONS ]

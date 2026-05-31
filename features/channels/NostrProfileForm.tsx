@@ -8,6 +8,7 @@ interface NostrProfileFormProps {
     channelId: string;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const NostrProfileForm: React.FC<NostrProfileFormProps> = ({ channelId }) => {
     const { accessToken } = useStore();
     const [profile, setProfile] = useState({

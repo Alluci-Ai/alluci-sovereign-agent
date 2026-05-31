@@ -18,6 +18,7 @@ describe('VerusIdLogin', () => {
             deeplink: 'verus://test'
         };
         
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (global.fetch as any).mockResolvedValueOnce({
             ok: true,
             json: async () => mockResponse
@@ -35,6 +36,7 @@ describe('VerusIdLogin', () => {
     });
 
     it('shows error state when fetch fails', async () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (global.fetch as any).mockResolvedValueOnce({
             ok: false
         });
@@ -55,18 +57,21 @@ describe('VerusIdLogin', () => {
             deeplink: 'verus://test'
         };
         
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (global.fetch as any).mockResolvedValueOnce({
             ok: true,
             json: async () => mockResponse
         });
 
         // First poll: pending
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (global.fetch as any).mockResolvedValueOnce({
             ok: true,
             json: async () => ({ status: 'PENDING' })
         });
 
         // Second poll: success
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (global.fetch as any).mockResolvedValueOnce({
             ok: true,
             json: async () => ({ status: 'SUCCESS', identity: 'alluci@' })
@@ -104,6 +109,7 @@ describe('VerusIdLogin', () => {
             deeplink: 'verus://test_deeplink'
         };
         
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (global.fetch as any).mockResolvedValueOnce({
             ok: true,
             json: async () => mockResponse
@@ -111,7 +117,9 @@ describe('VerusIdLogin', () => {
 
         // Mock window.location
         const originalLocation = window.location;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         delete (window as any).location;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (window as any).location = { ...originalLocation, href: '' };
 
         render(<VerusIdLogin onComplete={mockOnComplete} onCancel={mockOnCancel} />);
@@ -123,10 +131,12 @@ describe('VerusIdLogin', () => {
         fireEvent.click(screen.getByText('Open in Verus Mobile'));
         expect(window.location.href).toBe('verus://test_deeplink');
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (window as any).location = originalLocation;
     });
 
     it('calls onCancel handled when close button clicked', async () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (global.fetch as any).mockResolvedValue({ ok: true, json: async () => ({}) });
         render(<VerusIdLogin onComplete={mockOnComplete} onCancel={mockOnCancel} />);
         

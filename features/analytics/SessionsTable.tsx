@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { Eye, Clock, Hash, Coins, ArrowUpDown } from 'lucide-react';
 
 interface SessionsTableProps {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     sessions: any[];
     query: string;
 }

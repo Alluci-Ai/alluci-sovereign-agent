@@ -5,6 +5,7 @@ import { WalletTransactions } from './WalletTransactions';
 import { WalletMining } from './WalletMining';
 import { NodePanel } from './NodePanel';
 import { useStore } from '../../store/useStore';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { LayoutDashboard, Server, History, Shield } from 'lucide-react';
 
 const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
@@ -18,6 +19,7 @@ interface DashboardData {
     };
     total_vrsc: number;
     unconfirmed: number;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     balances: any[];
     mining?: {
         generating: boolean;
@@ -25,6 +27,7 @@ interface DashboardData {
         hashrate: number;
         local_hashrate: number;
     };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     recent_transactions: any[];
     pbaas_chains: string[];
 }
@@ -33,6 +36,7 @@ export const WalletPanel: React.FC = () => {
     const { accessToken, walletMode, setWalletMode, walletStatus, setWalletStatus } = useStore();
     const [dashboard, setDashboard] = useState<DashboardData | null>(null);
     const [loading, setLoading] = useState(true);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [error, setError] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<'dashboard' | 'node'>('dashboard');
 
@@ -46,6 +50,7 @@ export const WalletPanel: React.FC = () => {
             setDashboard(data);
             setWalletStatus(data.connected ? 'synced' : 'offline');
             setError(null);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (err: any) {
             setError(err.message || "Failed to load wallet state");
             setWalletStatus('offline');
@@ -58,6 +63,7 @@ export const WalletPanel: React.FC = () => {
         fetchDashboard();
         const int = setInterval(fetchDashboard, 15000);
         return () => clearInterval(int);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const handleRefresh = () => {

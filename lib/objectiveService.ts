@@ -27,11 +27,13 @@ export async function submitObjective(
     accessToken: string,
     agentId: string = 'executive',
     riskScore: number = 30,
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): Promise<any> {
 
     // 1. Client-side policy gate (mirrors Python backend check)
     const permitted = policyEngine.evaluate(
         // We need a partial manifest for the policy check — use the level only
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         { autonomyLevel } as any,
         riskScore,
         aceState,

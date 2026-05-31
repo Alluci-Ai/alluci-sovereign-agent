@@ -1,3 +1,4 @@
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import React, { useState, useEffect } from 'react';
 import { Globe, Check } from 'lucide-react';
 
@@ -12,6 +13,7 @@ const LOCALES = [
 import { useTranslation } from 'react-i18next';
 
 export const LocaleSelector: React.FC = () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { t, i18n } = useTranslation();
     const savedLocale = i18n.language;
     const [isOpen, setIsOpen] = useState(false);

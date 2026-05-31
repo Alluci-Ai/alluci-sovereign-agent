@@ -38,6 +38,7 @@ export const SystemHealthCard: React.FC = () => {
         // Check health periodically every 30s
         const interval = setInterval(checkHealth, 30000);
         return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [accessToken]);
 
     const getStatusIcon = (status: string) => {

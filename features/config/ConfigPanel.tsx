@@ -6,11 +6,20 @@ import LocaleSelector from '../shell/LocaleSelector';
 
 const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
 
+interface SchemaDef {
+    title?: string;
+    description?: string;
+    type?: string;
+    readOnly?: boolean;
+}
+
 export const ConfigPanel: React.FC = () => {
     const { accessToken } = useStore();
     const [mode, setMode] = useState<'form' | 'raw'>('form');
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [schema, setSchema] = useState<any>(null);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [config, setConfig] = useState<Record<string, any>>({});
     const [rawJson, setRawJson] = useState<string>('');
     const [loading, setLoading] = useState(true);
@@ -74,6 +83,7 @@ export const ConfigPanel: React.FC = () => {
                 const err = await res.json();
                 alert(`Error saving config: ${err.detail || 'Unknown error'}`);
             }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (err: any) {
             alert(`JSON Parse or API error: ${err.message}`);
         } finally {
@@ -85,6 +95,7 @@ export const ConfigPanel: React.FC = () => {
         setRevealed(prev => ({ ...prev, [key]: !prev[key] }));
     };
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handleFieldChange = (key: string, value: any) => {
         setConfig(prev => {
             const upd = { ...prev, [key]: value };
@@ -101,7 +112,7 @@ export const ConfigPanel: React.FC = () => {
 
         return (
             <div className="flex flex-col gap-5 p-4 animate-in fade-in zoom-in-95 duration-300">
-                {props.map(([key, def]: [string, any]) => {
+                {props.map(([key, def]: [string, SchemaDef]) => {
                     const val = config[key];
                     const isSensitive = key.toLowerCase().includes('key') || key.toLowerCase().includes('secret') || key.toLowerCase().includes('token');
                     const isMasked = isSensitive && typeof val === 'string' && val.includes('****') && !revealed[key];

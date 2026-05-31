@@ -1,3 +1,4 @@
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import React, { useState, useEffect } from 'react';
 import { Connection } from '../../../types';
 import { SharedModalShell } from './SharedModalShell';
@@ -76,12 +77,14 @@ export const OAuthModal: React.FC<{
                 }
             }, 500);
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (e: any) {
             setError(e.message || 'OAuth flow failed');
             setIsLoading(false);
         }
     };
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handleActivation = async (extraCreds: Record<string, any>) => {
         setIsLoading(true);
         setError(null);
@@ -98,6 +101,7 @@ export const OAuthModal: React.FC<{
             if (!activated?.connected) throw new Error(`Bridge activation failed for ${bridgeId}`);
 
             onComplete(JSON.stringify(credMap), "");
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (e: any) {
             setError(e.message || "Activation Failed");
         } finally {
@@ -132,6 +136,7 @@ export const OAuthModal: React.FC<{
                                 <select
                                     className="bg-layer-2 border border-layer-3 rounded px-3 py-2 text-sm outline-none w-full"
                                     value={igAccountType}
+                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                     onChange={(e) => setIgAccountType(e.target.value as any)}
                                 >
                                     <option value="PERSONAL">Personal (Profile Only)</option>

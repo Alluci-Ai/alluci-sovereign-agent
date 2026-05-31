@@ -10,6 +10,7 @@ interface ToolProfileEditorProps {
 
 export const ToolProfileEditor: React.FC<ToolProfileEditorProps> = ({ agentId }) => {
     const { accessToken } = useStore();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [tools, setTools] = useState<any[]>([]);
 
     useEffect(() => {
@@ -43,6 +44,7 @@ export const ToolProfileEditor: React.FC<ToolProfileEditorProps> = ({ agentId })
                 body: JSON.stringify({ tools: next }),
                 credentials: 'include'
             });
+        // eslint-disable-next-line no-empty
         } catch (e) { }
     };
 

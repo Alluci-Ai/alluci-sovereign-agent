@@ -18,6 +18,7 @@ const STATUS_COLORS: Record<string, { fill: string; stroke: string; text: string
   skipped:   { fill: 'rgba(120,120,128,0.12)', stroke: 'rgba(120,120,128,0.30)', text: '#8E8E93' },
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function computeLayout(tasks: TaskRecord[]) {
   const layers = new Map<string, number>();
   const sorted = [...tasks];

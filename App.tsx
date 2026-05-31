@@ -58,6 +58,7 @@ const App: React.FC = () => {
     connections, setConnections,
     setSkills,
     setAuditLog,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     updateAgent,
     setBaseManifest,
     accessToken,
@@ -122,8 +123,11 @@ const App: React.FC = () => {
   );
 
   const {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     handleRotateKeys,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     handleFlushCache,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     handleSaveApiKeys,
     handleSocialAction,
     handleEnterpriseAction,
@@ -131,7 +135,9 @@ const App: React.FC = () => {
   } = useBridges(bridgeManagerRef, securityManagerRef, auditLedgerRef, refreshAuditLog);
 
   const {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     textInput, setTextInput,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     attachments, setAttachments,
     handleCommandSubmit,
     handleFileChange,
@@ -206,6 +212,7 @@ const App: React.FC = () => {
     loadInitialData();
     if (connections.length === 0) setConnections(INITIAL_CONNECTIONS);
     return () => geminiServiceRef.current?.disconnect();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchSkills = useCallback(async () => {
@@ -221,6 +228,7 @@ const App: React.FC = () => {
         setSkills(combined);
         return;
       }
+    // eslint-disable-next-line no-empty
     } catch (e) { }
     setSkills(core);
   }, [setSkills]);

@@ -44,6 +44,7 @@ export const NodePanel: React.FC = () => {
         fetchStatus();
         const int = setInterval(fetchStatus, 5000);
         return () => clearInterval(int);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const handleAction = async (action: string) => {

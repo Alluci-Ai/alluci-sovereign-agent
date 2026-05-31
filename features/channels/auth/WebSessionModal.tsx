@@ -39,6 +39,7 @@ export const WebSessionModal: React.FC<{
             });
             if (!res.ok) throw new Error(await res.text());
             setIsLaunched(true);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (e: any) {
             setError(e.message || "Failed to launch browser instance");
         } finally {
@@ -75,6 +76,7 @@ export const WebSessionModal: React.FC<{
             if (!activated?.connected) throw new Error(`Bridge activation failed.`);
 
             onComplete(JSON.stringify(creds), "");
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (e: any) {
             setError(e.message || "Capture Failed");
         } finally {

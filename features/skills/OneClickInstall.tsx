@@ -28,6 +28,7 @@ export const OneClickInstall: React.FC = () => {
             } else {
                 setResult({ status: 'error', msg: data.detail || 'Install failed' });
             }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (err: any) {
             setResult({ status: 'error', msg: err.message || 'Network exception' });
         } finally {

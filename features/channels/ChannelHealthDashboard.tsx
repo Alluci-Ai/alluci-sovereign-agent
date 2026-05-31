@@ -6,6 +6,7 @@ const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
 
 export const ChannelHealthDashboard: React.FC = () => {
     const { accessToken } = useStore();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [healthData, setHealthData] = useState<any>(null);
 
     useEffect(() => {
@@ -23,6 +24,7 @@ export const ChannelHealthDashboard: React.FC = () => {
                     if (data.channels) {
                         const { setConnections } = useStore.getState();
                         setConnections(prev => prev.map(conn => {
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
                             const health = data.channels.find((c: any) => c.channel === conn.id);
                             if (health) {
                                 return {
@@ -46,10 +48,12 @@ export const ChannelHealthDashboard: React.FC = () => {
 
     if (!healthData) return null;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const connectedCount = healthData.channels?.filter((c: any) => c.connected)?.length || 0;
     const totalCount = healthData.total || 0;
 
     // Attempting to locate any recent errors generically or default
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const lastError = healthData.channels?.find((c: any) => c.last_error)?.last_error || 'None Detected';
 
     return (

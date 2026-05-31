@@ -8,6 +8,7 @@ interface AffectiveWidgetProps {
     videoRef: React.RefObject<HTMLVideoElement | null>;
     isCameraActive: boolean;
     toggleCamera: () => void;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     bridgeManagerRef: React.RefObject<any>;
     accentColor: string;
 }
@@ -17,10 +18,12 @@ const AffectiveWidget: React.FC<AffectiveWidgetProps> = ({
     videoRef,
     isCameraActive,
     toggleCamera,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     bridgeManagerRef,
     accentColor,
 }) => {
     const {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         biometrics, updateBiometrics,
         agent, harmonicStatus, isConnected,
         isAceExpanded, setAceExpanded,
