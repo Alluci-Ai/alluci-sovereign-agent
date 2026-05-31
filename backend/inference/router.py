@@ -62,6 +62,12 @@ class ModelRouter(ExecutiveRouter):
         self.lce_enabled = getattr(settings, "LOCAL_LCE_ENABLED", True)
         if self.lce_enabled:
             self.logger.info("Local Cognitive Engine (LCE) via MLX initialized.")
+            try:
+                import alluci_core
+                self.secure_proxy = alluci_core.AlluciSovereignRouter()
+            except ImportError as e:
+                self.logger.error(f"Failed to load C++ proxy: {e}")
+                self.secure_proxy = None
 
         # ── LOCAL: LM Studio (LOCAL FALLBACK) ─────────────────────────────────
         self.lm_studio_client = None
@@ -234,6 +240,11 @@ class ModelRouter(ExecutiveRouter):
         if system_instruction:
             prompt = f"{system_instruction}\n\n{prompt}"
             
+        manifest = None
+        if getattr(self, "secure_proxy", None):
+            manifest = self.secure_proxy.isolate_personal_perimeter(prompt)
+            prompt = manifest.clean_abstract_payload
+            
         response = await model.generate_content_async(prompt, generation_config=generation_config)
         
         # Log Usage
@@ -250,7 +261,10 @@ class ModelRouter(ExecutiveRouter):
             except Exception as e:
                 self.logger.warning(f"Failed to record Gemini usage: {e}")
 
-        return response.text
+        content = response.text
+        if getattr(self, "secure_proxy", None) and manifest:
+            content = self.secure_proxy.deanonymize_response(content, manifest.pii_vault_registry)
+        return content
 
     async def _openai_request(self, prompt: str, use_strong: bool = False, json_mode: bool = False, system_instruction: str = "", session_id: Optional[str] = None) -> str:
         """Cloud Failover 2: OpenAI."""
@@ -261,6 +275,12 @@ class ModelRouter(ExecutiveRouter):
         messages = []
         if system_instruction:
             messages.append({"role": "system", "content": system_instruction})
+            
+        manifest = None
+        if getattr(self, "secure_proxy", None):
+            manifest = self.secure_proxy.isolate_personal_perimeter(prompt)
+            prompt = manifest.clean_abstract_payload
+            
         messages.append({"role": "user", "content": prompt})
 
         kwargs: Dict[str, Any] = {
@@ -286,6 +306,8 @@ class ModelRouter(ExecutiveRouter):
             except Exception as e:
                 self.logger.warning(f"Failed to record OpenAI usage: {e}")
 
+        if getattr(self, "secure_proxy", None) and manifest:
+            content = self.secure_proxy.deanonymize_response(content, manifest.pii_vault_registry)
         return content
 
     async def _generic_openai_request(self, prompt: str, client: Any, name: str, use_strong: bool = False, system_instruction: str = "") -> str:

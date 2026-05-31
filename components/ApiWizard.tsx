@@ -70,6 +70,7 @@ const ApiWizard: React.FC<ApiWizardProps> = ({ isOpen, onClose, apiKeys, onSave 
     const [authError, setAuthError] = useState("");
     const [customServiceName, setCustomServiceName] = useState("");
     const [showCustomInput, setShowCustomInput] = useState<string | null>(null);
+    const { setAccessToken } = useStore();
 
     if (!isOpen) return null;
 
@@ -80,7 +81,7 @@ const ApiWizard: React.FC<ApiWizardProps> = ({ isOpen, onClose, apiKeys, onSave 
 
     const handlePrev = () => { if (currentStep > 0) setCurrentStep(currentStep - 1); };
 
-    const { setAccessToken } = useStore();
+
 
     const handleDaemonLogin = async () => {
         setIsAuthenticating(true); setAuthError("");

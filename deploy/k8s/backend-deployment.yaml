@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
       - name: backend
-        image: alluci-backend:0.9.5-rc1
+        image: alluci-backend:0.1.1.1-beta
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8000

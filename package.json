@@ -1,7 +1,7 @@
 {
   "name": "alluci-sovereign-agent",
   "private": true,
-  "version": "0.9.5",
+  "version": "0.1.1.1-beta",
   "type": "module",
   "scripts": {
     "dev": "vite",

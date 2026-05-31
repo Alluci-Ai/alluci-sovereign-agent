@@ -1,4 +1,4 @@
-# requirements.txt — Alluci Sovereign Agent v5.2.1
+# requirements.txt — Alluci Sovereign Agent v0.1.1.1-beta
 
 # ─── Tooling Standard ─────────────────────────────────────────────────────────
 --extra-index-url https://download.pytorch.org/whl/cpu

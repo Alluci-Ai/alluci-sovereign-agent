@@ -1,13 +1,18 @@
 import asyncio
 import logging
+import sys
+import os
 from typing import AsyncGenerator, Optional, Dict, Any
 
+# Dynamically append the CMake build path to load the native C++ PyBind11 module
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../build")))
+
 try:
-    import mlx.core as mx
-    import mlx_lm
-    MLX_LM_AVAILABLE = True
-except ImportError:
-    MLX_LM_AVAILABLE = False
+    import alluci_core
+    ALLUCI_CORE_AVAILABLE = True
+except ImportError as e:
+    ALLUCI_CORE_AVAILABLE = False
+    logging.getLogger("MLXEngine").error(f"Failed to import native alluci_core: {e}")
 
 from backend.inference.profiler import HardwareProfiler
 
@@ -16,11 +21,9 @@ logger = logging.getLogger("MLXEngine")
 class MLXEngine:
     """
     [ PPN-021 ] Native MLX Inference Singleton.
-    Manages loading the Base Gemma 4 model into VRAM based on Hardware Tier,
-    and dynamically applying LoRA adapters for the Context Moat.
+    Wraps the highly optimized C++ AlluciCognitiveEngine via PyBind11.
     """
-    model: Optional[Any] = None
-    tokenizer: Optional[Any] = None
+    engine: Optional[Any] = None
     current_lora: Optional[str] = None
     is_loading: bool = False
     hardware_profile: Optional[Dict[str, Any]] = None
@@ -29,20 +32,19 @@ class MLXEngine:
     def __new__(cls, *args, **kwargs):
         if not cls._instance:
             cls._instance = super(MLXEngine, cls).__new__(cls)
-            cls._instance.model = None
-            cls._instance.tokenizer = None
+            cls._instance.engine = None
             cls._instance.current_lora = None
             cls._instance.is_loading = False
             cls._instance.hardware_profile = HardwareProfiler.get_system_profile()
         return cls._instance
 
     def load_model_sync(self):
-        """Synchronously loads the model using mlx-lm."""
-        if not MLX_LM_AVAILABLE:
-            logger.warning("mlx-lm not installed. Inference will fail.")
-            raise ImportError("mlx-lm is required for Native LCE.")
+        """Synchronously initializes the native C++ engine."""
+        if not ALLUCI_CORE_AVAILABLE:
+            logger.warning("alluci_core not installed. Inference will fail.")
+            raise ImportError("alluci_core is required for Native LCE.")
 
-        if self.model is not None:
+        if self.engine is not None:
             return
 
         self.is_loading = True
@@ -50,11 +52,12 @@ class MLXEngine:
             if not self.hardware_profile:
                 raise RuntimeError("Hardware profile not initialized.")
             target_model_id = self.hardware_profile["recommended_model"]
-            logger.info(f"MLXEngine: Loading {target_model_id} into Unified Memory...")
+            logger.info(f"MLXEngine: Initializing Native Apple Silicon Engine with {target_model_id}...")
             
-            # mlx_lm handles quantization and Apple Silicon optimizations natively
-            self.model, self.tokenizer = mlx_lm.load(target_model_id)
-            logger.info("MLXEngine: Model loaded successfully.")
+            # Load the compiled native C++ engine
+            model_dir = os.path.abspath(f"alluci_vault/raw_family/{target_model_id}")
+            self.engine = alluci_core.AlluciCognitiveEngine(model_dir)
+            logger.info("MLXEngine: Native Engine allocated successfully.")
         except Exception as e:
             logger.error(f"MLXEngine Load Error: {e}")
             raise
@@ -63,7 +66,7 @@ class MLXEngine:
 
     async def ensure_loaded(self):
         """Asynchronously ensures the model is loaded."""
-        if self.model is None and not self.is_loading:
+        if self.engine is None and not self.is_loading:
             await asyncio.to_thread(self.load_model_sync)
         while self.is_loading:
             await asyncio.sleep(0.1)
@@ -75,117 +78,49 @@ class MLXEngine:
             state = services.ace.current_state
             ace_state = state.get("ace_state", "<ACE_STATE_0>")
             
-            # Inject token
-            prompt = f"{prompt}\n[SYSTEM: Current Biometric State: {ace_state}. Adjust brevity and tone accordingly.]"
+            prompt = f"{prompt}\n<A_C>{ace_state}</A_C>"
             
-            # Scale temperature based on stress
             if ace_state in ["<ACE_STATE_4>", "<ACE_STATE_5>"]:
-                temperature = min(0.35, temperature) # High stress = low temp, high focus
+                temperature = min(0.35, temperature)
             elif ace_state in ["<ACE_STATE_2>", "<ACE_STATE_3>"]:
-                temperature = min(0.55, temperature) # Deep work
+                temperature = min(0.55, temperature)
             elif ace_state == "<ACE_STATE_1>":
-                temperature = max(0.70, temperature) # Recovered = creative
+                temperature = max(0.70, temperature)
                 
         return prompt, temperature
 
     async def generate(self, prompt: str, max_tokens: int = 1024, temperature: float = 0.7) -> str:
-        """Generates a complete response synchronously in a background thread."""
+        """Generates a complete response via the Native C++ Engine."""
         await self.ensure_loaded()
-        
         prompt, temperature = self._apply_ace_logic(prompt, temperature)
         
         def _sync_gen():
-            return mlx_lm.generate(
-                self.model, 
-                self.tokenizer, 
-                prompt=prompt, 
-                max_tokens=max_tokens, 
-                temp=temperature
-            )
+            return self.engine.evaluate_intent(prompt, max_tokens, temperature)
             
         return await asyncio.to_thread(_sync_gen)
 
-    async def stream_generate(self, prompt: str, max_tokens: int = 1024, temperature: float = 0.7) -> AsyncGenerator[str, None]:
-        """Streams tokens from mlx-lm generator."""
-        await self.ensure_loaded()
-        
-        prompt, temperature = self._apply_ace_logic(prompt, temperature)
-        
-        # mlx_lm.stream_generate is a synchronous generator. 
-        # To not block the asyncio event loop while the model computes tokens,
-        # we pull from it in a thread, or yield sleep. 
-        # A simple implementation pulls chunks in a thread.
-        def _get_stream():
-            for response in mlx_lm.stream_generate(self.model, self.tokenizer, prompt=prompt, max_tokens=max_tokens, temp=temperature):
-                yield response
-                
-        # To properly stream async, we yield from the generator
-        # Note: Since the generator yields fast on Apple Silicon, blocking the loop briefly per token is usually acceptable, 
-        # but for true async, we wrap it.
-        gen = _get_stream()
-        while True:
-            try:
-                # Get next token in a thread to avoid blocking the event loop
-                chunk = await asyncio.to_thread(next, gen)
-                yield str(chunk)
-            except StopIteration:
-                break
-            except Exception as e:
-                logger.error(f"MLX Stream Error: {e}")
-                break
+    async def generate_stream(self, prompt: str, max_tokens: int = 1024, temperature: float = 0.7) -> AsyncGenerator[str, None]:
+        """
+        Streams response via the Native C++ Engine. 
+        Note: C++ PyBind11 evaluate_intent is synchronous currently, so it yields the full response immediately.
+        """
+        response = await self.generate(prompt, max_tokens, temperature)
+        # Yield the response in chunks to simulate streaming for the UI
+        chunk_size = 20
+        for i in range(0, len(response), chunk_size):
+            yield response[i:i+chunk_size]
+            await asyncio.sleep(0.01)
 
     async def apply_context_moat(self, agent_id: str):
-        """
-        [ PPN-022 ] Dynamically applies an Agent-Scoped LoRA adapter (Context Moat) to the base model.
-        Uses mx.load() to merge LoRA delta weights directly into the active base model tree, caching base weights to hot-swap.
-        """
+        """Injects LoRA adapters directly into the C++ Engine"""
         await self.ensure_loaded()
-        if not self.model:
-            raise RuntimeError("Model failed to load.")
+        lora_path = os.path.abspath(f"alluci_vault/lora_forge/latest/polytope_adapters.safetensors")
         
-        import re
-        import os
-        safe_agent_id = re.sub(r'[^a-zA-Z0-9_-]', '_', agent_id)
-        lora_path = os.path.join(os.getcwd(), "models", "loras", f"agent_{safe_agent_id}_lora.safetensors")
-        
-        if self.current_lora == agent_id:
-            return # Already applied
-            
-        try:
-            logger.info(f"Applying Context Moat for agent '{agent_id}' from {lora_path}...")
-            if MLX_LM_AVAILABLE:
-                # Cache base model weights the first time we apply a LoRA to allow reverting
-                if not hasattr(self, 'base_model_cache') or self.base_model_cache is None:
-                    from mlx.utils import tree_flatten
-                    self.base_model_cache = {k: v for k, v in tree_flatten(self.model.parameters())}
+        if os.path.exists(lora_path) and self.current_lora != lora_path:
+            logger.info(f"Injecting Native Polytope Adapters for Context Moat: {lora_path}")
+            def _sync_inject():
+                self.engine.inject_lora_adapters(lora_path)
+            await asyncio.to_thread(_sync_inject)
+            self.current_lora = lora_path
 
-                if not os.path.exists(lora_path):
-                    logger.warning(f"LoRA path {lora_path} does not exist. Operating on base logic.")
-                    if self.current_lora is not None:
-                         logger.info("Reverting to base model logic.")
-                         self.model.update(self.base_model_cache)
-                         self.current_lora = None
-                    return
-                
-                # Start from the base model cache
-                new_weights = dict(self.base_model_cache)
-
-                # Load LoRA delta weights natively
-                lora_weights = mx.load(lora_path)
-                
-                # Apply them directly to the active model tree cache
-                import mlx.core as mx
-                for k, delta in lora_weights.items():
-                    if k in new_weights:
-                        new_weights[k] = new_weights[k] + delta
-                
-                # Hot-swap the tensors into VRAM
-                self.model.update(new_weights)
-                
-            self.current_lora = agent_id
-            logger.info(f"Context Moat for '{agent_id}' natively established in MLX tree.")
-        except Exception as e:
-            logger.error(f"Failed to apply Context Moat: {e}")
-
-# Global instance
 engine = MLXEngine()
