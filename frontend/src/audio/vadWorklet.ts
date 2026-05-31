@@ -1,6 +1,14 @@
 // [ PPN-030 ] Sovereign Voice Activity Detection (VAD) Edge Worklet
 // Executes strictly on the device audio thread. No 3rd-party dependencies.
 
+declare abstract class AudioWorkletProcessor {
+    readonly port: MessagePort;
+    constructor();
+    abstract process(inputs: Float32Array[][], outputs: Float32Array[][], parameters: Record<string, Float32Array>): boolean;
+}
+
+declare function registerProcessor(name: string, processorCtor: (new (options?: any) => AudioWorkletProcessor)): void;
+
 interface AudioChunkManifest {
     pcmFrameBuffer: Float32Array;
     containsActiveSpeech: boolean;

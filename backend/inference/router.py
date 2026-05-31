@@ -831,7 +831,7 @@ class ModelRouter(ExecutiveRouter):
             data = resp.json()
             return data.get("url") or data.get("id")
 
-    async def generate_video(self, prompt: str, image_url: str = None) -> str:
+    async def generate_video(self, prompt: str, image_url: Optional[str] = None) -> str:
         if not self.runway_api_key: raise RuntimeError("Runway credentials missing.")
         url = "https://api.runwayml.com/v1/image_to_video" if image_url else "https://api.runwayml.com/v1/text_to_video"
         headers = {"Authorization": f"Bearer {self.runway_api_key}", "X-Runway-Version": "2024-11-06"}
@@ -842,15 +842,15 @@ class ModelRouter(ExecutiveRouter):
 
     async def check_health(self) -> Dict[str, Any]:
         results = {}
-        # 0. Ollama (local primary)
-        if self.ollama_ready:
+        # 0. LCE (local primary)
+        if getattr(self, "lce_enabled", False):
             try:
-                await self._ollama_request("Hi", use_strong=False)
-                results["ollama"] = {"status": "HEALTHY"}
+                await self._lce_request("Hi", agent_id="executive")
+                results["lce"] = {"status": "HEALTHY"}
             except Exception as e:
-                results["ollama"] = {"status": "UNSTABLE", "error": type(e).__name__}
+                results["lce"] = {"status": "UNSTABLE", "error": type(e).__name__}
         else:
-            results["ollama"] = {"status": "NOT_RUNNING"}
+            results["lce"] = {"status": "NOT_RUNNING"}
 
         # 0b. LM Studio (local fallback)
         if self.lm_studio_client:

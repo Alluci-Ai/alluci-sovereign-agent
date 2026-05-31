@@ -82,7 +82,7 @@ async def ws_voice_stream(websocket: WebSocket):
                         )
                         await websocket.send_json({
                             "type": "cognition",
-                            "text": str(cognition_result),
+                            "text": cognition_result,
                             "is_final": True,
                         })
 

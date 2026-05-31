@@ -19,6 +19,11 @@ class MLXEngine:
     Manages loading the Base Gemma 4 model into VRAM based on Hardware Tier,
     and dynamically applying LoRA adapters for the Context Moat.
     """
+    model: Optional[Any] = None
+    tokenizer: Optional[Any] = None
+    current_lora: Optional[str] = None
+    is_loading: bool = False
+    hardware_profile: Optional[Dict[str, Any]] = None
     _instance = None
 
     def __new__(cls, *args, **kwargs):
@@ -42,6 +47,8 @@ class MLXEngine:
 
         self.is_loading = True
         try:
+            if not self.hardware_profile:
+                raise RuntimeError("Hardware profile not initialized.")
             target_model_id = self.hardware_profile["recommended_model"]
             logger.info(f"MLXEngine: Loading {target_model_id} into Unified Memory...")
             
@@ -120,7 +127,7 @@ class MLXEngine:
             try:
                 # Get next token in a thread to avoid blocking the event loop
                 chunk = await asyncio.to_thread(next, gen)
-                yield chunk
+                yield str(chunk)
             except StopIteration:
                 break
             except Exception as e:
@@ -133,6 +140,8 @@ class MLXEngine:
         Uses mx.load() to merge LoRA delta weights directly into the active base model tree, caching base weights to hot-swap.
         """
         await self.ensure_loaded()
+        if not self.model:
+            raise RuntimeError("Model failed to load.")
         
         import re
         import os

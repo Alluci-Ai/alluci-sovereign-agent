@@ -36,6 +36,8 @@ openai>=1.12.0
 anthropic>=0.18.0
 cohere>=5.0.0
 huggingface_hub>=0.24.0     # HuggingFace Inference API (optional — needs HF token)
+boto3>=1.34.0               # AWS Bedrock fallback
+aioboto3>=12.3.0            # Async AWS Bedrock fallback
 httpx==0.27.0
 tiktoken==0.7.0
 
@@ -91,3 +93,6 @@ fastapi-csrf-protect==1.0.7
 # ─── Audio & TTS ─────────────────────────────────────────────────────────────
 whisper-cpp-python>=0.1.0     # Bridge to local whisper-cpp
 # piper-python usually handled via subprocess in our case
+
+# ─── Scheduling ──────────────────────────────────────────────────────────────
+croniter>=2.0.0

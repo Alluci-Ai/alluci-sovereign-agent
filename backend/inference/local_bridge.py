@@ -5,7 +5,7 @@ import json
 import logging
 from ..logging_config import get_logger
 import shutil
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Optional
 
 logger = get_logger("LocalBridge")
 
@@ -125,7 +125,7 @@ class LocalInferenceBridge:
             if os.path.exists(tmp_wav):
                 os.remove(tmp_wav)
 
-    async def chat_mlx(self, prompt: str, model: str = None) -> AsyncGenerator[str, None]:
+    async def chat_mlx(self, prompt: str, model: Optional[str] = None) -> AsyncGenerator[str, None]:
         """
         Streams responses from the local MLX Engine instance with RAM-aware model selection.
         """

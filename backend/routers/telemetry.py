@@ -61,9 +61,9 @@ async def post_telemetry(
 
     if services.ws_gw:
         try:
-            await services.ws_gw.broadcast({
-                "type": "telemetry",
-                "data": {
+            await services.ws_gw.broadcast_event(
+                "telemetry",
+                {
                     "hr": data.hr,
                     "hrv": data.hrv,
                     "respiratory_rate": data.respiratory_rate,
@@ -72,7 +72,7 @@ async def post_telemetry(
                     "arousal": data.arousal,
                     "focus": data.focus
                 }
-            })
+            )
         except Exception as exc:
             logger.warning("Failed to broadcast telemetry: %s", exc)
 

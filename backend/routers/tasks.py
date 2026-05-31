@@ -1,4 +1,5 @@
 
+from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends, Request
 from ..models import TaskUpdate
 from ..security.auth import verify_authenticated
@@ -8,7 +9,7 @@ from .. import services
 router = APIRouter(tags=["Task Management"])
 
 @router.get("/tasks", dependencies=[Depends(verify_authenticated)])
-async def get_tasks(status: str = "all", priority: str = None, timeline: str = None, agent_id: str = "executive"):
+async def get_tasks(status: str = "all", priority: Optional[str] = None, timeline: Optional[str] = None, agent_id: str = "executive"):
     if not services.task_manager:
         raise HTTPException(status_code=503, detail="Task manager not ready")
     return await services.task_manager.get_tasks(status, priority, timeline, agent_id)

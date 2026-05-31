@@ -124,7 +124,7 @@ async def execute_objective(
             
         run_id = await services.orchestrator.execute_objective(
             request.objective,
-            autonomy_level=manifest.autonomy_level
+            autonomy=manifest.autonomy_level
         )
         return {"status": "accepted", "run_id": run_id}
     except HTTPException:

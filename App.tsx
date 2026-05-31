@@ -198,7 +198,7 @@ const App: React.FC = () => {
         setIsConnected(false);
         // We log the connection failure locally
         if (geminiServiceRef.current) {
-          geminiServiceRef.current.audit.log('SYSTEM', { error: "Daemon offline or unreachable" }, 'failure');
+          await geminiServiceRef.current.audit.addEntry('SYSTEM_CONNECTION_FAILURE', { error: "Daemon offline or unreachable" });
           setAuditLog(geminiServiceRef.current.audit.getEntries());
         }
       }

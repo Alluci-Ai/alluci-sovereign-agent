@@ -158,7 +158,10 @@ class TaskManager:
                 # Determine index (it's the last line now)
                 f.seek(0)
                 lines = f.readlines()
-                return self._parse_line(len(lines)-1, lines[-1])
+                parsed = self._parse_line(len(lines)-1, lines[-1])
+                if parsed is None:
+                    raise RuntimeError("Failed to parse newly written task line")
+                return parsed
             finally:
                 fcntl.flock(f, fcntl.LOCK_UN)
 

@@ -57,6 +57,7 @@ class ExecutiveOrchestrator:
         self.memory = memory_manager      # Legacy MemoryManager (kept for adapters)
         self.hlsm = hlsm_manager          # H-LSM manager (new)
         self.agent_id = agent_id
+        self.vault_root = vault_root
         if self.agent_id:
             self._current_session_key = self.agent_id
         
@@ -835,7 +836,7 @@ class ExecutiveOrchestrator:
             skill_manager=self.skill_manager,
             approval_manager=self.approval_manager,
             analytics=self.analytics,
-            vault_root=self.adapter_registry.vault_root,
+            vault_root=self.vault_root,
             memory_manager=self.memory,
             hlsm_manager=self.hlsm,
             agent_id=agent_id

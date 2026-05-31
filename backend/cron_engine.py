@@ -306,7 +306,7 @@ class CronEngine:
                 model_override=original.model_override,
                 thinking_level=original.thinking_level,
                 delivery_channel=original.delivery_channel,
-                delivery_account=original.delivery_account,
+                delivery_account_id=original.delivery_account_id,
                 delivery_to=original.delivery_to,
                 delivery_mode=original.delivery_mode,
                 reset_context=original.reset_context,

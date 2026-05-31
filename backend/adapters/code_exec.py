@@ -142,3 +142,5 @@ class CodeExecAdapter(Adapter):
                     await asyncio.sleep(1) # wait for daemon recovery
                 else:
                     return {"status": "error", "message": f"Sandbox Execution Failed permanently after 3 retries: {error_msg}"}
+
+        return {"status": "error", "message": "Execution loop terminated unexpectedly."}

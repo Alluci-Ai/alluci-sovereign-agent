@@ -45,6 +45,6 @@ def test_actual_proxy_integration():
     
     # Test Inbound Re-injection
     simulated_cloud = f"Contract for {list(packet.secure_ephemeral_vault.keys())[0]} is ready."
-    final_output = proxy.process_inbound_response(simulated_cloud, packet.secure_ephemeral_vault)
+    final_output = proxy.process_inbound_response(simulated_cloud, packet.secure_ephemeral_vault, agent_id="executive", abstract_prompt=packet.compressed_abstract_prompt)
     
     assert list(packet.secure_ephemeral_vault.values())[0] in final_output
