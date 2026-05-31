@@ -122,6 +122,21 @@ const StepMetadata: React.FC<StepProps> = ({ data, update, next }) => {
         />
       </div>
 
+      <div className="flex flex-col gap-2">
+        <label className="glass-label text-[8px] opacity-60">VOICE_PROFILE (SUB-AGENT TTS)</label>
+        <select
+          className="glass-input w-full"
+          value={data.voiceProfile || 'am_adam'}
+          onChange={(e) => update('voiceProfile', e.target.value)}
+        >
+          <option value="am_adam">am_adam (Masculine / Deep Work)</option>
+          <option value="af_heart">af_heart (Feminine / Peak Performance)</option>
+          <option value="af_bella">af_bella (Feminine / Ambient)</option>
+          <option value="am_michael">am_michael (Masculine / Assertive)</option>
+          <option value="af_sky">af_sky (Feminine / Calm)</option>
+        </select>
+      </div>
+
       <div className="w-full border-b border-[rgba(255,255,255,0.08)] my-4" />
       <h4 className="glass-label text-[10px] opacity-40 mb-2">MODULE_INSTRUCTIONS</h4>
 

@@ -93,6 +93,7 @@ export interface SkillManifest {
   // Legacy support for capability routing
   capabilities: string[];
   bestPractices?: string[];
+  voiceProfile?: string;
 }
 
 export enum SoulHumor {

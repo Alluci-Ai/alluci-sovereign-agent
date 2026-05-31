@@ -221,5 +221,19 @@ export const SKILL_DATABASE = [
     chainsOfThought: ["Define Identity -> Register Name Commitment -> Register Identity", "Construct VDXF Object -> Sign -> Publish", "Define Currency -> Launch Chain", "Bridge Assets -> Cross-Chain Export"],
     capabilities: ["verus_id_operations", "pbaas_chain_launch", "currency_definition", "vdxf_publishing"],
     bestPractices: ["Secure keys in HSM", "Use testnet for experiments", "Treat VDXF keys as namespaces", "Verify transaction finality"]
+  },
+  {
+    id: "auth_01",
+    name: "Autonomous Agentic Registration",
+    category: "FRAMEWORK",
+    description: "Enables autonomous onboarding to external web services using the auth.md (RFC 9728) standard, eliminating hardcoded API keys in favor of dynamic ID-JAG cryptographic tokens.",
+    mindsets: ["Sovereign", "Autonomous", "Zero-Trust"],
+    methodologies: ["Two-Hop Resource Discovery", "ID-JAG Token Minting", "User-Claimed Fallback"],
+    frameworks: ["auth.md", "RFC 9728", "OAuth2"],
+    knowledge: ["Identity Assertions", "JWT", "Cryptographic Signing", "Service Registration"],
+    logic: ["Credentials should be discovered and negotiated dynamically, never hardcoded."],
+    chainsOfThought: ["Scan for Domain Posture -> Probe PRM -> Evaluate auth.md -> Mint ID-JAG -> Transmit Assertion -> Secure API Key"],
+    capabilities: ["rfc9728_two_hop_probe", "JSON_Identity_Assertion_JWT_Authorization_Grant", "user_claimed_otp_intercept"],
+    bestPractices: ["Never leak local private keys", "Store generated API keys in L1 memory"]
   }
 ];

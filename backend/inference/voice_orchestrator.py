@@ -39,17 +39,17 @@ class DeviceTier(str, Enum):
 # ────────────────────────────────────────────────────────
 TIER_MODEL_MAP: Dict[DeviceTier, Dict[str, Any]] = {
     DeviceTier.WATCH_ULTRA: {
-        "whisper_repo": "mlx-community/whisper-tiny-4bit",
+        "whisper_repo": "backend/vault/h_lsm/models/whisper-tiny-4bit",
         "gemma_path": None,  # Watch delegates reasoning to Workstation
         "description": "Edge Sentinel — VAD + Pre-transcribe only",
     },
     DeviceTier.IPHONE_17_PRO: {
-        "whisper_repo": "mlx-community/whisper-base-8bit",
+        "whisper_repo": "backend/vault/h_lsm/models/whisper-base-8bit",
         "gemma_path": "/usr/local/bin/alluci/models/polytope_e2b",
         "description": "Mobile Hub — Offline voice + Gemma 4 E2B conformer",
     },
     DeviceTier.MACBOOK_WORKSTATION: {
-        "whisper_repo": "mlx-community/whisper-large-v3-turbo",
+        "whisper_repo": "backend/vault/h_lsm/models/whisper-large-v3-turbo",
         "gemma_path": "/usr/local/bin/alluci/models/polytope_31b_fp16",
         "description": "Cognitive Core — Full unquantized Whisper + Gemma 4 31B Dense",
     },
@@ -189,6 +189,33 @@ class AlluciVoiceOrchestrator:
         Watch Ultra devices return False — they must delegate to the Workstation.
         """
         return self._gemma_path is not None and os.path.exists(self._gemma_path)
+
+    async def synthesize_response(self, text_payload: str, voice_profile: str) -> Dict[str, Any]:
+        """
+        Routes the TTS synthesis based on the active device tier.
+        MACBOOK_WORKSTATION: Generates full PCM buffer using Kokoro MLX natively.
+        WATCH_ULTRA / IPHONE_17_PRO: Returns text tokens so the edge device can use AVSpeechSynthesizer.
+        """
+        if self._active_tier == DeviceTier.MACBOOK_WORKSTATION:
+            try:
+                from backend.voice.kokoro_bridge import kokoro_bridge
+                pcm_bytes = await kokoro_bridge.synthesize_text_to_pcm(text_payload, voice_profile)
+                return {
+                    "type": "audio_pcm",
+                    "data": pcm_bytes,
+                    "tier": self._active_tier.value
+                }
+            except Exception as e:
+                logger.error(f"Kokoro synthesis error: {e}")
+                return {"type": "error", "error": str(e)}
+        else:
+            # For edge devices, we return pure text to trigger native Apple OS TTS.
+            return {
+                "type": "text_for_native_tts",
+                "text": text_payload,
+                "tier": self._active_tier.value if self._active_tier else "UNKNOWN",
+                "voice_profile": voice_profile
+            }
 
 
 # Global singleton

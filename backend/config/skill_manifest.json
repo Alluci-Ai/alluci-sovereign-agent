@@ -1,0 +1,22 @@
+{
+  "skill_identity": "alluci.feature.autonomous_agentic_registration",
+  "protocol_version": "auth.md/v1.0-2026",
+  "capabilities": {
+    "discovery_engine": "rfc9728_two_hop_probe",
+    "assertion_format": "JSON_Identity_Assertion_JWT_Authorization_Grant",
+    "fallback_strategy": "user_claimed_otp_intercept"
+  },
+  "enclave_entitlements": [
+    "cryptographic_key_access",
+    "l1_streaming_buffer_write",
+    "network_egress_prm_scan"
+  ],
+  "runtime_routing_rules": {
+    "token_signing_algorithm": "RS256",
+    "token_expiration_window_seconds": 300,
+    "user_identity_claims": {
+      "iss": "https://identity.alluci-ai.internal",
+      "email_verified": true
+    }
+  }
+}

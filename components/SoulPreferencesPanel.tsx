@@ -341,7 +341,13 @@ const IdentityForge: React.FC<{ onClose: () => void; onManifestUpdate?: (manifes
                                 </div>
                                 <div>
                                     <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', display: 'block', marginBottom: 4, textTransform: 'uppercase' }}>Voice Profile</label>
-                                    <input className="glass-input" value={manifest.voiceProfile} onChange={e => updateManifest('voiceProfile', e.target.value)} style={{ fontSize: 13 }} />
+                                    <select className="glass-input" value={manifest.voiceProfile || 'am_adam'} onChange={e => updateManifest('voiceProfile', e.target.value)} style={{ fontSize: 13, width: '100%' }}>
+                                        <option value="am_adam">am_adam (Masculine / Deep Work)</option>
+                                        <option value="af_heart">af_heart (Feminine / Peak Performance)</option>
+                                        <option value="af_bella">af_bella (Feminine / Ambient)</option>
+                                        <option value="am_michael">am_michael (Masculine / Assertive)</option>
+                                        <option value="af_sky">af_sky (Feminine / Calm)</option>
+                                    </select>
                                 </div>
                                 <TagInput label="Prime Directives" items={manifest.directives} onChange={i => updateManifest('directives', i)} placeholder="Add directive..." />
                             </div>

@@ -1,0 +1,30 @@
+{
+  "tts_engine_identity": "Alluci.Kokoro.MLX.Native",
+  "model_parameters": {
+    "weight_path": "./backend/vault/h_lsm/models/kokoro-82M-bf16",
+    "precision": "bf16",
+    "sample_rate": 48000,
+    "native_upsampling": true
+  },
+  "voice_profiles": {
+    "am_adam": "am_adam (Masculine / Deep Work)",
+    "af_heart": "af_heart (Feminine / Peak Performance)",
+    "af_bella": "af_bella (Feminine / Ambient)",
+    "am_michael": "am_michael (Masculine / Assertive)",
+    "af_sky": "af_sky (Feminine / Calm)"
+  },
+  "device_routing_matrix": {
+    "MACBOOK_WORKSTATION": {
+      "streaming_mode": "gapless_istft_pipeline",
+      "vram_allocation_mb": 180
+    },
+    "IPHONE_17_PRO": {
+      "streaming_mode": "native_text_avspeech",
+      "haptic_modulation_enabled": true
+    },
+    "WATCH_ULTRA": {
+      "streaming_mode": "native_text_avspeech",
+      "haptic_only_fallback": false
+    }
+  }
+}
