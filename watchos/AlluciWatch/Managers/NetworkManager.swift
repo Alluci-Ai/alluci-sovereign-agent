@@ -100,7 +100,7 @@ class NetworkManager: ObservableObject {
     }
     
     func sendTelemetry(samples: [TelemetrySample]) async throws {
-        guard let token = sessionToken, let url = URL(string: "\(baseURL)/api/v1/channels/iwatch/biometrics") else {
+        guard let token = sessionToken, let url = URL(string: "\(baseURL)/api/v1/telemetry") else {
             return
         }
         

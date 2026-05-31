@@ -12,6 +12,10 @@ class HealthKitManager: ObservableObject {
     private var hrvQuery: HKAnchoredObjectQuery?
     private var runtimeSession: WKExtendedRuntimeSession?
     
+    private var workoutSession: HKWorkoutSession?
+    private var builder: HKLiveWorkoutBuilder?
+    @Published var isActiveSession: Bool = false
+    
     let typesToRead: Set = [
         HKObjectType.quantityType(forIdentifier: .heartRate)!,
         HKObjectType.quantityType(forIdentifier: .heartRateVariabilitySDNN)!,
@@ -28,13 +32,47 @@ class HealthKitManager: ObservableObject {
         }
     }
     
+    func startActiveSession() {
+        guard !isActiveSession else { return }
+        
+        let configuration = HKWorkoutConfiguration()
+        configuration.activityType = .mindAndBody
+        configuration.locationType = .unknown
+        
+        do {
+            workoutSession = try HKWorkoutSession(healthStore: healthStore, configuration: configuration)
+            builder = workoutSession?.associatedWorkoutBuilder()
+            builder?.dataSource = HKLiveWorkoutDataSource(healthStore: healthStore, workoutConfiguration: configuration)
+            
+            workoutSession?.startActivity(with: Date())
+            builder?.beginCollection(withStart: Date()) { success, error in
+                DispatchQueue.main.async {
+                    self.isActiveSession = success
+                }
+            }
+        } catch {
+            print("Failed to start active session: \(error.localizedDescription)")
+        }
+    }
+    
+    func stopActiveSession() {
+        workoutSession?.end()
+        builder?.endCollection(withEnd: Date()) { _, _ in
+            self.builder?.finishWorkout { _, _ in
+                DispatchQueue.main.async {
+                    self.isActiveSession = false
+                }
+            }
+        }
+    }
+    
     func startBackgroundCollection() {
-        // 1. Start Heart Rate Observer Query
+        // 1. Start Heart Rate Observer Query (Passive)
         startHeartRateQuery { hr in
             // Handle update if needed
         }
         
-        // 2. Start HRV Anchored Object Query
+        // 2. Start HRV Anchored Object Query (Passive)
         startHRVQuery()
         
         // 3. Keep app alive in background — extended session

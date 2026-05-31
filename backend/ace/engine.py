@@ -91,28 +91,29 @@ class AffectiveEngine:
         stress = self.current_state["stress_score"]
         load = self.current_state["mental_load"]
 
-        # Burnout Prevention
+        # Determine ACE_STATE_X (Biometric Profile)
         if stress > 75 or load == "fatigued":
+            self.current_state["ace_state"] = "<ACE_STATE_5>" if stress > 85 else "<ACE_STATE_4>"
             self.current_state["is_throttled"] = True
             self.current_state["flow_mode"] = "RECOVERY_MODE"
-            return {"mode": "RECOVERY_MODE", "action": "SILENCE_NON_URGENT", "reason": "High Strain Detected"}
+            return {"mode": "RECOVERY_MODE", "action": "SILENCE_NON_URGENT", "reason": "High Strain Detected", "ace_state": self.current_state["ace_state"]}
         
-        # Deep Work Isolation
         if load == "deep_work" and stress < 60:
+            self.current_state["ace_state"] = "<ACE_STATE_3>" if stress > 40 else "<ACE_STATE_2>"
             self.current_state["is_throttled"] = True
             self.current_state["flow_mode"] = "DEEP_WORK"
-            return {"mode": "DEEP_WORK", "action": "SILENCE_ALL_BUT_EMERGENCY", "reason": "Deep Cognitive Focus"}
+            return {"mode": "DEEP_WORK", "action": "SILENCE_ALL_BUT_EMERGENCY", "reason": "Deep Cognitive Focus", "ace_state": self.current_state["ace_state"]}
         
-        # Peak Performance
         if self.current_state["physical_vitality"] > 0.8 and load == "nominal":
+            self.current_state["ace_state"] = "<ACE_STATE_1>"
             self.current_state["is_throttled"] = False
             self.current_state["flow_mode"] = "PEAK_PERFORMANCE"
-            return {"mode": "PEAK_PERFORMANCE", "action": "SUGGEST_HIGH_LOGIC_EPICS", "reason": "High Vitality"}
+            return {"mode": "PEAK_PERFORMANCE", "action": "SUGGEST_HIGH_LOGIC_EPICS", "reason": "High Vitality", "ace_state": self.current_state["ace_state"]}
 
-        # Standard Operation
+        self.current_state["ace_state"] = "<ACE_STATE_0>"
         self.current_state["is_throttled"] = False
         self.current_state["flow_mode"] = "STANDARD"
-        return {"mode": "STANDARD", "action": "NORMAL_ROUTING", "reason": "Nominal State"}
+        return {"mode": "STANDARD", "action": "NORMAL_ROUTING", "reason": "Nominal State", "ace_state": self.current_state["ace_state"]}
 
     def should_throttle(self) -> bool:
         """Determines if the system should suppress standard bridge notifications."""

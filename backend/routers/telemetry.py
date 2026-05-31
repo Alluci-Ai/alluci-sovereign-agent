@@ -59,6 +59,23 @@ async def post_telemetry(
     except Exception as exc:
         logger.warning("Harmonic Enhancer tick failed: %s", exc)
 
+    if services.ws_gw:
+        try:
+            await services.ws_gw.broadcast({
+                "type": "telemetry",
+                "data": {
+                    "hr": data.hr,
+                    "hrv": data.hrv,
+                    "respiratory_rate": data.respiratory_rate,
+                    "flow_intervention": flow_result,
+                    "valence": data.valence,
+                    "arousal": data.arousal,
+                    "focus": data.focus
+                }
+            })
+        except Exception as exc:
+            logger.warning("Failed to broadcast telemetry: %s", exc)
+
     logger.info("[ TELEMETRY ]: Biometrics ingested from %s. Flow Status: %s",
                 source, flow_result.get("mode"))
     return {

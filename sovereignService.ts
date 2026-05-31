@@ -40,6 +40,8 @@ export class AlluciSovereignService {
                     callbacks.onAudioOutput(msg.data);
                 } else if (msg.type === 'manifest' && callbacks.onCanvasManifest) {
                     callbacks.onCanvasManifest(msg.node);
+                } else if (msg.type === 'telemetry') {
+                    window.dispatchEvent(new CustomEvent('alluci.system.telemetry', { detail: msg.data }));
                 }
             }
         };

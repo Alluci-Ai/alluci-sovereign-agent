@@ -61,9 +61,31 @@ class MLXEngine:
         while self.is_loading:
             await asyncio.sleep(0.1)
 
+    def _apply_ace_logic(self, prompt: str, temperature: float) -> tuple[str, float]:
+        """Injects ACE logic into the prompt and adjusts temperature."""
+        from .. import services
+        if services.ace:
+            state = services.ace.current_state
+            ace_state = state.get("ace_state", "<ACE_STATE_0>")
+            
+            # Inject token
+            prompt = f"{prompt}\n[SYSTEM: Current Biometric State: {ace_state}. Adjust brevity and tone accordingly.]"
+            
+            # Scale temperature based on stress
+            if ace_state in ["<ACE_STATE_4>", "<ACE_STATE_5>"]:
+                temperature = min(0.35, temperature) # High stress = low temp, high focus
+            elif ace_state in ["<ACE_STATE_2>", "<ACE_STATE_3>"]:
+                temperature = min(0.55, temperature) # Deep work
+            elif ace_state == "<ACE_STATE_1>":
+                temperature = max(0.70, temperature) # Recovered = creative
+                
+        return prompt, temperature
+
     async def generate(self, prompt: str, max_tokens: int = 1024, temperature: float = 0.7) -> str:
         """Generates a complete response synchronously in a background thread."""
         await self.ensure_loaded()
+        
+        prompt, temperature = self._apply_ace_logic(prompt, temperature)
         
         def _sync_gen():
             return mlx_lm.generate(
@@ -79,6 +101,8 @@ class MLXEngine:
     async def stream_generate(self, prompt: str, max_tokens: int = 1024, temperature: float = 0.7) -> AsyncGenerator[str, None]:
         """Streams tokens from mlx-lm generator."""
         await self.ensure_loaded()
+        
+        prompt, temperature = self._apply_ace_logic(prompt, temperature)
         
         # mlx_lm.stream_generate is a synchronous generator. 
         # To not block the asyncio event loop while the model computes tokens,

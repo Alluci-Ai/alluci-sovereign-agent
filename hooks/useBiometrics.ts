@@ -14,12 +14,14 @@ export const useBiometrics = () => {
         const handleTelemetry = (event: CustomEvent) => {
             const data = event.detail;
             
-            // Only update if we receive real biometric data points
-            if (data && (data.hr || data.hrv || data.respiratory_rate)) {
+            if (data) {
                 updateBiometrics({ 
-                    hr: data.hr || biometrics.hr, 
-                    hrv: data.hrv || biometrics.hrv, 
-                    respiratoryRate: data.respiratory_rate || biometrics.respiratoryRate 
+                    hr: data.hr ?? biometrics.hr, 
+                    hrv: data.hrv ?? biometrics.hrv, 
+                    respiratoryRate: data.respiratory_rate ?? biometrics.respiratoryRate,
+                    emotional: data.valence ?? biometrics.emotional,
+                    physical: data.arousal ?? biometrics.physical,
+                    cognitive: data.focus ?? biometrics.cognitive
                 });
             }
             

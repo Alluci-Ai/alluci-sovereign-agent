@@ -63,9 +63,9 @@ const AffectiveWidget: React.FC<AffectiveWidgetProps> = ({
                     {/* User resonance */}
                     <div className="ace-widget__section">
                         <span className="ace-widget__section-label">User Resonance</span>
-                        <RealtimeBarVisualizer label="Valence" value={biometrics.emotional} color="#0A84FF" onChange={(val: number) => updateBiometrics({ emotional: val })} />
-                        <RealtimeBarVisualizer label="Arousal" value={biometrics.physical} color="#FF9F0A" onChange={(val: number) => updateBiometrics({ physical: val })} />
-                        <RealtimeBarVisualizer label="Cognitive" value={biometrics.cognitive} color="#30D158" onChange={(val: number) => updateBiometrics({ cognitive: val })} />
+                        <RealtimeBarVisualizer label="Valence" value={biometrics.emotional} color="#0A84FF" />
+                        <RealtimeBarVisualizer label="Arousal" value={biometrics.physical} color="#FF9F0A" />
+                        <RealtimeBarVisualizer label="Cognitive" value={biometrics.cognitive} color="#30D158" />
                     </div>
 
                     {/* System coherence */}
