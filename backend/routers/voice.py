@@ -1,13 +1,104 @@
 
 from ..logging_config import get_logger
-from fastapi import APIRouter, HTTPException, Depends, Query, Response, File, UploadFile, Request
+from fastapi import APIRouter, HTTPException, Depends, Query, Response, File, UploadFile, Request, WebSocket, WebSocketDisconnect
 from ..security.auth import verify_authenticated
 from fastapi_csrf_protect import CsrfProtect
 from .. import services
+from ..inference.voice_orchestrator import voice_orchestrator, DeviceTier
+import json
 
 logger = get_logger("VoiceRouter")
 
 router = APIRouter(tags=["Voice & Audio"])
+
+
+# ────────────────────────────────────────────────────────
+# [ SOVEREIGN_VOICE_STREAM ] Bidirectional WebSocket
+# ────────────────────────────────────────────────────────
+
+@router.websocket("/voice/stream")
+async def ws_voice_stream(websocket: WebSocket):
+    """
+    [ PPN-030 ] Bidirectional streaming voice endpoint.
+    Accepts inbound 200ms PCM binary frames from the frontend VAD worklet,
+    transcribes them natively via MLX-Whisper on Apple Silicon,
+    and streams partial text predictions back to the client in real-time.
+    """
+    await websocket.accept()
+
+    # Read device tier from query params (set by bridgeManager.ts)
+    device_tier_str = websocket.query_params.get("device_tier", "MACBOOK_WORKSTATION")
+    try:
+        tier = DeviceTier(device_tier_str)
+    except ValueError:
+        tier = DeviceTier.MACBOOK_WORKSTATION
+
+    # Configure the orchestrator for this device's optimal model topology
+    config = voice_orchestrator.configure_for_device(tier)
+    await websocket.send_json({"type": "config", **config})
+
+    # Track silence for utterance finalization
+    consecutive_silence_count = 0
+    SILENCE_THRESHOLD_CHUNKS = 5  # 5 × 200ms = 1 second of silence → finalize
+
+    try:
+        while True:
+            # Receive binary PCM data (200ms chunks of float32 samples)
+            pcm_bytes = await websocket.receive_bytes()
+
+            # Process the 200ms fragment through MLX-Whisper
+            result = await voice_orchestrator.process_200ms_fragment(pcm_bytes)
+
+            if result.get("text"):
+                consecutive_silence_count = 0
+                await websocket.send_json({
+                    "type": "fragment",
+                    "text": result["text"],
+                    "fragment_index": result.get("fragment_index", 0),
+                    "is_final": False,
+                })
+            else:
+                consecutive_silence_count += 1
+
+            # After sustained silence, finalize the utterance
+            if consecutive_silence_count >= SILENCE_THRESHOLD_CHUNKS and voice_orchestrator._fragment_count > 0:
+                final = voice_orchestrator.finalize_utterance()
+                consecutive_silence_count = 0
+
+                if final["text"]:
+                    await websocket.send_json({
+                        "type": "utterance",
+                        "text": final["text"],
+                        "fragment_count": final["fragment_count"],
+                        "is_final": True,
+                        "requires_cognition": final["requires_cognition"],
+                    })
+
+                    # If the device can reason locally, route to MLXEngine
+                    if final["requires_cognition"] and services.local_inference:
+                        # Hand off to the main inference pipeline
+                        cognition_result = await services.local_inference.transcribe(
+                            final["text"].encode("utf-8")
+                        )
+                        await websocket.send_json({
+                            "type": "cognition",
+                            "text": str(cognition_result),
+                            "is_final": True,
+                        })
+
+    except WebSocketDisconnect:
+        logger.info("[VOICE STREAM] Client disconnected.")
+    except Exception as e:
+        logger.error(f"[VOICE STREAM] Error: {e}")
+        try:
+            await websocket.close(code=1011, reason=str(e))
+        except Exception:
+            pass
+
+
+# ────────────────────────────────────────────────────────
+# [ LEGACY_REST ] Batch transcription (backward compatibility)
+# ────────────────────────────────────────────────────────
 
 @router.post("/voice/transcribe", dependencies=[Depends(verify_authenticated)])
 async def transcribe_voice(request: Request, file: UploadFile = File(...),
@@ -28,3 +119,4 @@ async def synthesise_voice(text: str = Query(...)):
         raise HTTPException(status_code=503, detail="Local inference not initialized")
     audio_bytes = await services.local_inference.synthesise(text)
     return Response(content=audio_bytes, media_type="audio/wav")
+

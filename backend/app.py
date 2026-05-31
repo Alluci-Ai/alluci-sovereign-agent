@@ -24,6 +24,20 @@ from .engine.errors import AdapterError
 
 from fastapi import HTTPException
 
+class SovereignAPIException(Exception):
+    def __init__(self, status_code: int, error_code: str, detail: str):
+        self.status_code = status_code
+        self.error_code = error_code
+        self.detail = detail
+
+@app.exception_handler(SovereignAPIException)
+async def sovereign_api_exception_handler(request: Request, exc: SovereignAPIException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"error_code": exc.error_code, "detail": exc.detail},
+        headers={"X-RateLimit-Remaining": str(getattr(request.state, 'rate_limit_remaining', 'unknown'))}
+    )
+
 async def global_rate_limit(request: Request, response: Response):
     """
     Global rate limit. Always enforced — falls back to in-memory

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useStore, ActiveView } from '../store/useStore';
 import AffectiveWidget from './AffectiveWidget';
+import AgentContextSelector from './AgentContextSelector';
 import {
     MessageSquare, Brain, Zap, Link2, Key,
     CheckSquare, FolderOpen, Shield, ChevronLeft, ChevronRight, ChevronDown, ChevronUp,
@@ -170,6 +171,9 @@ const Sidebar: React.FC<SidebarProps> = ({
                     );
                 })}
             </nav>
+
+            {/* Agent Context Selector (Phase 9) */}
+            {!isSidebarCollapsed && <AgentContextSelector />}
 
             {/* Ambient ACE Indicator */}
             {!isSidebarCollapsed && (

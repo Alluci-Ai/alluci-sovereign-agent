@@ -21,12 +21,13 @@ class Executor:
     """
     def __init__(self, adapter_registry: AdapterRegistry, session_factory, 
                  max_concurrent: int = 5, task_timeout: float = 60.0,
-                 approval_manager=None, ace=None):
+                 approval_manager=None, ace=None, on_task_complete=None):
         self.registry = adapter_registry
         self.session_factory = session_factory
         self.semaphore = asyncio.Semaphore(max_concurrent)
         self.task_timeout = task_timeout
         self.approval_manager = approval_manager
+        self.on_task_complete = on_task_complete
         
         # [ PPN-015 ] SupervisorAgent for Context Optimization
         self.supervisor = SupervisorAgent()
@@ -129,6 +130,13 @@ class Executor:
                     task.status = TaskStatus.COMPLETED
                     self._update_task_record(run_id, task.id, status="completed", result=str(result), end_time=datetime.now(timezone.utc))
                     logger.info(f"Task {task.id} ({task.action}) ✅")
+                    
+                    # Fire DAG execution hook for real-time artifact streaming
+                    if self.on_task_complete:
+                        try:
+                            await self.on_task_complete(task)
+                        except Exception as hook_err:
+                            logger.error(f"Task completion hook failed: {hook_err}")
                     
                 except asyncio.TimeoutError:
                     err_msg = f"Task exceeded {self.task_timeout}s limit."

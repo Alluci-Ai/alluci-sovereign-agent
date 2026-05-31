@@ -18,8 +18,8 @@ import type { TaskRecord, DAGRun } from './types';
 const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
 
 export const DAGPanel: React.FC = () => {
-  const { accessToken } = useStore();
-  const { runs, loading: runsLoading, refresh: refreshRuns } = useDAGRuns({ autoRefresh: true });
+  const { accessToken, activeAgentId } = useStore();
+  const { runs, loading: runsLoading, refresh: refreshRuns } = useDAGRuns({ autoRefresh: true, agent_id: activeAgentId });
 
   const [selectedRunId, setSelectedRunId] = useState<number | null>(null);
   const [selectedRun, setSelectedRun] = useState<DAGRun | null>(null);
@@ -34,11 +34,11 @@ export const DAGPanel: React.FC = () => {
   const loadRunDetail = useCallback(async (runId: number) => {
     try {
       const [runRes, tasksRes] = await Promise.all([
-        fetch(`${DAEMON_URL}/api/v1/dag/runs/${runId}`, {
+        fetch(`${DAEMON_URL}/api/v1/dag/runs/${runId}?agent_id=${activeAgentId}`, {
           headers: { Authorization: `Bearer ${accessToken}` },
           credentials: 'include',
         }),
-        fetch(`${DAEMON_URL}/api/v1/dag/runs/${runId}/tasks`, {
+        fetch(`${DAEMON_URL}/api/v1/dag/runs/${runId}/tasks?agent_id=${activeAgentId}`, {
           headers: { Authorization: `Bearer ${accessToken}` },
           credentials: 'include',
         }),
@@ -51,7 +51,7 @@ export const DAGPanel: React.FC = () => {
     } catch (e) {
       console.error('[DAGPanel] Failed to load run detail:', e);
     }
-  }, [accessToken]);
+  }, [accessToken, activeAgentId]);
 
   useEffect(() => {
     if (selectedRunId) loadRunDetail(selectedRunId);
@@ -67,7 +67,7 @@ export const DAGPanel: React.FC = () => {
 
   const handleCancel = async () => {
     if (!selectedRunId) return;
-    await fetch(`${DAEMON_URL}/api/v1/dag/runs/${selectedRunId}/cancel`, {
+    await fetch(`${DAEMON_URL}/api/v1/dag/runs/${selectedRunId}/cancel?agent_id=${activeAgentId}`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${accessToken}` },
       credentials: 'include',
@@ -91,7 +91,8 @@ export const DAGPanel: React.FC = () => {
         [], // vaultScope
         [], // capabilityScope
         aceState,
-        accessToken || ''
+        accessToken || '',
+        activeAgentId
       );
       
       refreshRuns();

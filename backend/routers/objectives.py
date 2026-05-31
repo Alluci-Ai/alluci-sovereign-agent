@@ -57,6 +57,7 @@ def verify_manifest(manifest_header: str) -> Dict[str, Any]:
 @router.post("/objective/execute")
 async def execute_objective(
     request: ObjectiveRequest,
+    agent_id: str = "executive",
     manifest_header: Optional[str] = Header(None, alias="X-Execution-Manifest"),
     current_user: Any = Depends(get_current_user)
 ):
@@ -117,6 +118,10 @@ async def execute_objective(
 
         # 4. Execution (Proxy to Orchestrator)
         logger.info(f"[ EXEC ]: Starting objective for {current_user['id']}: {request.objective[:50]}...")
+        if agent_id != "executive":
+            res = await services.orchestrator.multi_agent_delegate(agent_id, request.objective)
+            return {"status": "accepted", "run_id": None, "detail": res}
+            
         run_id = await services.orchestrator.execute_objective(
             request.objective,
             autonomy_level=manifest.autonomy_level

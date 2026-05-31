@@ -15,9 +15,10 @@ async def list_dag_runs(
     status: Optional[str] = None,
     limit: int = 20,
     offset: int = 0,
+    agent_id: str = "executive",
 ):
     with Session(db_engine) as session:
-        stmt = select(Run).order_by(desc(Run.created_at)).offset(offset).limit(limit)
+        stmt = select(Run).where(Run.agent_id == agent_id).order_by(desc(Run.created_at)).offset(offset).limit(limit)
         if status:
             stmt = stmt.where(Run.status == status)
         runs = session.exec(stmt).all()

@@ -60,19 +60,19 @@ export class ExecutionManifestFactory {
     /**
      * Creates a signed execution manifest.
      */
-    create(
+    async create(
         objectiveRaw: string,
         autonomyLevel: AutonomyLevel,
         vaultScope: string[],
         capabilityScope: string[],
         biometricGate = false,
-    ): SignedExecutionManifest {
+    ): Promise<SignedExecutionManifest> {
         const now = new Date();
         const expires = new Date(now.getTime() + 1_000 * 60 * 15); // 15-minute expiry
 
         const objective: ManifestObjective = {
             raw: objectiveRaw,
-            objectiveHash: this.hashString(objectiveRaw),
+            objectiveHash: await this.hashString(objectiveRaw),
         };
 
         const manifest: ExecutionManifest = {
@@ -101,7 +101,7 @@ export class ExecutionManifestFactory {
     /**
      * Validates the integrity and authenticity of a previously signed manifest.
      */
-    validate(signedManifest: SignedExecutionManifest): boolean {
+    async validate(signedManifest: SignedExecutionManifest): Promise<boolean> {
         const { manifest, signature } = signedManifest;
 
         // 1. Expiry
@@ -111,7 +111,7 @@ export class ExecutionManifestFactory {
         }
 
         // 2. Objective integrity
-        if (this.hashString(manifest.objective.raw) !== manifest.objective.objectiveHash) {
+        if (await this.hashString(manifest.objective.raw) !== manifest.objective.objectiveHash) {
             console.error('[ MANIFEST ]: Objective hash mismatch. Possible tampering.');
             return false;
         }
@@ -131,11 +131,13 @@ export class ExecutionManifestFactory {
 
     // ── Private helpers ────────────────────────────────────────────────────────
 
-    private hashString(input: string): string {
+    private async hashString(input: string): Promise<string> {
         if (isBrowser) {
-            // SHA-256 for browser (simple mock or use subtle crypto if needed, but here we need sync)
-            // For manifest integrity, we just need a unique hash.
-            return `hash_${btoa(input).substring(0, 16)}`;
+            const encoder = new TextEncoder();
+            const data = encoder.encode(input);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
         }
         return require('node:crypto').createHash('sha256').update(input).digest('hex');
     }

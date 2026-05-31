@@ -245,17 +245,19 @@ class CronEngine:
 
     # ── CRUD Helpers (called from FastAPI routes) ─────────────────────────
 
-    def list_jobs(self) -> List[Dict[str, Any]]:
+    def list_jobs(self, agent_id: str = "executive") -> List[Dict[str, Any]]:
         from .models import CronJob
         with Session(self.db_engine) as session:
-            jobs = session.exec(select(CronJob)).all()
+            jobs = session.exec(select(CronJob).where(CronJob.agent_id == agent_id)).all()
             return [self._job_to_dict(j) for j in jobs]
 
-    def get_job(self, job_id: int) -> Optional[Dict[str, Any]]:
+    def get_job(self, job_id: int, agent_id: str = "executive") -> Optional[Dict[str, Any]]:
         from .models import CronJob
         with Session(self.db_engine) as session:
             job = session.get(CronJob, job_id)
-            return self._job_to_dict(job) if job else None
+            if job and job.agent_id == agent_id:
+                return self._job_to_dict(job)
+            return None
 
     def create_job(self, data: Dict[str, Any]) -> Dict[str, Any]:
         from .models import CronJob
@@ -266,11 +268,11 @@ class CronEngine:
             session.refresh(job)
             return self._job_to_dict(job)
 
-    def update_job(self, job_id: int, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def update_job(self, job_id: int, data: Dict[str, Any], agent_id: str = "executive") -> Optional[Dict[str, Any]]:
         from .models import CronJob
         with Session(self.db_engine) as session:
             job = session.get(CronJob, job_id)
-            if not job:
+            if not job or job.agent_id != agent_id:
                 return None
             for k, v in data.items():
                 if hasattr(job, k):
@@ -280,21 +282,21 @@ class CronEngine:
             session.refresh(job)
             return self._job_to_dict(job)
 
-    def delete_job(self, job_id: int) -> bool:
+    def delete_job(self, job_id: int, agent_id: str = "executive") -> bool:
         from .models import CronJob
         with Session(self.db_engine) as session:
             job = session.get(CronJob, job_id)
-            if not job:
+            if not job or job.agent_id != agent_id:
                 return False
             session.delete(job)
             session.commit()
             return True
 
-    def clone_job(self, job_id: int) -> Optional[Dict[str, Any]]:
+    def clone_job(self, job_id: int, agent_id: str = "executive") -> Optional[Dict[str, Any]]:
         from .models import CronJob
         with Session(self.db_engine) as session:
             original = session.get(CronJob, job_id)
-            if not original:
+            if not original or original.agent_id != agent_id:
                 return None
             clone = CronJob(
                 name=f"{original.name} (copy)",
@@ -315,12 +317,12 @@ class CronEngine:
             session.refresh(clone)
             return self._job_to_dict(clone)
 
-    def force_run(self, job_id: int) -> Optional[Dict[str, Any]]:
+    def force_run(self, job_id: int, agent_id: str = "executive") -> Optional[Dict[str, Any]]:
         """Schedule an immediate run regardless of schedule."""
         from .models import CronJob
         with Session(self.db_engine) as session:
             job = session.get(CronJob, job_id)
-            if not job:
+            if not job or job.agent_id != agent_id:
                 return None
         asyncio.create_task(self._execute_job(job, datetime.now(timezone.utc)))
         return {"status": "triggered", "job_id": job_id}

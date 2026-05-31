@@ -208,6 +208,10 @@ export interface AppState {
     activeRunId: number | null;
     setActiveRunId: (id: number | null) => void;
 
+    // Phase 9: Swarm Context Isolation
+    activeAgentId: string;
+    setActiveAgentId: (id: string) => void;
+
     // PVT Health Dashboard
     pvtHealth: {
         P: number; V: number; T: number;
@@ -416,6 +420,10 @@ export const useStore = create<AppState>((set) => ({
     // DAG Planner
     activeRunId: null,
     setActiveRunId: (id) => set({ activeRunId: id }),
+
+    // Phase 9: Swarm Context Isolation
+    activeAgentId: 'executive',
+    setActiveAgentId: (id) => set({ activeAgentId: id }),
 
     // PVT Health Dashboard
     pvtHealth: {

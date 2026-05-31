@@ -28,7 +28,7 @@ WORKDIR /app
 
 # Copy application code
 COPY backend/ ./backend/
-COPY TASKS.md HEARTBEAT.md ./
+COPY HEARTBEAT.md ./
 
 # Compile and Verify Native Kernels (DPK)
 RUN make -C backend/security/ all verify

@@ -9,19 +9,6 @@ import logging
 
 logger = logging.getLogger("PPN")
 
-try:
-    import torch
-    import torch.nn as nn
-except ImportError:
-    class TorchPlaceholder:
-        def __getattr__(self, name):
-            if name == 'nn': return TorchPlaceholder()
-            if name == 'Module': return object
-            def placeholder(*args, **kwargs):
-                return None
-            return placeholder
-    torch = TorchPlaceholder()
-    nn = torch.nn
 
 try:
     import gudhi
@@ -100,14 +87,9 @@ class PPNEmbeddingModule:
         Quantizes to 1/scale steps and clamps to manifold limits (int16 safety).
         """
         max_val = 32767.0 / float(scale) # ~31.999
-        if hasattr(t, 'clamp'):
-            # Torch branch (for tests)
-            clamped = t.clamp(-max_val, max_val)
-            return torch.round(clamped * scale) / float(scale)
-        else:
-            # NumPy branch (production)
-            clamped = np.clip(t, -max_val, max_val)
-            return np.round(clamped * scale) / float(scale)
+        # Production NumPy branch for fixed-point safety
+        clamped = np.clip(np.array(t), -max_val, max_val)
+        return np.round(clamped * scale) / float(scale)
 
     def _compute_topology(self, points: np.ndarray) -> np.ndarray:
         """
@@ -167,9 +149,11 @@ class PPNEmbeddingModule:
         """
         Signature: G, D, B, Points, Phi_Total, Budget, Coherence, h_norm, delta_b_norm, aux
         """
-        # 1. Handle Torch Tensor conversion if necessary
-        if hasattr(x, 'detach'):
-            x = x.detach().cpu().numpy()
+        # 1. Ensure input is a NumPy array (converting from MLX/lists if necessary)
+        if hasattr(x, 'tolist') and not isinstance(x, np.ndarray):
+            x = np.array(x.tolist())
+        elif not isinstance(x, np.ndarray):
+            x = np.array(x)
         
         # 2. Linear Projection
         h = np.tanh(x @ self.proj_w)

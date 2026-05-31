@@ -47,7 +47,7 @@ class ExecutiveOrchestrator:
     def __init__(self, router: ModelRouter, vault: VaultManager, ace: AffectiveEngine, 
                  settings: Settings, skill_manager: Optional[SkillManager] = None, 
                  approval_manager=None, analytics=None, vault_root: Optional[str] = None,
-                 memory_manager=None, hlsm_manager=None):
+                 memory_manager=None, hlsm_manager=None, agent_id: Optional[str] = None):
         self.settings = settings
         self.logger = get_logger("ExecutiveOrchestrator")
         self.vault = vault
@@ -56,6 +56,9 @@ class ExecutiveOrchestrator:
         self.analytics = analytics
         self.memory = memory_manager      # Legacy MemoryManager (kept for adapters)
         self.hlsm = hlsm_manager          # H-LSM manager (new)
+        self.agent_id = agent_id
+        if self.agent_id:
+            self._current_session_key = self.agent_id
         
         # Sub-systems
         self.identity = SovereignIdentity(settings)
@@ -85,8 +88,25 @@ class ExecutiveOrchestrator:
             session_factory=lambda: db_engine,
             max_concurrent=settings.MAX_CONCURRENT_TASKS,
             approval_manager=self.approval_manager,
-            ace=self.ace
+            ace=self.ace,
+            on_task_complete=self._handle_task_complete
         )
+        
+        # [Phase 9] Register SubAgent delegation adapter for Asynchronous Swarm Workflows
+        from .adapters.base import Adapter
+        class SubAgentAdapter(Adapter):
+            name = "spawn_sub_agent"
+            description = "Delegates a task to a multi-threaded sovereign sub-agent"
+            
+            def __init__(self, delegate_func):
+                self.delegate_func = delegate_func
+                
+            async def execute(self, args: Dict[str, Any]) -> Any:
+                agent_id = args.get("agent_id", "sub_agent")
+                objective = args.get("objective", "")
+                return await self.delegate_func(agent_id, objective)
+                
+        self.adapter_registry.register(SubAgentAdapter(self.multi_agent_delegate))
 
     @property
     def ws_gateway(self):
@@ -97,6 +117,40 @@ class ExecutiveOrchestrator:
         self._ws_gateway = val
         if self.heartbeat:
             self.heartbeat.ws_gateway = val
+
+    async def broadcast_artifact(self, title: str, content: str, language: str = "markdown"):
+        """
+        M-2: Emits generated artifacts (markdown, code) over WebSocket to the frontend Artifact Pane.
+        """
+        if self._ws_gateway:
+            try:
+                await self._ws_gateway.broadcast_event('orchestrator.artifact.updated', {
+                    "title": title,
+                    "content": content,
+                    "language": language,
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                })
+            except Exception as e:
+                self.logger.error(f"Failed to broadcast artifact: {e}")
+
+    async def _handle_task_complete(self, task):
+        """Hook from the executor when a DAG task completes."""
+        if task.action in ["write_file", "generate_code", "create_markdown", "write_artifact"]:
+            # Depending on the adapter, the result or arguments might contain the artifact text
+            content = task.result if len(str(task.result)) > 20 else str(task.args)
+            title = task.args.get("filename", task.action)
+            lang = "markdown" if "markdown" in task.action else "plaintext"
+            if ".py" in title: lang = "python"
+            if ".ts" in title: lang = "typescript"
+            await self.broadcast_artifact(title=title, content=content, language=lang)
+            
+        elif len(str(task.result)) > 200:
+            # Broadcast large outputs natively as markdown reports
+            await self.broadcast_artifact(
+                title=f"Task Result: {task.action}", 
+                content=str(task.result), 
+                language="markdown"
+            )
 
     async def cancel_run(self, run_id: int) -> bool:
         """Cancel an active run. Cancels asyncio task and marks pending tasks as failed."""
@@ -134,7 +188,7 @@ class ExecutiveOrchestrator:
     async def preview_plan(self, objective: str) -> list:
         """Generate a plan without executing it. Returns DAG task list for preview."""
         context = await self._build_system_context()
-        tasks = await self.planner.generate_plan(objective, context=context)
+        tasks = await self.planner.generate_plan(objective, context=context, agent_id=self.agent_id or "executive")
         return [
             {
                 "id":           t_id,
@@ -502,11 +556,30 @@ class ExecutiveOrchestrator:
             
             if estimated_tokens > context_limit:
                 self.logger.warning(f"Context manifold ({estimated_tokens} tokens) exceeds boundary ({context_limit}). Compacting...")
-                # Perform conceptual trimming (take the latter half/most recent plus core identity)
-                # In a true RAG system, this would compress via summarization
-                tokens_to_free = estimated_tokens - (context_limit // 2)
-                trim_char_index = tokens_to_free * 4
-                system_context = "...[COMPACTED]...\n" + system_context[trim_char_index:]
+                # M-5: Sovereign Topological Context Pruning
+                if hasattr(self.dpk, "project_state"):
+                    try:
+                        blocks = system_context.split('\n')
+                        retained_blocks = []
+                        for block in blocks:
+                            if not block.strip():
+                                continue
+                            b_state = self.dpk.project_state(block)
+                            phi = getattr(b_state, 'phi_total', 1.0)
+                            if phi > 0.5: # Only keep topologically important thoughts
+                                retained_blocks.append(block)
+                                
+                        system_context = "...[COMPACTED via $\Phi$-Pruning]...\n" + "\n".join(retained_blocks)
+                        tokens_to_free = estimated_tokens - len(system_context) // 4
+                    except Exception as e:
+                        self.logger.error(f"Topological pruning failed: {e}")
+                        tokens_to_free = estimated_tokens - (context_limit // 2)
+                        trim_char_index = tokens_to_free * 4
+                        system_context = "...[COMPACTED]...\n" + system_context[trim_char_index:]
+                else:
+                    tokens_to_free = estimated_tokens - (context_limit // 2)
+                    trim_char_index = tokens_to_free * 4
+                    system_context = "...[COMPACTED]...\n" + system_context[trim_char_index:]
                 
                 # Broadcast the compaction event to the frontend
                 if hasattr(self, 'ws_gateway') and self.ws_gateway:
@@ -518,7 +591,7 @@ class ExecutiveOrchestrator:
             # PPN-002: affective tension Influences planning
             psi = self.ace.btm.psi_from_state(self.ace.get_affective_state())
 
-            tasks = await self.planner.generate_plan(objective, context=system_context, psi=psi)
+            tasks = await self.planner.generate_plan(objective, context=system_context, psi=psi, agent_id=self.agent_id or "executive")
             
             # --- Harmonic Ranking Hook ---
             # Prioritize tasks based on Topological and Lattice dynamics
@@ -547,7 +620,7 @@ class ExecutiveOrchestrator:
         signed_manifest = self.identity.sign_manifest({
             "objective": objective,
             "plan_hash": hash(str(current_plan)),
-            "timestamp": asyncio.get_event_loop().time()
+            "timestamp": asyncio.get_running_loop().time()
         })
         signature = str(signed_manifest.get("signature") or "")
         self._save_manifest(run_id, signature)
@@ -666,7 +739,12 @@ class ExecutiveOrchestrator:
 
                 try:
                     tasks = await self.planner.refine_plan(
-                        objective, current_plan, results_summary, feedback, failed_tasks
+                        objective,
+                        current_plan,
+                        results_summary,
+                        feedback,
+                        failed_tasks,
+                        agent_id=self.agent_id or "executive"
                     )
                     current_plan = [t.model_dump() for t in tasks.values()]
                 except Exception as e:
@@ -745,33 +823,59 @@ class ExecutiveOrchestrator:
     async def multi_agent_delegate(self, agent_id: str, task: str) -> Dict[str, Any]:
         """
         Delegates a task to a virtual sub-agent in the constellation.
+        M-3a: Instantiates a truly isolated orchestrator to avoid persona bleed.
         """
-        self.logger.info(f"🤖 Delegating to agent '{agent_id}': {task}")
-        # In this sprint, we treat delegation as a specialized system-prompt injection
-        delegated_objective = f"[SYSTEM: Act as Specialist Agent {agent_id}] Objective: {task}"
-        return await self.execute_objective(delegated_objective, autonomy="autonomous")
+        self.logger.info(f"🤖 Delegating to sovereign sub-agent '{agent_id}': {task}")
+        
+        sub_orchestrator = ExecutiveOrchestrator(
+            router=self.planner.router,
+            vault=self.vault,
+            ace=self.ace,
+            settings=self.settings,
+            skill_manager=self.skill_manager,
+            approval_manager=self.approval_manager,
+            analytics=self.analytics,
+            vault_root=self.adapter_registry.vault_root,
+            memory_manager=self.memory,
+            hlsm_manager=self.hlsm,
+            agent_id=agent_id
+        )
+        
+        # Share the websocket gateway so sub-agent can stream its thoughts/artifacts
+        sub_orchestrator.ws_gateway = self._ws_gateway
+        
+        # [Phase 9] Multi-Threaded Spawning: Create a background task for the execution!
+        # This achieves asynchronous swarm delegation without blocking the parent DAG.
+        task_handle = asyncio.create_task(sub_orchestrator.execute_objective(task, autonomy="autonomous"))
+        
+        return {
+            "status": "spawned",
+            "agent_id": agent_id,
+            "message": f"Sub-agent '{agent_id}' spawned successfully in the background."
+        }
 
     async def compact_all_memory(self):
         """
         Daily Cron Task: Summarizes memories from the last 24h into a single fragment.
+        M-4: Refactored to use H-LSM Episodic Memory.
         """
         self.logger.info("🧹 Starting Memory Compaction Manifold...")
-        if not self.memory:
-            self.logger.warning("Memory Manager not available for compaction.")
+        if not self.hlsm:
+            self.logger.warning("H-LSM Manager not available for compaction.")
             return
 
-        memories = await self.memory.get_recent(limit=100)
+        memories = await self.hlsm.l1_get_recent(limit=100)
         
         if not memories:
             return
             
         # Filter: only summarize raw fragments (not already syntheses)
-        fragments = [m for m in memories if m["metadata"].get("type") != "daily_synthesis"]
+        fragments = [m for m in memories if "daily_synthesis" not in m.source]
         if not fragments:
             self.logger.info("No fresh memory fragments to compact.")
             return
 
-        content_to_summarize = "\n---\n".join([f"[{m['metadata'].get('timestamp')}]: {m['content']}" for m in fragments])
+        content_to_summarize = "\n---\n".join([m.content for m in fragments])
         
         prompt = f"""
         Summarize the following daily memory fragments into a single, cohesive, long-term 'Daily Synthesis'.
@@ -784,15 +888,15 @@ class ExecutiveOrchestrator:
             synthesis = await self.planner.router.get_response(prompt, complexity="MEDIUM")
             
             # 1. Store Synthesis
-            await self.memory.store(synthesis, {
-                "type": "daily_synthesis", 
-                "compacted_count": len(fragments),
-                "original_ids": [m["id"] for m in fragments]
-            })
+            await self.hlsm.l1_store(
+                content=synthesis, 
+                source="daily_synthesis",
+                topological_importance=1.5
+            )
             
             # 2. Delete original fragments to prevent redundancy
             for m in fragments:
-                await self.memory.delete(m["id"])
+                await self.hlsm.delete(m.id)
                 
             self.logger.info(f"✅ Memory Compaction Complete: {len(fragments)} fragments -> 1 Daily Synthesis.")
         except Exception as e:
@@ -801,7 +905,8 @@ class ExecutiveOrchestrator:
     # --- Persistence Methods ---
     def _create_run_record(self, objective: str, autonomy: str) -> int:
         with Session(db_engine) as session:
-            run = Run(objective=objective, autonomy_level=autonomy, status=RunStatus.QUEUED)
+            agent_id = getattr(self, "agent_id", "executive") or "executive"
+            run = Run(objective=objective, autonomy_level=autonomy, status=RunStatus.QUEUED, agent_id=agent_id)
             session.add(run)
             session.commit()
             session.refresh(run)

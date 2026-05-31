@@ -8,7 +8,7 @@ import platform
 from typing import Literal, Dict, Any, List, Optional
 from ..logging_config import get_logger
 from .executive import ExecutiveRouter
-from .speculative import SpeculativeDecoder
+from .mlx_engine import engine as mlx_engine
 
 logger = get_logger("ModelRouter")
 
@@ -64,26 +64,9 @@ class ModelRouter(ExecutiveRouter):
         self.analytics = analytics
         self.ws_gateway = None
 
-        # ── LOCAL: Native LCE (Speculative Decoding) ────────────────────────
-        self.lce_enabled = getattr(settings, "LOCAL_LCE_ENABLED", False)
-        self.lce_decoder = None
+        self.lce_enabled = getattr(settings, "LOCAL_LCE_ENABLED", True)
         if self.lce_enabled:
-            target_path = getattr(settings, "LOCAL_GEMMA_TARGET_PATH", "./models/gemma-4-31b-dense")
-            draft_path = getattr(settings, "LOCAL_GEMMA_DRAFT_PATH", "./models/gemma-4-e2b")
-            self.lce_decoder = SpeculativeDecoder(
-                target_model_id=target_path,
-                draft_model_id=draft_path
-            )
-            # We don't load_models here to save VRAM until actually needed or during 'warmup'
-            self.logger.info("Local Cognitive Engine (LCE) initialized.")
-
-        # ── LOCAL: Ollama (PRIMARY) ───────────────────────────────────────────
-        self.ollama_url = getattr(settings, "OLLAMA_URL", "http://localhost:11434")
-        self.ollama_ready = self._probe_ollama()
-        if self.ollama_ready:
-            self.logger.info("Ollama reachable at %s (PRIMARY)", self.ollama_url)
-        else:
-            self.logger.info("Ollama not reachable — will fall through to LM Studio")
+            self.logger.info("Local Cognitive Engine (LCE) via MLX initialized.")
 
         # ── LOCAL: LM Studio (LOCAL FALLBACK) ─────────────────────────────────
         self.lm_studio_client = None
@@ -217,85 +200,7 @@ class ModelRouter(ExecutiveRouter):
         self.midjourney_api_key = getattr(settings, "MIDJOURNEY_API_KEY", None)
         self.runway_api_key = getattr(settings, "RUNWAY_API_KEY", None)
 
-    def _probe_ollama(self) -> bool:
-        """Non-blocking TCP probe to check if Ollama daemon is listening."""
-        import socket
-        try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.settimeout(0.8)
-            host = self.ollama_url.replace("http://", "").replace("https://", "").split(":")[0]
-            # Use default 11434 if not specified in URL
-            port = 11434
-            if ":" in self.ollama_url.replace("://", ""):
-                 port = int(self.ollama_url.split(":")[-1])
-            s.connect((host, port))
-            return True
-        except Exception:
-            return False
-        finally:
-            try:
-                s.close()
-            except Exception:
-                pass
 
-    async def _ollama_request(
-        self,
-        prompt: str,
-        use_strong: bool = False,
-        json_mode: bool = False,
-        system_instruction: str = ""
-    ) -> str:
-        """
-        Primary inference via local Ollama daemon.
-        Selects model based on SOVEREIGN_MODE settings and available RAM.
-        """
-        ram_mb = getattr(self.settings, "TOTAL_RAM_MB", 4096)
-        lite = getattr(self.settings, "LITE_MODE", False)
-
-        if lite or ram_mb < 2000:
-            model = getattr(self.settings, "OLLAMA_MODEL_LITE", "gemma2:2b")
-        elif ram_mb < 8000:
-            model = getattr(self.settings, "OLLAMA_MODEL_LIGHT", "gemma2:2b")
-        elif use_strong and ram_mb >= 16000:
-            model = getattr(self.settings, "OLLAMA_MODEL_STRONG", "gemma2:27b")
-        else:
-            model = getattr(self.settings, "OLLAMA_MODEL_MEDIUM", "gemma2:9b")
-
-        timeout = getattr(self.settings, "OLLAMA_TIMEOUT_SECONDS", 120)
-        num_gpu = getattr(self.settings, "OLLAMA_NUM_GPU", 35)
-
-        messages = []
-        if system_instruction:
-            messages.append({"role": "system", "content": system_instruction})
-        messages.append({"role": "user", "content": prompt})
-
-        payload: Dict[str, Any] = {
-            "model": model,
-            "messages": messages,
-            "stream": False,
-            "options": {
-                "num_ctx": 512 if lite else (2048 if ram_mb < 6000 else 4096),
-                "num_thread": os.cpu_count() or 4,
-            },
-        }
-        
-        # GPU offloading logic
-        machine = platform.machine().lower()
-        is_apple_silicon = platform.system() == "Darwin" and machine == "arm64"
-        import shutil
-        has_cuda = shutil.which("nvidia-smi") is not None
-        if has_cuda or is_apple_silicon:
-            payload["options"]["num_gpu"] = num_gpu
-
-        if json_mode:
-            payload["format"] = "json"
-
-        url = f"{self.ollama_url}/api/chat"
-        async with httpx.AsyncClient(timeout=float(timeout)) as client:
-            resp = await client.post(url, json=payload)
-            resp.raise_for_status()
-            data = resp.json()
-            return data["message"]["content"]
 
     async def _lm_studio_request(
         self,
@@ -342,21 +247,14 @@ class ModelRouter(ExecutiveRouter):
         )
         return result if isinstance(result, str) else result.generated_text
 
-    async def _lce_request(self, prompt: str, system_instruction: str = "") -> str:
-        """Local Cognitive Engine via Native Speculative Decoding."""
-        if not self.lce_decoder:
-            raise RuntimeError("LCE Decoder not initialized")
-        
+    async def _lce_request(self, prompt: str, system_instruction: str = "", agent_id: str = "executive") -> str:
+        """Local Cognitive Engine via Native MLX Inference."""
         full_prompt = prompt
         if system_instruction:
             full_prompt = f"System: {system_instruction}\n\nUser: {prompt}"
             
-        # Load models in a thread if not already in VRAM to prevent blocking the event loop
-        if not self.lce_decoder.target_model:
-            self.logger.info("LCE: Loading Gemma 4 models into VRAM...")
-            await asyncio.to_thread(self.lce_decoder.load_models)
-            
-        return await asyncio.to_thread(self.lce_decoder.generate_response_sync, full_prompt)
+        await mlx_engine.apply_context_moat(agent_id)
+        return await mlx_engine.generate(full_prompt)
 
     async def _gemini_request(self, prompt: str, use_pro: bool = False, json_mode: bool = False, system_instruction: str = "", session_id: Optional[str] = None) -> str:
         """Cloud Failover 1: Gemini."""
@@ -549,6 +447,154 @@ class ModelRouter(ExecutiveRouter):
             return False
         return True
 
+    # ────────────────────────────────────────────────────────────────────────
+    # [ PPN-032 ] Topological Route Classifier
+    # Analyzes the prompt's semantic topology to determine the optimal cloud
+    # provider, eliminating wasteful sequential failover attempts.
+    # ────────────────────────────────────────────────────────────────────────
+
+    # Keyword→domain signal maps (scored by relevance density)
+    _DOMAIN_SIGNALS = {
+        "MATH_CODE": {
+            "keywords": [
+                "code", "python", "javascript", "typescript", "function", "algorithm",
+                "debug", "compile", "refactor", "sql", "regex", "api", "endpoint",
+                "calculate", "equation", "math", "integral", "derivative", "proof",
+                "matrix", "tensor", "linear algebra", "statistics", "probability",
+                "optimize", "benchmark", "leetcode", "sort", "binary search",
+            ],
+            "primary": "Groq",
+            "fallback": "DeepSeek",
+            "reason": "LPU inference excels at structured logic; DeepSeek has strong code benchmarks",
+        },
+        "ARCHITECTURE": {
+            "keywords": [
+                "architect", "design", "system design", "infrastructure", "scalable",
+                "microservice", "monolith", "database schema", "migration", "deploy",
+                "kubernetes", "docker", "ci/cd", "pipeline", "terraform", "aws",
+                "cloud architecture", "distributed", "event-driven", "cqrs",
+                "tradeoff", "pros and cons", "compare", "evaluate", "decision",
+            ],
+            "primary": "Anthropic",
+            "fallback": "OpenAI",
+            "reason": "Claude excels at nuanced architectural reasoning and long-context analysis",
+        },
+        "RESEARCH": {
+            "keywords": [
+                "research", "summarize", "explain", "what is", "how does", "why",
+                "history", "overview", "compare", "analyze", "literature", "paper",
+                "study", "findings", "evidence", "theory", "hypothesis", "review",
+                "state of the art", "current", "trend", "future", "prediction",
+                "market", "industry", "report", "insight", "deep dive",
+            ],
+            "primary": "Gemini",
+            "fallback": "OpenAI",
+            "reason": "Gemini has broad world knowledge and strong grounding capabilities",
+        },
+        "CREATIVE": {
+            "keywords": [
+                "write", "story", "poem", "creative", "narrative", "blog",
+                "marketing", "copy", "slogan", "brand", "tone", "voice",
+                "screenplay", "dialogue", "character", "fiction", "essay",
+                "email", "letter", "pitch", "presentation", "speech",
+            ],
+            "primary": "OpenAI",
+            "fallback": "Anthropic",
+            "reason": "GPT-4 has strong creative writing and stylistic flexibility",
+        },
+        "SENSITIVE": {
+            "keywords": [
+                "personal", "private", "confidential", "secret", "password",
+                "medical", "health", "financial", "bank", "ssn", "credit",
+                "legal", "contract", "nda", "proprietary", "internal",
+            ],
+            "primary": "LOCAL",
+            "fallback": "LOCAL",
+            "reason": "Sensitive data must never leave the local perimeter",
+        },
+    }
+
+    def classify_prompt_topology(self, prompt: str) -> dict:
+        """
+        Analyzes the semantic topology of a prompt to determine the optimal
+        cloud provider. Returns the classification result with scores.
+        """
+        prompt_lower = prompt.lower()
+        domain_scores: dict = {}
+
+        for domain, config in self._DOMAIN_SIGNALS.items():
+            score = sum(1 for kw in config["keywords"] if kw in prompt_lower)
+            if score > 0:
+                domain_scores[domain] = {
+                    "score": score,
+                    "primary": config["primary"],
+                    "fallback": config["fallback"],
+                    "reason": config["reason"],
+                }
+
+        if not domain_scores:
+            return {
+                "domain": "GENERAL",
+                "primary": "Gemini",
+                "fallback": "OpenAI",
+                "reason": "No strong domain signal detected — defaulting to broadest model",
+                "scores": {},
+            }
+
+        # Pick the domain with the highest keyword density
+        best_domain = max(domain_scores, key=lambda d: domain_scores[d]["score"])
+        winner = domain_scores[best_domain]
+
+        self.logger.info(
+            f"[TOPO-ROUTE] Classified prompt as {best_domain} "
+            f"(score={winner['score']}) → Primary: {winner['primary']}, "
+            f"Fallback: {winner['fallback']}"
+        )
+
+        return {
+            "domain": best_domain,
+            "primary": winner["primary"],
+            "fallback": winner["fallback"],
+            "reason": winner["reason"],
+            "scores": {d: v["score"] for d, v in domain_scores.items()},
+        }
+
+    def _reorder_cloud_sequence(self, cloud_sequence: list, classification: dict) -> list:
+        """
+        Reorders the cloud provider sequence so the topologically optimal
+        provider is tried first, followed by its fallback, then the rest.
+        """
+        primary_name = classification["primary"]
+        fallback_name = classification["fallback"]
+
+        # If the classifier says LOCAL, return empty cloud sequence
+        if primary_name == "LOCAL":
+            self.logger.info("[TOPO-ROUTE] Sensitive topology detected. Blocking cloud routing.")
+            return []
+
+        primary_entries = []
+        fallback_entries = []
+        remaining = []
+
+        for entry in cloud_sequence:
+            name = entry[0]
+            if name == primary_name:
+                primary_entries.append(entry)
+            elif name == fallback_name:
+                fallback_entries.append(entry)
+            else:
+                remaining.append(entry)
+
+        reordered = primary_entries + fallback_entries + remaining
+
+        if primary_entries:
+            self.logger.info(
+                f"[TOPO-ROUTE] Reordered cloud sequence: "
+                f"{[e[0] for e in reordered]}"
+            )
+
+        return reordered
+
     async def get_response(
         self, 
         prompt: str, 
@@ -557,7 +603,8 @@ class ModelRouter(ExecutiveRouter):
         psi: float = 0.0,
         system_instruction: str = "",
         inference_mode: Literal["LOCAL", "CLOUD", "TACTICAL", "HYBRID"] = "HYBRID",
-        session_id: Optional[str] = None
+        session_id: Optional[str] = None,
+        agent_id: str = "executive"
     ) -> str:
         from ..tracing_config import get_tracer
         from opentelemetry import trace
@@ -602,13 +649,11 @@ class ModelRouter(ExecutiveRouter):
                     self.logger.warning("Tactical Groq failed, continuing: %s", e)
 
             # ── Step 1: Local Inference (Highest Priority) ───────────────────
-            # Try LCE (Native Gemma 4), then Ollama, then LM Studio.
+            # Try LCE (Native MLX Gemma 4), then LM Studio.
             local_providers = []
             if inference_mode in ["HYBRID", "LOCAL"]:
                 if self.lce_enabled:
-                    local_providers.append(("Native LCE", lambda p: self._lce_request(p, system_instruction=system_instruction)))
-                if self.ollama_ready:
-                    local_providers.append(("Ollama", lambda p: self._ollama_request(p, use_strong=use_strong, json_mode=json_mode, system_instruction=system_instruction)))
+                    local_providers.append(("Native LCE (MLX)", lambda p: self._lce_request(p, system_instruction=system_instruction, agent_id=agent_id)))
                 if self.lm_studio_client:
                     local_providers.append(("LM Studio", lambda p: self._lm_studio_request(p, use_strong=use_strong, system_instruction=system_instruction)))
 
@@ -627,6 +672,12 @@ class ModelRouter(ExecutiveRouter):
             allow_cloud = not sovereign_mode and self.evaluate_privacy_constraint(privacy_level, is_cloud_provider=True)
             
             if allow_cloud:
+                from ..security.proxy import AlluciSecureProxy
+                proxy = AlluciSecureProxy()
+                packet = proxy.process_outbound_prompt(prompt)
+                abstract_prompt = packet.compressed_abstract_prompt
+                fallback_vault = packet.secure_ephemeral_vault
+
                 # ── Identity Masking & Persona Enforcement ──────────────────
                 # Ensure the model always identifies as Alluci and never its base provider.
                 if not system_instruction:
@@ -672,23 +723,42 @@ class ModelRouter(ExecutiveRouter):
                 if self.nvidia_nim_api_key:
                     cloud_sequence.append(("Kimi", lambda p: self._kimi_request(p, thinking=use_strong, system_instruction=system_instruction)))
 
-                # Exhaustive scan of all configured cloud APIs
-                for name, provider_fn in cloud_sequence:
-                    try:
-                        self.logger.info(f"[CLOUD_SCAN] Falling back to {name}...")
-                        await self._notify_fallback(name)
-                        res = await provider_fn(prompt)
-                        span.set_attribute("model_provider", name.lower().replace(" ", "_"))
-                        return res
-                    except Exception as e:
-                        errors.append(f"{name}: {e}")
+                # ── [ PPN-032 ] Topological Route Classification ──────────────
+                # Analyze the prompt to determine the optimal cloud provider,
+                # then reorder the cloud sequence so the best provider is tried first.
+                classification = self.classify_prompt_topology(prompt)
 
+                # If the classifier detects SENSITIVE topology, block cloud entirely
+                cloud_sequence = self._reorder_cloud_sequence(cloud_sequence, classification)
+
+                if not cloud_sequence:
+                    # Sensitive content — force local-only execution
+                    self.logger.info("[TOPO-ROUTE] Cloud blocked by sensitivity classifier. Forcing local.")
+                    errors.append("Topological classifier blocked cloud routing (SENSITIVE)")
+                else:
+                    # Intelligent scan: topologically optimal provider first
+                    for name, provider_fn in cloud_sequence:
+                        try:
+                            self.logger.info(f"[TOPO-ROUTE] Routing to {name} (domain={classification['domain']})...")
+                            await self._notify_fallback(name)
+                            
+                            # Execute abstract prompt
+                            res = await provider_fn(abstract_prompt)
+                            
+                            # Reinject PII and log to dream pool via Teacher Distillation mapping
+                            res = proxy.process_inbound_response(res, fallback_vault, agent_id, abstract_prompt)
+                            
+                            span.set_attribute("model_provider", name.lower().replace(" ", "_"))
+                            span.set_attribute("topo_domain", classification["domain"])
+                            return res
+                        except Exception as e:
+                            errors.append(f"{name}: {e}")
 
             error_msg = "All inference providers failed: " + "; ".join(errors)
             span.set_status(trace.Status(trace.StatusCode.ERROR, error_msg))
             raise RuntimeError(error_msg)
 
-    async def get_structured_plan(self, prompt: str, system_instruction: str = "") -> Dict[str, Any]:
+    async def get_structured_plan(self, prompt: str, system_instruction: str = "", agent_id: str = "executive") -> Dict[str, Any]:
         """
         Utility to get a JSON-formatted execution plan from the LLM.
         Forces JSON mode and handles parsing failovers.
@@ -697,7 +767,7 @@ class ModelRouter(ExecutiveRouter):
         if "json" not in prompt.lower():
             prompt += "\n\nIMPORTANT: Return only a valid JSON object with a 'steps' key."
 
-        res = await self.get_response(prompt, system_instruction=system_instruction)
+        res = await self.get_response(prompt, system_instruction=system_instruction, agent_id=agent_id)
         try:
             import re
             # Extract JSON from potential markdown blocks or extra text
@@ -709,24 +779,21 @@ class ModelRouter(ExecutiveRouter):
             self.logger.error(f"Failed to parse structured plan: {e} | Raw: {res[:200]}")
             return {"steps": []}
 
-    async def refine_plan(self, objective: str, original_plan: List[Dict], results: str, feedback: str, failed_tasks: List[str]) -> Dict[str, Any]:
-        """
-        Self-correction logic: Asks the model to refine a failed plan.
-        """
-        prompt = f"""
-        OBJECTIVE: {objective}
-        ORIGINAL PLAN: {json.dumps(original_plan)}
-        RESULTS SO FAR: {results}
-        FEEDBACK: {feedback}
-        FAILED TASKS: {failed_tasks}
+    async def refine_plan(self, objective: str, original_plan: List[Dict], results: str, feedback: str, failed_tasks: List[str], agent_id: str = "executive") -> Dict[str, Any]:
+        prompt = (
+            f"OBJECTIVE: {objective}\n"
+            f"PREVIOUS PLAN: {json.dumps(original_plan)}\n"
+            f"RESULTS: {results}\n"
+            f"FEEDBACK/CRITIQUE: {feedback}\n"
+            f"FAILED TASKS: {failed_tasks}\n"
+            "Generate a REVISED valid JSON plan to overcome these failures."
+        )
+        return await self.get_structured_plan(prompt, agent_id=agent_id)
 
-        Please analyze why the plan failed and provide a refined JSON plan ('steps') to complete the objective.
-        """
-        return await self.get_structured_plan(prompt)
-
-    async def get_fast_tactical_response(self, prompt: str, system_instruction: str = "") -> str:
+    async def get_fast_tactical_response(self, prompt: str, system_instruction: str = "", agent_id: str = "executive") -> str:
+        """Shortcut method directly using Groq for fast, simple tactical decisions."""
         if not self.groq_api_key:
-             return await self._gemini_request(prompt, use_pro=False, system_instruction=system_instruction)
+            return await self.get_response(prompt, complexity="LOW", system_instruction=system_instruction, agent_id=agent_id)
         
         messages = []
         if system_instruction:

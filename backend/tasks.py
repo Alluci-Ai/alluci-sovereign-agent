@@ -8,8 +8,13 @@ from datetime import datetime, timedelta
 from .models import TaskItem, TaskUpdate, TaskPriority
 
 class TaskManager:
-    def __init__(self, filepath: str = "TASKS.md"):
-        self.filepath = filepath
+    def __init__(self, filepath_prefix: str = "TASKS"):
+        self.filepath_prefix = filepath_prefix
+
+    def _get_filepath(self, agent_id: str) -> str:
+        if agent_id == "executive":
+            return f"{self.filepath_prefix}.md"
+        return f"{self.filepath_prefix}_{agent_id}.md"
 
     def _parse_line(self, index: int, line: str) -> Optional[TaskItem]:
         line = line.strip()
@@ -61,15 +66,16 @@ class TaskManager:
         line = f"{box} {prio_tag} {task.description} {date_tag}"
         return re.sub(r'\s+', ' ', line).strip()
 
-    async def get_tasks(self, status: str = "all", priority: Optional[str] = None, timeline: Optional[str] = None) -> List[TaskItem]:
-        return await asyncio.to_thread(self._get_tasks_sync, status, priority, timeline)
+    async def get_tasks(self, status: str = "all", priority: Optional[str] = None, timeline: Optional[str] = None, agent_id: str = "executive") -> List[TaskItem]:
+        return await asyncio.to_thread(self._get_tasks_sync, status, priority, timeline, agent_id)
 
-    def _get_tasks_sync(self, status: str = "all", priority: Optional[str] = None, timeline: Optional[str] = None) -> List[TaskItem]:
-        if not os.path.exists(self.filepath):
+    def _get_tasks_sync(self, status: str = "all", priority: Optional[str] = None, timeline: Optional[str] = None, agent_id: str = "executive") -> List[TaskItem]:
+        filepath = self._get_filepath(agent_id)
+        if not os.path.exists(filepath):
             return []
             
         tasks = []
-        with open(self.filepath, 'r') as f:
+        with open(filepath, 'r') as f:
             try:
                 # Shared lock for reading
                 fcntl.flock(f, fcntl.LOCK_SH)
@@ -130,13 +136,14 @@ class TaskManager:
         filtered_tasks.sort(key=sort_key)
         return filtered_tasks
 
-    async def add_task(self, task: TaskUpdate) -> TaskItem:
-        return await asyncio.to_thread(self._add_task_sync, task)
+    async def add_task(self, task: TaskUpdate, agent_id: str = "executive") -> TaskItem:
+        return await asyncio.to_thread(self._add_task_sync, task, agent_id)
 
-    def _add_task_sync(self, task: TaskUpdate) -> TaskItem:
+    def _add_task_sync(self, task: TaskUpdate, agent_id: str = "executive") -> TaskItem:
         line_str = self._construct_line(task)
+        filepath = self._get_filepath(agent_id)
         
-        with open(self.filepath, 'a+') as f:
+        with open(filepath, 'a+') as f:
             try:
                 # Exclusive lock for writing
                 fcntl.flock(f, fcntl.LOCK_EX)
@@ -155,14 +162,15 @@ class TaskManager:
             finally:
                 fcntl.flock(f, fcntl.LOCK_UN)
 
-    async def update_task(self, index: int, update: TaskUpdate) -> Optional[TaskItem]:
-        return await asyncio.to_thread(self._update_task_sync, index, update)
+    async def update_task(self, index: int, update: TaskUpdate, agent_id: str = "executive") -> Optional[TaskItem]:
+        return await asyncio.to_thread(self._update_task_sync, index, update, agent_id)
 
-    def _update_task_sync(self, index: int, update: TaskUpdate) -> Optional[TaskItem]:
-        if not os.path.exists(self.filepath):
+    def _update_task_sync(self, index: int, update: TaskUpdate, agent_id: str = "executive") -> Optional[TaskItem]:
+        filepath = self._get_filepath(agent_id)
+        if not os.path.exists(filepath):
             return None
             
-        with open(self.filepath, 'r+') as f:
+        with open(filepath, 'r+') as f:
             try:
                 fcntl.flock(f, fcntl.LOCK_EX)
                 lines = f.readlines()
@@ -184,14 +192,15 @@ class TaskManager:
             finally:
                 fcntl.flock(f, fcntl.LOCK_UN)
 
-    async def delete_task(self, index: int) -> bool:
-        return await asyncio.to_thread(self._delete_task_sync, index)
+    async def delete_task(self, index: int, agent_id: str = "executive") -> bool:
+        return await asyncio.to_thread(self._delete_task_sync, index, agent_id)
 
-    def _delete_task_sync(self, index: int) -> bool:
-        if not os.path.exists(self.filepath):
+    def _delete_task_sync(self, index: int, agent_id: str = "executive") -> bool:
+        filepath = self._get_filepath(agent_id)
+        if not os.path.exists(filepath):
             return False
             
-        with open(self.filepath, 'r+') as f:
+        with open(filepath, 'r+') as f:
             try:
                 fcntl.flock(f, fcntl.LOCK_EX)
                 lines = f.readlines()

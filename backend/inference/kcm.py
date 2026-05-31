@@ -7,17 +7,6 @@ import numpy as np
 
 logger = logging.getLogger("KCM")
 
-try:
-    import torch
-except ImportError:
-    class TorchPlaceholder:
-        def __getattr__(self, name):
-            if name == 'nn': return TorchPlaceholder()
-            if name == 'Module': return object 
-            def placeholder(*args, **kwargs):
-                raise ImportError("torch is required for this operation, but is not installed on this system.")
-            return placeholder
-    torch = TorchPlaceholder()
 
 _native_lib = None
 try:

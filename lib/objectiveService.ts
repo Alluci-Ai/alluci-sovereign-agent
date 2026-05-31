@@ -25,6 +25,7 @@ export async function submitObjective(
     capabilityScope: string[],
     aceState: AceStateVector,
     accessToken: string,
+    agentId: string = 'executive',
     riskScore: number = 30,
 ): Promise<any> {
 
@@ -48,7 +49,7 @@ export async function submitObjective(
     const activeModel = useStore.getState().selectedSkill?.name ?? import.meta.env.VITE_DEFAULT_MODEL ?? 'gemini-2.0-flash';
     const manifestFactory = new ExecutionManifestFactory(identity, activeModel);
 
-    const signedManifest = manifestFactory.create(
+    const signedManifest = await manifestFactory.create(
         objective,
         autonomyLevel,
         vaultScope,
@@ -63,7 +64,7 @@ export async function submitObjective(
     const csrfToken = await getCsrfToken(DAEMON_URL, accessToken);
 
     // 5. Submit to backend with signed manifest header
-    const res = await fetch(`${DAEMON_URL}/api/v1/objective/execute`, {
+    const res = await fetch(`${DAEMON_URL}/api/v1/objective/execute?agent_id=${agentId}`, {
         method: 'POST',
         headers: {
             'Authorization': `Bearer ${accessToken}`,

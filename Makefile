@@ -22,10 +22,10 @@ init:
 	@./scripts/bootstrap_all.sh
 
 stop:
-	@echo "Stopping all processes..."
-	@pkill -9 -f uvicorn || true
-	@pkill -9 -f vite || true
-	@pkill -9 -f node || true
+	@echo "Stopping all processes gracefully..."
+	@pkill -15 -f uvicorn || true
+	@pkill -15 -f vite || true
+	@pkill -15 -f node || true
 	@sleep 1
 
 start: stop

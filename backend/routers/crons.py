@@ -11,37 +11,38 @@ logger = get_logger("CronsRouter")
 router = APIRouter(tags=["Cron Scheduler"])
 
 @router.get("/cron/jobs", dependencies=[Depends(verify_authenticated)])
-async def list_cron_jobs():
+async def list_cron_jobs(agent_id: str = "executive"):
     """List all cron jobs."""
     if not services.cron_engine:
         raise HTTPException(status_code=503, detail="Cron engine not initialized")
-    return services.cron_engine.list_jobs()
+    return services.cron_engine.list_jobs(agent_id)
 
 @router.get("/cron/jobs/{job_id}", dependencies=[Depends(verify_authenticated)])
-async def get_cron_job(job_id: int):
+async def get_cron_job(job_id: int, agent_id: str = "executive"):
     """Get a specific cron job."""
     if not services.cron_engine:
         raise HTTPException(status_code=503, detail="Cron engine not initialized")
-    job = services.cron_engine.get_job(job_id)
+    job = services.cron_engine.get_job(job_id, agent_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     return job
 
 @router.post("/cron/jobs", dependencies=[Depends(verify_authenticated)])
-async def create_cron_job(request: Request, data: Dict[str, Any] = Body(...), csrf_protect: CsrfProtect = Depends()):
+async def create_cron_job(request: Request, data: Dict[str, Any] = Body(...), agent_id: str = "executive", csrf_protect: CsrfProtect = Depends()):
     await csrf_protect.validate_csrf(request)
     """Create a new scheduled task."""
     if not services.cron_engine:
         raise HTTPException(status_code=503, detail="Cron engine not initialized")
-    return await services.cron_engine.create_job(data)
+    data["agent_id"] = agent_id
+    return services.cron_engine.create_job(data)
 
 @router.delete("/cron/jobs/{job_id}", dependencies=[Depends(verify_authenticated)])
-async def delete_cron_job(request: Request, job_id: int, csrf_protect: CsrfProtect = Depends()):
+async def delete_cron_job(request: Request, job_id: int, agent_id: str = "executive", csrf_protect: CsrfProtect = Depends()):
     await csrf_protect.validate_csrf(request)
     """Remove a scheduled task."""
     if not services.cron_engine:
         raise HTTPException(status_code=503, detail="Cron engine not initialized")
-    success = await services.cron_engine.delete_job(job_id)
+    success = services.cron_engine.delete_job(job_id, agent_id)
     if not success:
         raise HTTPException(status_code=404, detail="Job not found")
     return {"status": "SUCCESS"}

@@ -40,6 +40,7 @@ class SoulConciseness(str, Enum):
 
 class Run(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
+    agent_id: str = Field(default="executive", index=True)
     objective: str
     autonomy_level: str = Field(default="SEMI_AUTONOMOUS")
     status: str = Field(default=RunStatus.QUEUED)
@@ -53,6 +54,7 @@ class Run(SQLModel, table=True):
 
 class TaskRecord(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
+    agent_id: str = Field(default="executive", index=True)
     run_id: int = Field(foreign_key="run.id")
     task_dag_id: str  # The ID from the planner (e.g., "step_1")
     action: str
@@ -110,6 +112,7 @@ class CronJob(SQLModel, table=True):
     """Scheduled job definition with delivery routing."""
     __tablename__ = "cron_job"  # type: ignore
     id: Optional[int] = Field(default=None, primary_key=True)
+    agent_id: str = Field(default="executive", index=True)
     name: str
     schedule_type: str  # "interval", "cron", "run_at"
     schedule_value: str  # minutes (interval), cron expr, or ISO datetime

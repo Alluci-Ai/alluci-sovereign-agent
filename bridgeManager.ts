@@ -170,4 +170,126 @@ export class BridgeManager {
     });
     return res.ok;
   }
+
+  // ───────────────────────────────────────────────────────────
+  // [ SOVEREIGN_VOICE_STREAM ] Cross-Device Audio Pipeline
+  // ───────────────────────────────────────────────────────────
+
+  private voiceSocket: WebSocket | null = null;
+  private audioContext: AudioContext | null = null;
+  private vadNode: AudioWorkletNode | null = null;
+  private mediaStream: MediaStream | null = null;
+  private onTranscriptCallback: ((text: string, isFinal: boolean) => void) | null = null;
+
+  /**
+   * Detects the host device hardware tier for dynamic model routing.
+   * Falls back to MACBOOK_WORKSTATION when running in a desktop browser.
+   */
+  private detectDeviceTier(): 'WATCH_ULTRA' | 'IPHONE_17_PRO' | 'MACBOOK_WORKSTATION' {
+    const ua = navigator.userAgent.toLowerCase();
+    if (ua.includes('watch')) return 'WATCH_ULTRA';
+    if (ua.includes('iphone') || ua.includes('ipad')) return 'IPHONE_17_PRO';
+    return 'MACBOOK_WORKSTATION';
+  }
+
+  /**
+   * [ VOICE_STREAM_INIT ]
+   * Establishes a bidirectional WebSocket to the backend voice endpoint,
+   * instantiates the zero-dependency VAD AudioWorkletProcessor,
+   * and begins streaming 200ms PCM chunks containing active speech.
+   */
+  async streamAudioWebSocket(
+    onTranscript: (text: string, isFinal: boolean) => void
+  ): Promise<boolean> {
+    try {
+      this.onTranscriptCallback = onTranscript;
+      const deviceTier = this.detectDeviceTier();
+
+      // 1. Open bidirectional WebSocket to the sovereign voice endpoint
+      const daemonUrl = import.meta.env?.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
+      const wsUrl = daemonUrl.replace(/^http/, 'ws');
+      this.voiceSocket = new WebSocket(`${wsUrl}/api/v1/voice/stream?device_tier=${deviceTier}`);
+      this.voiceSocket.binaryType = 'arraybuffer';
+
+      // Handle incoming transcription fragments from the backend
+      this.voiceSocket.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data as string);
+          if (payload.text && this.onTranscriptCallback) {
+            this.onTranscriptCallback(payload.text, payload.is_final ?? false);
+          }
+        } catch (e) {
+          this.logger?.error(`Voice WS parse error: ${e}`);
+        }
+      };
+
+      this.voiceSocket.onerror = (err) => {
+        this.logger?.error(`Voice WebSocket error: ${err}`);
+      };
+
+      // 2. Request microphone access (mono, 16kHz for Whisper compatibility)
+      this.mediaStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          channelCount: 1,
+          sampleRate: 16000,
+          echoCancellation: true,
+          noiseSuppression: true,
+        }
+      });
+
+      // 3. Create AudioContext and register the sovereign VAD worklet
+      this.audioContext = new AudioContext({ sampleRate: 16000 });
+      await this.audioContext.audioWorklet.addModule('/src/audio/vadWorklet.ts');
+
+      const sourceNode = this.audioContext.createMediaStreamSource(this.mediaStream);
+      this.vadNode = new AudioWorkletNode(this.audioContext, 'vad-processor');
+
+      // 4. Listen for 200ms speech chunks from the VAD worklet
+      this.vadNode.port.onmessage = (event) => {
+        const chunk = event.data as {
+          pcmFrameBuffer: Float32Array;
+          containsActiveSpeech: boolean;
+          accumulatedSampleCount: number;
+        };
+
+        // Only transmit chunks containing active speech — silence is pruned at the edge
+        if (chunk.containsActiveSpeech && this.voiceSocket?.readyState === WebSocket.OPEN) {
+          this.voiceSocket.send(chunk.pcmFrameBuffer.buffer);
+        }
+      };
+
+      // 5. Wire the audio graph: Microphone → VAD Worklet
+      sourceNode.connect(this.vadNode);
+      // Don't connect to destination — we don't want to play back the user's mic
+
+      return true;
+    } catch (e) {
+      this.logger?.error(`streamAudioWebSocket init failed: ${e}`);
+      return false;
+    }
+  }
+
+  /**
+   * [ VOICE_STREAM_TEARDOWN ]
+   * Cleanly releases all audio hardware resources and closes the WebSocket.
+   */
+  async stopAudioStream(): Promise<void> {
+    if (this.vadNode) {
+      this.vadNode.disconnect();
+      this.vadNode = null;
+    }
+    if (this.audioContext) {
+      await this.audioContext.close();
+      this.audioContext = null;
+    }
+    if (this.mediaStream) {
+      this.mediaStream.getTracks().forEach(track => track.stop());
+      this.mediaStream = null;
+    }
+    if (this.voiceSocket) {
+      this.voiceSocket.close();
+      this.voiceSocket = null;
+    }
+    this.onTranscriptCallback = null;
+  }
 }

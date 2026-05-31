@@ -1,0 +1,11 @@
+[package]
+name = "alluci-hypervisor-core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Low-overhead direct abstraction bindings to Virtualization.framework
+objc2 = "0.6.2"
+objc2-foundation = "0.6.2"
+objc2-virtualization = "0.1.0" 
+tokio = { version = "1.0", features = ["full"] }

@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { TaskItem } from '../types';
+import { useStore } from '../store/useStore';
 
 const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
 
@@ -37,6 +38,7 @@ export const ConfirmationModal: React.FC<{
 };
 
 export const TaskPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+    const { activeAgentId } = useStore();
     const [tasks, setTasks] = useState<TaskItem[]>([]);
     const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'completed'>('all');
     const [priorityFilter, setPriorityFilter] = useState<string>('ALL');
@@ -50,20 +52,20 @@ export const TaskPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
     const fetchTasks = useCallback(async () => {
         try {
-            const params = new URLSearchParams({ status: statusFilter });
+            const params = new URLSearchParams({ status: statusFilter, agent_id: activeAgentId });
             if (priorityFilter !== 'ALL') params.append('priority', priorityFilter);
             if (timelineFilter !== 'ALL') params.append('timeline', timelineFilter);
             const res = await fetch(`${DAEMON_URL}/api/v1/tasks?${params.toString()}`).catch(() => null);
             if (res && res.ok) setTasks(await res.json());
         } catch (e) { }
-    }, [statusFilter, priorityFilter, timelineFilter]);
+    }, [statusFilter, priorityFilter, timelineFilter, activeAgentId]);
 
     useEffect(() => { fetchTasks(); }, [fetchTasks]);
 
     const handleAddTask = async () => {
         if (!newTaskDesc.trim()) return;
         try {
-            await fetch(`${DAEMON_URL}/api/v1/tasks`, {
+            await fetch(`${DAEMON_URL}/api/v1/tasks?agent_id=${activeAgentId}`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ description: newTaskDesc, completed: false, priority: newTaskPriority, due_date: newTaskDue || null })
             });
@@ -73,7 +75,7 @@ export const TaskPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
     const executeUpdate = async (task: TaskItem, updates: Partial<TaskItem>) => {
         try {
-            await fetch(`${DAEMON_URL}/api/v1/tasks/${task.index}`, {
+            await fetch(`${DAEMON_URL}/api/v1/tasks/${task.index}?agent_id=${activeAgentId}`, {
                 method: 'PUT', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ description: updates.description ?? task.description, completed: updates.completed ?? task.completed, priority: updates.priority ?? task.priority, due_date: updates.due_date ?? task.due_date })
             });
@@ -83,7 +85,7 @@ export const TaskPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     };
 
     const handleDeleteTask = async (index: number) => {
-        try { await fetch(`${DAEMON_URL}/api/v1/tasks/${index}`, { method: 'DELETE' }); fetchTasks(); } catch (e) { console.error(e); }
+        try { await fetch(`${DAEMON_URL}/api/v1/tasks/${index}?agent_id=${activeAgentId}`, { method: 'DELETE' }); fetchTasks(); } catch (e) { console.error(e); }
     };
 
     const getPriorityStyle = (p: string): React.CSSProperties => {

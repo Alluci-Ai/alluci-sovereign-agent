@@ -153,6 +153,25 @@ export const TaskDetailDrawer: React.FC<Props> = ({ task, runId, onClose, onRetr
           </button>
         </div>
       )}
+
+      {task.action === 'spawn_sub_agent' && task.args?.agent_id && (
+        <div style={{ padding: '12px 16px', borderTop: '1px solid var(--separator)' }}>
+          <button
+            onClick={() => {
+              useStore.getState().setActiveAgentId(task.args.agent_id);
+              onClose();
+            }}
+            className="glass-btn glass-btn--primary"
+            style={{
+              width: '100%', padding: '9px', fontSize: 12,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+            }}
+          >
+            <ChevronRight size={12} />
+            Switch Context to Sub-Agent
+          </button>
+        </div>
+      )}
     </div>
   );
 };

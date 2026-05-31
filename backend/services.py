@@ -102,6 +102,17 @@ async def init_services(app_instance):
         )
 
     create_db_and_tables()
+    
+    # [ M-9 ] Automated Alembic Migrations
+    if getattr(settings, "APP_ENV", "development") == "production":
+        try:
+            from alembic import command
+            from alembic.config import Config
+            alembic_cfg = Config("alembic.ini")
+            command.upgrade(alembic_cfg, "head")
+            logger.info("[ MIGRATION ]: Alembic successfully synced database schema to head.")
+        except Exception as e:
+            logger.error(f"[ MIGRATION ]: Alembic upgrade failed: {e}")
     storage_root = os.path.expanduser(settings.POLYTOPE_STORAGE_ROOT)
     vault_root = os.path.join(storage_root, "vaults")
     os.makedirs(vault_root, exist_ok=True)

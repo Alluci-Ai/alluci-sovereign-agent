@@ -195,6 +195,12 @@ const App: React.FC = () => {
         }
       } catch (e) {
         console.error("[App] loadInitialData failed:", e);
+        setIsConnected(false);
+        // We log the connection failure locally
+        if (geminiServiceRef.current) {
+          geminiServiceRef.current.audit.log('SYSTEM', { error: "Daemon offline or unreachable" }, 'failure');
+          setAuditLog(geminiServiceRef.current.audit.getEntries());
+        }
       }
     };
     loadInitialData();

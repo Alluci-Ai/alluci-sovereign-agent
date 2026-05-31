@@ -10,9 +10,10 @@ interface UseDAGRunsOptions {
   status?: string;
   limit?: number;
   autoRefresh?: boolean;
+  agent_id?: string;
 }
 
-export function useDAGRuns({ status, limit = 20, autoRefresh = true }: UseDAGRunsOptions = {}) {
+export function useDAGRuns({ status, limit = 20, autoRefresh = true, agent_id = 'executive' }: UseDAGRunsOptions = {}) {
   const { accessToken } = useStore();
   const [runs, setRuns] = useState<DAGRun[]>([]);
   const [total, setTotal] = useState(0);
@@ -25,7 +26,7 @@ export function useDAGRuns({ status, limit = 20, autoRefresh = true }: UseDAGRun
     setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams({ limit: String(limit), offset: String(currentOffset) });
+      const params = new URLSearchParams({ limit: String(limit), offset: String(currentOffset), agent_id });
       if (status) params.set('status', status);
       const res = await fetch(`${DAEMON_URL}/api/v1/dag/runs?${params}`, {
         headers: { Authorization: `Bearer ${accessToken}` },
@@ -40,7 +41,7 @@ export function useDAGRuns({ status, limit = 20, autoRefresh = true }: UseDAGRun
     } finally {
       setLoading(false);
     }
-  }, [accessToken, status, limit]);
+  }, [accessToken, status, limit, agent_id]);
 
   const refresh = useCallback(() => fetchRuns(0, true), [fetchRuns]);
 

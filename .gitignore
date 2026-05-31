@@ -54,6 +54,7 @@ backend.log
 backend_pcl.log
 backend_restart_hlsm.log
 test_polytope.db
+*.db
 alembic_history.log
 
 # ── OS / Editors ───────────────────────────────────────────────────────────────

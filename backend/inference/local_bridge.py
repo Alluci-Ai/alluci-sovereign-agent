@@ -11,12 +11,11 @@ logger = get_logger("LocalBridge")
 
 class LocalInferenceBridge:
     """
-    Manages local singleton processes for Whisper.cpp (ASR), Ollama (LLM), and Piper (TTS).
+    Manages local singleton processes for Whisper.cpp (ASR), MLX (LLM), and Piper (TTS).
     """
     def __init__(self, settings):
         self.settings = settings
         self.whisper_path = getattr(settings, "WHISPER_CPP_PATH", "whisper-cpp")
-        self.ollama_url = getattr(settings, "OLLAMA_URL", "http://localhost:11434")
         self.piper_path = getattr(settings, "PIPER_PATH", "piper")
         self.voice_model = getattr(settings, "PIPER_MODEL", "en_US-amy-medium.onnx")
         
@@ -35,35 +34,61 @@ class LocalInferenceBridge:
         self.has_rocm = self.is_linux and shutil.which("rocm-smi") is not None
         
         # Check binary availability
-        self.whisper_ready = shutil.which(self.whisper_path) is not None
-        self.ollama_ready = self._check_ollama()
+        
+        try:
+            from backend.inference.mlx_engine import engine
+            self.mlx_ready = True
+        except ImportError:
+            self.mlx_ready = False
+            
         self.piper_ready = shutil.which(self.piper_path) is not None
         
         logger.info(f"[ BRIDGE_STATUS ]: Arch: {self.machine}, Platform: {self.sysname}")
-        logger.info(f"[ BRIDGE_STATUS ]: Whisper: {self.whisper_ready}, Ollama: {self.ollama_ready}, Piper: {self.piper_ready}")
+        logger.info(f"[ BRIDGE_STATUS ]: Whisper: {self.whisper_ready}, MLX: {self.mlx_ready}, Piper: {self.piper_ready}")
         if self.has_cuda:
             logger.info("[ BRIDGE_ACCELERATION ]: CUDA_DETECTED")
         if self.has_rocm:
             logger.info("[ BRIDGE_ACCELERATION ]: ROCM_DETECTED")
-
-    def _check_ollama(self) -> bool:
-        import socket
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    @property
+    def whisper_ready(self):
+        """Check if either mlx-whisper (preferred) or whisper.cpp is available."""
         try:
-            # Simple socket check for Ollama API
-            s.settimeout(1)
-            s.connect(("localhost", 11434))
+            import mlx_whisper
             return True
-        except Exception:
-            return False
-        finally:
-            s.close()
+        except ImportError:
+            return shutil.which(self.whisper_path) is not None
         
     async def transcribe(self, audio_data: bytes) -> str:
         """
-        Transcribes a chunk of audio using whisper.cpp.
-        Uses a temporary file to avoid race conditions in multi-user environments.
+        Transcribes audio using native MLX-Whisper on Apple Silicon (preferred)
+        or falls back to whisper.cpp subprocess on other platforms.
         """
+        # ── Sovereign Path: Native MLX-Whisper (Apple Silicon GPU) ──
+        if self.is_apple_silicon:
+            try:
+                import mlx_whisper
+                import numpy as np
+
+                # Convert raw audio bytes to numpy float32 array
+                audio_array = np.frombuffer(audio_data, dtype=np.float32)
+                if len(audio_array) == 0:
+                    # Attempt int16 WAV interpretation
+                    audio_array = np.frombuffer(audio_data, dtype=np.int16).astype(np.float32) / 32768.0
+
+                result = await asyncio.to_thread(
+                    mlx_whisper.transcribe,
+                    audio_array,
+                    path_or_hf_repo="mlx-community/whisper-large-v3-turbo",
+                    fp16=True,
+                )
+                return result.get("text", "").strip()
+
+            except ImportError:
+                logger.warning("[TRANSCRIBE] mlx-whisper not installed. Falling back to whisper.cpp.")
+            except Exception as e:
+                logger.error(f"[TRANSCRIBE] MLX-Whisper error: {e}. Falling back to whisper.cpp.")
+
+        # ── Fallback: whisper.cpp subprocess (non-Apple-Silicon / missing mlx-whisper) ──
         import tempfile
         
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
@@ -100,52 +125,19 @@ class LocalInferenceBridge:
             if os.path.exists(tmp_wav):
                 os.remove(tmp_wav)
 
-    async def chat_ollama(self, prompt: str, model: str = None) -> AsyncGenerator[str, None]:
+    async def chat_mlx(self, prompt: str, model: str = None) -> AsyncGenerator[str, None]:
         """
-        Streams responses from local Ollama instance with RAM-aware model selection.
+        Streams responses from the local MLX Engine instance with RAM-aware model selection.
         """
-        import httpx
-        url = f"{self.ollama_url}/api/chat"
+        if not self.mlx_ready:
+            logger.error("MLX Engine is not available.")
+            return
+
+        from backend.inference.mlx_engine import engine
         
-        # RAM-aware model selection
-        ram_mb = getattr(self.settings, "TOTAL_RAM_MB", 4096)
-        is_lite = getattr(self.settings, "LITE_MODE", False)
-        
-        if model is None:
-            if is_lite or ram_mb < 2000:
-                model = "gemma2:2b"
-            elif ram_mb < 8000:
-                model = "gemma2:2b"
-            else:
-                model = "gemma2:9b"
-        
-        # Dynamic Tuning
-        num_ctx = 2048
-        if is_lite or ram_mb < 2000:
-            num_ctx = 512 # Reduce context for RPi / Lite
-            
-        payload = {
-            "model": model,
-            "messages": [{"role": "user", "content": prompt}],
-            "stream": True,
-            "options": {
-                "num_ctx": num_ctx,
-                "num_thread": os.cpu_count() or 4
-            }
-        }
-        
-        if self.has_cuda or self.is_apple_silicon:
-            payload["options"]["num_gpu"] = 35 # Offload layers if GPU present
-        
-        async with httpx.AsyncClient(timeout=None) as client:
-            async with client.stream("POST", url, json=payload) as response:
-                async for line in response.aiter_lines():
-                    if line:
-                        data = json.loads(line)
-                        if "message" in data:
-                            yield data["message"]["content"]
-                        if data.get("done"):
-                            break
+        # MLX Engine automatically handles hardware profiling
+        async for chunk in engine.stream_generate(prompt):
+            yield chunk
 
     async def synthesise(self, text: str) -> bytes:
         """
