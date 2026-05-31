@@ -1,0 +1,8 @@
+[
+{
+  "directory": "/Users/alluci/Downloads/alluci-sovereign-agent-main/build",
+  "command": "/usr/bin/c++ -Dalluci_core_EXPORTS -I/Users/alluci/Downloads/alluci-sovereign-agent-main/src -F/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks -isystem /Users/alluci/Downloads/alluci-sovereign-agent-main/build/_deps/pybind11-src/include -isystem /Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/include/python3.9 -std=gnu++17 -arch arm64 -fPIC -fvisibility=hidden -O3 -flto -ffast-math -mcpu=apple-m1 -o CMakeFiles/alluci_core.dir/src/pybind_module.cpp.o -c /Users/alluci/Downloads/alluci-sovereign-agent-main/src/pybind_module.cpp",
+  "file": "/Users/alluci/Downloads/alluci-sovereign-agent-main/src/pybind_module.cpp",
+  "output": "CMakeFiles/alluci_core.dir/src/pybind_module.cpp.o"
+}
+]

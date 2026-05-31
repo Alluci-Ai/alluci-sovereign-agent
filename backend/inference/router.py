@@ -44,12 +44,7 @@ try:
 except ImportError:
     BOTO3_AVAILABLE = False
 
-HUGGINGFACE_AVAILABLE = False
-try:
-    import huggingface_hub
-    HUGGINGFACE_AVAILABLE = True
-except ImportError:
-    pass
+
 
 class ModelRouter(ExecutiveRouter):
     """
@@ -78,28 +73,7 @@ class ModelRouter(ExecutiveRouter):
             )
             self.logger.info("LM Studio client ready (local fallback 2).")
 
-        # ── OPTIONAL: HuggingFace ─────────────────────────────────────────────
-        self.hf_token = getattr(settings, "HUGGINGFACE_API_TOKEN", None)
-        self.hf_model_id = getattr(
-            settings, "HUGGINGFACE_MODEL_ID",
-            "mistralai/Mistral-7B-Instruct-v0.3"
-        )
-        self.hf_endpoint_url = getattr(settings, "HUGGINGFACE_ENDPOINT_URL", None)
-        self.hf_client = None
-        if self.hf_token and HUGGINGFACE_AVAILABLE:
-            from huggingface_hub import AsyncInferenceClient
-            self.hf_client = AsyncInferenceClient(
-                model=self.hf_endpoint_url or self.hf_model_id,
-                token=self.hf_token,
-            )
-            self.logger.info(
-                "HuggingFace Inference client ready (model=%s).", self.hf_model_id
-            )
-        elif self.hf_token and not HUGGINGFACE_AVAILABLE:
-            self.logger.warning(
-                "HUGGINGFACE_API_TOKEN is set but 'huggingface_hub' is not installed. "
-                "Run: pip install huggingface_hub"
-            )
+
 
         # ── CLOUD PROVIDERS ───────────────────────────────────────────────────
         sovereign = getattr(settings, "SOVEREIGN_MODE", False)
@@ -225,27 +199,7 @@ class ModelRouter(ExecutiveRouter):
         )
         return response.choices[0].message.content
 
-    async def _huggingface_request(
-        self,
-        prompt: str,
-        use_strong: bool = False,
-        system_instruction: str = ""
-    ) -> str:
-        """HuggingFace Inference API (Serverless or Dedicated)."""
-        if not self.hf_client:
-            raise RuntimeError("HuggingFace client not initialised")
-        
-        full_prompt = prompt
-        if system_instruction:
-            full_prompt = f"{system_instruction}\n\nUser: {prompt}"
 
-        result = await self.hf_client.text_generation(
-            prompt=full_prompt,
-            max_new_tokens=1024,
-            temperature=0.7,
-            return_full_text=False,
-        )
-        return result if isinstance(result, str) else result.generated_text
 
     async def _lce_request(self, prompt: str, system_instruction: str = "", agent_id: str = "executive") -> str:
         """Local Cognitive Engine via Native MLX Inference."""
@@ -706,8 +660,7 @@ class ModelRouter(ExecutiveRouter):
                 if self.groq_api_key:
                     cloud_sequence.append(("Groq", lambda p: self.get_fast_tactical_response(p, system_instruction=system_instruction)))
                 
-                if self.hf_client:
-                    cloud_sequence.append(("HuggingFace", lambda p: self._huggingface_request(p, use_strong=use_strong, system_instruction=system_instruction)))
+
 
                 # Add smaller providers / OpenRouter / etc.
                 for name, client in [("DeepSeek", self.deepseek_client), ("OpenRouter", self.openrouter_client), ("Together", self.together_client)]:
@@ -860,13 +813,7 @@ class ModelRouter(ExecutiveRouter):
             except Exception as e:
                 results["lm_studio"] = {"status": "UNSTABLE", "error": type(e).__name__}
 
-        # 0c. HuggingFace
-        if self.hf_client:
-            try:
-                await self._huggingface_request("Hi")
-                results["huggingface"] = {"status": "HEALTHY"}
-            except Exception as e:
-                results["huggingface"] = {"status": "UNSTABLE", "error": type(e).__name__}
+
 
         # Cloud checks...
         if self.gemini_flash:
