@@ -67,7 +67,9 @@ const App: React.FC = () => {
     needsOnboarding,
     hydrate,
     activeNudges,
-    setActiveNudges
+    setActiveNudges,
+    operatingMode,
+    setOperatingMode
   } = useStore();
 
   // Core Refs

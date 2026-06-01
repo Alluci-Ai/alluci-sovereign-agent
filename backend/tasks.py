@@ -8,10 +8,13 @@ from datetime import datetime, timedelta
 from .models import TaskItem, TaskUpdate, TaskPriority
 
 class TaskManager:
-    def __init__(self, filepath_prefix: str = "TASKS"):
+    def __init__(self, filepath_prefix: str = "TASKS", filepath: Optional[str] = None):
         self.filepath_prefix = filepath_prefix
+        self.filepath = filepath
 
     def _get_filepath(self, agent_id: str) -> str:
+        if self.filepath:
+            return self.filepath
         if agent_id == "executive":
             return f"{self.filepath_prefix}.md"
         return f"{self.filepath_prefix}_{agent_id}.md"

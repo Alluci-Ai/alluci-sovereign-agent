@@ -9,8 +9,19 @@
   "enclave_entitlements": [
     "cryptographic_key_access",
     "l1_streaming_buffer_write",
-    "network_egress_prm_scan"
+    "network_egress_prm_scan",
+    "verus_mcp_engine_execution"
   ],
+  "agent_skills": {
+    "verus_developer": {
+      "enabled": true,
+      "description": "Provides the Sovereign Agent with deep integration to the Verus daemon.",
+      "tools": [
+        "verus_get_vdxf_id",
+        "verus_get_identity"
+      ]
+    }
+  },
   "runtime_routing_rules": {
     "token_signing_algorithm": "RS256",
     "token_expiration_window_seconds": 300,

@@ -11,7 +11,7 @@ def test_fixed_point_normalization():
     # Check multiples of 1/1024
     for val in out:
         multiplied = val * 1024.0
-        assert torch.isclose(multiplied, torch.round(multiplied))
+        assert torch.isclose(torch.tensor(multiplied), torch.round(torch.tensor(multiplied)))
     
     # Check clamping (32767 / 1024 = 31.999)
     assert out[3] <= 32.0

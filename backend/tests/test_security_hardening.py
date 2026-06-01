@@ -119,6 +119,7 @@ class TestAuthorizationBoundaries:
     def test_bearer_format_must_be_correct(self, app_client, auth_headers):
         """Missing 'Bearer' prefix in Authorization header is rejected."""
         token = auth_headers["Authorization"].split(" ")[1]
+        app_client.cookies.clear()
         res = app_client.get("/api/v1/system/health",
                               headers={"Authorization": token})  # No "Bearer " prefix
         assert res.status_code == 401

@@ -1,5 +1,5 @@
 
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Literal
 from fastapi import APIRouter, HTTPException, Depends, Body, Request
 from ..security.auth import verify_authenticated
 from .. import services
@@ -13,9 +13,9 @@ router = APIRouter(tags=["Gemini Proxy"])
 async def gemini_proxy(
     request: Request,
     prompt: str = Body(...),
-    complexity: str = Body("MEDIUM"),
-    privacy_level: str = Body("PUBLIC"),
-    inference_mode: str = Body("HYBRID"),
+    complexity: Literal["LOW", "MEDIUM", "HIGH"] = Body("MEDIUM"),
+    privacy_level: Literal["PUBLIC", "SENSITIVE", "AIRGAPPED"] = Body("PUBLIC"),
+    inference_mode: Literal["LOCAL", "CLOUD", "TACTICAL", "HYBRID"] = Body("HYBRID"),
     session_id: Optional[str] = Body(None)
 ):
     """

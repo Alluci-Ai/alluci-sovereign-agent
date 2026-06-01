@@ -33,7 +33,7 @@ interface DashboardData {
 }
 
 export const WalletPanel: React.FC = () => {
-    const { accessToken, walletMode, setWalletMode, walletStatus, setWalletStatus } = useStore();
+    const { accessToken, walletMode, setWalletMode, walletStatus, setWalletStatus, operatingMode } = useStore();
     const [dashboard, setDashboard] = useState<DashboardData | null>(null);
     const [loading, setLoading] = useState(true);
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -178,11 +178,13 @@ export const WalletPanel: React.FC = () => {
 
                         <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
                             <WalletSendReceive onTransactionComplete={handleRefresh} />
-                            <WalletMining
-                                mining={dashboard?.mining}
-                                chains={dashboard?.pbaas_chains || []}
-                                onStateChange={handleRefresh}
-                            />
+                            {operatingMode === 'FULL_SOVEREIGN' && (
+                                <WalletMining
+                                    mining={dashboard?.mining}
+                                    chains={dashboard?.pbaas_chains || []}
+                                    onStateChange={handleRefresh}
+                                />
+                            )}
                         </div>
 
                         <WalletTransactions recent={dashboard?.recent_transactions} />

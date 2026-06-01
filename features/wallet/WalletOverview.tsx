@@ -134,8 +134,36 @@ export const WalletOverview: React.FC<WalletOverviewProps> = ({ data }) => {
                             </div>
                         </div>
                     </div>
+            </div>
+
+            {/* Consensus Yield Panel */}
+            <div className="glass-panel p-6 relative overflow-hidden group border-white/5 bg-white/[0.02] mt-6">
+                <div className="absolute inset-0 bg-gradient-to-r from-accent/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+                <div className="flex items-center justify-between mb-4">
+                    <span className="text-xs font-bold text-text-tertiary uppercase tracking-widest flex items-center gap-2">
+                        <Activity size={16} className="text-accent" />
+                        Consensus Yield
+                    </span>
+                    <span className="text-[10px] font-bold bg-accent/10 text-accent px-2 py-1 rounded border border-accent/20">
+                        {data.eligible_staking_utxos || 0} UTXOs Eligible
+                    </span>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                    <div className="bg-black/20 p-3 rounded border border-white/5">
+                        <span className="block text-[10px] font-bold text-text-tertiary uppercase mb-1">Estimated Annual Yield</span>
+                        <span className="text-lg font-mono text-text-primary">~14.5%</span>
+                    </div>
+                    <div className="bg-black/20 p-3 rounded border border-white/5">
+                        <span className="block text-[10px] font-bold text-text-tertiary uppercase mb-1">Total Staked</span>
+                        <span className="text-lg font-mono text-text-primary">{formatter.format(data.total_staked || 0)}</span>
+                    </div>
+                    <div className="bg-black/20 p-3 rounded border border-white/5">
+                        <span className="block text-[10px] font-bold text-text-tertiary uppercase mb-1">Network Hashrate</span>
+                        <span className="text-lg font-mono text-text-primary">{data.network_hashrate || '845 GH/s'}</span>
+                    </div>
                 </div>
             </div>
+        </div>
         </div>
     );
 };

@@ -219,7 +219,20 @@ export const SKILL_DATABASE = [
     knowledge: ["VerusID", "VDXF", "Basket Currencies", "Merge Mining", "L1/L0 Architecture"],
     logic: ["Self-sovereign identity is the root of all provenance."],
     chainsOfThought: ["Define Identity -> Register Name Commitment -> Register Identity", "Construct VDXF Object -> Sign -> Publish", "Define Currency -> Launch Chain", "Bridge Assets -> Cross-Chain Export"],
-    capabilities: ["verus_id_operations", "pbaas_chain_launch", "currency_definition", "vdxf_publishing"],
+    capabilities: [
+      "verus_id_operations", 
+      "pbaas_chain_launch", 
+      "currency_definition", 
+      "vdxf_publishing",
+      "verus_get_vdxf_id",
+      "verus_get_identity",
+      "verus_get_info",
+      "verus_get_currency",
+      "verus_get_balance",
+      "verus_send_currency",
+      "verus_get_offers",
+      "verus_make_offer"
+    ],
     bestPractices: ["Secure keys in HSM", "Use testnet for experiments", "Treat VDXF keys as namespaces", "Verify transaction finality"]
   },
   {

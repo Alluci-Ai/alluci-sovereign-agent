@@ -12,7 +12,7 @@ from cryptography.hazmat.primitives.asymmetric import ed25519
 from .. import services
 from ..config import settings
 from ..security.policyEngine import AutonomyPolicyEngine
-from ..auth import get_current_user
+from ..security.auth import get_current_user
 
 router = APIRouter()
 logger = logging.getLogger("ObjectiveManager")

@@ -129,23 +129,49 @@ class TestExecutor:
         from backend.engine.executor import Executor
         from backend.models import Run
         from sqlmodel import Session
-
+        
         executor = Executor(mock_adapter_registry, lambda: temp_db, max_concurrent=2)
-
+        
         tasks = {
             "step_1": DAGTask(id="step_1", action="search", args={}, dependencies=[]),
             "step_2": DAGTask(id="step_2", action="summarize", args={}, dependencies=["step_1"]),
         }
-
+        
         with Session(temp_db) as session:
             run = Run(objective="Test dep")
             session.add(run)
             session.commit()
             run_id = run.id
-
+        
         result = await executor.execute_dag(run_id, tasks)
         assert result["step_1"].status == TaskStatus.COMPLETED
         assert result["step_2"].status == TaskStatus.COMPLETED
+
+    @pytest.mark.asyncio
+    async def test_executor_propagates_agent_id(self, mock_adapter_registry, temp_db):
+        from backend.engine.executor import Executor
+        from backend.models import Run, TaskRecord
+        from sqlmodel import Session, select
+
+        executor = Executor(mock_adapter_registry, lambda: temp_db, max_concurrent=2)
+
+        tasks = {
+            "step_1": DAGTask(id="step_1", action="system_query", args={}, dependencies=[])
+        }
+
+        with Session(temp_db) as session:
+            run = Run(objective="Test agent propagation", agent_id="sub_agent_xyz")
+            session.add(run)
+            session.commit()
+            run_id = run.id
+
+        await executor.execute_dag(run_id, tasks)
+        
+        with Session(temp_db) as session:
+            task_record = session.exec(select(TaskRecord).where(TaskRecord.run_id == run_id)).first()
+            assert task_record is not None
+            assert task_record.agent_id == "sub_agent_xyz"
+
 
     @pytest.mark.asyncio
     async def test_adapter_not_found_fails(self, temp_db):

@@ -15,6 +15,7 @@ class VerusWalletBridge(BridgeAdapter):
     def __init__(self, name: str, vault_root: str, vault_manager=None, **kwargs):
         super().__init__(name, vault_root, vault_manager, **kwargs)
         self.service = wallet_service
+        self.sovereign_mode_active = False
 
     async def get_status(self) -> Dict[str, Any]:
         """Provides the status of the wallet/node (called by wallet.py)."""
@@ -32,10 +33,10 @@ class VerusWalletBridge(BridgeAdapter):
 
     async def send_funds(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Sends funds (called by wallet.py)."""
-        to = data.get("to")
-        amount = data.get("amount")
-        currency = data.get("currency", "VRSC")
-        memo = data.get("memo", "")
+        to = str(data.get("to", ""))
+        amount = float(data.get("amount", 0.0))
+        currency = str(data.get("currency", "VRSC"))
+        memo = str(data.get("memo", ""))
         return await self.service.send(to, amount, currency, memo)
 
     async def get_mining_status(self) -> Dict[str, Any]:
@@ -58,7 +59,50 @@ class VerusWalletBridge(BridgeAdapter):
             return await self.service.stop_mining()
         elif action == "start_staking":
             return await self.service.start_staking()
-        return {"status": "ERROR", "message": f"Unknown action: {action}"}
+        elif action == "stop_staking":
+            return await self.service.stop_mining()
+        return {"error": "Unknown action"}
+
+    async def save_workflow_state(self, key: str, state_data: str) -> bool:
+        """
+        Routes storage based on Operating Mode.
+        In Lite Mode: Stores in local encrypted SQLite vault.
+        In Sovereign Mode: Routes to C++ VerusMCPEngine for VDXF on-chain storage.
+        """
+        if self.sovereign_mode_active:
+            logger.info(f"Sovereign Mode: Storing state '{key}' on-chain via VDXF.")
+            import json
+            # Store via VerusID contentmultimap natively
+            res = await self.service.update_identity_data(f"alluci.workflow.{key}@", json.dumps(state_data))
+            return res.get("success", False)
+        else:
+            logger.info(f"Lite Mode: Storing state '{key}' in local SQLite vault.")
+            if self.vault_manager:
+                await self.vault_manager.store_secret(key, state_data)
+                return True
+            return False
+
+    async def get_workflow_state(self, key: str) -> Optional[str]:
+        if self.sovereign_mode_active:
+            logger.info(f"Sovereign Mode: Retrieving state '{key}' from VDXF.")
+            import json
+            # Read from VerusID contentmultimap natively
+            if not self.service.identity:
+                logger.error("No VerusID configured. Cannot retrieve workflow state.")
+                return None
+            try:
+                cmm = await self.service.rpc.get_content_multimap(self.service.identity, f"alluci.workflow.{key}@")
+                if cmm and isinstance(cmm, list):
+                    return json.loads(cmm[-1])
+                return None
+            except Exception as e:
+                logger.error(f"Failed to retrieve workflow state: {e}")
+                return None
+        else:
+            logger.info(f"Lite Mode: Retrieving state '{key}' from local SQLite vault.")
+            if self.vault_manager:
+                return await self.vault_manager.retrieve_secret(key)
+            return None
 
     # --- BridgeAdapter Interface Implementation ---
 

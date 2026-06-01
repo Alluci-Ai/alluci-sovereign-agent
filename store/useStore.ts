@@ -15,6 +15,7 @@ export type ActiveView =
     | 'sessions' | 'analytics' | 'crons'
     | 'agents' | 'config' | 'logs' | 'debug' | 'wallet' | 'node' | 'dag' | 'pvt';
 export type Theme = 'light' | 'dark';
+export type OperatingMode = 'LITE' | 'FULL_SOVEREIGN';
 
 export interface Nudge {
     id: string;
@@ -71,6 +72,10 @@ export interface AppState {
     setUpdateAvailable: (val: boolean) => void;
     latestVersion: string | null;
     setLatestVersion: (val: string | null) => void;
+
+    // Dual-Mode Architecture
+    operatingMode: OperatingMode;
+    setOperatingMode: (val: OperatingMode) => void;
 
     // Navigation — single activeView replaces 9 modal booleans
     activeView: ActiveView;
@@ -256,6 +261,9 @@ export const useStore = create<AppState>((set) => ({
     setUpdateAvailable: (val) => set({ updateAvailable: val }),
     latestVersion: null,
     setLatestVersion: (val) => set({ latestVersion: val }),
+
+    operatingMode: 'LITE',
+    setOperatingMode: (val) => set({ operatingMode: val }),
 
     // Navigation
     activeView: 'chat',

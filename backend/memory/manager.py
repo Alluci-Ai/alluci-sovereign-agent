@@ -31,6 +31,9 @@ class MemoryManager:
             os.makedirs(self.persist_directory, mode=0o700, exist_ok=True)
         
         try:
+            import numpy as np
+            if not hasattr(np, 'float_'):
+                np.float_ = np.float64
             import chromadb
             self.client = chromadb.PersistentClient(path=self.persist_directory)
             self.collection = self.client.get_or_create_collection(

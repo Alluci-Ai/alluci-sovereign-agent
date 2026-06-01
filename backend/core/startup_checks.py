@@ -32,8 +32,10 @@ def assert_secrets_are_set() -> None:
         "POLYTOPE_MASTER_KEY": os.getenv("POLYTOPE_MASTER_KEY", ""),
         "JWT_SECRET_KEY": os.getenv("JWT_SECRET_KEY", ""),
         "CSRF_SECRET_KEY": os.getenv("CSRF_SECRET_KEY", ""),
-        "DB_PASSWORD": os.getenv("DB_PASSWORD", ""),
     }
+    db_url = os.getenv("DATABASE_URL", "")
+    if not db_url.startswith("sqlite"):
+        checks["DB_PASSWORD"] = os.getenv("DB_PASSWORD", "")
 
     errors: list[str] = []
     for key, value in checks.items():

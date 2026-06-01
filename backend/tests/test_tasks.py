@@ -180,3 +180,39 @@ class TestTaskManager:
         assert result is None
         
         os.unlink(path)
+
+    @pytest.mark.asyncio
+    async def test_multi_agent_isolation(self):
+        prefix = os.path.join(tempfile.gettempdir(), "test_tasks_multi")
+        mgr = TaskManager(filepath_prefix=prefix)
+        
+        # Clean up existing files if any
+        if os.path.exists(f"{prefix}_agent_alpha.md"): os.unlink(f"{prefix}_agent_alpha.md")
+        if os.path.exists(f"{prefix}_agent_beta.md"): os.unlink(f"{prefix}_agent_beta.md")
+        
+        await mgr.add_task(TaskUpdate(
+            description="Alpha task",
+            completed=False,
+            priority=TaskPriority.HIGH
+        ), agent_id="agent_alpha")
+        
+        await mgr.add_task(TaskUpdate(
+            description="Beta task",
+            completed=False,
+            priority=TaskPriority.LOW
+        ), agent_id="agent_beta")
+        
+        alpha_tasks = await mgr.get_tasks(agent_id="agent_alpha")
+        beta_tasks = await mgr.get_tasks(agent_id="agent_beta")
+        
+        assert len(alpha_tasks) == 1
+        assert "Alpha" in alpha_tasks[0].description
+        assert len(beta_tasks) == 1
+        assert "Beta" in beta_tasks[0].description
+        
+        assert os.path.exists(f"{prefix}_agent_alpha.md")
+        assert os.path.exists(f"{prefix}_agent_beta.md")
+        
+        os.unlink(f"{prefix}_agent_alpha.md")
+        os.unlink(f"{prefix}_agent_beta.md")
+

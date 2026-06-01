@@ -198,7 +198,10 @@ class Executor:
 
     def _init_task_records(self, run_id: int, tasks: Dict[str, DAGTask]):
         """Creates initial PENDING records in DB."""
+        from ..models import Run
         with Session(self.session_factory()) as session:
+            run = session.get(Run, run_id)
+            agent_id = run.agent_id if run else "executive"
             for t_id, task in tasks.items():
                 # Check if exists (idempotency)
                 statement = select(TaskRecord).where(TaskRecord.run_id == run_id, TaskRecord.task_dag_id == t_id)
@@ -206,6 +209,7 @@ class Executor:
                 if not existing:
                     record = TaskRecord(
                         run_id=run_id,
+                        agent_id=agent_id,
                         task_dag_id=t_id,
                         action=task.action,
                         args=task.args,

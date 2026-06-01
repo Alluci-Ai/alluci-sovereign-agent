@@ -2,7 +2,7 @@
 import httpx
 import logging
 from ..logging_config import get_logger
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from backend.config import settings
 
 logger = get_logger("VerusRPC")
@@ -15,7 +15,7 @@ class VerusRPCClient:
     def __init__(self):
         self.local_url = f"http://{settings.VERUS_RPC_HOST}:{settings.VERUS_RPC_PORT}"
         self.public_url = settings.VERUS_PUBLIC_RPC_URL
-        self.auth = None
+        self.auth: Optional[tuple[Union[bytes, str], Union[bytes, str]]] = None
         if settings.VERUS_RPC_USER and settings.VERUS_RPC_PASSWORD:
             self.auth = (settings.VERUS_RPC_USER, settings.VERUS_RPC_PASSWORD)
         
@@ -39,12 +39,14 @@ class VerusRPCClient:
             "params": params
         }
         try:
-            response = await self.client.post(
-                target_url, 
-                json=payload, 
-                auth=auth,
-                headers={"Content-Type": "application/json"}
-            )
+            kwargs: Dict[str, Any] = {
+                "json": payload,
+                "headers": {"Content-Type": "application/json"}
+            }
+            if auth is not None:
+                kwargs["auth"] = auth
+
+            response = await self.client.post(target_url, **kwargs)
             response.raise_for_status()
             result = response.json()
             if result.get("error"):
@@ -112,7 +114,7 @@ class VerusRPCClient:
             "timelock": locktime
         }])
 
-    async def get_content_multimap(self, identity: str, key: str = "") -> Dict[str, Any]:
+    async def get_content_multimap(self, identity: str, key: str = "") -> Union[Dict[str, Any], List[Any]]:
         """Helper to specifically extract VDXF contentmultimap data."""
         identity_data = await self.get_identity(identity)
         content_map = identity_data.get("identity", {}).get("contentmultimap", {})

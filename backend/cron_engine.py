@@ -161,7 +161,7 @@ class CronEngine:
                     description=task_desc,
                     completed=False,
                     priority=TaskPriority.MEDIUM
-                ))
+                ), agent_id=job.agent_id)
 
             if self.orchestrator:
                 # Build the objective from the job's payload
@@ -228,8 +228,8 @@ class CronEngine:
             recipient = job.delivery_to or ""
             # Prepare extra routing context
             kwargs = {}
-            if job.delivery_account:
-                kwargs["account"] = job.delivery_account
+            if job.delivery_account_id:
+                kwargs["account"] = job.delivery_account_id
 
             if job.delivery_mode == DeliveryMode.ANNOUNCE_SUMMARY:
                 # Truncate for summary
@@ -357,7 +357,7 @@ class CronEngine:
             "model_override": job.model_override,
             "thinking_level": job.thinking_level,
             "delivery_channel": job.delivery_channel,
-            "delivery_account": job.delivery_account,
+            "delivery_account_id": job.delivery_account_id,
             "delivery_to": job.delivery_to,
             "delivery_mode": job.delivery_mode,
             "reset_context": job.reset_context,

@@ -12,6 +12,7 @@ import {
     Lock,
     Zap,
     ShieldCheck,
+    Shield,
     Brain
 } from 'lucide-react';
 import { useStore } from '../../store/useStore';
@@ -112,8 +113,8 @@ export const OnboardingWizard: React.FC = () => {
                         <div className="space-y-3">
                             {[
                                 { level: 1 as const, name: "Level 1: Cloud-First", desc: "Zero local setup. Uses cloud LLMs and cloud storage.", icon: <Zap className="w-5 h-5" /> },
-                                { level: 2 as const, name: "Level 2: Hybrid Local", desc: "Local LLM via Ollama for privacy, cloud fallback.", icon: <Cpu className="w-5 h-5" /> },
-                                { level: 3 as const, name: "Level 3: Full Sovereign", desc: "Air-gapped capable. Local LLM, encrypted vault, E2E bridges.", icon: <Lock className="w-5 h-5" /> }
+                                { level: 2 as const, name: "Level 2: Hybrid Local", desc: "Native MLX Gemma 4 Core for privacy, cloud fallback.", icon: <Cpu className="w-5 h-5" /> },
+                                { level: 3 as const, name: "Level 3: Full Sovereign", desc: "Air-gapped MLX execution. Local keys, full VDXF & PPN integration.", icon: <Shield className="w-5 h-5" /> }
                             ].map(opt => (
                                 <div key={opt.level} onClick={() => setSovereigntyLevel(opt.level)} className={`p-4 rounded-2xl border cursor-pointer transition-all ${sovereigntyLevel === opt.level ? 'bg-indigo-500/10 border-indigo-500/50' : 'bg-white/5 border-white/10 hover:border-white/20'}`}>
                                     <div className="flex items-center gap-3">

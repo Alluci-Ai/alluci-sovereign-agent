@@ -32,6 +32,8 @@ const SystemHeader: React.FC<SystemHeaderProps> = ({
         setIsMobileMenuOpen,
         theme,
         toggleTheme,
+        operatingMode,
+        setOperatingMode
     } = useStore();
 
     // Apply theme to DOM on mount
@@ -125,12 +127,21 @@ const SystemHeader: React.FC<SystemHeaderProps> = ({
                     </button>
                 </div>
 
-                <button
-                    onClick={handleConnect}
-                    className={`topbar__connect-btn ${isConnected ? 'topbar__connect-btn--connected' : ''}`}
-                >
-                    {isConnected ? 'Sleep' : 'Awaken'}
-                </button>
+                {/* Lite / Sovereign toggle */}
+                <div className="topbar__mode-toggle">
+                    <button
+                        onClick={() => setOperatingMode('LITE')}
+                        className={`topbar__mode-btn ${operatingMode === 'LITE' ? 'topbar__mode-btn--active topbar__mode-btn--cloud' : ''}`}
+                    >
+                        Lite
+                    </button>
+                    <button
+                        onClick={() => setOperatingMode('FULL_SOVEREIGN')}
+                        className={`topbar__mode-btn ${operatingMode === 'FULL_SOVEREIGN' ? 'topbar__mode-btn--active topbar__mode-btn--local' : ''}`}
+                    >
+                        Sovereign
+                    </button>
+                </div>
             </div>
         </header>
     );
