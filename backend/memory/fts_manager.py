@@ -73,7 +73,7 @@ class FTSMemoryManager:
         )
         return {}
 
-    async def store(self, content: str, metadata: Dict[str, Any] = None) -> str:
+    async def store(self, content: str, metadata: Optional[Dict[str, Any]] = None) -> str:
         mem_id = str(uuid.uuid4())
         timestamp = datetime.now().isoformat()
         # json.dumps produces valid JSON that round-trips through json.loads

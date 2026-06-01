@@ -77,7 +77,7 @@ class VerusAttestationBridge:
                 continue
             try:
                 # Use actual Verus daemon cryptography to sign the credential hash
-                signature = await verus_rpc.signmessage(self.verus_id, val)
+                signature = await verus_rpc.sign_message(self.verus_id, val)
                 attestations[key] = {
                     "proof_type": "VERUS_SIGNATURE",
                     "signature": signature,

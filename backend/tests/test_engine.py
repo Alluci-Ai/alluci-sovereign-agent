@@ -223,6 +223,7 @@ class TestExecutor:
         result = await executor.execute_dag(run_id, tasks)
         assert result["step_1"].status == TaskStatus.FAILED
         assert result["step_2"].status == TaskStatus.FAILED
+        assert result["step_2"].result is not None
         assert "dependency" in result["step_2"].result.lower()
 
 

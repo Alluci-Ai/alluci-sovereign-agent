@@ -33,7 +33,7 @@ class MemoryManager:
         try:
             import numpy as np
             if not hasattr(np, 'float_'):
-                np.float_ = np.float64
+                setattr(np, 'float_', np.float64)
             import chromadb
             self.client = chromadb.PersistentClient(path=self.persist_directory)
             self.collection = self.client.get_or_create_collection(
@@ -47,14 +47,16 @@ class MemoryManager:
             self.fts_manager = FTSMemoryManager(self.persist_directory)
             self.collection = None
 
-    async def store(self, content: str, metadata: Dict[str, Any] = None) -> str:
+    async def store(self, content: str, metadata: Optional[Dict[str, Any]] = None) -> str:
         """Stores a new memory fragment with semantic embeddings or FTS."""
         if self.lite_mode:
-            return await self.fts_manager.store(content, metadata)
+            return await self.fts_manager.store(content, metadata or {})
 
         import uuid
         mem_id = str(uuid.uuid4())
         meta = {**(metadata or {}), "timestamp": datetime.now().isoformat()}
+
+        assert self.collection is not None
 
         # ChromaDB is synchronous and CPU/IO-bound — run in thread pool to avoid
         # blocking the asyncio event loop. ChromaDB uses 'all-MiniLM-L6-v2' by default
@@ -72,6 +74,8 @@ class MemoryManager:
         """Performs semantic search across the memory manifold."""
         if self.lite_mode:
             return await self.fts_manager.search(query, limit)
+
+        assert self.collection is not None
 
         results = await asyncio.to_thread(
             self.collection.query,
@@ -99,6 +103,8 @@ class MemoryManager:
         if self.lite_mode:
             return await self.fts_manager.get_recent(limit)
 
+        assert self.collection is not None
+
         results = await asyncio.to_thread(self.collection.get, limit=limit)
 
         memories = []
@@ -114,6 +120,8 @@ class MemoryManager:
         """Delete a specific memory fragment by its ID."""
         if self.lite_mode:
             return await self.fts_manager.delete(memory_id) if hasattr(self.fts_manager, "delete") else False
+
+        assert self.collection is not None
 
         try:
             await asyncio.to_thread(self.collection.delete, ids=[memory_id])
