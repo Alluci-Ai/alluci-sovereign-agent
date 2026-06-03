@@ -13,6 +13,7 @@ class TaskStatus(str, Enum):
     COMPLETED = "completed"
     FAILED = "failed"
     SKIPPED = "skipped"
+    SUSPENDED_SECURITY = "suspended_security"
 
 class RunStatus(str, Enum):
     QUEUED = "queued"

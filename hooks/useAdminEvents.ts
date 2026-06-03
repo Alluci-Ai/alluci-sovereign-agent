@@ -63,6 +63,9 @@ export const useAdminEvents = () => {
             }
           } else if (method === 'manifold.rupture') {
             setPvtHealth({ isRuptured: true });
+          } else if (method === 'security.resolution_required') {
+            const { setPendingSecurityResolution } = useStore.getState();
+            setPendingSecurityResolution(params);
           }
         },
         onOpen: () => setIsConnected(true),

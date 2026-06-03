@@ -584,9 +584,15 @@ class ModelRouter(ExecutiveRouter):
     ) -> str:
         from ..tracing_config import get_tracer
         from opentelemetry import trace
+        from ..security.circuit_breaker import circuit_breaker
         tracer = get_tracer("Inference.Router")
 
         with tracer.start_as_current_span("get_response") as span:
+            # P1-002: Financial Circuit Breaker (Cost Estimation)
+            estimated_cost = (len(prompt) / 4.0) * 0.00001
+            circuit_breaker.check_llm_spend(estimated_cost)
+            circuit_breaker.record_llm_spend(estimated_cost)
+            
             span.set_attribute("complexity", complexity)
             span.set_attribute("psi", psi)
 

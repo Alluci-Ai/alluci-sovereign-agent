@@ -21,32 +21,32 @@ asyncpg==0.29.0              # PostgreSQL async driver (runtime)
 aiosqlite==0.20.0            # SQLite async support
 
 # ─── Security & Cryptography ──────────────────────────────────────────────────
-cryptography>=46.0.6
-python-jose[cryptography]>=3.4.0
+cryptography==46.0.6
+python-jose[cryptography]==3.4.0
 webauthn==2.1.0
 keyring==25.7.0              # OS Keychain integration for vault master key
 mnemonic==0.21               # BIP-39 seed phrase for master key recovery
 passlib[bcrypt]==1.7.4
-greenlet>=3.2.2              # Fixed conflict between playwright and gevent
+greenlet==3.2.2              # Fixed conflict between playwright and gevent
 
 # ─── LLM Providers ────────────────────────────────────────────────────────────
-google-generativeai>=0.8.3
+google-generativeai==0.8.3
 google-auth==2.34.0
-openai>=1.12.0
-anthropic>=0.18.0
-cohere>=5.0.0
-boto3>=1.34.0               # AWS Bedrock fallback
-aioboto3>=12.3.0            # Async AWS Bedrock fallback
+openai==1.12.0
+anthropic==0.18.0
+cohere==5.0.0
+boto3==1.34.0               # AWS Bedrock fallback
+aioboto3==12.3.0            # Async AWS Bedrock fallback
 httpx==0.27.0
 tiktoken==0.7.0
 
 # ─── Messaging & Bridge SDKs ──────────────────────────────────────────────────
 discord.py==2.3.2            # Discord bridge
 python-telegram-bot==21.6    # Telegram bridge
-nostr-sdk>=0.42.0             # Nostr bridge (Updated for Python 3.14 compatibility)
+nostr-sdk==0.42.0             # Nostr bridge (Updated for Python 3.14 compatibility)
 aiosmtplib==3.0.1            # Async SMTP for email bridge
 aioimaplib==1.1.0            # Async IMAP for email bridge
-pyicloud>=2.0.0              # iCloud bridge (Updated for Python 3.14 compatibility)
+pyicloud==2.0.0              # iCloud bridge (Updated for Python 3.14 compatibility)
 pycryptodome==3.20.0          # WeCom AES decryption
 pyotp==2.9.0                  # iWatch pairing
 slack-sdk==3.41.0
@@ -54,16 +54,16 @@ slack-sdk==3.41.0
 # ─── Vector Memory ────────────────────────────────────────────────────────────
 chromadb==0.5.0
 sentence-transformers==3.0.1 # Embedding model (~80MB download on first use)
-numpy>=1.24.0                # Required for embedding operations
+numpy==1.24.0                # Required for embedding operations
 torch==2.2.2
 
 # ─── Cache & Rate Limiting ────────────────────────────────────────────────────
-redis[hiredis]>=5.0.0,<6.0.0
+redis[hiredis]==5.0.0
 fastapi-limiter==0.1.6
 
 # ─── Observability & Logging ──────────────────────────────────────────────────
-sentry-sdk[fastapi,redis,sqlalchemy]>=2.0.0
-structlog>=24.1.0
+sentry-sdk[fastapi,redis,sqlalchemy]==2.0.0
+structlog==24.1.0
 psutil==6.0.0
 opentelemetry-api==1.25.0
 opentelemetry-sdk==1.25.0
@@ -77,21 +77,21 @@ aiofiles==23.2.1
 tenacity==8.5.0
 
 # ─── Windows Service (Windows-only) ──────────────────────────────────────────
-pywin32>=306; sys_platform == "win32"   # Windows Service support (windows_service.py)
+pywin32==306; sys_platform == "win32"   # Windows Service support (windows_service.py)
 
 # ─── Browser Automation (screen_capture adapter) ──────────────────────────────
-playwright>=1.58.0           # Updated to resolve greenlet conflicts
-duckduckgo-search>=6.0.0
+playwright==1.58.0           # Updated to resolve greenlet conflicts
+duckduckgo-search==6.0.0
 mss==9.0.1
-pypdf>=6.10.2
+pypdf==6.10.2
 python-docx==1.1.2
 secure
 zeroconf==0.132.0
 fastapi-csrf-protect==1.0.7
 
 # ─── Audio & TTS ─────────────────────────────────────────────────────────────
-whisper-cpp-python>=0.1.0     # Bridge to local whisper-cpp
+whisper-cpp-python==0.1.0     # Bridge to local whisper-cpp
 # piper-python usually handled via subprocess in our case
 
 # ─── Scheduling ──────────────────────────────────────────────────────────────
-croniter>=2.0.0
+croniter==2.0.0

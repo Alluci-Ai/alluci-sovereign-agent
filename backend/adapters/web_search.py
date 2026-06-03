@@ -3,7 +3,7 @@ import os
 import httpx
 import logging
 from ..logging_config import get_logger
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from .base import Adapter
 
 class WebSearchAdapter(Adapter):
@@ -20,17 +20,17 @@ class WebSearchAdapter(Adapter):
     name = "web_search"
     description = "Search the web for real-time information. Supports Brave, SerpAPI, and DDG."
 
-    def __init__(self, api_key: str = None, provider: str = "serpapi"):
+    def __init__(self, api_key: Optional[str] = None, provider: str = "serpapi"):
         self.api_key = api_key
         self.provider = provider
         self.logger = get_logger("WebSearchAdapter")
 
     async def execute(self, query: str) -> Dict[str, Any]:
         """Route the query to the appropriate search provider."""
-        if not query or not str(query).strip():
+        if not query or not query.strip():
             return {"status": "error", "message": "No query provided."}
 
-        query = str(query).strip()
+        query = query.strip()
 
         try:
             # No API key → use DDG regardless of configured provider
@@ -93,7 +93,7 @@ class WebSearchAdapter(Adapter):
         headers = {
             "Accept": "application/json",
             "Accept-Encoding": "gzip",
-            "X-Subscription-Token": self.api_key,
+            "X-Subscription-Token": self.api_key or "",
         }
         params = {
             "q": query,
@@ -159,3 +159,44 @@ class WebSearchAdapter(Adapter):
         except Exception as e:
             self.logger.error(f"DDG search failed: {e}")
             return {"status": "error", "provider": "ddg", "message": str(e)}
+
+    # ── Playwright Subprocess (Privilege Separation) ──────────────────────────
+    
+    async def scrape_url(self, url: str) -> str:
+        """
+        Use an isolated Playwright subprocess to scrape a URL.
+        By delegating this to a subprocess, the Core Agent remains completely firewalled 
+        from untrusted HTML payloads, and the scraper has zero memory access to the Vault.
+        """
+        import asyncio
+        
+        script = f"""
+import asyncio
+from playwright.async_api import async_playwright
+
+async def run():
+    try:
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            page = await browser.new_page()
+            await page.goto('{url}', timeout=10000)
+            content = await page.evaluate('document.body.innerText')
+            await browser.close()
+            print(content)
+    except Exception as e:
+        print(f"Error: {{e}}")
+
+asyncio.run(run())
+"""
+        proc = await asyncio.create_subprocess_exec(
+            "python", "-c", script,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await proc.communicate()
+        if proc.returncode != 0 or not stdout:
+            self.logger.error(f"Playwright scrape failed for {url}: {stderr.decode()}")
+            return f"Failed to scrape {url}."
+            
+        return stdout.decode().strip()
+

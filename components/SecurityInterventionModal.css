@@ -1,0 +1,127 @@
+.security-intervention-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(8px);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fade-in 0.2s ease-out;
+}
+
+.security-intervention-modal {
+    width: 480px;
+    background: var(--surface-primary);
+    border: 1px solid var(--border-danger);
+    border-radius: 16px;
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 69, 58, 0.2);
+    overflow: hidden;
+    transform: translateY(0);
+    animation: slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.security-intervention-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 24px;
+    border-bottom: 1px solid var(--separator);
+    background: linear-gradient(to bottom, rgba(255, 69, 58, 0.05), transparent);
+}
+
+.security-intervention-icon-box {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: rgba(255, 69, 58, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(255, 69, 58, 0.2);
+}
+
+.security-intervention-icon {
+    font-size: 24px;
+}
+
+.security-intervention-header-text h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: -0.01em;
+}
+
+.security-intervention-header-text p {
+    margin: 4px 0 0;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.security-intervention-body {
+    padding: 24px;
+}
+
+.security-intervention-message-card {
+    background: var(--surface-secondary);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 24px;
+    border: 1px solid var(--separator);
+}
+
+.security-intervention-message-card p {
+    margin: 0;
+    font-size: 14px;
+    color: var(--text-primary);
+    line-height: 1.5;
+}
+
+.security-intervention-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.security-btn {
+    width: 100%;
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid transparent;
+}
+
+.security-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn-primary {
+    background: var(--accent);
+    color: white;
+}
+.btn-primary:hover:not(:disabled) {
+    background: var(--accent-hover);
+}
+
+.btn-secondary {
+    background: var(--surface-tertiary);
+    color: var(--text-primary);
+    border-color: var(--separator);
+}
+.btn-secondary:hover:not(:disabled) {
+    background: var(--surface-hover);
+}
+
+.btn-danger {
+    background: transparent;
+    color: var(--text-danger);
+    border-color: var(--border-danger);
+}
+.btn-danger:hover:not(:disabled) {
+    background: rgba(255, 69, 58, 0.1);
+}

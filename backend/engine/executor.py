@@ -119,80 +119,64 @@ class Executor:
                 dep_context = self.supervisor.condense_context(raw_dep_context)
                 task.args["dependency_output"] = dep_context
 
-                try:
-                    # Execute with Timeout
-                    result = await asyncio.wait_for(
-                        self._execute_adapter(task.action, task.args, task.id),
-                        timeout=self.task_timeout
-                    )
-                    
-                    task.result = str(result)
-                    task.status = TaskStatus.COMPLETED
-                    self._update_task_record(run_id, task.id, status="completed", result=str(result), end_time=datetime.now(timezone.utc))
-                    logger.info(f"Task {task.id} ({task.action}) ✅")
-                    
-                    # Fire DAG execution hook for real-time artifact streaming
-                    if self.on_task_complete:
-                        try:
-                            await self.on_task_complete(task)
-                        except Exception as hook_err:
-                            logger.error(f"Task completion hook failed: {hook_err}")
-                    
-                except asyncio.TimeoutError:
-                    err_msg = f"Task exceeded {self.task_timeout}s limit."
-                    logger.error(f"Task {task.id} ⏳ {err_msg}")
-                    task.status = TaskStatus.FAILED
-                    task.result = err_msg
-                    self._update_task_record(run_id, task.id, status="failed", error=err_msg, end_time=datetime.now(timezone.utc))
-                    span.set_status(trace.Status(trace.StatusCode.ERROR, err_msg))
-                    
-                except Exception as e:
-                    logger.error(f"Task {task.id} ❌ : {e}", exc_info=True)
-                    safe_error = f"Task failed: {type(e).__name__}"
-                    task.result = safe_error
-                    task.status = TaskStatus.FAILED
-                    self._update_task_record(run_id, task.id, status="failed", error=safe_error, end_time=datetime.now(timezone.utc))
-                    span.record_exception(e)
-                    span.set_status(trace.Status(trace.StatusCode.ERROR, str(e)))
+                from ..security.exceptions import SecurityException
+                from ..security.resolution import resolution_manager
+                
+                while True:
+                    try:
+                        # Execute with Timeout
+                        result = await asyncio.wait_for(
+                            self._execute_adapter(task.action, task.args, task.id),
+                            timeout=self.task_timeout
+                        )
+                        
+                        task.result = str(result)
+                        task.status = TaskStatus.COMPLETED
+                        self._update_task_record(run_id, task.id, status="completed", result=str(result), end_time=datetime.now(timezone.utc))
+                        logger.info(f"Task {task.id} ({task.action}) ✅")
+                        
+                        # Fire DAG execution hook for real-time artifact streaming
+                        if self.on_task_complete:
+                            try:
+                                await self.on_task_complete(task)
+                            except Exception as hook_err:
+                                logger.error(f"Task completion hook failed: {hook_err}")
+                        break
+                        
+                    except SecurityException as se:
+                        logger.warning(f"Task {task.id} 🛑 BLOCKED BY SECURITY: {se.message}")
+                        task.status = TaskStatus.SUSPENDED_SECURITY
+                        self._update_task_record(run_id, task.id, status="suspended_security", error=se.message)
+                        
+                        resolution = await resolution_manager.request_resolution(task.id, se)
+                        if resolution == "CANCEL_TASK":
+                            raise Exception("User cancelled the task following a security block.")
+                        
+                        logger.info(f"Task {task.id} 🟢 SECURITY RESOLVED ({resolution}). Retrying...")
+                        task.status = TaskStatus.RUNNING
+                        self._update_task_record(run_id, task.id, status="running")
+                        continue
+                        
+                    except asyncio.TimeoutError:
+                        err_msg = f"Task exceeded {self.task_timeout}s limit."
+                        logger.error(f"Task {task.id} ⏳ {err_msg}")
+                        task.status = TaskStatus.FAILED
+                        task.result = err_msg
+                        self._update_task_record(run_id, task.id, status="failed", error=err_msg, end_time=datetime.now(timezone.utc))
+                        span.set_status(trace.Status(trace.StatusCode.ERROR, err_msg))
+                        break
+                        
+                    except Exception as e:
+                        logger.error(f"Task {task.id} ❌ : {e}", exc_info=True)
+                        safe_error = f"Task failed: {type(e).__name__}"
+                        task.result = safe_error
+                        task.status = TaskStatus.FAILED
+                        self._update_task_record(run_id, task.id, status="failed", error=safe_error, end_time=datetime.now(timezone.utc))
+                        span.record_exception(e)
+                        span.set_status(trace.Status(trace.StatusCode.ERROR, str(e)))
+                        break
                 
                 return task
-
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), reraise=True)
-    async def _execute_adapter(self, action: str, args: Dict[str, Any], task_id: str = "") -> Any:
-        # [ PPN-017 ] Kill Switch Check before routing
-        # Synchronize watch_auth with real ACE biometrics if available
-        if self.ace:
-            state = self.ace.get_affective_state()
-            # If we have a heart rate, we assume it's on-wrist for the kill switch check
-            self.watch_auth.update_sensors(
-                is_on_wrist=state.heart_rate > 0, 
-                heart_rate=state.heart_rate
-            )
-
-        if self.watch_auth.locked or not self.watch_auth.verify_liveness(action):
-            raise PermissionError(f"Sovereign Kill Switch Active: Biological Liveness not verified for action '{action}'.")
-            
-        adapter = self.registry.get(action)
-        if not adapter:
-            raise AdapterNotFoundError(f"No adapter registered for action '{action}'.")
-
-        # Sprint 3: Exec Approval Interceptor
-        if self.approval_manager:
-            sensitive_tools = ["shell", "os_exec", "file_overwrite", "db_write"]
-            command = str(args.get("command", args.get("script", args.get("sql", ""))))
-            
-            # Request approval for sensitive tools
-            if action in sensitive_tools or command:
-                res = await self.approval_manager.request_approval(
-                    command=command or action,
-                    tool_name=action,
-                    context=f"Task ID: {task_id}"
-                )
-                if not res.get("approved"):
-                    logger.warning(f"Task {task_id} DENIED by User (Policy: {res.get('policy')})")
-                    raise PermissionError(f"Execution denied by User: {res.get('policy')}")
-
-        return await adapter.execute(args)
 
     # --- Persistence Helpers ---
 
@@ -231,3 +215,45 @@ class Executor:
                     session.commit()
         except Exception as e:
             logger.error(f"Failed to persist task update: {e}")
+
+    async def _execute_adapter(self, action: str, args: Dict[str, Any], task_id: str = "") -> Any:
+        from tenacity import AsyncRetrying, stop_after_attempt, wait_exponential
+        
+        async for attempt in AsyncRetrying(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), reraise=True):
+            with attempt:
+                # [ PPN-017 ] Kill Switch Check before routing
+                # Synchronize watch_auth with real ACE biometrics if available
+                if self.ace:
+                    state = self.ace.get_affective_state()
+                    # If we have a heart rate, we assume it's on-wrist for the kill switch check
+                    self.watch_auth.update_sensors(
+                        is_on_wrist=state.heart_rate > 0, 
+                        heart_rate=state.heart_rate
+                    )
+
+                if self.watch_auth.locked or not self.watch_auth.verify_liveness(action):
+                    raise PermissionError(f"Sovereign Kill Switch Active: Biological Liveness not verified for action '{action}'.")
+                    
+                adapter = self.registry.get(action)
+                if not adapter:
+                    raise AdapterNotFoundError(f"No adapter registered for action '{action}'.")
+
+                # Sprint 3: Exec Approval Interceptor
+                if self.approval_manager:
+                    sensitive_tools = ["shell", "os_exec", "file_overwrite", "db_write"]
+                    command = str(args.get("command", args.get("script", args.get("sql", ""))))
+                    
+                    # Request approval for sensitive tools
+                    if action in sensitive_tools or command:
+                        res = await self.approval_manager.request_approval(
+                            command=command or action,
+                            tool_name=action,
+                            context=f"Task ID: {task_id}"
+                        )
+                        if not res.get("approved"):
+                            logger.warning(f"Task {task_id} DENIED by User (Policy: {res.get('policy')})")
+                            raise PermissionError(f"Execution denied by User: {res.get('policy')}")
+
+                return await adapter.execute(args)
+
+

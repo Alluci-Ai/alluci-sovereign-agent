@@ -179,6 +179,16 @@ export interface AppState {
     } | null;
     setPendingApproval: (val: AppState['pendingApproval']) => void;
 
+    // Security Interventions
+    pendingSecurityResolution: {
+        task_id: string;
+        message: string;
+        exception_type: string;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        metadata: any;
+    } | null;
+    setPendingSecurityResolution: (val: AppState['pendingSecurityResolution']) => void;
+
     // Sprint A: Focus Mode & Abort
     focusMode: boolean;
     setFocusMode: (val: boolean) => void;
@@ -396,6 +406,9 @@ export const useStore = create<AppState>((set) => ({
     // Sprint 3: Exec Approval
     pendingApproval: null,
     setPendingApproval: (val) => set({ pendingApproval: val }),
+
+    pendingSecurityResolution: null,
+    setPendingSecurityResolution: (val) => set({ pendingSecurityResolution: val }),
 
     // Sprint A: Focus Mode & Abort
     focusMode: false,

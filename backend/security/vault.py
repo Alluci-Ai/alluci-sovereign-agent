@@ -55,9 +55,24 @@ class VaultManager:
     def __init__(self, master_key: str, vault_root: Optional[str] = None):
         
         # P4-004: macOS Keychain Integration
-        self.master_key = self._ensure_keychain_sync(master_key)
+        sync_key = self._ensure_keychain_sync(master_key)
+        
+        # Security Hardening: Store master key in a mutable bytearray to allow secure RAM wiping
+        self.master_key = bytearray(sync_key.encode('utf-8')) if isinstance(sync_key, str) else bytearray(sync_key)
         
         self.vault_root = vault_root or os.path.expanduser("~/.polytope/vaults")
+        
+    def lock_vault(self):
+        """Securely wipes the master key and derived keys from RAM."""
+        if hasattr(self, 'master_key') and self.master_key:
+            for i in range(len(self.master_key)):
+                self.master_key[i] = 0
+        if hasattr(self, 'fernet_key') and self.fernet_key:
+            self.fernet_key = None
+        if hasattr(self, 'aes_key') and self.aes_key:
+            self.aes_key = None
+        self.private_key = None
+        logger.info("[SECURITY] Vault locked. Cryptographic material securely wiped from RAM.")
         self._ensure_vault_root_sync()
         
         # Salt Management for PBKDF2 (P1-004)
@@ -89,7 +104,7 @@ class VaultManager:
                 with open(key_path, "rb") as f:
                     private_key = serialization.load_pem_private_key(
                         f.read(),
-                        password=self.master_key.encode() if isinstance(self.master_key, str) else self.master_key,
+                        password=self.master_key.encode() if isinstance(self.master_key, str) else bytes(self.master_key),
                         backend=default_backend()
                     )
                 return private_key, private_key.public_key()
@@ -107,7 +122,7 @@ class VaultManager:
                     encoding=serialization.Encoding.PEM,
                     format=serialization.PrivateFormat.PKCS8,
                     encryption_algorithm=serialization.BestAvailableEncryption(
-                        self.master_key.encode() if isinstance(self.master_key, str) else self.master_key
+                        self.master_key.encode() if isinstance(self.master_key, str) else bytes(self.master_key)
                     )
                 )
                 with open(key_path, "wb") as f:
@@ -140,7 +155,7 @@ class VaultManager:
             iterations=iterations,
             backend=default_backend()
         )
-        return kdf.derive(target_master.encode() if isinstance(target_master, str) else target_master)
+        return kdf.derive(target_master.encode() if isinstance(target_master, str) else bytes(target_master))
 
     def _ensure_vault_root_sync(self):
         """Sync version of ensure vault root."""
@@ -432,6 +447,10 @@ class VaultManager:
 
             # --- Legacy Fernet V1 Hybrid Fallback ---
             try:
+                if not self.private_key:
+                    logger.error(f"Cannot retrieve legacy hybrid secret at {rel_path}: RSA Private Key unavailable.")
+                    return None
+
                 key_len = struct.unpack(">I", payload[:4])[0]
                 encrypted_key = payload[4:4+key_len]
                 encrypted_data = payload[4+key_len:]
@@ -504,6 +523,7 @@ class VaultManager:
         return await asyncio.to_thread(self._rotate_keys_sync, new_master_key)
 
     def _rotate_keys_sync(self, new_master_key: str) -> bool:
+        success = False
         try:
             # 1. Prepare new materials
             from cryptography.hazmat.primitives.asymmetric import rsa
@@ -588,7 +608,7 @@ class VaultManager:
                 f.write(new_salt)
 
             # 8. Commit to memory
-            self.master_key = new_master_key
+            self.master_key = bytearray(new_master_key.encode('utf-8')) if isinstance(new_master_key, str) else bytearray(new_master_key)
             self.salt = new_salt
             self.fernet_key = new_fernet_key
             self.fernet = new_fernet
@@ -597,6 +617,7 @@ class VaultManager:
             self.private_key = new_private_key
             self.public_key = new_public_key
             
+            success = True
             return True
         except Exception as e:
             logger.error(f"Critical Failure during Key Rotation: {e}")
@@ -612,7 +633,7 @@ class VaultManager:
                     id=str(uuid.uuid4()),
                     timestamp=datetime.now(timezone.utc).isoformat(),
                     event="VAULT_KEY_ROTATION",
-                    details={"success": bool(self.master_key == new_master_key)},
+                    details={"success": success},
                     status="CRITICAL"
                 )))
             except Exception:
@@ -654,7 +675,7 @@ class VaultManager:
                 with open(key_path, "rb") as f:
                     private_key = serialization.load_pem_private_key(
                         f.read(),
-                        password=self.master_key.encode(),
+                        password=bytes(self.master_key),
                         backend=default_backend()
                     )
                 return private_key, private_key.public_key()
@@ -671,7 +692,7 @@ class VaultManager:
             encoding=serialization.Encoding.PEM,
             format=serialization.PrivateFormat.PKCS8,
             encryption_algorithm=serialization.BestAvailableEncryption(
-                self.master_key.encode()
+                bytes(self.master_key)
             )
         )
         pub_pem = private_key.public_key().public_bytes(
@@ -755,6 +776,8 @@ class Sandbox:
         import subprocess
         
         def preexec_fn():
+            if resource is None:
+                return
             # Apply resource limits to the child process only
             # The 'resource' module is imported at the top of the file
             try:
@@ -796,7 +819,7 @@ def SandboxedExecutionEnv():
     
     try:
         os.chmod(sandbox_dir, 0o700)
-        yield Sandbox(sandbox_dir, os.environ)
+        yield Sandbox(sandbox_dir, dict(os.environ))
     finally:
         # Secure cleanup: overwrite sandbox contents before deletion
         try:

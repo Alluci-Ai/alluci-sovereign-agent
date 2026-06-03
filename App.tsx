@@ -40,6 +40,7 @@ import { useCamera } from './hooks/useCamera';
 // Admin & Sprint 3
 import { adminService } from './adminService';
 import { ExecApprovalModal } from './components/ExecApprovalModal';
+import { SecurityInterventionModal } from './components/SecurityInterventionModal';
 import { OnboardingWizard } from './features/onboarding/OnboardingWizard';
 import { RpcConsole } from './features/system/RpcConsole';
 
@@ -292,6 +293,7 @@ const App: React.FC = () => {
 
       {needsOnboarding && <OnboardingWizard />}
       <ExecApprovalModal />
+      <SecurityInterventionModal />
       {activeAuth && <AuthPortal connection={activeAuth} onComplete={handleAuthComplete} onCancel={() => setActiveAuth(null)} />}
       <MobileMenu isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} onAction={(v) => { setIsMobileMenuOpen(false); setActiveView(v as import('./store/useStore').ActiveView); }} />
 
