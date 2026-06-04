@@ -20,6 +20,26 @@
 	<string>1</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Alluci Companion uses the camera to securely scan your desktop agent's pairing QR code.</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Alluci Companion reads your Heart Rate and Heart Rate Variability to feed the ACE Engine Biometric gauges.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>Alluci Companion writes PVT alertness scores to HealthKit.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Alluci Companion needs microphone access to allow you to dictate commands natively to your sovereign agent.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Alluci Companion uses Apple's speech recognition to transcribe your voice commands securely on device.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>processing</string>
+	</array>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>ai.alluci.companion.refresh</string>
+		<string>ai.alluci.companion.processing</string>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

@@ -1,80 +1,74 @@
 import SwiftUI
+import WatchKit
 
 struct ContentView: View {
-    @EnvironmentObject var network: NetworkManager
-    @EnvironmentObject var hk: HealthKitManager
-    
-    @State private var isMonitoring: Bool = false
-    @State private var statusMessage: String = "Idle"
+    @EnvironmentObject var watchManager: WatchConnectivityManager
+    @StateObject var healthManager = HealthKitManager()
     
     var body: some View {
-        Group {
-            if !network.isPaired {
-                PairingView()
-            } else {
-                VStack(spacing: 8) {
-                    HStack {
-                        Circle()
-                            .fill(isMonitoring ? Color.green : Color.gray)
-                            .frame(width: 8, height: 8)
-                        Text(isMonitoring ? "Monitoring" : "Ready")
-                            .font(.caption)
-                    }
-                    
-                    Text("\(Int(hk.lastHeartRate))")
-                        .font(.system(size: 42, weight: .bold, design: .rounded))
-                    Text("BPM")
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                    
-                    Spacer()
-                    
-                    Button(action: {
-                        toggleMonitoring()
-                    }) {
-                        Text(isMonitoring ? "Stop" : "Start Tracking")
-                            .bold()
-                    }
-                    .tint(isMonitoring ? .red : .blue)
-                    
-                    Button(action: {
-                        network.unpair()
-                    }) {
-                        Text("Unpair")
+        ScrollView {
+            VStack(spacing: 16) {
+                // Harmonic Gauge
+                Gauge(value: 85, in: 0...100) {
+                    Text("Harmonic")
+                } currentValueLabel: {
+                    Text("85")
+                        .foregroundColor(.green)
+                }
+                .gaugeStyle(.circular)
+                .tint(Gradient(colors: [.blue, .green]))
+                
+                // Affective Glance
+                HStack(spacing: 12) {
+                    VStack {
+                        Text("HR")
                             .font(.caption2)
+                            .foregroundColor(.secondary)
+                        Text("\(Int(healthManager.lastHeartRate))")
+                            .font(.title3)
+                            .fontWeight(.bold)
                             .foregroundColor(.red)
                     }
-                    .buttonStyle(.plain)
-                    .padding(.top, 4)
+                    VStack {
+                        Text("HRV")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        Text("\(Int(healthManager.lastHRV))")
+                            .font(.title3)
+                            .fontWeight(.bold)
+                            .foregroundColor(.purple)
+                    }
                 }
-                .onAppear {
-                    hk.requestAuthorization()
+                .padding()
+                .background(.ultraThinMaterial)
+                .cornerRadius(12)
+                
+                // Voice Node
+                Button(action: {
+                    WKInterfaceDevice.current().play(.click)
+                }) {
+                    Image(systemName: "mic.fill")
+                        .font(.title)
+                        .padding()
+                        .background(Color.blue)
+                        .clipShape(Circle())
                 }
+                .buttonStyle(.plain)
+                
+                // Background Streaming Toggle
+                Button(healthManager.isActiveSession ? "Stop Stream" : "Start Live Stream") {
+                    if healthManager.isActiveSession {
+                        healthManager.stopActiveSession()
+                    } else {
+                        healthManager.startActiveSession()
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(healthManager.isActiveSession ? .red : .green)
             }
         }
-    }
-    
-    func toggleMonitoring() {
-        isMonitoring.toggle()
-        if isMonitoring {
-            hk.startBackgroundCollection()
-            // In background mode, let's trigger an immediate update
-            sendUpdate()
-        } else {
-            hk.stopBackgroundCollection()
-        }
-    }
-    
-    func sendUpdate() {
-        Task {
-            let sample = await hk.getCurrentTelemetry()
-            do {
-                try await network.sendTelemetry(samples: [sample])
-                statusMessage = "Synced"
-            } catch {
-                statusMessage = "Sync Error"
-                print("Telemetry error: \(error)")
-            }
+        .onAppear {
+            healthManager.requestAuthorization()
         }
     }
 }

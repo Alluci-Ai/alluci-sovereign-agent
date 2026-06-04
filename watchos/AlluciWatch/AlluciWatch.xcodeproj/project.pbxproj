@@ -1,0 +1,337 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 54;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0EBE93E3530BBE07A00AE28D /* PairingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E360DE9325E25A1D7DD5F93 /* PairingView.swift */; };
+		3FD687CAA3937C60AB7ACC0D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 01CB8B5DF7ECBACBD43DE060 /* Assets.xcassets */; };
+		9A6DD6F1B64AACCB0534FBFC /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39BD7C9D0292FB34EAA80D5C /* ContentView.swift */; };
+		AE917C480B1A97CAEFC56D37 /* HealthKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71ECF1807C21B397066C194F /* HealthKitManager.swift */; };
+		B18F1E2EA48BBA2B2A6B2D2F /* AlluciWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E3F21781425C2FB49AAFD3C /* AlluciWatchApp.swift */; };
+		D9143BBA55BC351C1D66B26C /* NetworkManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C32295CB02C0D8240E61A420 /* NetworkManager.swift */; };
+		DA637ED3AFA8496A38D67845 /* TelemetrySample.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6340B4299F7752B26A0D392 /* TelemetrySample.swift */; };
+		FDA600A3E36AABA7D753FE6E /* WatchConnectivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30D483E0BC269961BB3A4D12 /* WatchConnectivityManager.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		01CB8B5DF7ECBACBD43DE060 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		30D483E0BC269961BB3A4D12 /* WatchConnectivityManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchConnectivityManager.swift; sourceTree = "<group>"; };
+		39BD7C9D0292FB34EAA80D5C /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		5E3F21781425C2FB49AAFD3C /* AlluciWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlluciWatchApp.swift; sourceTree = "<group>"; };
+		71ECF1807C21B397066C194F /* HealthKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitManager.swift; sourceTree = "<group>"; };
+		8E360DE9325E25A1D7DD5F93 /* PairingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairingView.swift; sourceTree = "<group>"; };
+		C32295CB02C0D8240E61A420 /* NetworkManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkManager.swift; sourceTree = "<group>"; };
+		E6340B4299F7752B26A0D392 /* TelemetrySample.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetrySample.swift; sourceTree = "<group>"; };
+		F42EDEE4DD2C23E32CFD1614 /* AlluciWatch Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "AlluciWatch Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		0613370FD55381CDC9CE7D8C /* AlluciWatch Watch App */ = {
+			isa = PBXGroup;
+			children = (
+				01CB8B5DF7ECBACBD43DE060 /* Assets.xcassets */,
+			);
+			path = "AlluciWatch Watch App";
+			sourceTree = "<group>";
+		};
+		160C5500698015C3DAE5EB7F /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				39BD7C9D0292FB34EAA80D5C /* ContentView.swift */,
+				8E360DE9325E25A1D7DD5F93 /* PairingView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		59BC4472367B2A13C3EDDFA3 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				F42EDEE4DD2C23E32CFD1614 /* AlluciWatch Watch App.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		5F32322BDE060193B788A3A2 /* Managers */ = {
+			isa = PBXGroup;
+			children = (
+				71ECF1807C21B397066C194F /* HealthKitManager.swift */,
+				C32295CB02C0D8240E61A420 /* NetworkManager.swift */,
+				30D483E0BC269961BB3A4D12 /* WatchConnectivityManager.swift */,
+			);
+			path = Managers;
+			sourceTree = "<group>";
+		};
+		611B163E31F2D84D91BA6B12 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				E6340B4299F7752B26A0D392 /* TelemetrySample.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		FF11E8FCF13E26ED6D5AAADF = {
+			isa = PBXGroup;
+			children = (
+				5E3F21781425C2FB49AAFD3C /* AlluciWatchApp.swift */,
+				0613370FD55381CDC9CE7D8C /* AlluciWatch Watch App */,
+				5F32322BDE060193B788A3A2 /* Managers */,
+				611B163E31F2D84D91BA6B12 /* Models */,
+				160C5500698015C3DAE5EB7F /* Views */,
+				59BC4472367B2A13C3EDDFA3 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		88976A307A973594170143F4 /* AlluciWatch Watch App */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C6D4638C743F93E3F3B0E52D /* Build configuration list for PBXNativeTarget "AlluciWatch Watch App" */;
+			buildPhases = (
+				CC8CEA7ED03AD4355EAEC489 /* Sources */,
+				9D7A5F47D7BD791E9E1A4419 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "AlluciWatch Watch App";
+			productName = "AlluciWatch Watch App";
+			productReference = F42EDEE4DD2C23E32CFD1614 /* AlluciWatch Watch App.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		18846DD77D095EC5BD3F9CC9 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+				};
+			};
+			buildConfigurationList = 59D40AAD8A13C38239C90B9B /* Build configuration list for PBXProject "AlluciWatch" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = FF11E8FCF13E26ED6D5AAADF;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				88976A307A973594170143F4 /* AlluciWatch Watch App */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		9D7A5F47D7BD791E9E1A4419 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3FD687CAA3937C60AB7ACC0D /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		CC8CEA7ED03AD4355EAEC489 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B18F1E2EA48BBA2B2A6B2D2F /* AlluciWatchApp.swift in Sources */,
+				9A6DD6F1B64AACCB0534FBFC /* ContentView.swift in Sources */,
+				AE917C480B1A97CAEFC56D37 /* HealthKitManager.swift in Sources */,
+				D9143BBA55BC351C1D66B26C /* NetworkManager.swift in Sources */,
+				0EBE93E3530BBE07A00AE28D /* PairingView.swift in Sources */,
+				DA637ED3AFA8496A38D67845 /* TelemetrySample.swift in Sources */,
+				FDA600A3E36AABA7D753FE6E /* WatchConnectivityManager.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		31C8411B88B57F4847704D8B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = "AlluciWatch Watch App/AlluciWatch Watch App.entitlements";
+				INFOPLIST_FILE = "AlluciWatch Watch App/Info.plist";
+				PRODUCT_BUNDLE_IDENTIFIER = ai.alluci.AlluciWatch;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Debug;
+		};
+		7CD6E2992C6375DBDA383040 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Debug;
+		};
+		A0FE0EF766C6BC4897AB65D6 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Release;
+		};
+		CBF40640EC1347E0FB3D59F5 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = "AlluciWatch Watch App/AlluciWatch Watch App.entitlements";
+				INFOPLIST_FILE = "AlluciWatch Watch App/Info.plist";
+				PRODUCT_BUNDLE_IDENTIFIER = ai.alluci.AlluciWatch;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		59D40AAD8A13C38239C90B9B /* Build configuration list for PBXProject "AlluciWatch" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7CD6E2992C6375DBDA383040 /* Debug */,
+				A0FE0EF766C6BC4897AB65D6 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		C6D4638C743F93E3F3B0E52D /* Build configuration list for PBXNativeTarget "AlluciWatch Watch App" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				31C8411B88B57F4847704D8B /* Debug */,
+				CBF40640EC1347E0FB3D59F5 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 18846DD77D095EC5BD3F9CC9 /* Project object */;
+}

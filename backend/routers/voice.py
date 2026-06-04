@@ -43,48 +43,73 @@ async def ws_voice_stream(websocket: WebSocket):
 
     try:
         while True:
-            # Receive binary PCM data (200ms chunks of float32 samples)
-            pcm_bytes = await websocket.receive_bytes()
+            message = await websocket.receive()
+            
+            if "bytes" in message:
+                pcm_bytes = message["bytes"]
+                # Process the 200ms fragment through MLX-Whisper
+                result = await voice_orchestrator.process_200ms_fragment(pcm_bytes)
 
-            # Process the 200ms fragment through MLX-Whisper
-            result = await voice_orchestrator.process_200ms_fragment(pcm_bytes)
-
-            if result.get("text"):
-                consecutive_silence_count = 0
-                await websocket.send_json({
-                    "type": "fragment",
-                    "text": result["text"],
-                    "fragment_index": result.get("fragment_index", 0),
-                    "is_final": False,
-                })
-            else:
-                consecutive_silence_count += 1
-
-            # After sustained silence, finalize the utterance
-            if consecutive_silence_count >= SILENCE_THRESHOLD_CHUNKS and voice_orchestrator._fragment_count > 0:
-                final = voice_orchestrator.finalize_utterance()
-                consecutive_silence_count = 0
-
-                if final["text"]:
+                if result.get("text"):
+                    consecutive_silence_count = 0
                     await websocket.send_json({
-                        "type": "utterance",
-                        "text": final["text"],
-                        "fragment_count": final["fragment_count"],
-                        "is_final": True,
-                        "requires_cognition": final["requires_cognition"],
+                        "type": "fragment",
+                        "text": result["text"],
+                        "fragment_index": result.get("fragment_index", 0),
+                        "is_final": False,
                     })
+                else:
+                    consecutive_silence_count += 1
 
-                    # If the device can reason locally, route to MLXEngine
-                    if final["requires_cognition"] and services.local_inference:
-                        # Hand off to the main inference pipeline
-                        cognition_result = await services.local_inference.transcribe(
-                            final["text"].encode("utf-8")
-                        )
+                # After sustained silence, finalize the utterance
+                if consecutive_silence_count >= SILENCE_THRESHOLD_CHUNKS and voice_orchestrator._fragment_count > 0:
+                    final = voice_orchestrator.finalize_utterance()
+                    consecutive_silence_count = 0
+
+                    if final["text"]:
                         await websocket.send_json({
-                            "type": "cognition",
-                            "text": cognition_result,
+                            "type": "utterance",
+                            "text": final["text"],
+                            "fragment_count": final["fragment_count"],
                             "is_final": True,
+                            "requires_cognition": final["requires_cognition"],
                         })
+
+                        # If the device can reason locally, route to MLXEngine
+                        if final["requires_cognition"] and services.local_inference:
+                            # Hand off to the main inference pipeline
+                            cognition_result = await services.local_inference.transcribe(
+                                final["text"].encode("utf-8")
+                            )
+                            await websocket.send_json({
+                                "type": "cognition",
+                                "text": cognition_result,
+                                "is_final": True,
+                            })
+                            
+                            # Synthesize cognition result to audio if tethered
+                            from ..inference.voice_orchestrator import voice_orchestrator as orch
+                            tts_result = await orch.synthesize_response(cognition_result, "am_adam")
+                            if tts_result["type"] == "audio_pcm":
+                                await websocket.send_bytes(tts_result["data"])
+                            else:
+                                await websocket.send_json(tts_result)
+                                
+            elif "text" in message:
+                try:
+                    payload = json.loads(message["text"])
+                    if "respiratoryRate" in payload:
+                        # Feed into anti-spoof
+                        from ..ace.anti_spoof import AntiSpoofKernel
+                        kernel = AntiSpoofKernel()
+                        # Dummy audio features for now
+                        is_human = kernel.verify_liveness({"jitter": 0.05, "breath_pauses_per_min": 15}, payload["respiratoryRate"])
+                        if not is_human:
+                            logger.warning("Anti-spoofing failed. Terminating connection.")
+                            await websocket.close(code=1008, reason="Liveness check failed")
+                            return
+                except json.JSONDecodeError:
+                    pass
 
     except WebSocketDisconnect:
         logger.info("[VOICE STREAM] Client disconnected.")

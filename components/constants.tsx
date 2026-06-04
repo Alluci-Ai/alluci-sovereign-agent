@@ -68,7 +68,7 @@ export const validateApiKey = (provider: string, key: string): boolean => {
 
 export const INITIAL_CONNECTIONS: Connection[] = [
     { id: 'icloud', name: 'iCloud', status: 'DISCONNECTED', type: 'WORKSPACE', authType: 'TOKEN', autonomyLevel: AutonomyLevel.RESTRICTED, isEncrypted: false },
-    { id: 'imessage', name: 'iMessage', status: 'DISCONNECTED', type: 'MESSAGING', authType: 'SECURE_TUNNEL', autonomyLevel: AutonomyLevel.RESTRICTED, isEncrypted: true },
+    { id: 'imessage', name: 'iMessage', status: 'DISCONNECTED', type: 'MESSAGING', authType: 'MACOS_PERMS', autonomyLevel: AutonomyLevel.RESTRICTED, isEncrypted: true },
     { id: 'iwatch', name: 'iWatch', status: 'DISCONNECTED', type: 'MESSAGING', authType: 'SECURE_TUNNEL', autonomyLevel: AutonomyLevel.RESTRICTED, isEncrypted: true },
     { id: 'iphone', name: 'iPhone', status: 'DISCONNECTED', type: 'MESSAGING', authType: 'SECURE_TUNNEL', autonomyLevel: AutonomyLevel.RESTRICTED, isEncrypted: true },
     { id: 'wa', name: 'WhatsApp', status: 'DISCONNECTED', type: 'MESSAGING', authType: 'QR_SYNC', autonomyLevel: AutonomyLevel.RESTRICTED, isEncrypted: true },

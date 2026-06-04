@@ -6,21 +6,82 @@
 	objectVersion = 54;
 	objects = {
 
-/* BEGIN PBXBuildFile section */
+/* Begin PBXBuildFile section */
+		0AE44276CF036F9FF5057036 /* PVTView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF7D75CA246A4655E48868E6 /* PVTView.swift */; };
+		128E3D1ABBBFB3D173DD440E /* MultipeerSyncManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4DE0056844E1090943430CD /* MultipeerSyncManager.swift */; };
+		17F3C1BDB7344F803DF42FF8 /* AgentsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 130ABDC527C449BD5ED8138A /* AgentsView.swift */; };
+		2FCCB79A994FD51C5ECAF624 /* MemoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D20FC21C1E71B8C88D743E5 /* MemoryView.swift */; };
+		3106F9E1E6824D2BF5E2B212 /* ContextRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 604C6852D95CAE15103D7ECF /* ContextRouter.swift */; };
+		3ADA1828637F97B5EC9616C3 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8EE847F54D34FD231FDEA59 /* DashboardView.swift */; };
+		4BAE260D5F7DD810570C316C /* LocalInferenceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCF2C3D028FBC98D961E82D0 /* LocalInferenceManager.swift */; };
+		4EF784991C67F2C53F0C2769 /* CronsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B390E6AE52D3B3300AC357D /* CronsView.swift */; };
+		67AEA9B627EF4C0B165EF20B /* UsageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 451289CCB03FF9EAEB240217 /* UsageView.swift */; };
+		6D7F2B36DA5FECC2CEAB0F3C /* TCPSocketServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B151038F480C0269D7381CDF /* TCPSocketServer.swift */; };
+		730742098CB1565229ABC5A5 /* SkillApprovalsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83FA739E0903351A2454284D /* SkillApprovalsView.swift */; };
+		74561668C1C11098FE2E6401 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C8EA15249650017F4692476 /* NotificationManager.swift */; };
+		771C4C80CF2466391A82796E /* BridgeCenterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A571D08631CBE1A1C0EF9C02 /* BridgeCenterView.swift */; };
+		7A52078E481C5A6B5E0FDE9F /* SoulView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7898BAAA51788C1FEFA99272 /* SoulView.swift */; };
+		7E52CEE8FB950D797FB6608A /* SkillGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A18169AC4C7693848CDD8BFB /* SkillGridView.swift */; };
+		84BB3259A9AB4502D04F0335 /* WatchConnectivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADACD0517E3A975B57FBA288 /* WatchConnectivityManager.swift */; };
+		85CDD0DD97804BCC46B1AE1B /* ThemeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04768B6BE11B857A3A02E99C /* ThemeManager.swift */; };
+		869801669D941D7381BF5344 /* TasksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6351F86D4FA038F082856E8 /* TasksView.swift */; };
+		9130CB9EAC4802B544B3C659 /* PairingTransferView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD44B59A67D9BE7A15F61B68 /* PairingTransferView.swift */; };
+		A417997307A0CC4BD5BA2A35 /* MDNSListener.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59F7C04992BDD1E506412AA1 /* MDNSListener.swift */; };
+		A58F128F444E899310271264 /* WalletView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FA67D61348CD70C542F74C6 /* WalletView.swift */; };
+		AD72CE6268559A88BF77ED14 /* PVTView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5FD9ED87E00107726F72C0B /* PVTView.swift */; };
+		BAFC8CF3C9BF1AA9D83BD1B8 /* TelemetrySender.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D8315637C8A71026AEEDAE6 /* TelemetrySender.swift */; };
+		C36A6CA5BE6C6D2B5DE3A7D4 /* QRScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1834804F97942E59CEC7D19 /* QRScannerView.swift */; };
+		C560E848F13C41882E75026D /* DeveloperTerminalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47E9C70A5287F018B4E998C5 /* DeveloperTerminalView.swift */; };
 		C91D1A2F4B5C6D7E8F9001 /* AlluciCompanionApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C91D1A2F4B5C6D7E8F9002 /* AlluciCompanionApp.swift */; };
 		C91D1A2F4B5C6D7E8F9003 /* TelemetrySender.swift in Sources */ = {isa = PBXBuildFile; fileRef = C91D1A2F4B5C6D7E8F9004 /* TelemetrySender.swift */; };
 		C91D1A2F4B5C6D7E8F9005 /* WatchConnectivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C91D1A2F4B5C6D7E8F9006 /* WatchConnectivityManager.swift */; };
-/* END PBXBuildFile section */
+		CEAEC798F90492A0BFF1F450 /* AgentTerminalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 424AF66B5C5BF454B7519BBF /* AgentTerminalView.swift */; };
+		D370713EE080ECF7471D6DB9 /* VoiceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CF7CA4C1F6534CF45BB3B1B /* VoiceManager.swift */; };
+		DB7E0C34B272B8C43C0C9783 /* SessionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EBCE8FC7A34D76188DA79AA /* SessionsView.swift */; };
+		E6E5BA5696E7514764EDCE1C /* VoiceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4647DB1D270BC45BF3697575 /* VoiceManager.swift */; };
+		EE78F209ADA88A0EBDA88608 /* HealthKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82E7D6CA3ABCE134E96DF7A7 /* HealthKitManager.swift */; };
+		EF14D22BC14F2BB1EA1BDC65 /* DAGView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D8D5A4EC29A3AC027BA9E5F /* DAGView.swift */; };
+/* End PBXBuildFile section */
 
-/* BEGIN PBXFileReference section */
+/* Begin PBXFileReference section */
+		04768B6BE11B857A3A02E99C /* ThemeManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ThemeManager.swift; path = Managers/ThemeManager.swift; sourceTree = "<group>"; };
+		0B390E6AE52D3B3300AC357D /* CronsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CronsView.swift; path = Views/CronsView.swift; sourceTree = "<group>"; };
+		130ABDC527C449BD5ED8138A /* AgentsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AgentsView.swift; path = Views/AgentsView.swift; sourceTree = "<group>"; };
+		2D20FC21C1E71B8C88D743E5 /* MemoryView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MemoryView.swift; path = Views/MemoryView.swift; sourceTree = "<group>"; };
+		2D8D5A4EC29A3AC027BA9E5F /* DAGView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DAGView.swift; path = Views/DAGView.swift; sourceTree = "<group>"; };
+		424AF66B5C5BF454B7519BBF /* AgentTerminalView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AgentTerminalView.swift; path = Views/AgentTerminalView.swift; sourceTree = "<group>"; };
+		451289CCB03FF9EAEB240217 /* UsageView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = UsageView.swift; path = Views/UsageView.swift; sourceTree = "<group>"; };
+		4647DB1D270BC45BF3697575 /* VoiceManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VoiceManager.swift; path = Managers/VoiceManager.swift; sourceTree = "<group>"; };
+		47E9C70A5287F018B4E998C5 /* DeveloperTerminalView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DeveloperTerminalView.swift; path = Views/DeveloperTerminalView.swift; sourceTree = "<group>"; };
+		4D8315637C8A71026AEEDAE6 /* TelemetrySender.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TelemetrySender.swift; path = Managers/TelemetrySender.swift; sourceTree = "<group>"; };
+		4FA67D61348CD70C542F74C6 /* WalletView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WalletView.swift; path = Views/WalletView.swift; sourceTree = "<group>"; };
+		59F7C04992BDD1E506412AA1 /* MDNSListener.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MDNSListener.swift; path = Managers/MDNSListener.swift; sourceTree = "<group>"; };
+		604C6852D95CAE15103D7ECF /* ContextRouter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ContextRouter.swift; path = Managers/ContextRouter.swift; sourceTree = "<group>"; };
+		6CF7CA4C1F6534CF45BB3B1B /* VoiceManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VoiceManager.swift; path = Managers/VoiceManager.swift; sourceTree = "<group>"; };
+		6EBCE8FC7A34D76188DA79AA /* SessionsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SessionsView.swift; path = Views/SessionsView.swift; sourceTree = "<group>"; };
+		7898BAAA51788C1FEFA99272 /* SoulView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SoulView.swift; path = Views/SoulView.swift; sourceTree = "<group>"; };
+		82E7D6CA3ABCE134E96DF7A7 /* HealthKitManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = HealthKitManager.swift; path = Managers/HealthKitManager.swift; sourceTree = "<group>"; };
+		83FA739E0903351A2454284D /* SkillApprovalsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SkillApprovalsView.swift; path = Views/SkillApprovalsView.swift; sourceTree = "<group>"; };
+		9C8EA15249650017F4692476 /* NotificationManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = NotificationManager.swift; path = Managers/NotificationManager.swift; sourceTree = "<group>"; };
+		A18169AC4C7693848CDD8BFB /* SkillGridView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SkillGridView.swift; path = Views/SkillGridView.swift; sourceTree = "<group>"; };
+		A1834804F97942E59CEC7D19 /* QRScannerView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = QRScannerView.swift; path = Views/QRScannerView.swift; sourceTree = "<group>"; };
+		A571D08631CBE1A1C0EF9C02 /* BridgeCenterView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BridgeCenterView.swift; path = Views/BridgeCenterView.swift; sourceTree = "<group>"; };
+		ADACD0517E3A975B57FBA288 /* WatchConnectivityManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WatchConnectivityManager.swift; path = Managers/WatchConnectivityManager.swift; sourceTree = "<group>"; };
+		B151038F480C0269D7381CDF /* TCPSocketServer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TCPSocketServer.swift; path = Managers/TCPSocketServer.swift; sourceTree = "<group>"; };
+		C4DE0056844E1090943430CD /* MultipeerSyncManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MultipeerSyncManager.swift; path = Managers/MultipeerSyncManager.swift; sourceTree = "<group>"; };
+		C5FD9ED87E00107726F72C0B /* PVTView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PVTView.swift; path = Views/PVTView.swift; sourceTree = "<group>"; };
 		C91D1A2F4B5C6D7E8F9002 /* AlluciCompanionApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlluciCompanionApp.swift; sourceTree = "<group>"; };
 		C91D1A2F4B5C6D7E8F9004 /* TelemetrySender.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/TelemetrySender.swift; sourceTree = "<group>"; };
 		C91D1A2F4B5C6D7E8F9006 /* WatchConnectivityManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/WatchConnectivityManager.swift; sourceTree = "<group>"; };
-		C91D1A2F4B5C6D7E8F9007 /* AlluciCompanion.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AlluciCompanion.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C91D1A2F4B5C6D7E8F9008 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-/* END PBXFileReference section */
+		CD44B59A67D9BE7A15F61B68 /* PairingTransferView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PairingTransferView.swift; path = Views/PairingTransferView.swift; sourceTree = "<group>"; };
+		CF7D75CA246A4655E48868E6 /* PVTView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PVTView.swift; path = Views/PVTView.swift; sourceTree = "<group>"; };
+		D8EE847F54D34FD231FDEA59 /* DashboardView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DashboardView.swift; path = Views/DashboardView.swift; sourceTree = "<group>"; };
+		E6351F86D4FA038F082856E8 /* TasksView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TasksView.swift; path = Views/TasksView.swift; sourceTree = "<group>"; };
+		FCF2C3D028FBC98D961E82D0 /* LocalInferenceManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LocalInferenceManager.swift; path = Managers/LocalInferenceManager.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
 
-/* BEGIN PBXFrameworksBuildPhase section */
+/* Begin PBXFrameworksBuildPhase section */
 		C91D1A2F4B5C6D7E8F9009 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -28,19 +89,68 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-/* END PBXFrameworksBuildPhase section */
+/* End PBXFrameworksBuildPhase section */
 
-/* BEGIN PBXGroup section */
-		C91D1A2F4B5C6D7E8F9010 /* AlluciCompanion */ = {
+/* Begin PBXGroup section */
+		4B020F32FAA02254B4D20C88 /* Views */ = {
 			isa = PBXGroup;
 			children = (
-				C91D1A2F4B5C6D7E8F9011 /* Source */,
-				C91D1A2F4B5C6D7E8F9007 /* AlluciCompanion.app */,
+				47E9C70A5287F018B4E998C5 /* DeveloperTerminalView.swift */,
+				CF7D75CA246A4655E48868E6 /* PVTView.swift */,
+				CD44B59A67D9BE7A15F61B68 /* PairingTransferView.swift */,
+			);
+			name = Views;
+			sourceTree = "<group>";
+		};
+		5A59438C25668DDA13B85DEB /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				A1834804F97942E59CEC7D19 /* QRScannerView.swift */,
+				D8EE847F54D34FD231FDEA59 /* DashboardView.swift */,
+				A571D08631CBE1A1C0EF9C02 /* BridgeCenterView.swift */,
+				83FA739E0903351A2454284D /* SkillApprovalsView.swift */,
+				424AF66B5C5BF454B7519BBF /* AgentTerminalView.swift */,
+				A18169AC4C7693848CDD8BFB /* SkillGridView.swift */,
+				130ABDC527C449BD5ED8138A /* AgentsView.swift */,
+				7898BAAA51788C1FEFA99272 /* SoulView.swift */,
+				2D20FC21C1E71B8C88D743E5 /* MemoryView.swift */,
+				E6351F86D4FA038F082856E8 /* TasksView.swift */,
+				2D8D5A4EC29A3AC027BA9E5F /* DAGView.swift */,
+				0B390E6AE52D3B3300AC357D /* CronsView.swift */,
+				4FA67D61348CD70C542F74C6 /* WalletView.swift */,
+				451289CCB03FF9EAEB240217 /* UsageView.swift */,
+				6EBCE8FC7A34D76188DA79AA /* SessionsView.swift */,
+				C5FD9ED87E00107726F72C0B /* PVTView.swift */,
+			);
+			name = Views;
+			sourceTree = "<group>";
+		};
+		BE09BF8695F3B85F06DEAA64 /* Managers */ = {
+			isa = PBXGroup;
+			children = (
+				B151038F480C0269D7381CDF /* TCPSocketServer.swift */,
+				4D8315637C8A71026AEEDAE6 /* TelemetrySender.swift */,
+				9C8EA15249650017F4692476 /* NotificationManager.swift */,
+				59F7C04992BDD1E506412AA1 /* MDNSListener.swift */,
+				ADACD0517E3A975B57FBA288 /* WatchConnectivityManager.swift */,
+				6CF7CA4C1F6534CF45BB3B1B /* VoiceManager.swift */,
+				04768B6BE11B857A3A02E99C /* ThemeManager.swift */,
+			);
+			name = Managers;
+			sourceTree = "<group>";
+		};
+		C91D1A2F4B5C6D7E8F9010 = {
+			isa = PBXGroup;
+			children = (
+				C91D1A2F4B5C6D7E8F9011 /* . */,
 				C91D1A2F4B5C6D7E8F9008 /* Info.plist */,
+				5A59438C25668DDA13B85DEB /* Views */,
+				BE09BF8695F3B85F06DEAA64 /* Managers */,
+				CFFB39AF3036F993DBBC5EBE /* AlluciCompanion */,
 			);
 			sourceTree = "<group>";
 		};
-		C91D1A2F4B5C6D7E8F9011 /* Source */ = {
+		C91D1A2F4B5C6D7E8F9011 /* . */ = {
 			isa = PBXGroup;
 			children = (
 				C91D1A2F4B5C6D7E8F9002 /* AlluciCompanionApp.swift */,
@@ -50,9 +160,30 @@
 			path = .;
 			sourceTree = "<group>";
 		};
-/* END PBXGroup section */
+		CFFB39AF3036F993DBBC5EBE /* AlluciCompanion */ = {
+			isa = PBXGroup;
+			children = (
+				4B020F32FAA02254B4D20C88 /* Views */,
+				E883C52FDB7B78FB4AC0ED82 /* Managers */,
+			);
+			name = AlluciCompanion;
+			sourceTree = "<group>";
+		};
+		E883C52FDB7B78FB4AC0ED82 /* Managers */ = {
+			isa = PBXGroup;
+			children = (
+				82E7D6CA3ABCE134E96DF7A7 /* HealthKitManager.swift */,
+				4647DB1D270BC45BF3697575 /* VoiceManager.swift */,
+				604C6852D95CAE15103D7ECF /* ContextRouter.swift */,
+				C4DE0056844E1090943430CD /* MultipeerSyncManager.swift */,
+				FCF2C3D028FBC98D961E82D0 /* LocalInferenceManager.swift */,
+			);
+			name = Managers;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
 
-/* BEGIN PBXNativeTarget section */
+/* Begin PBXNativeTarget section */
 		C91D1A2F4B5C6D7E8F9015 /* AlluciCompanion */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = C91D1A2F4B5C6D7E8F9018 /* Build configuration list for PBXNativeTarget "AlluciCompanion" */;
@@ -67,12 +198,11 @@
 			);
 			name = AlluciCompanion;
 			productName = AlluciCompanion;
-			productReference = C91D1A2F4B5C6D7E8F9007 /* AlluciCompanion.app */;
 			productType = "com.apple.product-type.application";
 		};
-/* END PBXNativeTarget section */
+/* End PBXNativeTarget section */
 
-/* BEGIN PBXProject section */
+/* Begin PBXProject section */
 		C91D1A2F4B5C6D7E8F9016 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
@@ -92,17 +222,17 @@
 				en,
 				Base,
 			);
-			mainGroup = C91D1A2F4B5C6D7E8F9010 /* AlluciCompanion */;
-			productRefGroup = C91D1A2F4B5C6D7E8F9010 /* AlluciCompanion */;
+			mainGroup = C91D1A2F4B5C6D7E8F9010;
+			productRefGroup = C91D1A2F4B5C6D7E8F9010;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
 				C91D1A2F4B5C6D7E8F9015 /* AlluciCompanion */,
 			);
 		};
-/* END PBXProject section */
+/* End PBXProject section */
 
-/* BEGIN PBXResourcesBuildPhase section */
+/* Begin PBXResourcesBuildPhase section */
 		C91D1A2F4B5C6D7E8F9020 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -110,9 +240,9 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-/* END PBXResourcesBuildPhase section */
+/* End PBXResourcesBuildPhase section */
 
-/* BEGIN PBXSourcesBuildPhase section */
+/* Begin PBXSourcesBuildPhase section */
 		C91D1A2F4B5C6D7E8F9019 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -120,12 +250,43 @@
 				C91D1A2F4B5C6D7E8F9001 /* AlluciCompanionApp.swift in Sources */,
 				C91D1A2F4B5C6D7E8F9003 /* TelemetrySender.swift in Sources */,
 				C91D1A2F4B5C6D7E8F9005 /* WatchConnectivityManager.swift in Sources */,
+				C36A6CA5BE6C6D2B5DE3A7D4 /* QRScannerView.swift in Sources */,
+				6D7F2B36DA5FECC2CEAB0F3C /* TCPSocketServer.swift in Sources */,
+				BAFC8CF3C9BF1AA9D83BD1B8 /* TelemetrySender.swift in Sources */,
+				74561668C1C11098FE2E6401 /* NotificationManager.swift in Sources */,
+				A417997307A0CC4BD5BA2A35 /* MDNSListener.swift in Sources */,
+				84BB3259A9AB4502D04F0335 /* WatchConnectivityManager.swift in Sources */,
+				D370713EE080ECF7471D6DB9 /* VoiceManager.swift in Sources */,
+				3ADA1828637F97B5EC9616C3 /* DashboardView.swift in Sources */,
+				771C4C80CF2466391A82796E /* BridgeCenterView.swift in Sources */,
+				730742098CB1565229ABC5A5 /* SkillApprovalsView.swift in Sources */,
+				CEAEC798F90492A0BFF1F450 /* AgentTerminalView.swift in Sources */,
+				7E52CEE8FB950D797FB6608A /* SkillGridView.swift in Sources */,
+				17F3C1BDB7344F803DF42FF8 /* AgentsView.swift in Sources */,
+				7A52078E481C5A6B5E0FDE9F /* SoulView.swift in Sources */,
+				2FCCB79A994FD51C5ECAF624 /* MemoryView.swift in Sources */,
+				869801669D941D7381BF5344 /* TasksView.swift in Sources */,
+				EF14D22BC14F2BB1EA1BDC65 /* DAGView.swift in Sources */,
+				4EF784991C67F2C53F0C2769 /* CronsView.swift in Sources */,
+				A58F128F444E899310271264 /* WalletView.swift in Sources */,
+				67AEA9B627EF4C0B165EF20B /* UsageView.swift in Sources */,
+				DB7E0C34B272B8C43C0C9783 /* SessionsView.swift in Sources */,
+				AD72CE6268559A88BF77ED14 /* PVTView.swift in Sources */,
+				85CDD0DD97804BCC46B1AE1B /* ThemeManager.swift in Sources */,
+				C560E848F13C41882E75026D /* DeveloperTerminalView.swift in Sources */,
+				EE78F209ADA88A0EBDA88608 /* HealthKitManager.swift in Sources */,
+				E6E5BA5696E7514764EDCE1C /* VoiceManager.swift in Sources */,
+				0AE44276CF036F9FF5057036 /* PVTView.swift in Sources */,
+				3106F9E1E6824D2BF5E2B212 /* ContextRouter.swift in Sources */,
+				128E3D1ABBBFB3D173DD440E /* MultipeerSyncManager.swift in Sources */,
+				4BAE260D5F7DD810570C316C /* LocalInferenceManager.swift in Sources */,
+				9130CB9EAC4802B544B3C659 /* PairingTransferView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-/* END PBXSourcesBuildPhase section */
+/* End PBXSourcesBuildPhase section */
 
-/* BEGIN XCBuildConfiguration section */
+/* Begin XCBuildConfiguration section */
 		C91D1A2F4B5C6D7E8F9021 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -171,7 +332,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
@@ -219,7 +380,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
@@ -234,6 +395,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				INFOPLIST_FILE = Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -251,6 +413,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				INFOPLIST_FILE = Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -262,9 +425,9 @@
 			};
 			name = Release;
 		};
-/* END XCBuildConfiguration section */
+/* End XCBuildConfiguration section */
 
-/* BEGIN XCConfigurationList section */
+/* Begin XCConfigurationList section */
 		C91D1A2F4B5C6D7E8F9017 /* Build configuration list for PBXProject "AlluciCompanion" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -283,7 +446,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-/* END XCConfigurationList section */
+/* End XCConfigurationList section */
 	};
 	rootObject = C91D1A2F4B5C6D7E8F9016 /* Project object */;
 }

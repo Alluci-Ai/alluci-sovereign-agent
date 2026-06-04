@@ -26,6 +26,8 @@ class IPhoneBridge(BridgeAdapter, ServiceListener):
         self._listen_task: Optional[asyncio.Task] = None
         # [ GAP-001 ] Inbound message buffer for companion polling
         self._inbound_buffer = deque(maxlen=100)
+        # Outbound message buffer for handling disconnects/roaming
+        self._outbound_buffer = deque(maxlen=200)
         # [ GAP-003 ] TLS Pinning: Path to the companion's CA cert in the vault
         self._ca_cert_path = os.path.join(self.vault_path, "companion_ca.crt")
 
@@ -146,25 +148,40 @@ class IPhoneBridge(BridgeAdapter, ServiceListener):
                     await self._dispatch_inbound(msg)
                 except json.JSONDecodeError:
                     continue
+                
+                # Drain outbound buffer while connected
+                while self._outbound_buffer and self.is_connected and self.writer:
+                    queued_payload = self._outbound_buffer[0]
+                    try:
+                        self.writer.write((queued_payload + "\n").encode())
+                        await self.writer.drain()
+                        self._outbound_buffer.popleft()
+                    except Exception as e:
+                        self.logger.error(f"Failed to send queued outbound payload: {e}")
+                        break
         except Exception as e:
             self.logger.error(f"iPhone socket listen error: {e}")
         finally:
             self.is_connected = False
 
     async def send(self, recipient: str, content: str, **kwargs) -> Dict[str, Any]:
-        if not self.is_connected or not self.writer:
-            return {"status": "failed", "error": "Not connected to iOS device socket."}
-        
         payload = {"recipient": recipient, "body": content}
         payload.update(kwargs)
+        payload_str = json.dumps(payload)
+        
+        if not self.is_connected or not self.writer:
+            self._outbound_buffer.append(payload_str)
+            self.logger.warning("iPhone socket disconnected. Payload queued for next connection.")
+            return {"status": "queued", "message": "Queued for delivery."}
         
         try:
-            self.writer.write((json.dumps(payload) + "\n").encode())
+            self.writer.write((payload_str + "\n").encode())
             await self.writer.drain()
             return {"status": "success"}
         except Exception as e:
             self.logger.error(f"iPhone socket send error: {e}")
-            return {"status": "failed", "error": str(e)}
+            self._outbound_buffer.append(payload_str)
+            return {"status": "queued", "error": str(e)}
 
     async def send_message(self, recipient: str, content: str) -> Dict[str, Any]:
         return await self.send(recipient, content)

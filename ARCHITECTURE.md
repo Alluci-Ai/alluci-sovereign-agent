@@ -85,6 +85,13 @@ To rotate certificates in a production environment:
 2. Mount the new `certs/` directory into the NGINX container.
 3. Reload NGINX: `docker exec alluci-nginx nginx -s reload`.
 
+## 8. Sovereign Voice Architecture (STRICT MANDATE)
+**DO NOT DEVIATE:** The Alluci Sovereign Agent strictly utilizes local, on-device models for all voice processing. Cloud TTS/STT APIs (e.g., ElevenLabs) are considered legacy mock configurations and MUST NOT be used in the core pipeline.
+- **Speech-to-Text (STT):** Powered exclusively by `mlx-whisper` on Apple Silicon, with a graceful fallback to `whisper.cpp` (`WHISPER_METAL=1`).
+- **Text-to-Speech (TTS):** Powered exclusively by `Kokoro-82M` (via `kokoro-mlx`) generating raw PCM buffers locally.
+- **Dynamic Tiering:** The `VoiceOrchestrator` must dynamically tier the whisper models (`tiny-4bit`, `base-8bit`, `large-v3-turbo`) based on the connected client's hardware identifier.
+- **Anti-Spoofing:** All incoming audio payloads must be cross-referenced for micro-hesitations (via Whisper) against live biological respiratory data (via Apple Watch/HealthKit) to defeat deepfakes.
+
 ---
 *Created by Alluci-Ai Sovereign Agent Framework v4.3*
 

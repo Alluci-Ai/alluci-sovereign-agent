@@ -22,10 +22,21 @@ class TelemetrySender: ObservableObject {
             let body = ["samples": [sample]]
             request.httpBody = try JSONEncoder().encode(body)
             
-            let (_, response) = try await URLSession.shared.data(for: request)
-            if let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) {
-                print("[TELEMETRY] Successfully forwarded to backend")
-            }
+            // Use Background Configuration for reliable ML Payload syncing
+            let config = URLSessionConfiguration.background(withIdentifier: "ai.alluci.companion.telemetry.bg")
+            config.isDiscretionary = false
+            config.sessionSendsLaunchEvents = true
+            let backgroundSession = URLSession(configuration: config)
+            
+            // For background sessions we use uploadTask
+            let tempDir = FileManager.default.temporaryDirectory
+            let tempFileURL = tempDir.appendingPathComponent(UUID().uuidString)
+            try request.httpBody?.write(to: tempFileURL)
+            
+            let task = backgroundSession.uploadTask(with: request, fromFile: tempFileURL)
+            task.resume()
+            print("[TELEMETRY] Background upload task submitted to daemon.")
+            
         } catch {
             print("[TELEMETRY] Error forwarding: \(error)")
         }

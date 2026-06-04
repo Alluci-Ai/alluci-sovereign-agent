@@ -1,5 +1,6 @@
 import Foundation
 import HealthKit
+import WatchKit
 
 class HealthKitManager: ObservableObject {
     let healthStore = HKHealthStore()

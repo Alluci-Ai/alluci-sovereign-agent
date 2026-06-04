@@ -20,7 +20,6 @@ struct PairingView: View {
                 TextField("Device ID", text: $deviceID)
                 
                 TextField("TOTP Code", text: $code)
-                    .keyboardType(.numberPad)
                 
                 if let error = errorText {
                     Text(error)
