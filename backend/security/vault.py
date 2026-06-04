@@ -61,18 +61,6 @@ class VaultManager:
         self.master_key = bytearray(sync_key.encode('utf-8')) if isinstance(sync_key, str) else bytearray(sync_key)
         
         self.vault_root = vault_root or os.path.expanduser("~/.polytope/vaults")
-        
-    def lock_vault(self):
-        """Securely wipes the master key and derived keys from RAM."""
-        if hasattr(self, 'master_key') and self.master_key:
-            for i in range(len(self.master_key)):
-                self.master_key[i] = 0
-        if hasattr(self, 'fernet_key') and self.fernet_key:
-            self.fernet_key = None
-        if hasattr(self, 'aes_key') and self.aes_key:
-            self.aes_key = None
-        self.private_key = None
-        logger.info("[SECURITY] Vault locked. Cryptographic material securely wiped from RAM.")
         self._ensure_vault_root_sync()
         
         # Salt Management for PBKDF2 (P1-004)
@@ -95,6 +83,18 @@ class VaultManager:
         self.vdxf = None
         if settings.VERUS_AUTH_ENABLED and settings.VERUS_ID_IDENTITY:
             self.vdxf = VDXFStore(settings.VERUS_ID_IDENTITY)
+        
+    def lock_vault(self):
+        """Securely wipes the master key and derived keys from RAM."""
+        if hasattr(self, 'master_key') and self.master_key:
+            for i in range(len(self.master_key)):
+                self.master_key[i] = 0
+        if hasattr(self, 'fernet_key') and self.fernet_key:
+            self.fernet_key = None
+        if hasattr(self, 'aes_key') and self.aes_key:
+            self.aes_key = None
+        self.private_key = None
+        logger.info("[SECURITY] Vault locked. Cryptographic material securely wiped from RAM.")
 
     def _get_rsa_keys(self):
         """Retrieves or generates RSA keys protected by the master key."""

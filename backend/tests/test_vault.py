@@ -189,7 +189,7 @@ class TestVaultEncryption:
             new_key = Fernet.generate_key().decode()
             success = await vault.rotate_keys(new_key)
             assert success is True
-            assert vault.master_key == new_key
+            assert vault.master_key == bytearray(new_key.encode('utf-8'))
             
             # 4. Verify data is still retrievable
             assert await vault.retrieve_secret("root_bridge") == root_payload
