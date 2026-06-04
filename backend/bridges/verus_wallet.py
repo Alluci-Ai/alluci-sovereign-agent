@@ -110,7 +110,7 @@ class VerusWalletBridge(BridgeAdapter):
         """Connects to the Verus node."""
         return await self.service.start_node()
 
-    async def send(self, to: str, content: str, **kwargs) -> Dict[str, Any]:
+    async def send(self, to: str, content: str, **kwargs) -> Dict[str, Any]:  # type: ignore
         """Sends a message (VDXF) or funds via the bridge."""
         # 1. Check if it's a numeric amount (send funds)
         try:

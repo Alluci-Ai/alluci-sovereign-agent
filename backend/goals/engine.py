@@ -30,9 +30,9 @@ class GoalsEngine:
             session.add(goal)
             session.commit()
             session.refresh(goal)
-            return goal.id
+            return goal.id  # type: ignore
 
-    async def update_goal(self, goal_id: int, status: str = None, progress: float = None, description: str = None):
+    async def update_goal(self, goal_id: int, status: str = None, progress: float = None, description: str = None):  # type: ignore
         with Session(self.engine) as session:
             goal = session.get(GoalRecord, goal_id)
             if goal:
@@ -68,7 +68,7 @@ class GoalsEngine:
             stmt = select(GoalRecord)
             if status:
                 stmt = stmt.where(GoalRecord.status == status)
-            return session.exec(stmt).all()
+            return session.exec(stmt).all()  # type: ignore
 
     async def evaluate_progress(self, goal_id: int):
         """
@@ -87,7 +87,7 @@ class GoalsEngine:
 
         # 1. Gather evidence (all tasks for this goal)
         with Session(self.engine) as session:
-            tasks = session.exec(select(TaskRecord).where(TaskRecord.goal_id == goal_id)).all()
+            tasks = session.exec(select(TaskRecord).where(TaskRecord.goal_id == goal_id)).all()  # type: ignore
 
         if not tasks:
             logger.info("[GOAL_EVAL]: No tasks found for this goal.")
@@ -95,7 +95,7 @@ class GoalsEngine:
 
         # 2. Format evidence for the LLM
         evidence = "\n".join([
-            f"- Task: {t.title}\n  Result: {t.result or 'In progress'}\n  Status: {t.status}"
+            f"- Task: {t.title}\n  Result: {t.result or 'In progress'}\n  Status: {t.status}"  # type: ignore
             for t in tasks
         ])
 

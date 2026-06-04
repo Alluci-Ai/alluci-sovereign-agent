@@ -25,7 +25,7 @@ def make_state(**kwargs) -> PolytopeState:
         "affective_tension_psi": 0.9,
     }
     defaults.update(kwargs)
-    return PolytopeState(**defaults)
+    return PolytopeState(**defaults)  # type: ignore
 
 
 class TestDPKSignatureGating:

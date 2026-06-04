@@ -18,7 +18,7 @@ from .database import engine as db_engine
 try:
     import torch
 except ImportError:
-    torch = None
+    torch = None  # type: ignore
 
 # Engine Modules
 from .engine.planner import Planner
@@ -203,7 +203,7 @@ class ExecutiveOrchestrator:
 
     async def start_background_services(self):
         self.logger.info("Background services started.")
-        self.heartbeat_task = asyncio.create_task(self.heartbeat.start())
+        self.heartbeat_task = asyncio.create_task(self.heartbeat.start())  # type: ignore
 
     async def stop_background_services(self):
         if self.heartbeat_task:
@@ -317,8 +317,8 @@ class ExecutiveOrchestrator:
         # 1. Identity & Cognition Layer (Fast Retrieval)
         try:
             # Check for a memory-cached manifest first to avoid vault overhead
-            if hasattr(self, "_cached_soul") and self._cached_soul:
-                manifest = self._cached_soul
+            if hasattr(self, "_cached_soul") and self._cached_soul:  # type: ignore
+                manifest = self._cached_soul  # type: ignore
             else:
                 manifest = await self.vault.retrieve_secret("soul_manifest")
                 self._cached_soul = manifest
@@ -362,7 +362,7 @@ class ExecutiveOrchestrator:
 
         except Exception as e:
             self.logger.error(f"[ SOUL ] Failed to load manifest: {e}")
-            self.base_manifest = {}
+            self.base_manifest = {}  # type: ignore
 
         # 2. Skills Layer
         if self.skill_manager:

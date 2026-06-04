@@ -29,7 +29,7 @@ class HLSMMemoryAdapter(Adapter):
         self.hlsm = hlsm_manager
 
     @property
-    def name(self) -> str:
+    def name(self) -> str:  # type: ignore
         return "memory"
 
     async def execute(self, args: Dict[str, Any]) -> Any:

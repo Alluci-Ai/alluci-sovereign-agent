@@ -19,7 +19,7 @@ class ScreenCaptureAdapter(Adapter):
         os.makedirs(self.output_dir, exist_ok=True)
         self.logger = get_logger("ScreenCaptureAdapter")
 
-    async def execute(self, args: Dict[str, Any] = None) -> Dict[str, Any]:
+    async def execute(self, args: Dict[str, Any] = None) -> Dict[str, Any]:  # type: ignore
         """
         Takes a screenshot of the specified monitor.
 

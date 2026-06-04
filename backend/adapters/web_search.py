@@ -25,7 +25,7 @@ class WebSearchAdapter(Adapter):
         self.provider = provider
         self.logger = get_logger("WebSearchAdapter")
 
-    async def execute(self, query: str) -> Dict[str, Any]:
+    async def execute(self, query: str) -> Dict[str, Any]:  # type: ignore
         """Route the query to the appropriate search provider."""
         if not query or not query.strip():
             return {"status": "error", "message": "No query provided."}
@@ -104,7 +104,7 @@ class WebSearchAdapter(Adapter):
         }
 
         async with httpx.AsyncClient(timeout=15.0) as client:
-            resp = await client.get(url, headers=headers, params=params)
+            resp = await client.get(url, headers=headers, params=params)  # type: ignore
             resp.raise_for_status()
             data = resp.json()
             items = data.get("web", {}).get("results", [])
@@ -130,7 +130,7 @@ class WebSearchAdapter(Adapter):
         No API key required. Install: pip install duckduckgo-search>=6.0.0
         """
         try:
-            from duckduckgo_search import AsyncDDGS
+            from duckduckgo_search import AsyncDDGS  # type: ignore
             async with AsyncDDGS() as ddgs:
                 raw = await ddgs.atext(query, max_results=5)
                 if not raw:

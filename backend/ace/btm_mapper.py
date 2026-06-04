@@ -78,8 +78,8 @@ class BTMMapper:
         self._handle = None
         
         # Python fallback fields
-        self._py_hrv_history = deque(maxlen=hrv_window)
-        self._py_gsr_history = deque(maxlen=hrv_window)
+        self._py_hrv_history = deque(maxlen=hrv_window)  # type: ignore
+        self._py_gsr_history = deque(maxlen=hrv_window)  # type: ignore
         self._py_max_hrv_observed = 100.0
         
         if _native_lib:

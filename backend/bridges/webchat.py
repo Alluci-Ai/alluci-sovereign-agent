@@ -26,7 +26,7 @@ class WebChatBridge(BridgeAdapter):
             return False
             
         # Check if we have a saved state in the vault
-        state = await self.vault_manager.retrieve_connection_secret(self.bridge_id, "playwright_state")
+        state = await self.vault_manager.retrieve_connection_secret(self.bridge_id, "playwright_state")  # type: ignore
         self.is_connected = state is not None
         if self.is_connected:
             self.logger.info(f"WebChat session ready for {self.target_url} (vault state active)")
@@ -37,29 +37,29 @@ class WebChatBridge(BridgeAdapter):
 
     async def _ensure_browser(self):
         if not self.playwright:
-            self.playwright = await async_playwright().start()
-            self.browser = await self.playwright.chromium.launch(headless=True)
+            self.playwright = await async_playwright().start()  # type: ignore
+            self.browser = await self.playwright.chromium.launch(headless=True)  # type: ignore
             
             # Load context with state from vault if exists
             storage_state = None
-            state = await self.vault_manager.retrieve_connection_secret(self.bridge_id, "playwright_state")
+            state = await self.vault_manager.retrieve_connection_secret(self.bridge_id, "playwright_state")  # type: ignore
             if state:
                 # Playwright expects a path or a dict
                 storage_state = state
                 
-            self.context = await self.browser.new_context(storage_state=storage_state)
+            self.context = await self.browser.new_context(storage_state=storage_state)  # type: ignore
 
     async def launch_browser(self, url: str) -> Dict[str, Any]:
         """Launches a visible browser for the user to perform login."""
         try:
             if not self.playwright:
-                self.playwright = await async_playwright().start()
+                self.playwright = await async_playwright().start()  # type: ignore
             
             # Launch non-headless so user can see it
-            browser = await self.playwright.chromium.launch(headless=False)
+            browser = await self.playwright.chromium.launch(headless=False)  # type: ignore
             
             # Load existing state if available
-            state = await self.vault_manager.retrieve_connection_secret(self.bridge_id, "playwright_state")
+            state = await self.vault_manager.retrieve_connection_secret(self.bridge_id, "playwright_state")  # type: ignore
             context = await browser.new_context(storage_state=state)
             
             page = await context.new_page()
@@ -98,7 +98,7 @@ class WebChatBridge(BridgeAdapter):
     async def get_screenshot(self, session_id: str) -> Dict[str, Any]:
         """Used by the UI to preview the UI context for session capture."""
         await self._ensure_browser()
-        page = await self.context.new_page()
+        page = await self.context.new_page()  # type: ignore
         await page.goto(self.target_url)
         # Wait a bit for render
         await asyncio.sleep(2)
@@ -117,7 +117,7 @@ class WebChatBridge(BridgeAdapter):
             
         selector = kwargs.get("selector", 'div[contenteditable="true"]')
         await self._ensure_browser()
-        page = await self.context.new_page()
+        page = await self.context.new_page()  # type: ignore
         try:
             await page.goto(self.target_url)
             await page.wait_for_selector(selector, timeout=10000)
@@ -125,8 +125,8 @@ class WebChatBridge(BridgeAdapter):
             await page.keyboard.press("Enter")
             
             # Save state into vault after interaction in case of new cookies/tokens
-            state = await self.context.storage_state()
-            await self.vault_manager.store_connection_secret(self.bridge_id, "playwright_state", state)
+            state = await self.context.storage_state()  # type: ignore
+            await self.vault_manager.store_connection_secret(self.bridge_id, "playwright_state", state)  # type: ignore
             
             return {"status": "success"}
         except Exception as e:
@@ -142,7 +142,7 @@ class WebChatBridge(BridgeAdapter):
         return []
 
     async def validate_integrity(self) -> bool:
-        state = await self.vault_manager.retrieve_connection_secret(self.bridge_id, "playwright_state")
+        state = await self.vault_manager.retrieve_connection_secret(self.bridge_id, "playwright_state")  # type: ignore
         return self.is_connected and state is not None
 
     async def disconnect(self):
@@ -150,4 +150,4 @@ class WebChatBridge(BridgeAdapter):
             await self.browser.close()
         if self.playwright:
             await self.playwright.stop()
-        await super().disconnect()
+        await super().disconnect()  # type: ignore

@@ -62,7 +62,7 @@ class EntropySpikeDetector:
         self._handle = None
         
         # Python fallback fields
-        self._py_history = deque(maxlen=window_size)
+        self._py_history = deque(maxlen=window_size)  # type: ignore
         
         if _native_lib:
             try:

@@ -141,7 +141,7 @@ class DiscreteProjectionKernel:
             return False
 
         if self.initialized and current.affective_tension_psi < 0.8:
-            topology_shift = sum(abs(current.betti[i] - self.prev_state.betti[i]) for i in range(4))
+            topology_shift = sum(abs(current.betti[i] - self.prev_state.betti[i]) for i in range(4))  # type: ignore
             if topology_shift > self.TEARING_THRESHOLD * 10.0:
                 logger.warning("[DPK] SAFETY: Manifold Tearing Detected.")
                 return False

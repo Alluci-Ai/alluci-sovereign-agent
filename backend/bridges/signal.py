@@ -57,8 +57,8 @@ class SignalBridge(BridgeAdapter):
         from ..config import settings
 
         self.phone_number = credentials.get("phone_number")
-        self._cli_path    = credentials.get("cli_path") or settings.SIGNAL_CLI_PATH
-        self._socket_path = credentials.get("socket_path") or settings.SIGNAL_SOCKET_PATH
+        self._cli_path    = credentials.get("cli_path") or settings.SIGNAL_CLI_PATH  # type: ignore
+        self._socket_path = credentials.get("socket_path") or settings.SIGNAL_SOCKET_PATH  # type: ignore
 
         if not self.phone_number:
             self.last_error = "phone_number required for Signal bridge."
@@ -100,7 +100,7 @@ class SignalBridge(BridgeAdapter):
         try:
             self._daemon_process = await asyncio.create_subprocess_exec(
                 self._cli_path,
-                "-u", self.phone_number,
+                "-u", self.phone_number,  # type: ignore
                 "daemon",
                 "--socket", self._socket_path,
                 "--ignore-stories",
@@ -284,7 +284,7 @@ class SignalBridge(BridgeAdapter):
         while self.is_connected:
             try:
                 proc = await asyncio.create_subprocess_exec(
-                    self._cli_path, "-u", self.phone_number, "receive", "--json",
+                    self._cli_path, "-u", self.phone_number, "receive", "--json",  # type: ignore
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                 )
@@ -370,7 +370,7 @@ class SignalBridge(BridgeAdapter):
 
         try:
             proc = await asyncio.create_subprocess_exec(
-                *cmd,
+                *cmd,  # type: ignore
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -423,7 +423,7 @@ class SignalBridge(BridgeAdapter):
                 self._daemon_process.kill()
             self._daemon_process = None
 
-        await super().disconnect()
+        await super().disconnect()  # type: ignore
         self.logger.info("[SIGNAL] Bridge disconnected.")
 
     # ── Supporting Methods ───────────────────────────────────────────────────

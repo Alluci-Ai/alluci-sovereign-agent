@@ -21,7 +21,7 @@ def test_id_jag_token_compliance():
     assert "sub" in test_claims
     assert "aud" in test_claims
     assert test_claims["email_verified"] is True
-    assert test_claims["exp"] > test_claims["iat"]
+    assert test_claims["exp"] > test_claims["iat"]  # type: ignore
 
 from unittest.mock import patch, MagicMock, AsyncMock
 

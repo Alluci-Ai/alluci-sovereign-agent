@@ -84,10 +84,10 @@ class MemoryManager:
         )
 
         memories = []
-        docs = results.get("documents", [[]])[0]
+        docs = results.get("documents", [[]])[0]  # type: ignore
         ids = results.get("ids", [[]])[0]
-        metas = results.get("metadatas", [[]])[0]
-        dists = results.get("distances", [[None] * len(docs)])[0]
+        metas = results.get("metadatas", [[]])[0]  # type: ignore
+        dists = results.get("distances", [[None] * len(docs)])[0]  # type: ignore
 
         for doc, mem_id, meta, dist in zip(docs, ids, metas, dists):
             memories.append({

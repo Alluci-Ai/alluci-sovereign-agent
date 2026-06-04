@@ -6,7 +6,7 @@ from backend.config import Settings
 
 @pytest.mark.asyncio
 async def test_psi_routing_logic():
-    settings = Settings(
+    settings = Settings(  # type: ignore
         GEMINI_API_KEY="test",
         LOCAL_LLM_ENABLED=False,
         LOCAL_LCE_ENABLED=False,
@@ -21,7 +21,7 @@ async def test_psi_routing_logic():
     router.lm_studio_client = None
     
     # Mock request methods
-    router._gemini_request = AsyncMock(return_value="gemini response")
+    router._gemini_request = AsyncMock(return_value="gemini response")  # type: ignore
     from backend.inference.router import GEMINI_AVAILABLE
     print("GEMINI_AVAILABLE:", GEMINI_AVAILABLE)
     print("router.gemini_flash:", router.gemini_flash)

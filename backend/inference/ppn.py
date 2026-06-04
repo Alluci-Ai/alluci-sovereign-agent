@@ -222,18 +222,18 @@ class PPNEmbeddingModule:
         diff = points[:, np.newaxis, :] - points[np.newaxis, :, :]
         d_matrix = np.sqrt(np.sum(diff**2, axis=-1))
         adj = (d_matrix < 0.5).astype(int)
-        e = int(np.sum(np.triu(adj, k=1)))
+        e = int(np.sum(np.triu(adj, k=1)))  # type: ignore
         
         # 3. Faces (3nd order cliques)
-        f = 0
+        f = 0  # type: ignore
         for i in range(n):
             for j in range(i+1, n):
                 if adj[i, j]:
                     for k in range(j+1, n):
                         if adj[i, k] and adj[j, k]:
-                            f += 1
+                            f += 1  # type: ignore
         
-        return (v, e, f)
+        return (v, e, f)  # type: ignore
 
     def compute_phi_total(self, betti: list, affect_state: "AffectiveState") -> int:
         """

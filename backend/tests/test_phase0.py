@@ -16,7 +16,7 @@ def test_oauth_config_keys():
 def test_bridge_endpoints_registered():
     # We can't easily test the full flow without a real token, 
     # but we can check if the routes exist.
-    routes = [route.path for route in app.routes]
+    routes = [route.path for route in app.routes]  # type: ignore
     assert "/api/v1/channels/{channel_id}/send" in routes
     assert "/api/v1/channels/{channel_id}/upload" in routes
     assert "/api/v1/channels/{channel_id}/health" in routes

@@ -150,7 +150,7 @@ class LogStreamHandler:
 
         try:
             # Send initial history based on starting filters
-            history = self.log_buffer.get_history(limit=200, level=config["level"], session_key=config["session_key"])
+            history = self.log_buffer.get_history(limit=200, level=config["level"], session_key=config["session_key"])  # type: ignore
             for entry in history:
                 await websocket.send_text(json.dumps(entry))
 
@@ -158,7 +158,7 @@ class LogStreamHandler:
                 entry = await queue.get()
                 
                 # Dynamic Filtering
-                if config["level"] and entry.get("level", "").upper() != config["level"].upper():
+                if config["level"] and entry.get("level", "").upper() != config["level"].upper():  # type: ignore
                     continue
                 if config["session_key"] and entry.get("session_key") != config["session_key"]:
                     continue

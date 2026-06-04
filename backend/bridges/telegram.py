@@ -32,7 +32,7 @@ class TelegramBridge(BridgeAdapter):
         self.bot_username: str = ""
         self.api_url = "https://api.telegram.org/bot"
         self.webhook_url: Optional[str] = None
-        self.last_activity: Optional[datetime] = None
+        self.last_activity: Optional[datetime] = None  # type: ignore
         self.last_error: Optional[str] = None
         self.accounts: Dict[str, Dict[str, Any]] = {}  # chat_id -> info
         self._update_offset: int = 0
@@ -106,7 +106,7 @@ class TelegramBridge(BridgeAdapter):
         if not self.is_connected or not self.bot_token:
             return {"ok": False, "error": "Bot not connected"}
         
-        self.last_activity = datetime.now(timezone.utc).isoformat()
+        self.last_activity = datetime.now(timezone.utc).isoformat()  # type: ignore
         url = f"{self.api_url}{self.bot_token}/sendMessage"
         payload = {
             "chat_id": recipient,
@@ -149,7 +149,7 @@ class TelegramBridge(BridgeAdapter):
                 self._track_account(msg)
         
         if messages:
-            self.last_activity = datetime.now(timezone.utc).isoformat()
+            self.last_activity = datetime.now(timezone.utc).isoformat()  # type: ignore
         return messages
 
     async def _poll_loop(self):
@@ -191,7 +191,7 @@ class TelegramBridge(BridgeAdapter):
                 await self.client.get(f"{self.api_url}{self.bot_token}/deleteWebhook")
             except Exception as e:
                 self.logger.warning(f"Telegram: Webhook delete failed on disconnect: {e}")
-        await super().disconnect()
+        await super().disconnect()  # type: ignore
 
     def _parse_inbound(self, msg: Dict[str, Any]) -> Dict[str, Any]:
         """Inbound message parsing: text, photo, document, voice, sticker."""
@@ -238,7 +238,7 @@ class TelegramBridge(BridgeAdapter):
             "last_name": sender.get("last_name"),
             "last_seen": datetime.now(timezone.utc).isoformat()
         }
-        self.last_activity = datetime.now(timezone.utc).isoformat()
+        self.last_activity = datetime.now(timezone.utc).isoformat()  # type: ignore
         self._save_accounts()
 
     async def _handle_update(self, update: Dict[str, Any]):

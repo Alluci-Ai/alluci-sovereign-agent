@@ -11,9 +11,9 @@ def client():
 
 def test_patch_endpoint(client):
     # Mock orchestrator
-    app_module.orchestrator = MagicMock()
-    app_module.orchestrator.ace.get_affective_state = MagicMock()
-    app_module.orchestrator.ace.btm.psi_from_state = MagicMock(return_value=0.5)
+    app_module.orchestrator = MagicMock()  # type: ignore
+    app_module.orchestrator.ace.get_affective_state = MagicMock()  # type: ignore
+    app_module.orchestrator.ace.btm.psi_from_state = MagicMock(return_value=0.5)  # type: ignore
 
     # Note: verify_authenticated dependency might block this. 
     # For unit test, we can mock Depends(verify_authenticated) or use a bypass.

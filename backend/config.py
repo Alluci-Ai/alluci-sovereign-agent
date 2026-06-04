@@ -121,6 +121,7 @@ class Settings(BaseSettings):
     VERUS_ID_IDENTITY: Optional[str] = None
     VERUS_ID_PRIVATE_KEY: Optional[str] = None
     VERUS_SYSTEM_ID: str = "i5w5MuNik5NtLcYmNzcvaoixooEebB6MGV"  # VRSC
+    VERUS_PBAAS_CHAINS: List[str] = ["VRSC", "vETH"]
     UNOFFICIAL_BRIDGES_ENABLED: bool = False
     
     # Auth & Cookies
@@ -165,7 +166,7 @@ class Settings(BaseSettings):
 
 def load_settings() -> Settings:
     try:
-        return Settings()
+        return Settings()  # type: ignore
     except Exception as e:
         logger.critical(f"Config Fail: {e}")
         sys.exit(1)

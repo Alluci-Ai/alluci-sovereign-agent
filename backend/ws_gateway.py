@@ -349,7 +349,7 @@ class JsonRpcGateway:
                 status = "unknown"
                 if hasattr(adapter, "is_connected"):
                     status = "connected" if await adapter.is_connected() else "disconnected"
-                health["bridges"][cid] = status
+                health["bridges"][cid] = status  # type: ignore
 
         return health
 
@@ -413,7 +413,7 @@ class JsonRpcGateway:
     async def _rpc_exec_allow(self, params: dict, client: ConnectedClient) -> dict:
         mgr = self._service_refs.get("approval_manager")
         if not mgr: return {"error": "No approval manager"}
-        return mgr.handle_allow(
+        return await mgr.handle_allow(
             params.get("request_id"),
             persist=params.get("persist", False),
             command=params.get("command", ""),
@@ -423,9 +423,9 @@ class JsonRpcGateway:
     async def _rpc_exec_deny(self, params: dict, client: ConnectedClient) -> dict:
         mgr = self._service_refs.get("approval_manager")
         if not mgr: return {"error": "No approval manager"}
-        return mgr.handle_deny(
+        return await mgr.handle_deny(
             params.get("request_id"),
-            persist=params.get("persist", False),
+            feedback=params.get("feedback", ""),
             command=params.get("command", ""),
             tool_name=params.get("tool_name", "")
         )

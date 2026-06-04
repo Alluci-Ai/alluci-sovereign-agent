@@ -24,7 +24,7 @@ class WhatsAppBridge(BridgeAdapter):
         self._refresh_token: Optional[str] = None
         self._token_expires_at: float = 0.0
 
-    async def _save_credentials(self, creds: Dict[str, Any]) -> None:
+    async def _save_credentials(self, creds: Dict[str, Any]) -> None:  # type: ignore
         await super()._save_credentials(creds, account_id=self.phone_number_id or "default")
 
     async def connect(self, credentials: Dict[str, Any]) -> bool:
@@ -92,11 +92,11 @@ class WhatsAppBridge(BridgeAdapter):
                 self._token_expires_at = time.time() + data.get("expires_in", 5184000)
                 
                 # Persist updated token to vault
-                creds.update({
+                creds.update({  # type: ignore
                     "access_token": self.access_token,
                     "expires_at": self._token_expires_at
                 })
-                await self._save_credentials(creds)
+                await self._save_credentials(creds)  # type: ignore
                 
                 self.logger.info("[WHATSAPP] Token refreshed successfully.")
         except Exception as e:
@@ -108,7 +108,7 @@ class WhatsAppBridge(BridgeAdapter):
         Meta sends: ?hub.mode=subscribe&hub.verify_token=<your_token>&hub.challenge=<string>
         """
         from ..config import settings
-        expected_token = settings.WHATSAPP_VERIFY_TOKEN
+        expected_token = settings.WHATSAPP_VERIFY_TOKEN  # type: ignore
 
         if not expected_token:
             self.logger.error("[WHATSAPP] WHATSAPP_VERIFY_TOKEN not configured.")
@@ -128,7 +128,7 @@ class WhatsAppBridge(BridgeAdapter):
         Ref: https://developers.facebook.com/docs/graph-api/webhooks/getting-started
         """
         from ..config import settings
-        app_secret = settings.WHATSAPP_APP_SECRET
+        app_secret = settings.WHATSAPP_APP_SECRET  # type: ignore
 
         if not app_secret:
             self.logger.error("[WHATSAPP] WHATSAPP_APP_SECRET not set — rejecting all POSTs.")

@@ -53,7 +53,7 @@ async def preview_soul_response(request: Request, prompt: str = Body(...), csrf_
     """Previews how the current soul manifest would respond to a prompt."""
     if not services.orchestrator:
         raise HTTPException(status_code=503, detail="Orchestrator not ready")
-    return await services.orchestrator.preview_soul_response(prompt)
+    return await services.orchestrator.preview_soul_response(prompt)  # type: ignore
 
 @router.get("/soul/preferences", dependencies=[Depends(verify_authenticated)])
 async def get_soul_preferences():

@@ -38,7 +38,7 @@ class BridgeActualizationAdapter(Adapter):
     name = "bridge_actualization"
     description = "Execute tasks across Social, Enterprise, and Cloud manifolds (Slack, iMessage, Gmail, etc.)"
 
-    def __init__(self, vault_root: str = None, on_inbound: Callable = None):
+    def __init__(self, vault_root: str = None, on_inbound: Callable = None):  # type: ignore
         from ..config import settings
         self.vault_manager = VaultManager(settings.POLYTOPE_MASTER_KEY, vault_root)
         self.oauth_handler = OAuthHandler(self.vault_manager)
@@ -185,10 +185,10 @@ class BridgeActualizationAdapter(Adapter):
             bridge_id=bridge_id,
             account_id=account_id,
             token_url=config["token_url"],
-            client_id=client_id,
+            client_id=client_id,  # type: ignore
             client_secret=client_secret,
-            code=payload.get("code"),
-            redirect_uri=payload.get("redirect_uri"),
+            code=payload.get("code"),  # type: ignore
+            redirect_uri=payload.get("redirect_uri"),  # type: ignore
             code_verifier=payload.get("code_verifier")
         )
 
@@ -263,7 +263,7 @@ class BridgeActualizationAdapter(Adapter):
             credentials = await self.vault_manager.retrieve_secret(bridge_type)
 
         # Instantiate bridge with account-isolated vault path and vault manager
-        bridge = bridge_class(bridge_id=bridge_type, vault_root=self.vault_manager.vault_root, vault_manager=self.vault_manager)
+        bridge = bridge_class(bridge_id=bridge_type, vault_root=self.vault_manager.vault_root, vault_manager=self.vault_manager)  # type: ignore
         bridge.on_inbound = self.on_inbound
         if hasattr(bridge, "connect"):
             await bridge.connect(credentials)

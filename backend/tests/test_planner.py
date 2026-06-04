@@ -122,7 +122,7 @@ class TestDAGValidation:
         planner = Planner(mock_router)
         mock_router.get_structured_plan = AsyncMock(return_value={"steps": []})
         with pytest.raises(ValueError):
-            await planner.generate_plan("empty objective", context={})
+            await planner.generate_plan("empty objective", context={})  # type: ignore
 
 
 class TestExecutorParallelism:
@@ -152,8 +152,8 @@ class TestExecutorParallelism:
 
         executor = Executor(mock_adapter_registry, session_factory=lambda: temp_db, max_concurrent=5)
         # Mock out DB commits to avoid SQLite skewing parallel timing
-        executor._update_task_record = MagicMock()
-        executor._init_task_records = MagicMock()
+        executor._update_task_record = MagicMock()  # type: ignore
+        executor._init_task_records = MagicMock()  # type: ignore
 
         tasks = {
             "t1": DAGTask(id="t1", action="tool_a", args={}, dependencies=[]),

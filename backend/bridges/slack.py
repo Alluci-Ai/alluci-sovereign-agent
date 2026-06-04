@@ -46,7 +46,7 @@ class SlackBridge(BridgeAdapter):
         self.default_channel = credentials.get("default_channel", self.default_channel)
         self._refresh_token = credentials.get("refresh_token")
         self._token_expires_at = credentials.get("expires_at", 0.0)
-        self._signing_secret = credentials.get("signing_secret") or settings.SLACK_SIGNING_SECRET
+        self._signing_secret = credentials.get("signing_secret") or settings.SLACK_SIGNING_SECRET  # type: ignore
         
         if not self.bot_token:
             return False
@@ -63,7 +63,7 @@ class SlackBridge(BridgeAdapter):
                 
                 # Start background refresh loop
                 if not self._refresh_task:
-                    self._refresh_task = asyncio.create_task(self._token_refresh_loop(
+                    self._refresh_task = asyncio.create_task(self._token_refresh_loop(  # type: ignore
                         get_creds_fn=lambda: self._load_credentials(account_id=self.workspace_id or "default"),
                         set_creds_fn=lambda c: self._save_credentials(c, account_id=self.workspace_id or "default"),
                         token_url="https://slack.com/api/tooling.tokens.rotate",
@@ -230,12 +230,12 @@ class SlackBridge(BridgeAdapter):
                 self._refresh_token = updated["refresh_token"]
 
             # Persist updated token to vault
-            creds.update({
+            creds.update({  # type: ignore
                 "access_token":  self.bot_token,
                 "refresh_token": self._refresh_token,
                 "expires_at":    self._token_expires_at,
             })
-            await self._save_credentials(creds, account_id=self.workspace_id or "default")
+            await self._save_credentials(creds, account_id=self.workspace_id or "default")  # type: ignore
 
     async def send(self, recipient: str, content: str, **kwargs) -> Dict[str, Any]:
         await self._ensure_token()

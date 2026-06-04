@@ -49,7 +49,7 @@ class TunnelHandler:
 
     async def _run_loop(self):
         """Main connection loop with production-grade exponential backoff."""
-        uri = f"{self.relay_url.rstrip('/')}/tunnel/{self.daemon_id}"
+        uri = f"{self.relay_url.rstrip('/')}/tunnel/{self.daemon_id}"  # type: ignore
         
         # In production, this would be an actual VDXF-signed token or similar
         headers = {

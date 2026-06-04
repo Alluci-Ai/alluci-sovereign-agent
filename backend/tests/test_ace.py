@@ -19,7 +19,7 @@ def make_telemetry(**kwargs):
         "focus": 0.6, "sleep_efficiency": 0.85, "respiratory_rate": 15.0
     }
     defaults.update(kwargs)
-    return TelemetryData(**defaults)
+    return TelemetryData(**defaults)  # type: ignore
 
 
 class TestACEFlowStates:

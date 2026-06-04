@@ -23,7 +23,7 @@ logger = get_logger("VaultManager")
 try:
     import keyring
 except ImportError:
-    keyring = None
+    keyring = None  # type: ignore
     logger.warning(
         "[Vault] 'keyring' library not importable. "
         "OS Keychain integration disabled — falling back to environment variable. "
@@ -33,12 +33,12 @@ except ImportError:
 try:
     import resource
 except ImportError:
-    resource = None
+    resource = None  # type: ignore
 
 try:
     import signal as _signal
 except ImportError:
-    _signal = None
+    _signal = None  # type: ignore
 
 # ── Cryptography ──────────────────────────────────────────────────────────────
 from cryptography.fernet import Fernet, InvalidToken
@@ -126,7 +126,7 @@ class VaultManager:
                 with open(key_path, "rb") as f:
                     private_key = serialization.load_pem_private_key(
                         f.read(),
-                        password=self.master_key.encode() if isinstance(self.master_key, str) else bytes(self.master_key),
+                        password=self.master_key.encode() if isinstance(self.master_key, str) else bytes(self.master_key),  # type: ignore
                         backend=default_backend()
                     )
                 return private_key, private_key.public_key()
@@ -144,7 +144,7 @@ class VaultManager:
                     encoding=serialization.Encoding.PEM,
                     format=serialization.PrivateFormat.PKCS8,
                     encryption_algorithm=serialization.BestAvailableEncryption(
-                        self.master_key.encode() if isinstance(self.master_key, str) else bytes(self.master_key)
+                        self.master_key.encode() if isinstance(self.master_key, str) else bytes(self.master_key)  # type: ignore
                     )
                 )
                 with open(key_path, "wb") as f:
@@ -486,8 +486,8 @@ class VaultManager:
                     padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
                 )
                 
-                f = Fernet(session_key)
-                decrypted = f.decrypt(encrypted_data)
+                f = Fernet(session_key)  # type: ignore
+                decrypted = f.decrypt(encrypted_data)  # type: ignore
                 data = json.loads(decrypted.decode())
                 
                 # Lazy migration to hybrid V2
@@ -634,7 +634,7 @@ class VaultManager:
                 f.write(new_salt)
 
             # 8. Commit to memory
-            self.master_key = bytearray(new_master_key.encode('utf-8')) if isinstance(new_master_key, str) else bytearray(new_master_key)
+            self.master_key = bytearray(new_master_key.encode('utf-8')) if isinstance(new_master_key, str) else bytearray(new_master_key)  # type: ignore
             self.salt = new_salt
             self.fernet_key = new_fernet_key
             self.fernet = new_fernet

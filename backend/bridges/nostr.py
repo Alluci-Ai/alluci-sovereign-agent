@@ -36,7 +36,7 @@ class NostrBridge(BridgeAdapter):
     def __init__(self, bridge_id: str, vault_root: str, vault_manager: Optional[Any] = None):
         super().__init__(bridge_id, vault_root, vault_manager)
         self.keys: Optional[Keys] = None
-        self.client: Optional[Client] = None
+        self.client: Optional[Client] = None  # type: ignore
         self.relays: List[str] = [
             "wss://relay.damus.io",
             "wss://relay.snort.social",
@@ -105,8 +105,8 @@ class NostrBridge(BridgeAdapter):
         if not self.client: return
         
         # Filter for DMs (Kind 4) and Mentions (Kind 1)
-        dm_filter = Filter().pubkey(self.keys.public_key()).kind(Kind(4))
-        mention_filter = Filter().pubkey(self.keys.public_key()).kind(Kind(1))
+        dm_filter = Filter().pubkey(self.keys.public_key()).kind(Kind(4))  # type: ignore
+        mention_filter = Filter().pubkey(self.keys.public_key()).kind(Kind(1))  # type: ignore
         
         await self.client.subscribe([dm_filter, mention_filter])
         self.logger.info("[ NOSTR ] Subscription active for DMs and Mentions.")
@@ -125,7 +125,7 @@ class NostrBridge(BridgeAdapter):
                             "body": decrypted,
                             "protocol": "NOSTR",
                             "kind": 4,
-                            "timestamp": datetime.fromtimestamp(event.created_at().as_secs(), timezone.utc).isoformat()
+                            "timestamp": datetime.fromtimestamp(event.created_at().as_secs(), timezone.utc).isoformat()  # type: ignore
                         }
                         await self._dispatch_inbound(normalized)
                     elif event.kind() == Kind(1):
@@ -136,11 +136,11 @@ class NostrBridge(BridgeAdapter):
                             "body": event.content(),
                             "protocol": "NOSTR",
                             "kind": 1,
-                            "timestamp": datetime.fromtimestamp(event.created_at().as_secs(), timezone.utc).isoformat()
+                            "timestamp": datetime.fromtimestamp(event.created_at().as_secs(), timezone.utc).isoformat()  # type: ignore
                         }
                         await self._dispatch_inbound(normalized)
                     
-                    self.last_activity = datetime.now(timezone.utc).isoformat()
+                    self.last_activity = datetime.now(timezone.utc).isoformat()  # type: ignore
             except Exception as e:
                 self.logger.error(f"[ NOSTR ] Notification processing error: {e}")
 
@@ -199,7 +199,7 @@ class NostrBridge(BridgeAdapter):
         """Retrieves recent DMs for this identity."""
         if not self.client: return []
         try:
-            f = Filter().pubkey(self.keys.public_key()).kind(Kind(4)).limit(limit)
+            f = Filter().pubkey(self.keys.public_key()).kind(Kind(4)).limit(limit)  # type: ignore
             events = await self.client.get_events_of([f], None)
             
             processed = []

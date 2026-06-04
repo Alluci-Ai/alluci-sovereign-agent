@@ -121,7 +121,7 @@ class TestExecutor:
             session.commit()
             run_id = run.id
 
-        result = await executor.execute_dag(run_id, tasks)
+        result = await executor.execute_dag(run_id, tasks)  # type: ignore
         assert result["step_1"].status == TaskStatus.COMPLETED
 
     @pytest.mark.asyncio
@@ -143,7 +143,7 @@ class TestExecutor:
             session.commit()
             run_id = run.id
         
-        result = await executor.execute_dag(run_id, tasks)
+        result = await executor.execute_dag(run_id, tasks)  # type: ignore
         assert result["step_1"].status == TaskStatus.COMPLETED
         assert result["step_2"].status == TaskStatus.COMPLETED
 
@@ -165,7 +165,7 @@ class TestExecutor:
             session.commit()
             run_id = run.id
 
-        await executor.execute_dag(run_id, tasks)
+        await executor.execute_dag(run_id, tasks)  # type: ignore
         
         with Session(temp_db) as session:
             task_record = session.exec(select(TaskRecord).where(TaskRecord.run_id == run_id)).first()
@@ -193,7 +193,7 @@ class TestExecutor:
             session.commit()
             run_id = run.id
 
-        result = await executor.execute_dag(run_id, tasks)
+        result = await executor.execute_dag(run_id, tasks)  # type: ignore
         assert result["step_1"].status == TaskStatus.FAILED
 
     @pytest.mark.asyncio
@@ -220,7 +220,7 @@ class TestExecutor:
             session.commit()
             run_id = run.id
 
-        result = await executor.execute_dag(run_id, tasks)
+        result = await executor.execute_dag(run_id, tasks)  # type: ignore
         assert result["step_1"].status == TaskStatus.FAILED
         assert result["step_2"].status == TaskStatus.FAILED
         assert result["step_2"].result is not None

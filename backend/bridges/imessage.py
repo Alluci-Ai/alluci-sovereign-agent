@@ -110,7 +110,7 @@ class IMessageBridge(BridgeAdapter):
 
     async def check_permission(self) -> Dict[str, bool]:
         if not self.is_macos:
-            return {"error": "macOS required"}
+            return {"error": "macOS required"}  # type: ignore
         return await self._run(self._check_permissions_sync)
 
     # ── Connection ───────────────────────────────────────────────────────────
@@ -316,7 +316,7 @@ class IMessageBridge(BridgeAdapter):
             except asyncio.CancelledError:
                 pass
         self._save_cursor(self._last_rowid)
-        await super().disconnect()
+        await super().disconnect()  # type: ignore
         self.logger.info("[IMESSAGE] Disconnected. Cursor persisted.")
 
     # ── Supporting Methods ───────────────────────────────────────────────────

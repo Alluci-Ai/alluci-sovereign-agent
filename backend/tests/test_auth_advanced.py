@@ -106,7 +106,7 @@ class TestVerusIDAuth:
             
             # Check if stored for polling
             status = await auth.get_login_status("test-cid")
-            assert status["identity"] == "alluci@"
+            assert status["identity"] == "alluci@"  # type: ignore
 
 class TestAuthIntegrationAdvanced:
     def test_webauthn_verify_invalid_challenge(self, app_client):

@@ -244,8 +244,8 @@ class TopologyMapper:
         arr = np.array(self._py_history)
         centroid = np.mean(arr, axis=0)
         c_val, c_ar = centroid[0], centroid[1]
-        in_stress_basin = (c_ar > 0.7) and (c_val < 0.3)
-        return (c_val, c_ar), in_stress_basin
+        in_stress_basin = (c_ar > 0.7) and (c_val < 0.3)  # type: ignore
+        return (c_val, c_ar), in_stress_basin  # type: ignore
 
 
 # --- Main Module ---

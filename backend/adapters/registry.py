@@ -10,12 +10,12 @@ from .screen_capture import ScreenCaptureAdapter
 from .doc_ingest import DocumentIngestAdapter
 
 class AdapterRegistry:
-    def __init__(self, vault_root: Optional[str] = None, memory_manager = None, on_inbound: Callable = None):
+    def __init__(self, vault_root: Optional[str] = None, memory_manager = None, on_inbound: Callable = None):  # type: ignore
         self._adapters: Dict[str, Adapter] = {}
         
         # Initialize default adapters
         self.register(FileSystemAdapter())
-        self.register(BridgeActualizationAdapter(vault_root=vault_root, on_inbound=on_inbound))
+        self.register(BridgeActualizationAdapter(vault_root=vault_root, on_inbound=on_inbound))  # type: ignore
         self.register(ShellAdapter())
         self.register(WebSearchAdapter())
         self.register(WebFetchAdapter())

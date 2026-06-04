@@ -97,7 +97,7 @@ class DreamingCycleDaemon:
         self.tokenizer = None
         
         if MLX_AVAILABLE:
-            mx.set_default_device(mx.gpu)
+            mx.set_default_device(mx.gpu)  # type: ignore
             if os.path.exists(core_model_path):
                 try:
                     self.model, self.tokenizer = load_model(core_model_path)
@@ -140,6 +140,7 @@ class DreamingCycleDaemon:
 
         # Execute training loops to align local weights with external solution models
         def _train_loop():
+            assert self.model is not None
             loss_value = None
             for epoch in range(2):
                 for token_inputs, target_outputs in training_batches:
@@ -147,11 +148,11 @@ class DreamingCycleDaemon:
                         logits = model_instance(inputs)
                         return nn.losses.cross_entropy(logits, labels).mean()
 
-                    loss_and_grads = nn.value_and_grad(self.model, loss_evaluation)
+                    loss_and_grads = nn.value_and_grad(self.model, loss_evaluation)  # type: ignore
                     loss_value, gradients = loss_and_grads(self.model, token_inputs, target_outputs)
                     
-                    optimizer.update(self.model, gradients)
-                    mx.eval(self.model.parameters(), optimizer.state) # Synchronize on GPU
+                    optimizer.update(self.model, gradients)  # type: ignore
+                    mx.eval(self.model.parameters(), optimizer.state) # Synchronize on GPU  # type: ignore
                     
                 if loss_value is not None:
                     logger.info(f"[DREAM ENGINE] {agent_id} Optimization Pass {epoch + 1} Stable. Loss: {loss_value.item():.4f}")
@@ -161,7 +162,7 @@ class DreamingCycleDaemon:
             try:
                 from mlx.utils import tree_flatten
                 import mlx.core as mx
-                trainable_params = {k: v for k, v in tree_flatten(self.model.trainable_parameters())}
+                trainable_params = {k: v for k, v in tree_flatten(self.model.trainable_parameters())}  # type: ignore
                 mx.save_safetensors(lora_path, trainable_params)
                 logger.info(f"[LORA FORGE] New skill configurations successfully serialized to {lora_path}")
             except Exception as e:
@@ -250,10 +251,10 @@ class DreamingCycleDaemon:
                         logits = model(inputs)
                         return nn.losses.cross_entropy(logits, labels).mean()
 
-                    loss_and_grads = nn.value_and_grad(self.model, loss_fn)
+                    loss_and_grads = nn.value_and_grad(self.model, loss_fn)  # type: ignore
                     loss_value, gradients = loss_and_grads(self.model, audio_tokens, text_tokens)
-                    optimizer.update(self.model, gradients)
-                    mx.eval(self.model.parameters(), optimizer.state)
+                    optimizer.update(self.model, gradients)  # type: ignore
+                    mx.eval(self.model.parameters(), optimizer.state)  # type: ignore
 
                 logger.info(f"[MICRO-TUNE] Voice alignment epoch {epoch + 1} complete.")
 

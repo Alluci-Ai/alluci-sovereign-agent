@@ -641,7 +641,7 @@ class HeartbeatDaemon:
                 # [ PPN-011 ] Sleep State Evaluation (Dream Cycle)
                 from . import services
                 if getattr(services, "ace_engine", None):
-                    current_affect = services.ace_engine.get_affective_state()
+                    current_affect = services.ace_engine.get_affective_state()  # type: ignore
                     
                     if self._dream_orchestrator and await self._dream_orchestrator.evaluate_sleep_trigger(current_affect):
                         # Trigger the dream cycle, which suspends normal polling

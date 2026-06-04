@@ -63,7 +63,7 @@ class SovereignIdentity:
             secrets = await self._vault.retrieve_secret("sovereign_identity")
             if secrets and "private_key" in secrets:
                 self.private_key_hex = secrets["private_key"]
-                seed_bytes = bytes.fromhex(self.private_key_hex)
+                seed_bytes = bytes.fromhex(self.private_key_hex)  # type: ignore
                 self._private_key = Ed25519PrivateKey.from_private_bytes(seed_bytes[:32])
                 logger.info(f"[SOVEREIGN] Identity key loaded from Vault for {self.verus_id}")
         except Exception as e:
@@ -120,7 +120,7 @@ class SovereignIdentity:
             try:
                 public_key_bytes = bytes.fromhex(signed_manifest.get("publicKey", ""))
                 public_key = Ed25519PublicKey.from_public_bytes(public_key_bytes)
-                sig_bytes = bytes.fromhex(sig)
+                sig_bytes = bytes.fromhex(sig)  # type: ignore
                 public_key.verify(sig_bytes, payload_bytes)
                 return True
             except Exception as e:

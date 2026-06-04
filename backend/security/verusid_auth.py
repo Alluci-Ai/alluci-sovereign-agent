@@ -42,7 +42,7 @@ class VerusIDAuth:
                 json.dumps(data)
             )
         else:
-            self.challenges[challenge_id] = tuple(data)
+            self.challenges[challenge_id] = tuple(data)  # type: ignore
             self._cleanup()
         return {
             "challenge_id": challenge_id,
@@ -98,7 +98,7 @@ class VerusIDAuth:
                         json.dumps(data)
                     )
                 else:
-                    self.challenges[challenge_id] = tuple(data)
+                    self.challenges[challenge_id] = tuple(data)  # type: ignore
             
             return res
         except Exception as e:

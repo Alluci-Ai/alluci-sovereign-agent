@@ -47,7 +47,7 @@ async def execute_sop(request: Request, sop_id: int, context_overrides: Optional
     if not services.sop_engine:
         raise HTTPException(status_code=503, detail="SOP engine not ready")
     try:
-        result = await services.sop_engine.execute_sop(sop_id, context_overrides=context_overrides)
+        result = await services.sop_engine.execute_sop(sop_id, context_overrides=context_overrides)  # type: ignore
         return result
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))

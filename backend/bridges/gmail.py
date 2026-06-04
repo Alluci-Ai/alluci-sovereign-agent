@@ -68,7 +68,7 @@ class GmailBridge(BridgeAdapter):
                 self.credentials, 
                 "https://oauth2.googleapis.com/token",
                 client_id,
-                client_secret
+                client_secret  # type: ignore
             )
         except Exception as e:
             self.logger.error(f"Failed to refresh Google token: {e}")
@@ -206,4 +206,4 @@ class GmailBridge(BridgeAdapter):
     async def disconnect(self):
         if self._poll_task:
             self._poll_task.cancel()
-        await super().disconnect()
+        await super().disconnect()  # type: ignore

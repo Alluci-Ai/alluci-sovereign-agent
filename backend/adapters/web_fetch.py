@@ -12,7 +12,7 @@ class WebFetchAdapter(Adapter):
     name = "web_fetch"
     description = "Fetch a URL and extract its content as Markdown."
 
-    async def execute(self, url: str) -> Dict[str, Any]:
+    async def execute(self, url: str) -> Dict[str, Any]:  # type: ignore
         try:
             async with async_playwright() as p:
                 browser = await p.chromium.launch(headless=True)

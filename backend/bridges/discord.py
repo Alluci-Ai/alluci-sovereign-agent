@@ -10,7 +10,7 @@ class DiscordBridge(BridgeAdapter):
     """
     def __init__(self, bridge_id: str, vault_root: str, vault_manager: Optional[Any] = None):
         super().__init__(bridge_id, vault_root, vault_manager)
-        self.client = None
+        self.client = None  # type: ignore
         self.bot_token = None
         self.task = None
 
@@ -28,16 +28,16 @@ class DiscordBridge(BridgeAdapter):
 
         intents = discord.Intents.default()
         intents.message_content = True
-        self.client = discord.Client(intents=intents)
+        self.client = discord.Client(intents=intents)  # type: ignore
 
-        @self.client.event
+        @self.client.event  # type: ignore
         async def on_ready():
             self.is_connected = True
-            self.logger.info(f"Discord connected as {self.client.user}")
+            self.logger.info(f"Discord connected as {self.client.user}")  # type: ignore
 
-        @self.client.event
+        @self.client.event  # type: ignore
         async def on_message(message):
-            if message.author == self.client.user:
+            if message.author == self.client.user:  # type: ignore
                 return
             
             # Standardization into the unified inbound pipeline
@@ -52,7 +52,7 @@ class DiscordBridge(BridgeAdapter):
             })
 
         # Start the client in the background
-        self.task = asyncio.create_task(self.client.start(self.bot_token))
+        self.task = asyncio.create_task(self.client.start(self.bot_token))  # type: ignore
         
         # Wait for connection
         for _ in range(15):
@@ -68,14 +68,14 @@ class DiscordBridge(BridgeAdapter):
         try:
             # 1. Try fetching as a channel
             try:
-                target = self.client.get_channel(int(recipient))
+                target = self.client.get_channel(int(recipient))  # type: ignore
             except (ValueError, TypeError):
                 target = None
             
             # 2. Try fetching as a user (for DMs)
             if not target:
                 try:
-                    target = await self.client.fetch_user(int(recipient))
+                    target = await self.client.fetch_user(int(recipient))  # type: ignore
                 except (ValueError, TypeError):
                     target = None
                 
@@ -99,7 +99,7 @@ class DiscordBridge(BridgeAdapter):
             return []
             
         messages = []
-        for guild in self.client.guilds:
+        for guild in self.client.guilds:  # type: ignore
             for channel in guild.text_channels:
                 try:
                     async for msg in channel.history(limit=limit):
@@ -116,22 +116,22 @@ class DiscordBridge(BridgeAdapter):
         return messages[:limit]
 
     async def validate_integrity(self) -> bool:
-        return self.is_connected and not self.client.is_closed()
+        return self.is_connected and not self.client.is_closed()  # type: ignore
 
     def get_health(self) -> Dict[str, Any]:
         """Enhanced Discord health reporting."""
         health = super().get_health()
         if self.client and self.is_connected:
             health.update({
-                "latency_ms": int(self.client.latency * 1000) if self.client.latency else 0,
-                "guild_count": len(self.client.guilds),
-                "user": str(self.client.user)
+                "latency_ms": int(self.client.latency * 1000) if self.client.latency else 0,  # type: ignore
+                "guild_count": len(self.client.guilds),  # type: ignore
+                "user": str(self.client.user)  # type: ignore
             })
         return health
 
     async def disconnect(self):
         if self.client:
-            await self.client.close()
+            await self.client.close()  # type: ignore
         if self.task:
             self.task.cancel()
         self.is_connected = False

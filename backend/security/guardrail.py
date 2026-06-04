@@ -95,7 +95,7 @@ class GuardrailScanner:
             # is unavailable, allow the request through for availability.
             return True, ""
 
-    async def scan_output(self, text: str, active_secrets: List[str] = None) -> Tuple[bool, str]:
+    async def scan_output(self, text: str, active_secrets: List[str] = None) -> Tuple[bool, str]:  # type: ignore
         """
         Scans assistant output for safety and PII/Secret leakage.
         """

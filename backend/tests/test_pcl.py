@@ -148,9 +148,9 @@ async def test_judge_intervention_logic(pcl_engine, mock_db_engine, mock_setting
     mock_db_engine.Session.return_value = mock_session # Not how it works with 'with Session(db_engine)'
     
     # Let's simplify and mock the _check methods directly for logic verification
-    judge._check_cooldown = MagicMock(return_value=(True, "passed"))
-    judge._check_quiet_hours = MagicMock(return_value=(True, "passed"))
-    judge._check_deduplication = MagicMock(return_value=(True, "passed"))
+    judge._check_cooldown = MagicMock(return_value=(True, "passed"))  # type: ignore
+    judge._check_quiet_hours = MagicMock(return_value=(True, "passed"))  # type: ignore
+    judge._check_deduplication = MagicMock(return_value=(True, "passed"))  # type: ignore
     
     # 1. Standard mode - Approved
     approved, reason = judge.evaluate(opp, world)

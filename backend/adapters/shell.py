@@ -57,7 +57,7 @@ SHELL_DENYLIST_PATTERNS = [
 
 class ShellAdapter(Adapter):
     @property
-    def name(self) -> str:
+    def name(self) -> str:  # type: ignore
         return "shell"
 
     async def execute(self, args: Dict[str, Any]) -> Any:

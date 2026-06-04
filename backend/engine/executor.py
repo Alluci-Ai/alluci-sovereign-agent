@@ -24,7 +24,8 @@ class Executor:
                  approval_manager=None, ace=None, on_task_complete=None):
         self.registry = adapter_registry
         self.session_factory = session_factory
-        self.semaphore = asyncio.Semaphore(max_concurrent)
+        self._max_concurrent = max_concurrent
+        self._semaphore = None
         self.task_timeout = task_timeout
         self.approval_manager = approval_manager
         self.on_task_complete = on_task_complete
@@ -35,6 +36,12 @@ class Executor:
         # [ PPN-017 ] Sovereign Kill Switch Daemon
         self.watch_auth = AppleWatchAuth()
         self.ace = ace
+
+    @property
+    def semaphore(self):
+        if self._semaphore is None:
+            self._semaphore = asyncio.Semaphore(self._max_concurrent)
+        return self._semaphore
 
     async def execute_dag(self, run_id: int, tasks: Dict[str, DAGTask]) -> Dict[str, DAGTask]:
         """

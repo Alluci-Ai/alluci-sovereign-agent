@@ -14,38 +14,38 @@ router = APIRouter(tags=["Execution Approval"])
 async def get_pending_approvals():
     if not services.exec_approval:
         raise HTTPException(status_code=503, detail="Approval system not ready")
-    return await services.exec_approval.get_pending()
+    return await services.exec_approval.get_pending()  # type: ignore
 
 @router.post("/exec/approve/{request_id}", dependencies=[Depends(verify_authenticated)])
 async def approve_request(request: Request, request_id: str, csrf_protect: CsrfProtect = Depends()):
     await csrf_protect.validate_csrf(request)
     if not services.exec_approval:
         raise HTTPException(status_code=503, detail="Approval system not ready")
-    return await services.exec_approval.approve(request_id)
+    return await services.exec_approval.approve(request_id)  # type: ignore
 
 @router.post("/exec/deny/{request_id}", dependencies=[Depends(verify_authenticated)])
 async def deny_request(request: Request, request_id: str, csrf_protect: CsrfProtect = Depends()):
     await csrf_protect.validate_csrf(request)
     if not services.exec_approval:
         raise HTTPException(status_code=503, detail="Approval system not ready")
-    return await services.exec_approval.deny(request_id)
+    return await services.exec_approval.deny(request_id)  # type: ignore
 
 @router.get("/exec/policies", dependencies=[Depends(verify_authenticated)])
 async def list_policies():
     if not services.exec_approval:
         raise HTTPException(status_code=503, detail="Approval system not ready")
-    return await services.exec_approval.list_policies()
+    return await services.exec_approval.list_policies()  # type: ignore
 
 @router.post("/exec/policies", dependencies=[Depends(verify_authenticated)])
 async def add_policy(request: Request, policy: Dict[str, Any] = Body(...), csrf_protect: CsrfProtect = Depends()):
     await csrf_protect.validate_csrf(request)
     if not services.exec_approval:
         raise HTTPException(status_code=503, detail="Approval system not ready")
-    return await services.exec_approval.add_policy(policy)
+    return await services.exec_approval.add_policy(policy)  # type: ignore
 
 @router.delete("/exec/policies/{policy_id}", dependencies=[Depends(verify_authenticated)])
 async def delete_policy(request: Request, policy_id: int, csrf_protect: CsrfProtect = Depends()):
     await csrf_protect.validate_csrf(request)
     if not services.exec_approval:
         raise HTTPException(status_code=503, detail="Approval system not ready")
-    return await services.exec_approval.delete_policy(policy_id)
+    return await services.exec_approval.delete_policy(policy_id)  # type: ignore

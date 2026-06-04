@@ -67,11 +67,11 @@ class AlluciVoiceOrchestrator:
     def __new__(cls, *args, **kwargs):
         if not cls._instance:
             cls._instance = super().__new__(cls)
-            cls._instance._initialized = False
+            cls._instance._initialized = False  # type: ignore
         return cls._instance
 
     def __init__(self):
-        if self._initialized:
+        if self._initialized:  # type: ignore
             return
         self._initialized = True
 

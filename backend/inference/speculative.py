@@ -36,14 +36,14 @@ class SpeculativeDecoder:
     def load_models(self):
         logger.info(f"Loading Target Model (Verifier): {self.target_model_id}")
         self.tokenizer = AutoTokenizer.from_pretrained(self.target_model_id)
-        self.target_model = AutoModelForCausalLM.from_pretrained(
+        self.target_model = AutoModelForCausalLM.from_pretrained(  # type: ignore
             self.target_model_id,
             device_map="auto",
             torch_dtype=torch.float16
         )
         
         logger.info(f"Loading Draft Model (Speculator): {self.draft_model_id}")
-        self.draft_model = AutoModelForCausalLM.from_pretrained(
+        self.draft_model = AutoModelForCausalLM.from_pretrained(  # type: ignore
             self.draft_model_id,
             device_map="auto",
             torch_dtype=torch.float16

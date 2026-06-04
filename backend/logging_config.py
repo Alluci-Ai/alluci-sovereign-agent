@@ -72,7 +72,7 @@ def configure_logging(app_env: str = "development") -> None:
         renderer = structlog.processors.JSONRenderer()
     else:
         # Development: colorful, human-readable console output
-        renderer = structlog.dev.ConsoleRenderer(colors=True)
+        renderer = structlog.dev.ConsoleRenderer(colors=True)  # type: ignore
 
     structlog.configure(
         processors=[
@@ -122,7 +122,7 @@ def configure_logging(app_env: str = "development") -> None:
                     SqlalchemyIntegration(),
                 ],
             )
-            logger.info("Sentry monitoring online.")
+            logger.info("Sentry monitoring online.")  # type: ignore
     except (ImportError, Exception) as e:
         # We don't want to crash boot if Sentry fails to load
         pass
@@ -133,7 +133,7 @@ def configure_logging(app_env: str = "development") -> None:
     logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
-def get_logger(name: str = None) -> structlog.stdlib.BoundLogger:
+def get_logger(name: str = None) -> structlog.stdlib.BoundLogger:  # type: ignore
     """
     Returns a structlog-wrapped logger.
     Drop-in replacement for logging.getLogger().

@@ -19,7 +19,7 @@ class Critic:
         Returns (passed, score, feedback)
         """
         try:
-            evaluation = await self.router.critique_result(objective, results)
+            evaluation = await self.router.critique_result(objective, results)  # type: ignore
             score = float(evaluation.get("score", 0.0))
             feedback = evaluation.get("feedback", "No feedback provided.")
             

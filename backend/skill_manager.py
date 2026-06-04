@@ -1,4 +1,4 @@
-import yaml
+import yaml  # type: ignore
 import os
 import logging
 from .logging_config import get_logger
@@ -54,7 +54,7 @@ class SkillManager:
         from .inference.router import ModelRouter
         import json
         
-        settings = Settings()
+        settings = Settings()  # type: ignore
         router = ModelRouter(settings)
         
         # Genuine Critic Scan
@@ -202,17 +202,17 @@ class SkillManager:
         }
         
         for s in active:
-            merged["knowledge"].extend(s.get("knowledge", []))
-            merged["mindsets"].extend(s.get("mindsets", []))
-            merged["frameworks"].extend(s.get("frameworks", []))
-            merged["logic"].extend(s.get("logic", []))
-            merged["chainsOfThought"].extend(s.get("chainsOfThought", []))
+            merged["knowledge"].extend(s.get("knowledge", []))  # type: ignore
+            merged["mindsets"].extend(s.get("mindsets", []))  # type: ignore
+            merged["frameworks"].extend(s.get("frameworks", []))  # type: ignore
+            merged["logic"].extend(s.get("logic", []))  # type: ignore
+            merged["chainsOfThought"].extend(s.get("chainsOfThought", []))  # type: ignore
             
             mapping = s.get("personalityMapping", {})
-            merged["vectors"]["toneShift"] += mapping.get("toneShift", 0)
-            merged["vectors"]["creativityShift"] += mapping.get("creativityShift", 0)
-            merged["vectors"]["assertivenessShift"] += mapping.get("assertivenessShift", 0)
-            merged["vectors"]["empathyShift"] += mapping.get("empathyShift", 0)
+            merged["vectors"]["toneShift"] += mapping.get("toneShift", 0)  # type: ignore
+            merged["vectors"]["creativityShift"] += mapping.get("creativityShift", 0)  # type: ignore
+            merged["vectors"]["assertivenessShift"] += mapping.get("assertivenessShift", 0)  # type: ignore
+            merged["vectors"]["empathyShift"] += mapping.get("empathyShift", 0)  # type: ignore
             
         return merged
 

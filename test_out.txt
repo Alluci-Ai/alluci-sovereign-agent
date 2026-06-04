@@ -1,0 +1,303 @@
+/Users/alluci/Downloads/alluci-sovereign-agent-main/.venv/lib/python3.9/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option "asyncio_default_fixture_loop_scope" is unset.
+The event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: "function", "class", "module", "package", "session"
+
+  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))
+============================= test session starts ==============================
+platform darwin -- Python 3.9.6, pytest-8.3.2, pluggy-1.6.0 -- /Users/alluci/Downloads/alluci-sovereign-agent-main/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/alluci/Downloads/alluci-sovereign-agent-main/backend
+configfile: pytest.ini
+plugins: anyio-4.12.1, asyncio-0.24.0, cov-5.0.0, timeout-2.3.1, mock-3.14.0
+asyncio: mode=auto, default_loop_scope=None
+collecting ... collected 0 items / 1 error
+
+==================================== ERRORS ====================================
+________________ ERROR collecting tests/test_windows_service.py ________________
+ImportError while importing test module '/Users/alluci/Downloads/alluci-sovereign-agent-main/backend/tests/test_windows_service.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/importlib/__init__.py:127: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+backend/tests/test_windows_service.py:35: in <module>
+    from backend.windows_service import AlluciBackendService
+backend/windows_service.py:17: in <module>
+    import uvicorn
+.venv/lib/python3.9/site-packages/uvicorn/__init__.py:1: in <module>
+    from uvicorn.config import Config
+.venv/lib/python3.9/site-packages/uvicorn/config.py:16: in <module>
+    import click
+.venv/lib/python3.9/site-packages/click/__init__.py:8: in <module>
+    from .core import Argument as Argument
+.venv/lib/python3.9/site-packages/click/core.py:16: in <module>
+    from . import types
+.venv/lib/python3.9/site-packages/click/types.py:9: in <module>
+    from ._compat import _get_argv_encoding
+.venv/lib/python3.9/site-packages/click/_compat.py:510: in <module>
+    from ._winconsole import _get_windows_console_stream
+.venv/lib/python3.9/site-packages/click/_winconsole.py:32: in <module>
+    from ctypes import windll  # noqa: E402
+E   ImportError: cannot import name 'windll' from 'ctypes' (/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/ctypes/__init__.py)
+
+---------- coverage: platform darwin, python 3.9.6-final-0 -----------
+Name                                                                              Stmts   Miss  Cover   Missing
+---------------------------------------------------------------------------------------------------------------
+backend/__init__.py                                                                   0      0   100%
+backend/ace/__init__.py                                                               0      0   100%
+backend/ace/affect_kernel.py                                                         74     74     0%   1-145
+backend/ace/anti_spoof.py                                                            19     19     0%   1-39
+backend/ace/btm_mapper.py                                                           151    151     0%   1-233
+backend/ace/engine.py                                                                68     68     0%   2-120
+backend/ace/entropy_monitor.py                                                       99     99     0%   1-143
+backend/ace/memory_decay.py                                                          79     79     0%   1-143
+backend/ace/watch_auth.py                                                            29     29     0%   1-56
+backend/adapters/__init__.py                                                          0      0   100%
+backend/adapters/base.py                                                              8      8     0%   1-17
+backend/adapters/bridge_actualization.py                                            153    153     0%   1-274
+backend/adapters/code_exec.py                                                        89     89     0%   1-146
+backend/adapters/doc_ingest.py                                                       51     51     0%   2-95
+backend/adapters/filesystem.py                                                       42     42     0%   1-55
+backend/adapters/memory_adapter.py                                                   46     46     0%   13-112
+backend/adapters/registry.py                                                         44     44     0%   1-61
+backend/adapters/screen_capture.py                                                   30     30     0%   2-57
+backend/adapters/shell.py                                                            47     47     0%   2-118
+backend/adapters/web.py                                                              45     45     0%   2-65
+backend/adapters/web_fetch.py                                                        18     18     0%   2-33
+backend/adapters/web_search.py                                                       77     77     0%   2-201
+backend/analytics.py                                                                171    171     0%   10-410
+backend/app.py                                                                      201    201     0%   2-356
+backend/auth/__init__.py                                                              0      0   100%
+backend/auth/autonomous_discoverer.py                                                62     62     0%   7-117
+backend/bridges/__init__.py                                                           0      0   100%
+backend/bridges/base.py                                                             158    158     0%   1-282
+backend/bridges/discord.py                                                           86     86     0%   1-137
+backend/bridges/email.py                                                            126    126     0%   2-189
+backend/bridges/facebook.py                                                         153    153     0%   8-320
+backend/bridges/gdrive.py                                                            70     70     0%   1-125
+backend/bridges/gmail.py                                                            128    128     0%   1-209
+backend/bridges/google_chat.py                                                      182    182     0%   20-366
+backend/bridges/icloud.py                                                           163    163     0%   15-318
+backend/bridges/imessage.py                                                         170    170     0%   13-341
+backend/bridges/instagram.py                                                        168    168     0%   18-369
+backend/bridges/iphone.py                                                           148    148     0%   1-213
+backend/bridges/iwatch.py                                                           164    164     0%   30-317
+backend/bridges/msteams.py                                                          197    197     0%   23-425
+backend/bridges/nostr.py                                                            149    149     0%   1-267
+backend/bridges/signal.py                                                           237    237     0%   13-453
+backend/bridges/slack.py                                                            159    159     0%   1-325
+backend/bridges/telegram.py                                                         185    185     0%   14-305
+backend/bridges/verus_wallet.py                                                      91     91     0%   2-143
+backend/bridges/webchat.py                                                          104    104     0%   1-153
+backend/bridges/wechat.py                                                           160    160     0%   24-329
+backend/bridges/whatsapp.py                                                         180    180     0%   1-351
+backend/bridges/x_twitter.py                                                        212    212     0%   19-426
+backend/cli/__init__.py                                                               0      0   100%
+backend/config.py                                                                   124     11    91%   16-17, 152-156, 164, 170-172
+backend/config_editor.py                                                            100    100     0%   10-230
+backend/core/__init__.py                                                              0      0   100%
+backend/core/startup_checks.py                                                       32     32     0%   2-70
+backend/cron_engine.py                                                              228    228     0%   15-371
+backend/database.py                                                                  66     66     0%   1-122
+backend/device_manager.py                                                           106    106     0%   1-193
+backend/engine/__init__.py                                                            0      0   100%
+backend/engine/critic.py                                                             22     22     0%   1-37
+backend/engine/dream_cycle.py                                                       210    210     0%   1-351
+backend/engine/errors.py                                                             10     10     0%   1-19
+backend/engine/executor.py                                                          168    168     0%   1-264
+backend/engine/mlx_trainer.py                                                        49     49     0%   1-92
+backend/engine/planner.py                                                            58     58     0%   2-106
+backend/engine/supervisor.py                                                         15     15     0%   1-35
+backend/exec_approval.py                                                             87     87     0%   12-187
+backend/extract_spec.py                                                              15     15     0%   1-31
+backend/goals/__init__.py                                                             0      0   100%
+backend/goals/engine.py                                                              81     81     0%   2-142
+backend/harmonic_enhancer.py                                                        202    202     0%   1-340
+backend/heartbeat.py                                                                518    518     0%   36-925
+backend/inference/__init__.py                                                         0      0   100%
+backend/inference/executive.py                                                       12     12     0%   1-40
+backend/inference/holoid.py                                                          37     37     0%   1-70
+backend/inference/kcm.py                                                             54     54     0%   1-81
+backend/inference/local_bridge.py                                                   103    103     0%   2-171
+backend/inference/mlx_engine.py                                                      87     87     0%   1-126
+backend/inference/ppn.py                                                            177    177     0%   1-339
+backend/inference/profiler.py                                                        32     32     0%   1-63
+backend/inference/router.py                                                         454    454     0%   1-854
+backend/inference/speculative.py                                                     36     36     0%   1-78
+backend/inference/verus_tools.py                                                     72     72     0%   1-90
+backend/inference/voice_orchestrator.py                                              86     86     0%   11-222
+backend/log_streamer.py                                                             109    109     0%   10-183
+backend/logging_config.py                                                            55     28    49%   18-24, 30-44, 72, 110-128
+backend/memory/__init__.py                                                            0      0   100%
+backend/memory/fts_manager.py                                                        77     77     0%   10-154
+backend/memory/hlsm_manager.py                                                      462    462     0%   18-1058
+backend/memory/manager.py                                                            79     79     0%   2-132
+backend/metrics.py                                                                   34     34     0%   1-100
+backend/migrations/__init__.py                                                        0      0   100%
+backend/migrations/env.py                                                            37     37     0%   6-80
+backend/migrations/versions/8f15288273f9_sync_v6_4_production_schema.py              45     45     0%   8-101
+backend/migrations/versions/274e447f4ca5_add_topological_fields_to_audit_log.py      25     25     0%   8-42
+backend/migrations/versions/__init__.py                                               0      0   100%
+backend/migrations/versions/a1b2c3d4e5f6_add_pcl_tables.py                           20     20     0%   7-66
+backend/migrations/versions/a1b2c3d4e5f7_add_postgres_fts_index.py                   17     17     0%   8-36
+backend/migrations/versions/b1c2d3e4f5a6_add_agent_record.py                         12     12     0%   7-41
+backend/migrations/versions/c2d3e4f5a6b7_add_heartbeat_order_record.py               16     16     0%   7-46
+backend/migrations/versions/cc9ee558fe12_initial_schema.py                           14     14     0%   8-58
+backend/migrations/versions/d1e2f3a4b5c6_add_fts5_episodic.py                        25     25     0%   14-104
+backend/migrations/versions/d5383825d624_add_sprint_1_6_tables.py                   106    106     0%   8-297
+backend/migrations/versions/e7a1b2c3d4e5_add_agent_channel_subscription.py           13     13     0%   8-35
+backend/migrations/versions/ed12bc369d08_verify.py                                   18     18     0%   8-40
+backend/migrations/versions/f1a2b3c4d5e6_add_hlsm_tables.py                          24     24     0%   7-64
+backend/models.py                                                                   456    456     0%   2-630
+backend/network/__init__.py                                                           0      0   100%
+backend/network/ant_protocol.py                                                      17     17     0%   1-47
+backend/orchestrator.py                                                             500    500     0%   1-937
+backend/pcl.py                                                                      541    541     0%   28-1377
+backend/routers/__init__.py                                                           0      0   100%
+backend/routers/auth.py                                                             182    182     0%   2-473
+backend/routers/channels.py                                                         497    497     0%   1-765
+backend/routers/config.py                                                            24     24     0%   2-36
+backend/routers/crons.py                                                             37     37     0%   2-48
+backend/routers/dag.py                                                               20     20     0%   1-41
+backend/routers/exec_approval.py                                                     42     42     0%   2-51
+backend/routers/gemini.py                                                            20     20     0%   2-46
+backend/routers/goals.py                                                             45     45     0%   2-69
+backend/routers/memory.py                                                           103    103     0%   2-129
+backend/routers/objectives.py                                                        80     80     0%   3-134
+backend/routers/security.py                                                          49     49     0%   1-69
+backend/routers/sessions.py                                                         124    124     0%   2-301
+backend/routers/sop.py                                                               39     39     0%   2-55
+backend/routers/soul.py                                                              43     43     0%   2-63
+backend/routers/system.py                                                           107    107     0%   2-196
+backend/routers/tasks.py                                                             35     35     0%   2-41
+backend/routers/telemetry.py                                                         34     34     0%   2-81
+backend/routers/vault.py                                                             89     89     0%   2-125
+backend/routers/voice.py                                                             78     78     0%   2-146
+backend/routers/wallet.py                                                            43     43     0%   2-52
+backend/routers/websockets.py                                                        97     97     0%   1-136
+backend/security/__init__.py                                                          0      0   100%
+backend/security/audit_ledger.py                                                     68     68     0%   2-126
+backend/security/audit_verifier.py                                                   80     80     0%   1-132
+backend/security/auth.py                                                             50     31    38%   31-36, 39-52, 61-83, 90-96
+backend/security/avl_gate.py                                                         53     53     0%   1-145
+backend/security/circuit_breaker.py                                                  39     39     0%   1-61
+backend/security/credential_store.py                                                 45     45     0%   5-86
+backend/security/csp.py                                                               7      7     0%   6-18
+backend/security/csrf.py                                                             11     11     0%   1-13
+backend/security/dpk.py                                                             106    106     0%   1-177
+backend/security/exceptions.py                                                        7      7     0%   1-13
+backend/security/guardrail.py                                                        64     64     0%   1-125
+backend/security/health_monitor.py                                                   71     71     0%   1-133
+backend/security/network_policy.py                                                   22     22     0%   1-53
+backend/security/oauth_config.py                                                     14     14     0%   7-126
+backend/security/oauth_handler.py                                                    61     61     0%   1-126
+backend/security/oauth_store.py                                                      29     29     0%   2-53
+backend/security/policyEngine.py                                                     43     43     0%   2-78
+backend/security/proxy.py                                                            50     50     0%   1-101
+backend/security/qr_sync_handler.py                                                  60     60     0%   1-85
+backend/security/rate_limit.py                                                       26     26     0%   1-52
+backend/security/rate_limiter.py                                                     30     30     0%   6-66
+backend/security/recovery.py                                                         35     35     0%   1-60
+backend/security/resolution.py                                                       27     27     0%   1-63
+backend/security/tunnel_handler.py                                                   74     74     0%   1-121
+backend/security/utils.py                                                            26     26     0%   2-45
+backend/security/vault.py                                                           531    531     0%   1-869
+backend/security/vdxf_store.py                                                       75     75     0%   2-131
+backend/security/verus.py                                                            79     79     0%   1-130
+backend/security/verus_attestation_bridge.py                                         57     57     0%   3-107
+backend/security/verus_node.py                                                      122    122     0%   11-226
+backend/security/verus_rpc.py                                                       143    143     0%   2-284
+backend/security/verusid_auth.py                                                     95     95     0%   1-179
+backend/security/webauthn_store.py                                                   30     30     0%   2-66
+backend/services.py                                                                 242    242     0%   2-391
+backend/skill_manager.py                                                            190    190     0%   1-324
+backend/sop/__init__.py                                                               0      0   100%
+backend/sop/engine.py                                                                60     60     0%   2-121
+backend/subagents/__init__.py                                                         0      0   100%
+backend/subagents/boot_template.py                                                   23     23     0%   7-44
+backend/tasks.py                                                                    152    152     0%   2-225
+backend/tests/__init__.py                                                             0      0   100%
+backend/tests/conftest.py                                                           223    167    25%   91-116, 122-124, 137-168, 181-214, 219-224, 233-238, 247-256, 269-274, 287-388, 397-403, 416-426, 432-442, 448-476
+backend/tests/test_ace.py                                                            48     48     0%   6-77
+backend/tests/test_affect_kernel.py                                                  26     26     0%   1-60
+backend/tests/test_affective_engine.py                                               32     32     0%   1-66
+backend/tests/test_agents.py                                                        141    141     0%   14-305
+backend/tests/test_alce_budget.py                                                    13     13     0%   1-20
+backend/tests/test_analytics.py                                                      33     33     0%   7-59
+backend/tests/test_api.py                                                            91     91     0%   4-144
+backend/tests/test_api_integration.py                                                90     90     0%   7-175
+backend/tests/test_app.py                                                            69     69     0%   1-93
+backend/tests/test_app_startup.py                                                    16     16     0%   1-36
+backend/tests/test_attribution_hash.py                                               14     14     0%   1-19
+backend/tests/test_audit_ledger.py                                                   87     87     0%   1-139
+backend/tests/test_audit_log.py                                                      23     23     0%   1-44
+backend/tests/test_auth.py                                                           65     65     0%   11-120
+backend/tests/test_auth_advanced.py                                                  78     78     0%   1-125
+backend/tests/test_auth_md_protocol.py                                               38     38     0%   2-70
+backend/tests/test_avl_gate.py                                                       22     22     0%   1-48
+backend/tests/test_bedrock_async.py                                                  66     66     0%   4-103
+backend/tests/test_bridge_contracts.py                                                7      7     0%   1-9
+backend/tests/test_btm_mapper.py                                                     41     41     0%   1-57
+backend/tests/test_coherence.py                                                      14     14     0%   1-27
+backend/tests/test_critic.py                                                         43     43     0%   6-60
+backend/tests/test_critic_psi.py                                                     12     12     0%   1-17
+backend/tests/test_cron_engine.py                                                    46     46     0%   1-86
+backend/tests/test_cross_device_voice.py                                             21     21     0%   1-32
+backend/tests/test_deadline_contraction.py                                           10     10     0%   1-17
+backend/tests/test_dpk.py                                                            58     58     0%   13-133
+backend/tests/test_engine.py                                                        157    157     0%   4-268
+backend/tests/test_entropy_spike.py                                                   9      9     0%   1-16
+backend/tests/test_fixed_point.py                                                    12     12     0%   1-18
+backend/tests/test_full_loop.py                                                      35     35     0%   1-73
+backend/tests/test_guardrail.py                                                      81     81     0%   17-179
+backend/tests/test_harmonic_enhancer.py                                              26     26     0%   1-40
+backend/tests/test_health_monitor.py                                                 35     35     0%   1-78
+backend/tests/test_heartbeat.py                                                      32     32     0%   1-52
+backend/tests/test_heartbeat_probes.py                                              128    128     0%   7-214
+backend/tests/test_heartbeat_upgraded.py                                            276    276     0%   17-499
+backend/tests/test_hlsm_manager.py                                                   55     55     0%   13-129
+backend/tests/test_holoid.py                                                          7      7     0%   1-10
+backend/tests/test_infrastructure.py                                                 85     85     0%   7-165
+backend/tests/test_iwatch_bridge.py                                                  40     40     0%   1-58
+backend/tests/test_kcm_cost.py                                                       23     23     0%   1-43
+backend/tests/test_kokoro_bridge.py                                                  84     84     0%   1-109
+backend/tests/test_memory_decay.py                                                   24     24     0%   1-43
+backend/tests/test_model_router.py                                                   86     86     0%   1-117
+backend/tests/test_observability.py                                                  52     52     0%   7-93
+backend/tests/test_orchestrator.py                                                  117    117     0%   1-173
+backend/tests/test_pcl.py                                                           187    187     0%   1-367
+backend/tests/test_phase0.py                                                         30     30     0%   1-40
+backend/tests/test_phase1_full.py                                                    35     35     0%   1-56
+backend/tests/test_phase1_s1.py                                                      41     41     0%   1-55
+backend/tests/test_phase1_s2.py                                                      61     61     0%   1-89
+backend/tests/test_phi_total.py                                                      20     20     0%   1-30
+backend/tests/test_planner.py                                                       109    109     0%   14-212
+backend/tests/test_planner_psi.py                                                    11     11     0%   1-16
+backend/tests/test_playwright_sovereign.py                                           24     24     0%   1-52
+backend/tests/test_proxy_pipeline.py                                                 31     31     0%   1-50
+backend/tests/test_psi_routing.py                                                    26     26     0%   1-52
+backend/tests/test_security.py                                                      122    122     0%   4-201
+backend/tests/test_security_hardening.py                                             76     76     0%   15-189
+backend/tests/test_sprint4_logic.py                                                  23     23     0%   1-42
+backend/tests/test_tasks.py                                                         139    139     0%   4-217
+backend/tests/test_topological_routing.py                                            67     67     0%   6-135
+backend/tests/test_updater.py                                                        63     63     0%   1-84
+backend/tests/test_vault.py                                                         160    160     0%   15-242
+backend/tests/test_verus_wallet.py                                                  168    168     0%   1-225
+backend/tests/test_voice_pipeline.py                                                 58     58     0%   6-103
+backend/tests/test_wallet_api.py                                                     38     38     0%   1-57
+backend/tests/test_windows_service.py                                                71     48    32%   10, 12, 37-108
+backend/tests/test_ws_gateway.py                                                    166    166     0%   1-261
+backend/tracing_config.py                                                            24     24     0%   1-45
+backend/updater.py                                                                   64     64     0%   10-115
+backend/verus_wallet.py                                                             303    303     0%   8-625
+backend/windows_service.py                                                           49     38    22%   4, 18-80
+backend/ws_gateway.py                                                               298    298     0%   12-533
+---------------------------------------------------------------------------------------------------------------
+TOTAL                                                                             20876  20627     1%
+Coverage HTML written to dir htmlcov
+Coverage XML written to file coverage.xml
+
+FAIL Required test coverage of 95% not reached. Total coverage: 1.19%
+=========================== short test summary info ============================
+ERROR backend/tests/test_windows_service.py
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+=============================== 1 error in 4.80s ===============================

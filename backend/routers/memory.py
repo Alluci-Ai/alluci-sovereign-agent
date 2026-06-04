@@ -29,7 +29,7 @@ async def store_memory(request: Request, data: Dict[str, Any] = Body(...), csrf_
         raise HTTPException(status_code=503, detail="Memory manager not ready")
     content = data.get("content")
     metadata = data.get("metadata", {})
-    return await services.memory.store(content=content, metadata=metadata)
+    return await services.memory.store(content=content, metadata=metadata)  # type: ignore
 
 @router.get("/memory/stats", dependencies=[Depends(verify_authenticated)])
 async def get_memory_stats():

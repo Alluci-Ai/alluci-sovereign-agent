@@ -403,7 +403,7 @@ class TaskFailurePatternDetector(BaseDetector):
         for failure in world.recent_failures:
             action_counts[failure] = action_counts.get(failure, 0) + 1
 
-        worst_action = max(action_counts, key=action_counts.get)
+        worst_action = max(action_counts, key=action_counts.get)  # type: ignore
         worst_count = action_counts[worst_action]
 
         if worst_count < self.FAILURE_THRESHOLD:
@@ -673,7 +673,7 @@ class InterventionJudge:
                 .where(
                     PCLOpportunity.id == opp.id,
                     PCLOpportunity.actioned == True,
-                    PCLOpportunity.actioned_at > cutoff,
+                    PCLOpportunity.actioned_at > cutoff,  # type: ignore
                 )
             ).first()
         if recent:
@@ -698,7 +698,7 @@ class InterventionJudge:
                 .where(
                     PCLOpportunity.id == opp.id,
                     PCLOpportunity.detected_at > cutoff_24h,
-                    PCLOpportunity.outcome.in_(["success", "ignored"]),
+                    PCLOpportunity.outcome.in_(["success", "ignored"]),  # type: ignore
                 )
             ).first()
         if recent:

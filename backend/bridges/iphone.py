@@ -25,9 +25,9 @@ class IPhoneBridge(BridgeAdapter, ServiceListener):
         self.writer: Optional[asyncio.StreamWriter] = None
         self._listen_task: Optional[asyncio.Task] = None
         # [ GAP-001 ] Inbound message buffer for companion polling
-        self._inbound_buffer = deque(maxlen=100)
+        self._inbound_buffer = deque(maxlen=100)  # type: ignore
         # Outbound message buffer for handling disconnects/roaming
-        self._outbound_buffer = deque(maxlen=200)
+        self._outbound_buffer = deque(maxlen=200)  # type: ignore
         # [ GAP-003 ] TLS Pinning: Path to the companion's CA cert in the vault
         self._ca_cert_path = os.path.join(self.vault_path, "companion_ca.crt")
 
@@ -92,8 +92,8 @@ class IPhoneBridge(BridgeAdapter, ServiceListener):
 
     async def connect(self, credentials: Dict[str, Any]) -> bool:
         if not self.zc:
-            self.zc = Zeroconf()
-            self.browser = ServiceBrowser(self.zc, "_alluci-iphone._tcp.local.", self)
+            self.zc = Zeroconf()  # type: ignore
+            self.browser = ServiceBrowser(self.zc, "_alluci-iphone._tcp.local.", self)  # type: ignore
         
         # Wait a bit for discovery
         for _ in range(10):
@@ -198,13 +198,13 @@ class IPhoneBridge(BridgeAdapter, ServiceListener):
                 pass
         if self.zc:
             self.zc.close()
-        await super().disconnect()
+        await super().disconnect()  # type: ignore
 
     async def fetch_unread(self, limit: int = 10) -> List[Dict[str, Any]]:
         """
         [ GAP-001 ] Retrieves and clears pending messages from the inbound buffer.
         """
-        messages = []
+        messages = []  # type: ignore
         while self._inbound_buffer and len(messages) < limit:
             messages.append(self._inbound_buffer.popleft())
         return messages

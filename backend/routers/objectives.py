@@ -96,14 +96,14 @@ async def execute_objective(
         if isinstance(manifest, dict):
             # Translate CamelCase from front-end/test to snake_case if needed
             autonomy_level = manifest.get("autonomyLevel") or manifest.get("autonomy_level") or "SEMI_AUTONOMOUS"
-            manifest = ExecutionManifest(
-                autonomy_level=autonomy_level,
+            manifest = ExecutionManifest(  # type: ignore
+                autonomy_level=autonomy_level,  # type: ignore
                 objective_id=str(uuid.uuid4()),
                 model_version="test-v1",
                 planner_version="test-v1"
             )
 
-        permitted = policy_engine.evaluate(manifest, risk_score, ace_state)
+        permitted = policy_engine.evaluate(manifest, risk_score, ace_state)  # type: ignore
 
         if not permitted:
             logger.warning(f"[ POLICY ]: Objective rejected for {current_user['id']} due to autonomy constraints.")
@@ -124,7 +124,7 @@ async def execute_objective(
             
         run_id = await services.orchestrator.execute_objective(
             request.objective,
-            autonomy=manifest.autonomy_level
+            autonomy=manifest.autonomy_level  # type: ignore
         )
         return {"status": "accepted", "run_id": run_id}
     except HTTPException:

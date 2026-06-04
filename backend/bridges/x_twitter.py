@@ -130,7 +130,7 @@ class XBridge(BridgeAdapter):
         await self.connect(creds)
         return creds
 
-    async def _save_credentials(self, creds: Dict[str, Any]) -> None:
+    async def _save_credentials(self, creds: Dict[str, Any]) -> None:  # type: ignore
         await super()._save_credentials(creds, account_id=self._my_user_id or "default")
 
     # ── Connection ────────────────────────────────────────────────────────────
@@ -413,7 +413,7 @@ class XBridge(BridgeAdapter):
         self.is_connected = False
         if self._poll_task and not self._poll_task.done():
             self._poll_task.cancel()
-        await super().disconnect()
+        await super().disconnect()  # type: ignore
 
     def get_health(self) -> Dict[str, Any]:
         h = super().get_health()

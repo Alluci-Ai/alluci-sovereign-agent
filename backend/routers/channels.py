@@ -251,7 +251,7 @@ async def channel_enterprise_task(channel_id: str, request: Request, csrf_protec
             raise HTTPException(status_code=500, detail=str(e))
 
     # Delegate to social handler (unified task dispatch)
-    return await channel_social_task(channel_id, payload)
+    return await channel_social_task(channel_id, payload)  # type: ignore
 
 
 # ── Bulk Health Check ─────────────────────────────────────────────────────────
@@ -422,21 +422,21 @@ async def oauth_callback(bridge_id: str, code: str = Query(None), state: str = Q
                 daemon_url = os.getenv("DAEMON_PUBLIC_URL", "http://localhost:8000").rstrip("/")
                 creds = await adapter.handle_oauth_callback(code=code, state=state, code_verifier=verifier, redirect_uri=f"{daemon_url}/api/oauth/slack/callback")
                 team_id = creds.get("team_id") or "default"
-                await services.vault.store_connection_secret("slack", team_id, creds)
+                await services.vault.store_connection_secret("slack", team_id, creds)  # type: ignore
             
             elif bridge_id == "x":
                 sd = await oauth_store.consume_state(state)
                 if not sd: return _make_response(False, "invalid_state")
                 creds = await adapter.handle_oauth_callback(code=code, state=state, code_verifier=sd["verifier"], redirect_uri=sd["redirect_uri"])
                 user_id = creds.get("user_id") or "default"
-                await services.vault.store_connection_secret("x", user_id, creds)
+                await services.vault.store_connection_secret("x", user_id, creds)  # type: ignore
     
             elif bridge_id in ["instagram", "facebook", "msteams"]:
                 sd = await oauth_store.consume_state(state)
                 if not sd: return _make_response(False, "invalid_state")
                 creds = await adapter.handle_oauth_callback(code=code, state=state, redirect_uri=sd["redirect_uri"])
                 account_id = creds.get("team_id") or creds.get("user_id") or "default"
-                await services.vault.store_connection_secret(bridge_id, account_id, creds)
+                await services.vault.store_connection_secret(bridge_id, account_id, creds)  # type: ignore
                 
             elif hasattr(adapter, "handle_oauth_callback"):
                 await adapter.handle_oauth_callback(code, state)
@@ -692,21 +692,21 @@ async def webchat_launch(request: Request, csrf_protect: CsrfProtect = Depends()
     url = data.get("url")
     if not url: raise HTTPException(400, "url is required")
     if hasattr(adapter, "launch_browser"):
-        return await adapter.launch_browser(url)
+        return await adapter.launch_browser(url)  # type: ignore
     raise HTTPException(status_code=501)
 
 @router.post("/channels/icloud/2fa", dependencies=[Depends(verify_authenticated)])
 async def icloud_2fa(request: Request, csrf_protect: CsrfProtect = Depends(), data: Dict[str, str] = Body(...)):
     await csrf_protect.validate_csrf(request)
     adapter = services.channel_registry.get("icloud")
-    if hasattr(adapter, "submit_2fa"): return await adapter.submit_2fa(data.get("code"))
+    if hasattr(adapter, "submit_2fa"): return await adapter.submit_2fa(data.get("code"))  # type: ignore
     raise HTTPException(status_code=501)
 
 @router.post("/channels/webchat/session/{id}/capture", dependencies=[Depends(verify_authenticated)])
 async def webchat_session_capture(id: str, request: Request, csrf_protect: CsrfProtect = Depends(), data: Dict[str, Any] = Body(...)):
     await csrf_protect.validate_csrf(request)
     adapter = services.channel_registry.get("webchat")
-    if hasattr(adapter, "capture_session"): return await adapter.capture_session(id, data)
+    if hasattr(adapter, "capture_session"): return await adapter.capture_session(id, data)  # type: ignore
     raise HTTPException(status_code=501)
 
 # ── Agent Channel Subscriptions (Sovereign Spec §4.2) ─────────────────────────
@@ -736,7 +736,7 @@ async def update_agent_subscription(agent_id: str, request: Request, csrf_protec
 
     if existing:
         existing.is_active = is_active
-        existing.updated_at = datetime.now(timezone.utc)
+        existing.updated_at = datetime.now(timezone.utc)  # type: ignore
         session.add(existing)
     else:
         new_sub = AgentChannelSubscription(

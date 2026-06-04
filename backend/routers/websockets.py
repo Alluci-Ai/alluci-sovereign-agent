@@ -72,7 +72,7 @@ async def sovereign_websocket_endpoint(websocket: WebSocket):
             msg = json.loads(raw)
             if msg.get("type") == "auth":
                 token = msg.get("token")
-                verify_token(token)
+                verify_token(token)  # type: ignore
             else:
                 await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Authentication required")
                 return
@@ -122,7 +122,7 @@ async def log_stream_endpoint(websocket: WebSocket):
             msg = json.loads(raw)
             if msg.get("type") == "auth":
                 token = msg.get("token")
-                verify_token(token)
+                verify_token(token)  # type: ignore
             else:
                 await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Authentication required")
                 return

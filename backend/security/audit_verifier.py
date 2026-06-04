@@ -101,8 +101,8 @@ class AuditVerifier:
             if local_hash == on_chain_hash:
                 logger.info(f"[AUDITOR] Ledger integrity verified. TXID: {txid} matches local hash.")
             else:
-            if txid is not None:
-                await self._trigger_tamper_alert(txid, local_hash, on_chain_hash)
+                if txid is not None:
+                    await self._trigger_tamper_alert(txid, local_hash, on_chain_hash)
         except Exception as e:
             logger.error(f"[AUDITOR] Failed to verify on-chain ledger: {e}")
 

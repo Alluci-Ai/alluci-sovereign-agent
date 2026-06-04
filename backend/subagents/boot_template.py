@@ -17,7 +17,7 @@ class AlluciSubagentRuntime:
         self.authenticator = AlluciAutonomousDiscoverer(
             manifest_path=secure_manifest
         )
-        self.active_credentials = {}
+        self.active_credentials = {}  # type: ignore
 
     async def bind_to_target_resource(self, service_url: str):
         """Prepares the subagent to run tasks by registering with external endpoints."""

@@ -31,8 +31,8 @@ def hlsm_manager(temp_db):
         settings=None
     )
     # Mock embedding generator to avoid external API calls
-    mgr.embedding_service = MagicMock()
-    mgr.embedding_service.get_embedding = AsyncMock(return_value=[0.1] * 1536)
+    mgr.embedding_service = MagicMock()  # type: ignore
+    mgr.embedding_service.get_embedding = AsyncMock(return_value=[0.1] * 1536)  # type: ignore
     return mgr
 
 

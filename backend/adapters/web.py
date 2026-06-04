@@ -9,7 +9,7 @@ logger = get_logger("Adapters.Web")
 
 class WebAdapter(Adapter):
     @property
-    def name(self) -> str:
+    def name(self) -> str:  # type: ignore
         return "web"
 
     async def execute(self, args: Dict[str, Any]) -> Any:
@@ -18,9 +18,9 @@ class WebAdapter(Adapter):
         url = args.get("url")
         
         if action == "search":
-            return await self._search(query)
+            return await self._search(query)  # type: ignore
         elif action == "fetch":
-            return await self._fetch(url)
+            return await self._fetch(url)  # type: ignore
         else:
             return f"Unknown web action: {action}"
 

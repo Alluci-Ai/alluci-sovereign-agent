@@ -50,7 +50,7 @@ async def export_identity_pem(
     _auth=Depends(verify_authenticated)
 ):
     try:
-        pem = services.vault_manager.export_identity_pem(body.export_passphrase)
+        pem = services.vault_manager.export_identity_pem(body.export_passphrase)  # type: ignore
         return {
             "pem": pem, 
             "warning": "Store this securely. It contains your encrypted private key."
@@ -103,7 +103,7 @@ async def save_vault_keys(new_keys: Dict[str, Any] = Body(...)):
         existing = await services.vault.retrieve_secret("alluci_api_keys") or {}
         
         # Deep merge: if new value is MASK, use existing value
-        merged = {}
+        merged = {}  # type: ignore
         categories = ["llm", "audio", "music", "image", "video"]
         for cat in categories:
             merged[cat] = {}

@@ -52,7 +52,7 @@ async def update_goal(
     """Update goal status or progress."""
     if not services.goal_engine:
         raise HTTPException(status_code=503, detail="Goals engine not ready")
-    success = await services.goal_engine.update_goal(goal_id, status=status, progress=progress)
+    success = await services.goal_engine.update_goal(goal_id, status=status, progress=progress)  # type: ignore
     if not success:
         raise HTTPException(status_code=404, detail="Goal not found")
     return {"status": "UPDATED"}

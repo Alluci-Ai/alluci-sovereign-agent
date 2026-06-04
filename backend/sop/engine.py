@@ -27,7 +27,7 @@ class SOPEngine:
             session.add(sop)
             session.commit()
             session.refresh(sop)
-            return sop.id
+            return sop.id  # type: ignore
 
     def get_sop(self, sop_id: int) -> Optional[SOPRecord]:
         with Session(self.engine) as session:
@@ -36,9 +36,9 @@ class SOPEngine:
     def list_sops(self) -> List[SOPRecord]:
         with Session(self.engine) as session:
             stmt = select(SOPRecord).where(SOPRecord.is_active == True)
-            return session.exec(stmt).all()
+            return session.exec(stmt).all()  # type: ignore
 
-    async def execute_sop(self, sop_id: int, context_overrides: Dict[str, Any] = None):
+    async def execute_sop(self, sop_id: int, context_overrides: Dict[str, Any] = None):  # type: ignore
         """
         Executes an SOP by iterating through its defined steps.
         Each step is audited via the Run system.

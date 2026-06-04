@@ -168,7 +168,7 @@ class WeChatBridge(BridgeAdapter, UnofficialBridgeMixin):
 
         from ..config import settings
         daemon_url  = os.getenv("DAEMON_PUBLIC_URL", "http://localhost:8000").rstrip("/")
-        redirect_uri = urllib.parse.quote(f"{daemon_url}/api/oauth/wechat/callback")
+        redirect_uri = urllib.parse.quote(f"{daemon_url}/api/oauth/wechat/callback")  # type: ignore
 
         qr_url = (
             f"https://open.work.weixin.qq.com/wwopen/sso/qrConnect"
@@ -222,7 +222,7 @@ class WeChatBridge(BridgeAdapter, UnofficialBridgeMixin):
             "toparty":  kwargs.get("toparty", ""),
             "totag":    kwargs.get("totag", ""),
             "msgtype":  msg_type,
-            "agentid":  int(self._agent_id),
+            "agentid":  int(self._agent_id),  # type: ignore
             msg_type:   message_body,
             "safe":     0,
         }

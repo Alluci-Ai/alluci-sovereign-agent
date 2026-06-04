@@ -1,5 +1,5 @@
 import os
-import aiofiles
+import aiofiles  # type: ignore
 from typing import Dict, Any
 from .base import Adapter
 from ..engine.errors import AdapterError

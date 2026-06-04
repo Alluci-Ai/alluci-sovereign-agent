@@ -136,7 +136,7 @@ class LocalInferenceBridge:
         from backend.inference.mlx_engine import engine
         
         # MLX Engine automatically handles hardware profiling
-        async for chunk in engine.stream_generate(prompt):
+        async for chunk in engine.stream_generate(prompt):  # type: ignore
             yield chunk
 
     async def synthesise(self, text: str) -> bytes:

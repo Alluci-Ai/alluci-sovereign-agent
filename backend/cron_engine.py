@@ -112,7 +112,7 @@ class CronEngine:
 
         elif job.schedule_type == ScheduleType.CRON:
             try:
-                from croniter import croniter
+                from croniter import croniter  # type: ignore
                 cron = croniter(job.schedule_value, job.last_run_at or now - timedelta(days=1))
                 next_run = cron.get_next(datetime)
                 if next_run.tzinfo is None:

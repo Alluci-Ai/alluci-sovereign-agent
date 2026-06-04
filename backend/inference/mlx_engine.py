@@ -95,7 +95,7 @@ class MLXEngine:
         prompt, temperature = self._apply_ace_logic(prompt, temperature)
         
         def _sync_gen():
-            return self.engine.evaluate_intent(prompt, max_tokens, temperature)
+            return self.engine.evaluate_intent(prompt, max_tokens, temperature)  # type: ignore
             
         return await asyncio.to_thread(_sync_gen)
 
@@ -119,7 +119,7 @@ class MLXEngine:
         if os.path.exists(lora_path) and self.current_lora != lora_path:
             logger.info(f"Injecting Native Polytope Adapters for Context Moat: {lora_path}")
             def _sync_inject():
-                self.engine.inject_lora_adapters(lora_path)
+                self.engine.inject_lora_adapters(lora_path)  # type: ignore
             await asyncio.to_thread(_sync_inject)
             self.current_lora = lora_path
 

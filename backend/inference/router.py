@@ -200,10 +200,10 @@ class ModelRouter(ExecutiveRouter):
 
         response = await self.lm_studio_client.chat.completions.create(
             model=model,
-            messages=messages,
+            messages=messages,  # type: ignore
             max_tokens=2048,
         )
-        return response.choices[0].message.content
+        return response.choices[0].message.content  # type: ignore
 
 
 
@@ -245,7 +245,7 @@ class ModelRouter(ExecutiveRouter):
             manifest = self.secure_proxy.isolate_personal_perimeter(prompt)
             prompt = manifest.clean_abstract_payload
             
-        response = await model.generate_content_async(prompt, generation_config=generation_config)
+        response = await model.generate_content_async(prompt, generation_config=generation_config)  # type: ignore
         
         # Log Usage
         if self.analytics and session_id:
@@ -693,7 +693,7 @@ class ModelRouter(ExecutiveRouter):
                 # Add smaller providers / OpenRouter / etc.
                 for name, client in [("DeepSeek", self.deepseek_client), ("OpenRouter", self.openrouter_client), ("Together", self.together_client)]:
                     if client:
-                        cloud_sequence.append((name, lambda p, c=client, n=name: self._generic_openai_request(p, c, n, use_strong, system_instruction=system_instruction)))
+                        cloud_sequence.append((name, lambda p, c=client, n=name: self._generic_openai_request(p, c, n, use_strong, system_instruction=system_instruction)))  # type: ignore
 
                 if self.cohere_client:
                     cloud_sequence.append(("Cohere", lambda p: self._cohere_request(p, use_strong=use_strong, system_instruction=system_instruction)))

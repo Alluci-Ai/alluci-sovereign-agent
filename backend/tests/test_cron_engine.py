@@ -52,7 +52,7 @@ class TestCronEngineMultiAgent:
         assert res is None
         
         # Delete isolates
-        res = engine.delete_job(jobs1[0]["id"], agent_id="executive")
+        res = engine.delete_job(jobs1[0]["id"], agent_id="executive")  # type: ignore
         assert res is False
         
         # Proper deletion

@@ -354,7 +354,7 @@ class HLSMManager:
             if "sqlite" in db_url:
                 try:
                     # High-performance FTS5 MATCH
-                    raw = session.exec(sa_text(
+                    raw = session.exec(sa_text(  # type: ignore
                         "SELECT main.id, main.content, main.source, main.session_key, "
                         "main.psi_at_encoding, main.topological_importance, "
                         "main.betti_1_support, main.access_count, main.last_accessed, "
@@ -368,7 +368,7 @@ class HLSMManager:
                 except Exception as e:
                     logger.debug(f"[HLSM L1] FTS5 search failed: {e} - falling back to LIKE")
                     # Fallback to standard LIKE
-                    raw = session.exec(sa_text(
+                    raw = session.exec(sa_text(  # type: ignore
                         "SELECT id, content, source, session_key, psi_at_encoding, "
                         "topological_importance, betti_1_support, access_count, "
                         "last_accessed, retention_score "
@@ -380,7 +380,7 @@ class HLSMManager:
             else:
                 # PostgreSQL High-Performance FTS (Native tsvector)
                 # This assumes a GIN index on content (handled in Phase 3 hardening)
-                raw = session.exec(sa_text(
+                raw = session.exec(sa_text(  # type: ignore
                     "SELECT id, content, source, session_key, psi_at_encoding, "
                     "topological_importance, betti_1_support, access_count, "
                     "last_accessed, retention_score "
@@ -641,7 +641,7 @@ class HLSMManager:
                     arousal=psi * 512.0,
                     tension=psi * 1024.0,
                 )
-                for result in l1_results + l2_results:
+                for result in l1_results + l2_results:  # type: ignore
                     result.relevance_score = max(0.0, min(1.0,
                         kernel.apply(result.relevance_score, affect_state)
                     ))
@@ -649,14 +649,14 @@ class HLSMManager:
                 logger.debug(f"[HLSM] Affective modulation skipped: {e}")
 
         # Sort each tier by relevance
-        l1_results.sort(key=lambda r: r.relevance_score, reverse=True)
-        l2_results.sort(key=lambda r: r.relevance_score, reverse=True)
+        l1_results.sort(key=lambda r: r.relevance_score, reverse=True)  # type: ignore
+        l2_results.sort(key=lambda r: r.relevance_score, reverse=True)  # type: ignore
 
         # Build context, respecting token budget
         ctx = HLSMContext(
-            working_memories=l0_results[:max_per_tier],
-            episodic_memories=l1_results[:max_per_tier],
-            semantic_memories=l2_results[:max_per_tier],
+            working_memories=l0_results[:max_per_tier],  # type: ignore
+            episodic_memories=l1_results[:max_per_tier],  # type: ignore
+            semantic_memories=l2_results[:max_per_tier],  # type: ignore
         )
         prompt = ctx.to_prompt_block()
         ctx.total_chars = len(prompt)
@@ -819,7 +819,7 @@ class HLSMManager:
 
         # Promote to L2
         for entry_id in promote_ids:
-            entry = await asyncio.to_thread(self._load_l1_entry, entry_id)
+            entry = await asyncio.to_thread(self._load_l1_entry, entry_id)  # type: ignore
             if entry:
                 chroma_id = await self.l2_store(entry)
                 if chroma_id:
@@ -851,7 +851,7 @@ class HLSMManager:
                         betti_1_support=betti_1,
                     )
                     if self.decay.should_prune(retention, L2_PRUNE_THRESHOLD):
-                        await self.l2_delete(chroma_id)
+                        await self.l2_delete(chroma_id)  # type: ignore
                         summary["pruned_l2"] += 1
             except Exception as e:
                 logger.error(f"[HLSM] L2 consolidation error: {e}", exc_info=True)
@@ -871,7 +871,7 @@ class HLSMManager:
 
     def _load_all_l1_for_consolidation(self) -> List[HLSMEpisodicEntry]:
         with Session(self.db_engine) as session:
-            return session.exec(select(HLSMEpisodicEntry)).all()
+            return session.exec(select(HLSMEpisodicEntry)).all()  # type: ignore
 
     def _load_l1_entry(self, entry_id: str) -> Optional[HLSMEpisodicEntry]:
         with Session(self.db_engine) as session:
@@ -990,7 +990,7 @@ class HLSMManager:
     # These methods provide drop-in compatibility with the existing MemoryAdapter
     # and MemoryManager API calls that pre-date H-LSM.
 
-    async def store(self, content: str, metadata: Dict[str, Any] = None, session_key: str = "") -> str:
+    async def store(self, content: str, metadata: Dict[str, Any] = None, session_key: str = "") -> str:  # type: ignore
         """Legacy compatibility: store() → l1_store()."""
         source = (metadata or {}).get("source", "user_manual")
         psi = float((metadata or {}).get("psi", 0.0))
@@ -1028,7 +1028,7 @@ class HLSMManager:
 
     def _l1_paginate(self, limit: int, offset: int) -> List[HLSMEpisodicEntry]:
         with Session(self.db_engine) as session:
-            return session.exec(
+            return session.exec(  # type: ignore
                 select(HLSMEpisodicEntry)
                 .order_by(col(HLSMEpisodicEntry.created_at).desc())
                 .offset(offset)

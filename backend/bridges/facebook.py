@@ -164,7 +164,7 @@ class FacebookBridge(BridgeAdapter, UnofficialBridgeMixin):
         await self.connect(creds)
         return creds
 
-    async def _save_credentials(self, creds: Dict[str, Any]) -> None:
+    async def _save_credentials(self, creds: Dict[str, Any]) -> None:  # type: ignore
         await super()._save_credentials(creds, account_id=self.page_id or "default")
 
     # ── Webhook Security ──────────────────────────────────────────────────────
@@ -172,7 +172,7 @@ class FacebookBridge(BridgeAdapter, UnofficialBridgeMixin):
     def verify_signature(self, body: bytes, sig_header: str) -> bool:
         """Verify X-Hub-Signature-256 using META_APP_SECRET."""
         from ..config import settings
-        secret = settings.META_APP_SECRET or self._client_secret
+        secret = settings.META_APP_SECRET or self._client_secret  # type: ignore
         if not secret:
             self.logger.error("[FACEBOOK] META_APP_SECRET not set.")
             return False
@@ -186,7 +186,7 @@ class FacebookBridge(BridgeAdapter, UnofficialBridgeMixin):
     def verify_webhook(self, mode: str, token: str, challenge: str) -> Optional[str]:
         """Respond to Meta hub.challenge."""
         from ..config import settings
-        expected = settings.META_VERIFY_TOKEN
+        expected = settings.META_VERIFY_TOKEN  # type: ignore
         if not expected:
             return None
         if mode == "subscribe" and hmac.compare_digest(token or "", expected):
@@ -217,7 +217,7 @@ class FacebookBridge(BridgeAdapter, UnofficialBridgeMixin):
                 }
             }
         else:
-            message = {"text": content}
+            message = {"text": content}  # type: ignore
 
         @BridgeAdapter.resilient_request
         async def _post():

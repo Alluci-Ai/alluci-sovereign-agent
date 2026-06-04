@@ -77,8 +77,8 @@ class ICloudBridge(BridgeAdapter):
             return False
 
         self._apple_id = apple_id
-        self._cookie_dir = os.path.expanduser(settings.ICLOUD_COOKIE_DIR)
-        os.makedirs(self._cookie_dir, mode=0o700, exist_ok=True)
+        self._cookie_dir = os.path.expanduser(settings.ICLOUD_COOKIE_DIR)  # type: ignore
+        os.makedirs(self._cookie_dir, mode=0o700, exist_ok=True)  # type: ignore
 
         try:
             # PyiCloudService constructor is blocking — run in executor
@@ -150,7 +150,7 @@ class ICloudBridge(BridgeAdapter):
             return []
 
         def _list():
-            node = self.api.drive
+            node = self.api.drive  # type: ignore
             for part in path.strip("/").split("/"):
                 if part:
                     node = node[part]
@@ -181,12 +181,12 @@ class ICloudBridge(BridgeAdapter):
             return {"status": "failed", "error": "Not connected"}
 
         def _download():
-            node = self.api.drive
+            node = self.api.drive  # type: ignore
             parts = path.strip("/").split("/")
             for part in parts[:-1]:
                 node = node[part]
             item = node[parts[-1]]
-            download = self.api.drive.get_file(item.drivewsid)
+            download = self.api.drive.get_file(item.drivewsid)  # type: ignore
             with open(local_dest, "wb") as f:
                 f.write(download.raw.read())
             return os.path.getsize(local_dest)
@@ -207,7 +207,7 @@ class ICloudBridge(BridgeAdapter):
 
         def _fetch():
             reminders = []
-            for collection in self.api.reminders.lists:
+            for collection in self.api.reminders.lists:  # type: ignore
                 for item in collection.get("items", []):
                     if not item.get("completionDate"):
                         reminders.append({
@@ -259,7 +259,7 @@ class ICloudBridge(BridgeAdapter):
 
         def _fetch():
             contacts = []
-            for contact in list(self.api.contacts.all())[:limit]:
+            for contact in list(self.api.contacts.all())[:limit]:  # type: ignore
                 phones = [
                     p.get("field") for p in contact.get("phones", [])
                     if p.get("field")

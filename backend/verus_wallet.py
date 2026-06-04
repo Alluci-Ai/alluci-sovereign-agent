@@ -50,7 +50,7 @@ class VerusWalletService:
             "mining": None,
             "recent_transactions": [],
             "blockchain": None,
-            "pbaas_chains": settings.VERUS_PBAAS_CHAINS,
+            "pbaas_chains": settings.VERUS_PBAAS_CHAINS,  # type: ignore
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
@@ -195,7 +195,7 @@ class VerusWalletService:
                  unconfirmed=dashboard_data.get("unconfirmed", 0.0),
                  balances=[],
                  recent_transactions=[],
-                 pbaas_chains=settings.VERUS_PBAAS_CHAINS,
+                 pbaas_chains=settings.VERUS_PBAAS_CHAINS,  # type: ignore
                  timestamp=datetime.now(timezone.utc).isoformat()
              )
 

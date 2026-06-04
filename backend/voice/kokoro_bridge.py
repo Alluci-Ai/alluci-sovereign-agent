@@ -30,11 +30,11 @@ class AlluciKokoroBridge:
     def __new__(cls, *args, **kwargs):
         if not cls._instance:
             cls._instance = super().__new__(cls)
-            cls._instance._initialized = False
+            cls._instance._initialized = False  # type: ignore
         return cls._instance
 
     def __init__(self, manifest_config_path: str = "./backend/config/tts_manifest.json"):
-        if self._initialized:
+        if self._initialized:  # type: ignore
             return
         self._initialized = True
         
@@ -78,7 +78,7 @@ class AlluciKokoroBridge:
         
         def _generate():
             # Generate the full audio array
-            audio_array = self.tts.generate(
+            audio_array = self.tts.generate(  # type: ignore
                 text=text_payload,
                 voice=voice_profile,
                 speed=1.0,

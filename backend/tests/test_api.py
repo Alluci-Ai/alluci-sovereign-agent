@@ -33,7 +33,7 @@ def app_client(mock_settings):
         services.ace.process_telemetry = MagicMock(return_value={"mode": "STANDARD", "reason": "Test"})
         
         from backend.routers.objectives import policy_engine as objectives_policy
-        objectives_policy.evaluate = MagicMock(return_value=True)
+        objectives_policy.evaluate = MagicMock(return_value=True)  # type: ignore
         
         services.orchestrator = MagicMock()
         services.orchestrator.execute_objective = AsyncMock(return_value={"status": "completed"})

@@ -54,14 +54,14 @@ class EmailBridge(BridgeAdapter):
             return False
 
     def _test_smtp_connection(self):
-        server = smtplib.SMTP(self.smtp_server, self.smtp_port, timeout=10)
+        server = smtplib.SMTP(self.smtp_server, self.smtp_port, timeout=10)  # type: ignore
         server.starttls()
-        server.login(self.username, self.password)
+        server.login(self.username, self.password)  # type: ignore
         server.quit()
 
     def _test_imap_connection(self):
-        mail = imaplib.IMAP4_SSL(self.imap_server, self.imap_port)
-        mail.login(self.username, self.password)
+        mail = imaplib.IMAP4_SSL(self.imap_server, self.imap_port)  # type: ignore
+        mail.login(self.username, self.password)  # type: ignore
         mail.logout()
 
     async def send_message(self, recipient: str, content: str) -> Dict[str, Any]:
@@ -73,7 +73,7 @@ class EmailBridge(BridgeAdapter):
         
         try:
             msg = MIMEMultipart()
-            msg['From'] = self.username
+            msg['From'] = self.username  # type: ignore
             msg['To'] = recipient
             msg['Subject'] = "Message from Alluci Sovereign Agent"
             msg.attach(MIMEText(content, 'plain'))
@@ -98,9 +98,9 @@ class EmailBridge(BridgeAdapter):
         return await self.send_message(recipient, content)
 
     def _send_smtp(self, msg):
-        server = smtplib.SMTP(self.smtp_server, self.smtp_port, timeout=30)
+        server = smtplib.SMTP(self.smtp_server, self.smtp_port, timeout=30)  # type: ignore
         server.starttls()
-        server.login(self.username, self.password)
+        server.login(self.username, self.password)  # type: ignore
         server.send_message(msg)
         server.quit()
 
@@ -118,8 +118,8 @@ class EmailBridge(BridgeAdapter):
             return []
 
     def _fetch_imap(self, limit: int) -> List[Dict[str, Any]]:
-        mail = imaplib.IMAP4_SSL(self.imap_server, self.imap_port)
-        mail.login(self.username, self.password)
+        mail = imaplib.IMAP4_SSL(self.imap_server, self.imap_port)  # type: ignore
+        mail.login(self.username, self.password)  # type: ignore
         mail.select('inbox')
         
         status, messages = mail.search(None, '(UNSEEN)')
@@ -144,10 +144,10 @@ class EmailBridge(BridgeAdapter):
                     if msg.is_multipart():
                         for part in msg.walk():
                             if part.get_content_type() == "text/plain":
-                                body = part.get_payload(decode=True).decode(errors='ignore')
+                                body = part.get_payload(decode=True).decode(errors='ignore')  # type: ignore
                                 break
                     else:
-                        body = msg.get_payload(decode=True).decode(errors='ignore')
+                        body = msg.get_payload(decode=True).decode(errors='ignore')  # type: ignore
                     
                     data = {
                         "id": e_id.decode(),

@@ -134,9 +134,9 @@ def test_update_agent_name_and_model(app_client, auth_headers, temp_db):
 
     with Session(temp_db) as session:
         updated = session.get(AgentRecord, "agt_update_01")
-    assert updated.name == "New Name"
-    assert updated.model == "gemini-2.0-flash"
-    assert updated.status == "ACTIVE"
+    assert updated.name == "New Name"  # type: ignore
+    assert updated.model == "gemini-2.0-flash"  # type: ignore
+    assert updated.status == "ACTIVE"  # type: ignore
 
 
 def test_update_agent_heartbeat_orders(app_client, auth_headers, temp_db):
@@ -163,7 +163,7 @@ def test_update_agent_heartbeat_orders(app_client, auth_headers, temp_db):
 
     with Session(temp_db) as session:
         updated = session.get(AgentRecord, "agt_hb_update_01")
-    orders = json.loads(updated.heartbeat_orders)
+    orders = json.loads(updated.heartbeat_orders)  # type: ignore
     assert len(orders) == 1
     assert orders[0]["action_type"] == "pcl_signal"
 

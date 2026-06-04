@@ -16,7 +16,7 @@ from .. import services
 try:
     from ..models import HeartbeatOrderRecord
 except ImportError:
-    HeartbeatOrderRecord = None
+    HeartbeatOrderRecord = None  # type: ignore
 
 logger = get_logger("SessionsRouter")
 
@@ -28,7 +28,7 @@ async def get_current_session():
     try:
         from .. import services
         soul = services.orchestrator.base_manifest if services.orchestrator else None
-        connections = services.orchestrator.bridge_manager.get_connections() if (services.orchestrator and services.orchestrator.bridge_manager) else []
+        connections = services.orchestrator.bridge_manager.get_connections() if (services.orchestrator and services.orchestrator.bridge_manager) else []  # type: ignore
         return {
             "status": "SUCCESS",
             "soul": soul,

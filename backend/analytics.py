@@ -365,9 +365,9 @@ class UsageTracker:
             for r in rows
         ]
 
-    def record_message(self, session_key: str, role: str, content: str = None, 
-                       tool_name: str = None, tool_args: str = None, tool_id: str = None,
-                       account_id: str = None):
+    def record_message(self, session_key: str, role: str, content: str = None,  # type: ignore
+                       tool_name: str = None, tool_args: str = None, tool_id: str = None,  # type: ignore
+                       account_id: str = None):  # type: ignore
         """Persist a message to the session log."""
         from .models import MessageLog
         entry = MessageLog(

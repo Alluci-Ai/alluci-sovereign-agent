@@ -103,7 +103,7 @@ class VDXFStore:
                 logger.warning("No on-chain manifest found. Integrity check skipped.")
                 return True
             
-            on_chain_hash = on_chain_data[0].get("keys_hash", "").replace("sha256:", "")
+            on_chain_hash = on_chain_data[0].get("keys_hash", "").replace("sha256:", "")  # type: ignore
             local_hash = self._get_hash(local_vault_data)
             
             if on_chain_hash == local_hash:

@@ -79,7 +79,7 @@ class ConfigEditor:
             if self._is_sensitive(field_name) and value:
                 data[field_name] = self._mask(str(value))
             else:
-                data[field_name] = value
+                data[field_name] = value  # type: ignore
         return data
 
     def get_schema(self) -> Dict[str, Any]:

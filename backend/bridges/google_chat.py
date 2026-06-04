@@ -66,7 +66,7 @@ class GoogleChatBridge(BridgeAdapter):
             try:
                 with open(path) as f:
                     self._sa_credentials = json.load(f)
-                self._project_id = self._sa_credentials.get("project_id")
+                self._project_id = self._sa_credentials.get("project_id")  # type: ignore
                 self.logger.debug("[GCHAT] Service account loaded from vault.")
             except Exception as e:
                 self.logger.error(f"[GCHAT] Failed to load SA from vault: {e}")
@@ -93,8 +93,8 @@ class GoogleChatBridge(BridgeAdapter):
         elif credentials.get("service_account_file"):
             with open(credentials["service_account_file"]) as f:
                 self._sa_credentials = json.load(f)
-        elif settings.GOOGLE_CHAT_SERVICE_ACCOUNT_FILE:
-            with open(settings.GOOGLE_CHAT_SERVICE_ACCOUNT_FILE) as f:
+        elif settings.GOOGLE_CHAT_SERVICE_ACCOUNT_FILE:  # type: ignore
+            with open(settings.GOOGLE_CHAT_SERVICE_ACCOUNT_FILE) as f:  # type: ignore
                 self._sa_credentials = json.load(f)
         elif self._sa_credentials:
             pass  # Already loaded from vault
@@ -102,8 +102,8 @@ class GoogleChatBridge(BridgeAdapter):
             self.last_error = "No service account credentials provided."
             return False
 
-        self._project_id = self._sa_credentials.get("project_id")
-        self._save_sa_to_vault(self._sa_credentials)
+        self._project_id = self._sa_credentials.get("project_id")  # type: ignore
+        self._save_sa_to_vault(self._sa_credentials)  # type: ignore
 
         success = await self._refresh_access_token()
         if success:
@@ -153,7 +153,7 @@ class GoogleChatBridge(BridgeAdapter):
                 password=None,
             )
             signing_input = header + b"." + claims
-            signature = private_key.sign(signing_input, padding.PKCS1v15(), hashes.SHA256())
+            signature = private_key.sign(signing_input, padding.PKCS1v15(), hashes.SHA256())  # type: ignore
             sig_b64 = base64.urlsafe_b64encode(signature).rstrip(b"=")
             jwt_token = (signing_input + b"." + sig_b64).decode()
 
@@ -205,7 +205,7 @@ class GoogleChatBridge(BridgeAdapter):
         if not token:
             return False
 
-        audience = settings.GOOGLE_CHAT_AUDIENCE or self._project_id
+        audience = settings.GOOGLE_CHAT_AUDIENCE or self._project_id  # type: ignore
 
         jwks = await self._get_jwks()
         if not jwks:

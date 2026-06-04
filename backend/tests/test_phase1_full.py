@@ -49,6 +49,10 @@ async def test_full_phase1_flow(monkeypatch, tmp_path):
     orchestrator.ppn.return_value = (MagicMock(), MagicMock(), torch.tensor([1,1,1]), MagicMock(), 0.1, 0.1, 0.9, 0.0)
     orchestrator.ppn.extract_simplex_counts.return_value = (10, 20, 10)
     
+    # Mock embed model to bypass real sentence transformers
+    orchestrator._embed_model = MagicMock()
+    orchestrator._embed_model.encode.return_value = torch.ones(384)
+    
     # 3. Execute Objective
     result = await orchestrator.execute_objective("Test full flow", autonomy="autonomous")
     

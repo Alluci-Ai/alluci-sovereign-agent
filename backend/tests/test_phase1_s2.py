@@ -1,6 +1,6 @@
 import pytest
 import os
-import yaml
+import yaml  # type: ignore
 from cryptography.fernet import Fernet
 from backend.memory.manager import MemoryManager
 from backend.skill_manager import SkillManager
@@ -46,7 +46,7 @@ async def test_skill_manager_disk(temp_dir):
     class MockVault:
         async def retrieve_secret(self, key): return {}
         
-    manager = SkillManager(MockVault(), skills_dir=skills_dir)
+    manager = SkillManager(MockVault(), skills_dir=skills_dir)  # type: ignore
     skills = await manager.list_skills()
     
     assert any(s["id"] == "test_skill" for s in skills)
@@ -85,5 +85,5 @@ async def test_adapters_registry(monkeypatch, tmp_path):
     
     # Test shell execution (safe check)
     shell = registry.get("shell")
-    res = await shell.execute({"command": "echo 'hello'"})
+    res = await shell.execute({"command": "echo 'hello'"})  # type: ignore
     assert "hello" in res.strip()

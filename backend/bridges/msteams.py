@@ -162,7 +162,7 @@ class MSTeamsBridge(BridgeAdapter):
         await self.connect(creds)
         return creds
 
-    async def _save_credentials(self, creds: Dict[str, Any]) -> None:
+    async def _save_credentials(self, creds: Dict[str, Any]) -> None:  # type: ignore
         await super()._save_credentials(creds, account_id=self._user_id or "default")
 
     # ── Token Refresh ─────────────────────────────────────────────────────────
@@ -240,7 +240,7 @@ class MSTeamsBridge(BridgeAdapter):
         Validates issuer, audience (bot app ID), and signature.
         """
         from ..config import settings
-        bot_app_id = settings.MSTEAMS_BOT_APP_ID
+        bot_app_id = settings.MSTEAMS_BOT_APP_ID  # type: ignore
         if not bot_app_id:
             self.logger.warning("[MSTEAMS] MSTEAMS_BOT_APP_ID not set — skipping JWT verification.")
             return True  # Allow through but log the misconfiguration
