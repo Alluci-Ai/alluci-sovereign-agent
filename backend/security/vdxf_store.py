@@ -26,13 +26,14 @@ class VDXFStore:
     def _get_hash(self, data: str) -> str:
         return hashlib.sha256(data.encode()).hexdigest()
 
-    async def anchor_vault_hash(self, vault_data: str) -> bool:
+    async def anchor_vault_hash(self, vault_data: str) -> Optional[str]:
         """
         Tier 1: Updates the on-chain manifest hash via updateidentity.
         This anchors the integrity of the local vault to the blockchain.
+        Returns TXID if successful, None otherwise.
         """
         if not settings.VERUS_AUTH_ENABLED:
-            return False
+            return None
 
         try:
             vault_hash = self._get_hash(vault_data)
@@ -53,10 +54,41 @@ class VDXFStore:
             
             txid = await verus_rpc.update_identity(identity_data["identity"])
             logger.info(f"Vault hash anchored on-chain. TXID: {txid}")
-            return True
+            return txid
         except Exception as e:
             logger.error(f"Failed to anchor vault hash: {str(e)}")
-            return False
+            return None
+
+    async def anchor_audit_batch(self, batch_data: str) -> Optional[str]:
+        """
+        Anchors a batch of audit logs to the Verus blockchain.
+        Returns TXID if successful, None otherwise.
+        """
+        if not settings.VERUS_AUTH_ENABLED:
+            return None
+
+        try:
+            batch_hash = self._get_hash(batch_data)
+            identity_data = await verus_rpc.get_identity(self.identity)
+            
+            manifest = {
+                "version": 1,
+                "audit_hash": f"sha256:{batch_hash}",
+                "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            }
+            
+            vdxf_audit_key = "alluci.audit.ledger@"
+            if "contentmultimap" not in identity_data["identity"]:
+                identity_data["identity"]["contentmultimap"] = {}
+                
+            identity_data["identity"]["contentmultimap"][vdxf_audit_key] = [manifest]
+            
+            txid = await verus_rpc.update_identity(identity_data["identity"])
+            logger.info(f"Audit batch hash anchored on-chain. TXID: {txid}")
+            return txid
+        except Exception as e:
+            logger.error(f"Failed to anchor audit batch hash: {str(e)}")
+            return None
 
     async def verify_integrity(self, local_vault_data: str) -> bool:
         """

@@ -274,6 +274,7 @@ class SoulPreferences(BaseModel):
     creativity: float = Field(0.5, ge=0.0, le=1.0)
     verbosity: float = Field(0.5, ge=0.0, le=1.0) # Legacy support
     conciseness: SoulConciseness = SoulConciseness.BALANCED
+    heartbeat_interval: int = Field(30, description="Global heartbeat tick interval in seconds")
 
 class ExecutionGraph(BaseModel):
     nodes: List[Dict[str, Any]] = [] # {id, x, y}
@@ -525,6 +526,11 @@ class AuditLog(SQLModel, table=True):
     psi: Optional[float] = None                    # Affective tension
     merkle_attribution_hash: Optional[str] = None  # H_P from TopologicalAuditLog
     pvt_json: Optional[str] = None                 # JSON string of {P, V, T}
+
+    # Verus VDXF Anchoring Metadata
+    verus_txid: Optional[str] = Field(default=None, index=True)
+    vdxf_key: Optional[str] = Field(default=None)
+    anchored_timestamp: Optional[datetime] = Field(default=None)
 
 class Device(SQLModel, table=True):
     """Device identity for node authentication (Sovereign Spec §4.3)."""

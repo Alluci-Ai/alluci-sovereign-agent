@@ -52,13 +52,18 @@ from ..config import settings
 from .vdxf_store import VDXFStore
 
 class VaultManager:
+    fernet_key: Optional[bytes]
+    aes_key: Optional[bytes]
+    fernet: Optional[Fernet]
+    aes_gcm: Optional[AESGCM]
+
     def __init__(self, master_key: str, vault_root: Optional[str] = None):
         
         # P4-004: macOS Keychain Integration
         sync_key = self._ensure_keychain_sync(master_key)
         
         # Security Hardening: Store master key in a mutable bytearray to allow secure RAM wiping
-        self.master_key = bytearray(sync_key.encode('utf-8')) if isinstance(sync_key, str) else bytearray(sync_key)
+        self.master_key = bytearray(sync_key.encode('utf-8')) if isinstance(sync_key, str) else bytearray(sync_key) # type: ignore
         
         self.vault_root = vault_root or os.path.expanduser("~/.polytope/vaults")
         self._ensure_vault_root_sync()
@@ -90,12 +95,29 @@ class VaultManager:
             for i in range(len(self.master_key)):
                 self.master_key[i] = 0
         if hasattr(self, 'fernet_key') and self.fernet_key:
+            # Overwrite key material in memory before discarding if mutable
+            if isinstance(self.fernet_key, bytearray):
+                for i in range(len(self.fernet_key)):
+                    self.fernet_key[i] = 0
             self.fernet_key = None
         if hasattr(self, 'aes_key') and self.aes_key:
+            if isinstance(self.aes_key, bytearray):
+                for i in range(len(self.aes_key)):
+                    self.aes_key[i] = 0
             self.aes_key = None
-        self.private_key = None
+        # Clear Fernet instance to remove any cached state
+        if hasattr(self, 'fernet'):
+            self.fernet = None
+        # Clear AESGCM object (no direct zero‑out, but drop reference)
+        if hasattr(self, 'aes_gcm'):
+            self.aes_gcm = None
+        # Clear RSA keys and any VDXF store references
+        if hasattr(self, 'private_key'):
+            self.private_key = None
+        if hasattr(self, 'vdxf'):
+            self.vdxf = None
+        
         logger.info("[SECURITY] Vault locked. Cryptographic material securely wiped from RAM.")
-
     def _get_rsa_keys(self):
         """Retrieves or generates RSA keys protected by the master key."""
         key_path = os.path.join(self.vault_root, "identity.pem")
@@ -228,6 +250,8 @@ class VaultManager:
         ))
 
     def _store_secret_sync(self, bridge_id: str, data: Dict[str, Any]):
+        if not self.aes_gcm:
+            raise RuntimeError("Vault is locked")
         raw_data = json.dumps(data).encode()
         nonce = os.urandom(12)
         # AES-GCM: prefix + nonce + ciphertext (includes tag at the end in cryptography's AESGCM)
@@ -293,6 +317,8 @@ class VaultManager:
         return data or {}
 
     def _retrieve_secret_sync(self, bridge_id: str) -> Optional[Dict[str, Any]]:
+        if not self.aes_gcm or not self.fernet:
+            raise RuntimeError("Vault is locked")
         path = os.path.join(self.vault_root, f"{bridge_id}.vault")
         if not os.path.exists(path):
             return None

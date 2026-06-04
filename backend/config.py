@@ -109,6 +109,7 @@ class Settings(BaseSettings):
     MAX_CONCURRENT_TASKS: int = 5
     MAX_AUTONOMY_RETRIES: int = 3
     CRITIC_THRESHOLD: float = 0.75
+    HEARTBEAT_INTERVAL: int = 30
     
     # Verus Core
     VERUS_RPC_HOST: str = "localhost"

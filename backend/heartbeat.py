@@ -604,12 +604,12 @@ class HeartbeatDaemon:
         self._running = False
         self._task: Optional[asyncio.Task] = None
         self.logger = get_logger("Heartbeat")
-        self._dream_orchestrator = None
+        self._dream_orchestrator: Optional[SleepStateOrchestrator] = None
 
     def inject_hlsm(self, hlsm, router=None, settings=None) -> None:
         """Called by services.py after HLSMManager is initialised."""
         self._hlsm = hlsm
-        self._dream_orchestrator = SleepStateOrchestrator(hlsm, router, settings)
+        self._dream_orchestrator = SleepStateOrchestrator(hlsm, router, settings)  # type: ignore
 
     def _get_db(self):
         if self.db_engine:
@@ -654,7 +654,21 @@ class HeartbeatDaemon:
             except Exception as exc:
                 self.logger.error("[HB] Tick error: %s", exc, exc_info=True)
             try:
-                await asyncio.sleep(TICK_SECONDS)
+                tick_interval = TICK_SECONDS
+                if self.vault:
+                    try:
+                        manifest_data = await self.vault.retrieve_secret("soul_manifest")
+                        if manifest_data and isinstance(manifest_data, dict):
+                            prefs = manifest_data.get("preferences", {})
+                            tick_interval = prefs.get("heartbeat_interval", TICK_SECONDS)
+                    except Exception:
+                        from .config import settings
+                        tick_interval = getattr(settings, "HEARTBEAT_INTERVAL", TICK_SECONDS)
+                else:
+                    from .config import settings
+                    tick_interval = getattr(settings, "HEARTBEAT_INTERVAL", TICK_SECONDS)
+                    
+                await asyncio.sleep(tick_interval)
             except asyncio.CancelledError:
                 break
 
@@ -839,9 +853,10 @@ class HeartbeatDaemon:
 
         root_orders = await self._load_root_orders()
         agent_orders = self._load_agent_orders()
-        all_orders: List[Tuple[Optional[str], Dict]] = (
-            [(None, o) for o in root_orders] + agent_orders
-        )
+        all_orders: List[Tuple[Optional[str], Dict]] = []
+        for o in root_orders:
+            all_orders.append((None, o))
+        all_orders.extend(agent_orders)
 
         if not all_orders:
             self.logger.debug("[HB] No active orders")

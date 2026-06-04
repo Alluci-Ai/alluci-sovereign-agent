@@ -67,20 +67,51 @@ def _sync_audit_entry_sync(entry: AuditEntry, topo: Optional[dict] = None):
         session.add(log_row)
         session.commit()
 
-    # 3. Anchor to Verus blockchain if configured (Non-blocking/best-effort)
-    if settings.VERUS_AUTH_ENABLED and settings.VERUS_ID_IDENTITY:
-        try:
-            from .vdxf_store import VDXFStore
-            store = VDXFStore(settings.VERUS_ID_IDENTITY)
-            # This is sync in VDXFStore usually, or we'd handle it async
-            # For simplicity in this sync-helper:
-            # loop = asyncio.get_event_loop()
-            # loop.create_task(store.anchor_vault_hash(integrity_hash))
-            pass 
-        except Exception as e:
-            logger.warning(f"[AUDIT] VDXF anchoring failed (non-fatal): {e}")
+    # 3. Anchor to Verus blockchain is now handled via periodic batch anchoring
+    # (See anchor_audit_batch below or the AuditVerifier daemon)
 
     return {"status": "SUCCESS", "synced_id": entry.id}
+
+async def anchor_audit_batch(limit: int = 100):
+    """
+    Finds up to `limit` unanchored audit log entries, serializes them, anchors them via VDXF,
+    and updates their verus_txid in the SQLite DB.
+    """
+    if not settings.VERUS_AUTH_ENABLED or not settings.VERUS_ID_IDENTITY:
+        return {"status": "SKIPPED", "message": "Verus auth disabled"}
+
+    from .vdxf_store import VDXFStore
+
+    with Session(db_engine) as session:
+        # Fetch unanchored records ordered by id (chronological)
+        unanchored = session.exec(
+            select(AuditLog).where(AuditLog.verus_txid == None).order_by(AuditLog.id).limit(limit)  # type: ignore
+        ).all()
+
+        if not unanchored:
+            return {"status": "SKIPPED", "message": "No unanchored records"}
+
+        # Serialize batch for hashing
+        batch_data = json.dumps([r.model_dump(exclude={"verus_txid", "vdxf_key", "anchored_timestamp"}) for r in unanchored], default=str)
+        
+    # We do the anchor outside the synchronous session block to avoid holding a DB lock during network I/O
+    store = VDXFStore(settings.VERUS_ID_IDENTITY)
+    txid = await store.anchor_audit_batch(batch_data)
+
+    if txid:
+        now = datetime.now(timezone.utc)
+        with Session(db_engine) as session:
+            for row in unanchored:
+                db_row = session.get(AuditLog, row.id)
+                if db_row:
+                    db_row.verus_txid = txid
+                    db_row.vdxf_key = "alluci.audit.ledger@"
+                    db_row.anchored_timestamp = now
+                    session.add(db_row)
+            session.commit()
+        return {"status": "SUCCESS", "txid": txid, "count": len(unanchored)}
+    else:
+        return {"status": "ERROR", "message": "Failed to anchor batch"}
 
 async def read_audit_log(limit: int = 100, offset: int = 0, status: Optional[str] = None):
     """Retrieves paginated audit entries from the database."""
