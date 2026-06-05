@@ -355,6 +355,13 @@ async def _init_channels(vault_root: str):
             adapter.enabled = enabled_state.get("enabled", True) if enabled_state else True
             if not adapter.enabled: continue
 
+            # 1.5 Auto-connect native/local bridges that don't need OAuth
+            if ch_name in ["imessage"]:
+                success = await adapter.connect({})
+                if success:
+                    logger.info(f"[ CHANNELS ] Auto-connected native bridge: {ch_name}")
+                continue
+
             # 2. Multi-account discovery (P1-009 Standard)
             accounts = await vault.list_connections(ch_name)
             
