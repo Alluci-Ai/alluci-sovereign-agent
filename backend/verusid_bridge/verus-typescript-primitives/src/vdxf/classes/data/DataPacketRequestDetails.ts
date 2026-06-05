@@ -123,7 +123,7 @@ export class DataPacketRequestDetails implements SerializableEntity {
     }
 
     if (this.hasSignature()) {
-      valid &&= this.signature !== undefined; // TODO: && this.signature.isValid();
+      valid &&= this.signature !== undefined && this.signature.isValid();
     }
 
     return valid;

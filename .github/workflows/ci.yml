@@ -12,10 +12,10 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
-    - name: Set up Python 3.9
+    - name: Set up Python 3.12
       uses: actions/setup-python@v4
       with:
-        python-version: "3.9.6"
+        python-version: "3.12"
         cache: 'pip'
         
     - name: Install dependencies
@@ -31,3 +31,4 @@ jobs:
     - name: Run Pytest & Enforce 95% Coverage
       run: |
         pytest backend/ --cov=backend --cov-report=term-missing --cov-fail-under=95
+

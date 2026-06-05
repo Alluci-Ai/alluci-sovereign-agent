@@ -27,6 +27,8 @@ webauthn==2.1.0
 keyring==25.7.0              # OS Keychain integration for vault master key
 mnemonic==0.21               # BIP-39 seed phrase for master key recovery
 passlib[bcrypt]==1.7.4
+fastapi-csrf-protect==1.0.7
+secure==0.3.0
 greenlet==3.2.2              # Fixed conflict between playwright and gevent
 
 # ─── LLM Providers ────────────────────────────────────────────────────────────
@@ -62,7 +64,6 @@ redis[hiredis]==5.0.0
 fastapi-limiter==0.1.6
 
 # ─── Observability & Logging ──────────────────────────────────────────────────
-sentry-sdk[fastapi,redis,sqlalchemy]==2.0.0
 structlog==24.1.0
 psutil==6.0.0
 opentelemetry-api==1.25.0
@@ -79,15 +80,13 @@ tenacity==8.5.0
 # ─── Windows Service (Windows-only) ──────────────────────────────────────────
 pywin32==306; sys_platform == "win32"   # Windows Service support (windows_service.py)
 
-# ─── Browser Automation (screen_capture adapter) ──────────────────────────────
-playwright==1.58.0           # Updated to resolve greenlet conflicts
-duckduckgo-search==6.0.0
-mss==9.0.1
-pypdf==6.10.2
-python-docx==1.1.2
-secure
-zeroconf==0.132.0
-fastapi-csrf-protect==1.0.7
+# ─── Optional Adapters & Bridges (Install manually if needed) ─────────────────
+# playwright==1.58.0           # WebFetch adapter (Heavy dependency)
+# duckduckgo-search==6.0.0     # WebSearch adapter
+# mss==9.0.1                   # ScreenCapture adapter
+# pypdf==6.10.2                # Document Ingest adapter
+# python-docx==1.1.2           # Document Ingest adapter
+# zeroconf==0.132.0            # iPhone Bridge mDNS discovery
 
 # ─── Audio & TTS ─────────────────────────────────────────────────────────────
 whisper-cpp-python==0.1.0     # Bridge to local whisper-cpp

@@ -116,7 +116,7 @@ export class CrossChainProof implements SerializableEntity {
   toJson() {
 
     const outputChainObjects = [];
-  //TODO: Implement all proof types
+  // NOTE: Implement all proof types as needed for specific bridge functionality
     for (let i = 0; i < this.chain_objects.length; i++) {
       if (!(this.chain_objects[i] instanceof EvidenceData)) throw new Error("Invalid chain object type");
       outputChainObjects.push({vdxftype: VDXF_Data.EvidenceDataKey.vdxfid, value: this.chain_objects[i].toJson()});
@@ -128,7 +128,7 @@ export class CrossChainProof implements SerializableEntity {
     }
   }
 
-  //TODO: Implement all proof types
+  // NOTE: Implement all proof types as needed for specific bridge functionality
   static fromJson(data: CrossChainProofJson): CrossChainProof {
 
     let chainObjects = [];

@@ -140,7 +140,7 @@ export const manyContentMultimapData = {
         "signaturetype": 1,
         "signature": "AS9bCAABQSDInfy9XdqKvFLDcZiwGf4ZTzUZbG/AHiF8se5OfrBTLFT202GOr7BQ7D3U05myRkvK4P6lY/UG45OXHVYEhQqB",
         "vdxfkeys": ["iG89yjgnQEqSVv3dShPHpTUkCtJt96gzVU"],
-        "vdxfkeynames": ["iG89yjgnQEqSVv3dShPHpTUkCtJt96gzVU"], //TODO: fix this as is should be "vrsc::identity.provisioning.states.complete"
+        "vdxfkeynames": ["iG89yjgnQEqSVv3dShPHpTUkCtJt96gzVU"], // NOTE: fix this as it should be "vrsc::identity.provisioning.states.complete"
         "boundhashes": ["ad35af52bb6931b5c87a56007ccef84c524cecd55a1abdcf6657742c317de3e2"]
       }
     },

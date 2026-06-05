@@ -59,6 +59,7 @@ class VaultManager:
 
     def __init__(self, master_key: str, vault_root: Optional[str] = None):
         
+
         # P4-004: macOS Keychain Integration
         sync_key = self._ensure_keychain_sync(master_key)
         
@@ -88,7 +89,8 @@ class VaultManager:
         self.vdxf = None
         if settings.VERUS_AUTH_ENABLED and settings.VERUS_ID_IDENTITY:
             self.vdxf = VDXFStore(settings.VERUS_ID_IDENTITY)
-        
+
+
     def lock_vault(self):
         """Securely wipes the master key and derived keys from RAM."""
         if hasattr(self, 'master_key') and self.master_key:

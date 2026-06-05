@@ -1,5 +1,5 @@
-
 let _csrfToken: string | null = null;
+let _refreshTimeout: ReturnType<typeof setTimeout> | null = null;
 
 export const setCsrfToken = (token: string | null) => {
   _csrfToken = token;
@@ -24,9 +24,20 @@ export const getCsrfToken = async (daemonUrl: string, accessToken: string | null
     }
     const data = await res.json();
     _csrfToken = data.csrf_token;
+    
+    // Auto-refresh token 1 minute before typical expiration (assuming 15m expiration, refresh at 14m)
+    if (_refreshTimeout) clearTimeout(_refreshTimeout);
+    _refreshTimeout = setTimeout(() => {
+        getCsrfToken(daemonUrl, accessToken, true).catch(console.error);
+    }, 14 * 60 * 1000);
+
     return _csrfToken;
   } catch (err) {
     console.error("Failed to fetch CSRF token:", err);
     return null;
   }
+};
+
+export const refreshCsrfToken = async (daemonUrl: string, accessToken: string | null): Promise<string | null> => {
+  return getCsrfToken(daemonUrl, accessToken, true);
 };

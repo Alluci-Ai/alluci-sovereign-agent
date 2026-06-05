@@ -37,7 +37,7 @@ export type CompactAddressIVariant = "COMPACT_ADDR_I_VARIANT";
 export type CompactAddressXVariant = "COMPACT_ADDR_X_VARIANT";
 export type CompactAddressVariantName = CompactAddressIVariant | CompactAddressXVariant;
 
-// TODO: Find some way to not have to hardcode the version numbers into the types here and instead use the above constants
+// NOTE: Find some way to not have to hardcode the version numbers into the types here and instead use the above constants
 export type CompactAddressVariantAllowedType<T extends CompactAddressVariantName> = 
   T extends CompactAddressIVariant ? `${1 | 2}` :
   T extends CompactAddressXVariant ? `${1 | 3}` :

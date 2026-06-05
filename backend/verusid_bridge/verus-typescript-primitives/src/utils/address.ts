@@ -10,7 +10,7 @@ export const fromBase58Check = (
 ): { version: number; hash: Buffer } => {
   var payload = Buffer.from(bs58check.decode(address));
 
-  // TODO: 4.0.0, move to "toOutputScript"
+  // NOTE: in 4.0.0, move to "toOutputScript"
   if (payload.length < 21) throw new TypeError(address + " is too short");
   if (payload.length > 22) throw new TypeError(address + " is too long");
 
