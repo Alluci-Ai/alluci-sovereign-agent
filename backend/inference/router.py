@@ -191,7 +191,7 @@ class ModelRouter(ExecutiveRouter):
         """LM Studio via OpenAI-compatible API — local fallback after Ollama."""
         if not self.lm_studio_client:
             raise RuntimeError("LM Studio not configured")
-        model = getattr(self.settings, "LM_STUDIO_MODEL", "local-model")
+        model = getattr(self.settings, "LM_STUDIO_MODEL", "alluci-polytope-gemma-4")
         
         messages = []
         if system_instruction:
@@ -651,7 +651,22 @@ class ModelRouter(ExecutiveRouter):
 
             # ── Step 2: Cloud Fallback (If allowed) ─────────────────────────
             sovereign_mode = getattr(self.settings, "SOVEREIGN_MODE", False)
-            allow_cloud = not sovereign_mode and self.evaluate_privacy_constraint(privacy_level, is_cloud_provider=True)
+            
+            # [ User Directive: Strict Local Enforcement ]
+            # Block cloud fallback for LOW/MEDIUM complexity unless the topological
+            # classifier detects high-compute structural reasoning.
+            if complexity in ["LOW", "MEDIUM"]:
+                classification = self.classify_prompt_topology(prompt)
+                if classification["domain"] not in ["ARCHITECTURE", "MATH_CODE"]:
+                    allow_cloud = False
+                    self.logger.info("[ROUTER] Strict local enforcement active. Blocking cloud failover for standard topology.")
+                    if errors:
+                        # If local failed and cloud is blocked, raise immediately
+                        raise RuntimeError(f"Local inference failed and cloud fallback is blocked for standard topology. Errors: {errors}")
+                else:
+                    allow_cloud = not sovereign_mode and self.evaluate_privacy_constraint(privacy_level, is_cloud_provider=True)
+            else:
+                allow_cloud = not sovereign_mode and self.evaluate_privacy_constraint(privacy_level, is_cloud_provider=True)
             
             if allow_cloud:
                 from ..security.proxy import AlluciSecureProxy

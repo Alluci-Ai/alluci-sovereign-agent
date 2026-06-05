@@ -142,30 +142,48 @@ class IMessageBridge(BridgeAdapter):
     # ── Poll Loop ────────────────────────────────────────────────────────────
 
     async def _poll_loop(self) -> None:
-        """Poll chat.db for new messages every 30 seconds."""
-        self.logger.info("[IMESSAGE] Poll loop started.")
+        """Poll chat.db for new messages via 1-second mtime checks."""
+        self.logger.info("[IMESSAGE] Zero-lag file watcher (poll loop) started.")
+        db_path = os.path.expanduser("~/Library/Messages/chat.db")
+        wal_path = os.path.expanduser("~/Library/Messages/chat.db-wal")
+        last_mtime = 0.0
+        
         while self.is_connected:
             try:
-                new_msgs = await self.fetch_unread(limit=50)
-                for msg in new_msgs:
-                    guid = msg.get("id")
-                    if guid and guid in self._seen_guids:
-                        continue                            # In-process dedup
-                    if guid:
-                        self._seen_guids.add(guid)
-                        # Trim dedup set to prevent unbounded growth
-                        if len(self._seen_guids) > self.DEDUP_MAXSIZE:
-                            # Pop an arbitrary element if pop() behaves like set.pop()
-                            # or use a list/deque if ordering matters. 
-                            # set.pop() removes an arbitrary element.
-                            self._seen_guids.pop()
+                # 1. Zero-lag stat check
+                current_mtime = 0.0
+                try:
+                    current_mtime = os.stat(db_path).st_mtime
+                    if os.path.exists(wal_path):
+                        current_mtime = max(current_mtime, os.stat(wal_path).st_mtime)
+                except FileNotFoundError:
+                    pass
+                
+                # 2. Only fetch if modified
+                if current_mtime > last_mtime:
+                    # Optional: debounce slight delay for SQLite flush
+                    if last_mtime > 0.0:
+                        await asyncio.sleep(0.2)
+                        
+                    new_msgs = await self.fetch_unread(limit=50)
+                    for msg in new_msgs:
+                        guid = msg.get("id")
+                        if guid and guid in self._seen_guids:
+                            continue                            # In-process dedup
+                        if guid:
+                            self._seen_guids.add(guid)
+                            # Trim dedup set to prevent unbounded growth
+                            if len(self._seen_guids) > self.DEDUP_MAXSIZE:
+                                self._seen_guids.pop()
 
-                    await self._dispatch_inbound(msg)
+                        await self._dispatch_inbound(msg)
 
-                if new_msgs:
-                    # Persist the highest rowid we've processed
-                    self._save_cursor(self._last_rowid)
-                    self.last_activity = datetime.now(timezone.utc).isoformat()
+                    if new_msgs:
+                        # Persist the highest rowid we've processed
+                        self._save_cursor(self._last_rowid)
+                        self.last_activity = datetime.now(timezone.utc).isoformat()
+                    
+                    last_mtime = current_mtime
 
             except asyncio.CancelledError:
                 self.logger.info("[IMESSAGE] Poll loop cancelled.")
@@ -173,7 +191,7 @@ class IMessageBridge(BridgeAdapter):
             except Exception as e:
                 self.logger.error(f"[IMESSAGE] Poll error: {e}", exc_info=True)
 
-            await asyncio.sleep(30)
+            await asyncio.sleep(1)  # Zero-lag 1-second sleep
 
     # ── Fetch Unread ─────────────────────────────────────────────────────────
 
