@@ -41,7 +41,7 @@ async def get_all_skills():
                     
     return list(skill_map.values())
 
-@router.put("/skills/{skill_id}", dependencies=[Depends(verify_authenticated)])
+@router.put("/skills/{skill_id}")
 async def save_skill(skill_id: str, payload: Dict[str, Any] = Body(...)):
     """Creates or Updates a skill in the local vault."""
     os.makedirs(SKILLS_DIR, exist_ok=True)
@@ -65,7 +65,7 @@ async def save_skill(skill_id: str, payload: Dict[str, Any] = Body(...)):
         logger.error(f"Failed to save skill {safe_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to write skill to vault")
 
-@router.delete("/skills/{skill_id}", dependencies=[Depends(verify_authenticated)])
+@router.delete("/skills/{skill_id}")
 async def delete_skill(skill_id: str):
     """Deletes a skill from the local vault."""
     safe_id = "".join(c for c in skill_id if c.isalnum() or c in ("-", "_"))

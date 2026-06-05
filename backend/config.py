@@ -24,6 +24,7 @@ class SecuritySettings(BaseModel):
     CSRF_SECRET_KEY: str
     VERUS_ID_IDENTITY: Optional[str] = None
     VERUS_ID_PRIVATE_KEY: Optional[str] = None
+    STRICT_BIOMETRIC_GATING: bool = True
     SENSITIVE_LOG_KEYS: List[str] = [
         "key", "secret", "token", "password", "key_id", "authorization", 
         "master_key", "jwt_secret", "api_key", "private_key"
@@ -84,6 +85,7 @@ class Settings(BaseSettings):
     POLYTOPE_MASTER_KEY: str
     JWT_SECRET_KEY: str
     CSRF_SECRET_KEY: str
+    STRICT_BIOMETRIC_GATING: bool = True
     
     # AI/Inference
     SOVEREIGN_MODE: bool = False

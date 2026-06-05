@@ -478,6 +478,18 @@ class ExecutiveOrchestrator:
         if mode == "research":
             return await self.execute_research(objective)
 
+        # Lite Mode Semantic Telemetry Fallback
+        if not getattr(self.settings, 'STRICT_BIOMETRIC_GATING', True):
+            from .models import SoulPreferences
+            prefs = SoulPreferences()
+            try:
+                vault_prefs = await self.vault.retrieve_secret("soul_preferences")
+                if vault_prefs:
+                    prefs = vault_prefs
+            except Exception:
+                pass
+            self.ace.process_semantic_telemetry(objective, preferences=prefs)
+
         # 1. PPN / DPK Manifold Check
         is_manifold_stable, polytope_state = self._perform_ppn_check(objective, autonomy)
         if not is_manifold_stable:

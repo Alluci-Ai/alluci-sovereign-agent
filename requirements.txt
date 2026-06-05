@@ -21,7 +21,7 @@ asyncpg==0.29.0              # PostgreSQL async driver (runtime)
 aiosqlite==0.20.0            # SQLite async support
 
 # ─── Security & Cryptography ──────────────────────────────────────────────────
-cryptography==46.0.6
+cryptography==44.0.0
 python-jose[cryptography]==3.4.0
 webauthn==2.1.0
 keyring==25.7.0              # OS Keychain integration for vault master key
@@ -91,7 +91,7 @@ pywin32==306; sys_platform == "win32"   # Windows Service support (windows_servi
 # zeroconf==0.132.0            # iPhone Bridge mDNS discovery
 
 # ─── Audio & TTS ─────────────────────────────────────────────────────────────
-whisper-cpp-python==0.1.0     # Bridge to local whisper-cpp
+#whisper-cpp-python==0.1.0     # Bridge to local whisper-cpp
 # piper-python usually handled via subprocess in our case
 
 # ─── Scheduling ──────────────────────────────────────────────────────────────
