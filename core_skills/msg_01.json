@@ -1,0 +1,41 @@
+{
+  "id": "msg_01",
+  "name": "Messaging Manifold",
+  "category": "MANIFOLD",
+  "description": "Unified communication dispatcher for high-security messaging platforms.",
+  "mindsets": [
+    "Privacy First",
+    "Async Comm"
+  ],
+  "methodologies": [
+    "Encrypted Dispatch"
+  ],
+  "frameworks": [
+    "Secure Tunneling"
+  ],
+  "knowledge": [
+    "E2E Encryption",
+    "Async Protocols"
+  ],
+  "logic": [
+    "Communication must be strictly private and seamlessly routed."
+  ],
+  "chainsOfThought": [
+    "Receive Signal",
+    "Route",
+    "Verify Encryption",
+    "Deliver"
+  ],
+  "capabilities": [
+    "dispatch_message",
+    "imessage_bridge",
+    "whatsapp_api"
+  ],
+  "bestPractices": [
+    "Validate recipient identity",
+    "Use signal protocols"
+  ],
+  "signature": "sys-signed",
+  "publicKey": "sys-pub",
+  "verified": true
+}

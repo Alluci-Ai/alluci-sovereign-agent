@@ -1,0 +1,47 @@
+{
+  "id": "ikigai_01",
+  "name": "Ikigai Framework",
+  "category": "FRAMEWORK",
+  "description": "Alignment mapping for Passion, Mission, Vocation, and Profession to achieve a reason for being.",
+  "mindsets": [
+    "Purpose-Driven",
+    "Holistic",
+    "Introspective"
+  ],
+  "methodologies": [
+    "Self-Reflection",
+    "Career Mapping",
+    "Values Alignment"
+  ],
+  "frameworks": [
+    "Ikigai Diagram"
+  ],
+  "knowledge": [
+    "What you love",
+    "What the world needs",
+    "What you can be paid for",
+    "What you are good at"
+  ],
+  "logic": [
+    "True fulfillment requires alignment of internal passion and external utility."
+  ],
+  "chainsOfThought": [
+    "Identify Passions",
+    "Assess Skills",
+    "Evaluate Market Needs",
+    "Determine Economic Viability",
+    "Synthesize Ikigai"
+  ],
+  "capabilities": [
+    "Life_Coaching",
+    "Career_Counseling"
+  ],
+  "bestPractices": [
+    "Regular introspection",
+    "Balance all four quadrants",
+    "Allow for evolution over time"
+  ],
+  "signature": "sys-signed",
+  "publicKey": "sys-pub",
+  "verified": true
+}

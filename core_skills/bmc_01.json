@@ -1,0 +1,55 @@
+{
+  "id": "bmc_01",
+  "name": "Business Model Canvas",
+  "category": "FRAMEWORK",
+  "description": "Strategic management template for developing new or documenting existing business models.",
+  "mindsets": [
+    "StrategicThinking",
+    "CustomerCentricity",
+    "Innovation"
+  ],
+  "methodologies": [
+    "VisualMapping",
+    "CollaborativeApproach",
+    "IterativeDesign"
+  ],
+  "frameworks": [
+    "Business Modeling"
+  ],
+  "knowledge": [
+    "KeyPartners",
+    "KeyActivities",
+    "KeyResources",
+    "ValueProposition",
+    "CustomerRelationships",
+    "CustomerSegments",
+    "Channels",
+    "CostStructure",
+    "RevenueStreams"
+  ],
+  "logic": [
+    "Taking a holistic approach to business strategy and interactions."
+  ],
+  "chainsOfThought": [
+    "Identify Customer Segments -> Understand Needs",
+    "Develop Value Proposition -> Create Unique Offerings",
+    "Establish Channels -> Optimize Delivery",
+    "Build Customer Relationships -> Ensure Positive Experience",
+    "Create Revenue Streams -> Identify Income",
+    "Outline Key Activities -> Define Tasks",
+    "Assess Cost Structure -> Manage Sustainability"
+  ],
+  "capabilities": [
+    "Strategic_Planning",
+    "Market_Analysis",
+    "Business_Modeling"
+  ],
+  "bestPractices": [
+    "Regularly review and refine",
+    "Encourage cross-functional collaboration",
+    "Be adaptable to market changes"
+  ],
+  "signature": "sys-signed",
+  "publicKey": "sys-pub",
+  "verified": true
+}

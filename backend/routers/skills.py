@@ -15,18 +15,31 @@ SKILLS_DIR = "alluci_vault/skills"
 @router.get("/skills")
 async def get_all_skills():
     """Retrieve all dynamically loaded skills from the vault."""
-    skills = []
-    if not os.path.exists(SKILLS_DIR):
-        return skills
-    
-    for filename in os.listdir(SKILLS_DIR):
-        if filename.endswith(".json"):
-            try:
-                with open(os.path.join(SKILLS_DIR, filename), "r") as f:
-                    skills.append(json.load(f))
-            except Exception as e:
-                logger.error(f"Failed to load skill {filename}: {e}")
-    return skills
+    skill_map = {}
+    # Load core skills first
+    CORE_DIR = "core_skills"
+    if os.path.exists(CORE_DIR):
+        for filename in os.listdir(CORE_DIR):
+            if filename.endswith(".json"):
+                try:
+                    with open(os.path.join(CORE_DIR, filename), "r") as f:
+                        skill = json.load(f)
+                        skill_map[skill["id"]] = skill
+                except Exception as e:
+                    logger.error(f"Failed to load core skill {filename}: {e}")
+                    
+    # Load and override with vault skills
+    if os.path.exists(SKILLS_DIR):
+        for filename in os.listdir(SKILLS_DIR):
+            if filename.endswith(".json"):
+                try:
+                    with open(os.path.join(SKILLS_DIR, filename), "r") as f:
+                        skill = json.load(f)
+                        skill_map[skill["id"]] = skill
+                except Exception as e:
+                    logger.error(f"Failed to load vault skill {filename}: {e}")
+                    
+    return list(skill_map.values())
 
 @router.put("/skills/{skill_id}", dependencies=[Depends(verify_authenticated)])
 async def save_skill(skill_id: str, payload: Dict[str, Any] = Body(...)):

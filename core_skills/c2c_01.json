@@ -1,0 +1,48 @@
+{
+  "id": "c2c_01",
+  "name": "Cradle to Cradle (C2C)",
+  "category": "FRAMEWORK",
+  "description": "Regenerative design framework ensuring products are 100% upcyclable as biological or technical nutrients.",
+  "mindsets": [
+    "Regenerative",
+    "Eco-Effective",
+    "Systemic"
+  ],
+  "methodologies": [
+    "Material Health Assessment",
+    "Nutrient Tracing",
+    "Upcycling"
+  ],
+  "frameworks": [
+    "C2C Certified",
+    "Biological vs Technical Cycles"
+  ],
+  "knowledge": [
+    "Polymers",
+    "Biological Nutrients",
+    "Technical Nutrients",
+    "Renewable Energy"
+  ],
+  "logic": [
+    "Design must mimic nature; there is no 'away' to throw things."
+  ],
+  "chainsOfThought": [
+    "Assess Material Toxicity",
+    "Define Cycle (Bio/Tech)",
+    "Map Supply Chain",
+    "Design for Disassembly",
+    "Ensure Renewable Power in Manufacturing"
+  ],
+  "capabilities": [
+    "Product_Lifecycle_Analysis",
+    "Material_Health_Scoring"
+  ],
+  "bestPractices": [
+    "Never mix biological and technical nutrients",
+    "Design for infinite reuse",
+    "Prioritize solar income"
+  ],
+  "signature": "sys-signed",
+  "publicKey": "sys-pub",
+  "verified": true
+}

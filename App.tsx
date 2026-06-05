@@ -234,11 +234,12 @@ const App: React.FC = () => {
       });
       if (res.ok) {
         const custom = await res.json();
-        const combined = [...core];
-        custom.forEach((c: SkillManifest) => {
-          if (!combined.find(k => k.id === c.id)) combined.push(c);
-        });
-        setSkills(combined);
+        // Create a map to prioritize vault over core
+        const skillMap = new Map();
+        core.forEach((c: SkillManifest) => skillMap.set(c.id, c));
+        custom.forEach((c: SkillManifest) => skillMap.set(c.id, c));
+        
+        setSkills(Array.from(skillMap.values()));
         return;
       }
     // eslint-disable-next-line no-empty

@@ -1,0 +1,42 @@
+{
+  "id": "ws_01",
+  "name": "Workspace Bridge",
+  "category": "BRIDGE",
+  "description": "Direct integration with productivity silos for enterprise-level search and synchronization.",
+  "mindsets": [
+    "Efficiency",
+    "Organization"
+  ],
+  "methodologies": [
+    "API Aggregation",
+    "Deep Search"
+  ],
+  "frameworks": [
+    "Centralized Access Control"
+  ],
+  "knowledge": [
+    "Enterprise Search",
+    "OAuth2"
+  ],
+  "logic": [
+    "Workspace data is fragmented; unification is the primary directive."
+  ],
+  "chainsOfThought": [
+    "Locate Resource",
+    "Authenticate",
+    "Query",
+    "Synthesize"
+  ],
+  "capabilities": [
+    "gmail_search",
+    "gdrive_search",
+    "icloud_sync"
+  ],
+  "bestPractices": [
+    "Verify OAuth scopes",
+    "Cache frequently accessed resources"
+  ],
+  "signature": "sys-signed",
+  "publicKey": "sys-pub",
+  "verified": true
+}

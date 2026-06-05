@@ -1,0 +1,45 @@
+{
+  "id": "ptc_01",
+  "name": "Price The Client",
+  "category": "CUSTOM",
+  "description": "Active negotiation module for determining the optimal price point for a specific client engagement using Value Based Pricing logic.",
+  "mindsets": [
+    "Strategic",
+    "Differential",
+    "Assertive"
+  ],
+  "methodologies": [
+    "Surplus Extraction",
+    "Anchor Calibration"
+  ],
+  "frameworks": [
+    "Negotiation Strategy"
+  ],
+  "knowledge": [
+    "Price Psychology",
+    "Economic Surplus",
+    "Client Profiling"
+  ],
+  "logic": [
+    "Price is what you pay; value is what you get."
+  ],
+  "chainsOfThought": [
+    "Assess Worth",
+    "Set Anchor",
+    "Quantify Value",
+    "Extract",
+    "Negotiate Terms"
+  ],
+  "capabilities": [
+    "Dynamic_Pricing",
+    "Negotiation_Scripting"
+  ],
+  "bestPractices": [
+    "Anchor high",
+    "Segment customers by willingness to pay",
+    "Never discount without removing value"
+  ],
+  "signature": "sys-signed",
+  "publicKey": "sys-pub",
+  "verified": true
+}

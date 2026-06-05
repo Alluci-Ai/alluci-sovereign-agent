@@ -1,0 +1,47 @@
+{
+  "id": "vbp_01",
+  "name": "Value Based Pricing",
+  "category": "FRAMEWORK",
+  "description": "Extraction of economic surplus through psychological worth quantification and ROI estimation.",
+  "mindsets": [
+    "ClientObjectiveUnderstanding",
+    "ValueEstimation",
+    "PerceivedValueCalculation",
+    "ValueBasedPricing"
+  ],
+  "methodologies": [
+    "ROI_Based",
+    "MarketComparison",
+    "EmotionalPricing"
+  ],
+  "frameworks": [
+    "Differential Pricing"
+  ],
+  "knowledge": [
+    "Value Creation",
+    "Revenue Estimation",
+    "Competitor Analysis",
+    "Intangible Benefits"
+  ],
+  "logic": [
+    "Charge based on the expected ROI and perceived benefits."
+  ],
+  "chainsOfThought": [
+    "Understand Client Objectives -> Define Value Creation",
+    "Estimate Perceived Value -> Determine ROI",
+    "Set Value-Based Price -> Validate Market Readiness"
+  ],
+  "capabilities": [
+    "Economic_Surplus_Extraction",
+    "Anchor_Calibration",
+    "ROI_Calculation"
+  ],
+  "bestPractices": [
+    "Charge a fraction of the created economic surplus",
+    "Align pricing with perceived value",
+    "Balance tangible and intangible factors"
+  ],
+  "signature": "sys-signed",
+  "publicKey": "sys-pub",
+  "verified": true
+}

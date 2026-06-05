@@ -1,0 +1,52 @@
+{
+  "id": "hcd_01",
+  "name": "Human Centered Design",
+  "category": "FRAMEWORK",
+  "description": "Problem-solving process that starts with the people you're designing for and ends with new solutions that are tailor-made to suit their needs.",
+  "mindsets": [
+    "Empathy",
+    "IterativeLearning",
+    "Collaboration",
+    "ProblemSolving"
+  ],
+  "methodologies": [
+    "EthnographicResearch",
+    "PersonaDevelopment",
+    "UsabilityTesting",
+    "JourneyMapping"
+  ],
+  "frameworks": [
+    "Design Thinking"
+  ],
+  "knowledge": [
+    "ProductDesign",
+    "ServiceDesign",
+    "SystemDesign",
+    "User Experience"
+  ],
+  "logic": [
+    "Understanding users deeply by experiencing their challenges."
+  ],
+  "chainsOfThought": [
+    "Empathize -> Understand User Needs",
+    "Define -> Identify Core Problems",
+    "Ideate -> Generate Solutions",
+    "Prototype -> Develop Tangible Models",
+    "Test -> Validate with Users",
+    "Implement -> Launch Solutions",
+    "Measure -> Assess Impact"
+  ],
+  "capabilities": [
+    "User_Research",
+    "Prototyping",
+    "Usability_Analysis"
+  ],
+  "bestPractices": [
+    "Foster a culture of empathy",
+    "Prioritize user feedback",
+    "Maintain flexibility"
+  ],
+  "signature": "sys-signed",
+  "publicKey": "sys-pub",
+  "verified": true
+}

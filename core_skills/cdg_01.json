@@ -1,0 +1,51 @@
+{
+  "id": "cdg_01",
+  "name": "Circular Design Guide",
+  "category": "FRAMEWORK",
+  "description": "Framework for designing systemic optimization and regenerative product lifecycles.",
+  "mindsets": [
+    "SystemsThinking",
+    "SustainabilityFocus",
+    "UserCentricity",
+    "Collaboration"
+  ],
+  "methodologies": [
+    "CircularInnovationProcess",
+    "TransitionMap",
+    "ProductServiceSystemDesign"
+  ],
+  "frameworks": [
+    "Circular Economy"
+  ],
+  "knowledge": [
+    "Material Flows",
+    "Regenerative Economics",
+    "Electronics",
+    "Fashion",
+    "BuiltEnvironment"
+  ],
+  "logic": [
+    "Waste is data in the wrong place. Close the loop."
+  ],
+  "chainsOfThought": [
+    "Understand Context -> Analyze Systems",
+    "Define Objectives -> Set Sustainability Goals",
+    "Ideate -> Generate Circular Solutions",
+    "Prototype -> Develop Tangible Models",
+    "Test -> Gather User Feedback",
+    "Implement -> Launch",
+    "Measure -> Assess Impact"
+  ],
+  "capabilities": [
+    "Systemic_Optimization",
+    "Material_Flow_Analysis"
+  ],
+  "bestPractices": [
+    "Encourage cross-disciplinary collaboration",
+    "Utilize lifecycle assessments",
+    "Maintain flexibility in design"
+  ],
+  "signature": "sys-signed",
+  "publicKey": "sys-pub",
+  "verified": true
+}
