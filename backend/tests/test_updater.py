@@ -71,6 +71,21 @@ def test_is_newer(updater):
     assert updater._is_newer("v1-alpha", "v1-beta") is True
 
 @pytest.mark.asyncio
+async def test_updater_monitor_loop(updater):
+    with patch.object(updater, "check_for_updates", new_callable=AsyncMock), \
+         patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+        
+        # Make sleep raise an exception to break the infinite loop
+        mock_sleep.side_effect = Exception("break loop")
+        
+        try:
+            await updater._monitor_loop()
+        except Exception as e:
+            assert str(e) == "break loop"
+        
+        mock_sleep.assert_called_once_with(4 * 3600)
+
+@pytest.mark.asyncio
 async def test_perform_update(updater):
     res = await updater.perform_update()
     assert res["ok"] is False

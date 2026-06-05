@@ -177,3 +177,28 @@ class TestGuardrailFallback:
         # Heuristics happen BEFORE LLM call, so it should still be blocked.
         assert not is_safe
         assert "injection" in reason.lower()
+
+    @pytest.mark.security
+    async def test_input_llm_unsafe(self, scanner):
+        """If the LLM flags input as unsafe, it should block it."""
+        scanner.router.get_fast_tactical_response.return_value = "unsafe O4"
+        is_safe, msg = await scanner.scan_input("Some hate speech text")
+        assert not is_safe
+        assert "Hate Speech" in msg or "Unsafe" in msg
+
+    @pytest.mark.security
+    async def test_output_llm_unsafe(self, scanner):
+        """If the LLM flags output as unsafe, it should block it."""
+        scanner.router.get_fast_tactical_response.return_value = "unsafe"
+        is_safe, msg = await scanner.scan_output("Some bad assistant output")
+        assert not is_safe
+        assert "Output rejected" in msg
+
+    @pytest.mark.security
+    async def test_output_llm_exception_fails_closed(self, failing_router):
+        """If the LLM fails on output scan, it should fail CLOSED."""
+        scanner = GuardrailScanner(router=failing_router)
+        is_safe, msg = await scanner.scan_output("Some output text")
+        assert not is_safe
+        assert "scanner failure" in msg
+

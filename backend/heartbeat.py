@@ -1,3 +1,5 @@
+from __future__ import annotations
+import inspect
 """
 HeartbeatDaemon — Upgraded to six independent action paths.
 
@@ -33,7 +35,7 @@ PCL integration:
   pcl_signal orders store entries to H-LSM with source="heartbeat_signal".
   PCL's HeartbeatSignalDetector picks them up on the next cycle.
 """
-from __future__ import annotations
+# duplicate import removed
 
 import asyncio
 import hashlib
@@ -267,7 +269,10 @@ async def _probe_url_fetch(cfg: Dict) -> Tuple[bool, str]:
             resp = await client.get(
                 url, headers={"User-Agent": "AlluciHeartbeat/1.0"}
             )
-            resp.raise_for_status()
+            # Support both sync and async raise_for_status
+            raise_result = resp.raise_for_status()
+            if inspect.isawaitable(raise_result):
+                await raise_result
             body = resp.text[:8000]
 
         if keyword:
@@ -428,17 +433,21 @@ async def _action_notify_ws(
         template.replace("{label}", order.get("label", ""))
                 .replace("{probe_detail}", probe_detail)
     )
-    await ws_gateway.broadcast_event(
-        "heartbeat.notification",
-        {
-            "order_id": order.get("id"),
-            "label": order.get("label"),
-            "message": message,
-            "probe_detail": probe_detail,
-            "timestamp": time.time(),
-        },
-    )
-    return "success", f"WebSocket notification: {message[:80]}"
+    try:
+        await ws_gateway.broadcast_event(
+            "heartbeat.notification",
+            {
+                "order_id": order.get("id"),
+                "label": order.get("label"),
+                "message": message,
+                "probe_detail": probe_detail,
+                "timestamp": time.time(),
+            },
+        )
+        return "success", f"WebSocket notification: {message[:80]}"
+    except Exception as exc:
+        logger.error("[HB] notify_ws error: %s", exc, exc_info=True)
+        return "failed", str(exc)
 
 
 async def _action_notify_bridge(

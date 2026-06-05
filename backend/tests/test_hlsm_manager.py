@@ -127,3 +127,182 @@ async def test_fts5_sync_via_triggers(hlsm_manager):
 # ─── Imports ──────────────────────────────────────────────────────────────────
 import json
 from sqlalchemy import text
+
+# ─── New Tests for High Coverage ──────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_l0_store_retrieve_clear_sql(hlsm_manager):
+    # Test L0 operations falling back to SQL (since redis is None)
+    session_key = "sess_123"
+    
+    # Store
+    mem_id = await hlsm_manager.l0_store("User asked for status", session_key)
+    assert mem_id is not None
+    
+    # Retrieve
+    entries = await hlsm_manager.l0_retrieve(session_key)
+    assert len(entries) == 1
+    assert entries[0].content == "User asked for status"
+    assert entries[0].tier == 0
+    
+    # Clear
+    await hlsm_manager.l0_clear_session(session_key)
+    entries_after = await hlsm_manager.l0_retrieve(session_key)
+    assert len(entries_after) == 0
+
+@pytest.mark.asyncio
+async def test_hlsm_context_to_prompt_block():
+    from backend.memory.hlsm_manager import HLSMContext, HLSMRetrievalResult
+    ctx = HLSMContext(
+        working_memories=[HLSMRetrievalResult(id="1", content="Working", tier=0, source="s", relevance_score=1.0, retention_score=1.0)],
+        episodic_memories=[HLSMRetrievalResult(id="2", content="Episodic", tier=1, source="s", relevance_score=1.0, retention_score=1.0)],
+        semantic_memories=[HLSMRetrievalResult(id="3", content="Semantic", tier=2, source="s", relevance_score=1.0, retention_score=1.0)]
+    )
+    block = ctx.to_prompt_block()
+    assert "Working Memory" in block
+    assert "Episodic Memory" in block
+    assert "Semantic Memory" in block
+    assert "Working" in block
+
+@pytest.mark.asyncio
+async def test_retrieve_context(hlsm_manager):
+    hlsm_manager.chroma.query = MagicMock(return_value={
+        "documents": [["Sem"]], "ids": [["l2_test_01"]],
+        "metadatas": [[{"source": "m", "created_at": time.time()}]], "distances": [[0.1]]
+    })
+    
+    # Pre-populate L0 and L1
+    await hlsm_manager.l0_store("Working", "s1")
+    await hlsm_manager.l1_store("Episodic goal data")
+    
+    ctx = await hlsm_manager.retrieve_context("goal", psi=0.5, session_key="s1")
+    assert ctx.total_chars > 0
+    assert ctx.total_tokens > 0
+    # There should be 1 working memory
+    assert len(ctx.working_memories) >= 1
+    assert len(ctx.episodic_memories) >= 1
+
+@pytest.mark.asyncio
+async def test_encode_from_execution(hlsm_manager):
+    tasks = {
+        "t1": MagicMock(status="completed", result="Test succeeded", action="test_action"),
+        "t2": MagicMock(status="failed", result="Test error", action="test_action_2"),
+        "t3": MagicMock(status="completed", result="short", action="test_action_3") # too short to encode
+    }
+    encoded = await hlsm_manager.encode_from_execution(run_id=1, tasks=tasks, objective="Test run", session_key="s1")
+    # Should encode t1 and t2. t3 is too short (len < 10)
+    assert encoded == 2
+    
+    # Check L0 got the objective
+    l0 = await hlsm_manager.l0_retrieve("s1")
+    assert len(l0) >= 1
+    assert "Test run" in l0[0].content
+
+@pytest.mark.asyncio
+async def test_encode_message(hlsm_manager):
+    # Short message -> L0 only
+    short_id = await hlsm_manager.encode_message("hello", "s1")
+    l1_recent = await hlsm_manager.l1_get_recent()
+    assert not any("hello" in r.content for r in l1_recent)
+    
+    # Long message -> L0 and L1
+    long_msg = "This is a very long message that should easily exceed the threshold of one hundred characters required to encode into episodic memory"
+    long_id = await hlsm_manager.encode_message(long_msg, "s1")
+    l1_recent2 = await hlsm_manager.l1_get_recent()
+    assert any(long_msg in r.content for r in l1_recent2)
+
+@pytest.mark.asyncio
+async def test_consolidation_sweep(hlsm_manager):
+    # Add an expired L0 entry
+    now = time.time()
+    from backend.models import HLSMWorkingEntry, HLSMEpisodicEntry
+    with Session(hlsm_manager.db_engine) as session:
+        session.add(HLSMWorkingEntry(id="old_l0", session_key="s", content="c", source="s", created_at=now-4000, expires_at=now-10))
+        # Add an L1 entry ready for promotion
+        e1 = HLSMEpisodicEntry(id="e1", content="promotable", source="s", session_key="s", objective_hash="",
+                              psi_at_encoding=0.5, valence_at_encoding=0.5, topological_importance=1.0,
+                              betti_1_support=0, access_count=10, last_accessed=now, created_at=now,
+                              retention_score=1.0, promoted_to_l2=False)
+        # Add an L1 entry to prune (decayed)
+        e2 = HLSMEpisodicEntry(id="e2", content="prunable", source="s", session_key="s", objective_hash="",
+                              psi_at_encoding=0.5, valence_at_encoding=0.5, topological_importance=0.1,
+                              betti_1_support=0, access_count=0, last_accessed=now-10000000, created_at=now-10000000,
+                              retention_score=0.01, promoted_to_l2=False)
+        session.add(e1)
+        session.add(e2)
+        session.commit()
+    
+    hlsm_manager.l2_store = AsyncMock(return_value="l2_123")
+    summary = await hlsm_manager.consolidation_sweep()
+    
+    assert summary["promoted"] >= 1
+    assert summary["pruned_l1"] >= 1
+    assert summary["pruned_l0"] >= 1
+
+@pytest.mark.asyncio
+async def test_get_stats(hlsm_manager):
+    stats = await hlsm_manager.get_stats()
+    assert "hlsm_version" in stats
+    assert "L0_working" in stats["tiers"]
+
+@pytest.mark.asyncio
+async def test_legacy_methods(hlsm_manager):
+    mem_id = await hlsm_manager.store("Legacy test", {"source": "test"}, "s1")
+    assert mem_id is not None
+    
+    res = await hlsm_manager.search("Legacy test")
+    assert len(res) >= 1
+    
+    entries = await hlsm_manager.list_entries()
+    assert entries["total"] >= 1
+    
+    deleted = await hlsm_manager.delete(mem_id)
+    assert deleted is True
+
+@pytest.mark.asyncio
+async def test_redis_branches(hlsm_manager):
+    import json
+    mock_redis = AsyncMock()
+    # lrange should return a valid json entry and an invalid one
+    mock_redis.lrange.return_value = [json.dumps({"id": "r1", "content": "redis", "source": "s"}), "invalid_json"]
+    hlsm_manager.redis = mock_redis
+    
+    # store
+    await hlsm_manager.l0_store("test redis", "s1")
+    mock_redis.lpush.assert_awaited_once()
+    
+    # retrieve
+    results = await hlsm_manager.l0_retrieve("s1")
+    assert len(results) == 1
+    assert results[0].content == "redis"
+    
+    # clear
+    await hlsm_manager.l0_clear_session("s1")
+    mock_redis.delete.assert_awaited_once()
+
+@pytest.mark.asyncio
+async def test_l2_store_delete(hlsm_manager):
+    from backend.models import HLSMEpisodicEntry
+    e = HLSMEpisodicEntry(id="123", content="c", source="s", session_key="s", objective_hash="o", 
+                          psi_at_encoding=0.1, valence_at_encoding=0.5, topological_importance=1.0, 
+                          betti_1_support=0.0, access_count=1, last_accessed=time.time(), created_at=time.time(), 
+                          retention_score=1.0, promoted_to_l2=False)
+    
+    cid = await hlsm_manager.l2_store(e)
+    assert cid == "l2_123"
+    hlsm_manager.chroma.add.assert_called_once()
+    
+    success = await hlsm_manager.l2_delete("l2_123")
+    assert success is True
+    hlsm_manager.chroma.delete.assert_called_once()
+
+@pytest.mark.asyncio
+async def test_start_stop_consolidation(hlsm_manager):
+    await hlsm_manager.start_consolidation_loop()
+    assert hlsm_manager._consolidation_task is not None
+    assert not hlsm_manager._consolidation_task.done()
+    
+    await hlsm_manager.stop_consolidation_loop()
+    assert hlsm_manager._consolidation_task.cancelled() or hlsm_manager._consolidation_task.done()
+
+import time

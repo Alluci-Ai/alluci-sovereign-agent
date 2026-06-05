@@ -12,6 +12,7 @@ except ImportError:
     MLX_AVAILABLE = False
 
 from backend.logging_config import get_logger
+from typing import Any
 
 logger = get_logger("MLXTrainer")
 
@@ -29,8 +30,8 @@ class MLXDPOTrainer:
         if MLX_AVAILABLE:
             self.optimizer = optim.Adam(learning_rate=1e-5)
 
-    def dpo_loss(self, policy_chosen_logps: mx.array, policy_rejected_logps: mx.array,
-                 ref_chosen_logps: mx.array, ref_rejected_logps: mx.array, beta: float = 0.1) -> mx.array:
+    def dpo_loss(self, policy_chosen_logps, policy_rejected_logps,
+                 ref_chosen_logps, ref_rejected_logps, beta: float = 0.1) -> Any:
         """
         Native MLX DPO loss function.
         Compares chosen vs rejected responses.

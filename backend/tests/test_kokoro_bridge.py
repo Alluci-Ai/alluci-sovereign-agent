@@ -6,10 +6,13 @@ import sys
 
 # We must mock mlx.core and kokoro_mlx before importing KokoroBridge
 # if they are not installed, to test the KOKORO_AVAILABLE = True path.
+import importlib.machinery
 mock_mx = MagicMock()
 mock_mx.default_device.return_value = "gpu"
 mock_mx.gpu = "gpu"
-sys.modules['mlx'] = MagicMock()
+mock_mlx = MagicMock()
+mock_mlx.__spec__ = importlib.machinery.ModuleSpec("mlx", None)
+sys.modules['mlx'] = mock_mlx
 sys.modules['mlx.core'] = mock_mx
 
 mock_kokoro_tts = MagicMock()
@@ -107,3 +110,9 @@ async def test_synthesize_exception_handling():
     bridge.tts.generate.side_effect = Exception("TTS Failed")
     res = await bridge.synthesize_text_to_pcm("Hello")
     assert res == b''
+
+# Clean up sys.modules so it doesn't break other tests that might actually want to check imports
+import sys
+sys.modules.pop('mlx', None)
+sys.modules.pop('mlx.core', None)
+sys.modules.pop('kokoro_mlx', None)

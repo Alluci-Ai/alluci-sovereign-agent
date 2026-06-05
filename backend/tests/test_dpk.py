@@ -131,3 +131,103 @@ class TestManifoldTearingDetection:
         if abs(chi_geom - chi_betti) <= 2:
             result = dpk.validate_manifold_integrity(state)
             assert result is True
+
+from unittest.mock import patch, MagicMock
+import ctypes
+
+@pytest.fixture
+def dpk_py():
+    with patch("backend.security.dpk.DiscreteProjectionKernel._load_native_lib", return_value=None):
+        return DiscreteProjectionKernel()
+
+def test_load_native_lib_env_path():
+    with patch("os.environ.get", return_value="/mock/path.so"):
+        with patch("os.path.isfile", return_value=True):
+            with patch("ctypes.CDLL") as mock_cdll:
+                mock_cdll.return_value = MagicMock()
+                dpk = DiscreteProjectionKernel()
+                assert dpk.native_lib is not None
+                mock_cdll.assert_called_with("/mock/path.so")
+
+def test_load_native_lib_env_path_oserror():
+    with patch("os.environ.get", return_value="/mock/path.so"):
+        with patch("os.path.isfile", return_value=True):
+            with patch("ctypes.CDLL", side_effect=OSError("Load error")):
+                # Should fallback to convention path, mock isfile for convention to False
+                with patch("os.path.isfile", side_effect=[True, False]):
+                    dpk = DiscreteProjectionKernel()
+                    assert dpk.native_lib is None
+
+def test_load_native_lib_convention_path():
+    with patch("os.environ.get", return_value=None):
+        with patch("platform.system", return_value="Linux"):
+            with patch("os.path.isfile", return_value=True):
+                with patch("ctypes.CDLL") as mock_cdll:
+                    mock_cdll.return_value = MagicMock()
+                    dpk = DiscreteProjectionKernel()
+                    assert dpk.native_lib is not None
+
+def test_compute_signature_hash(dpk_py):
+    h = dpk_py.compute_signature_hash([1.0, 0.0, 0.0, 0.0], 1)
+    assert isinstance(h, int)
+    assert h > 0
+
+def test_validate_manifold_integrity_py_budget_exceeded(dpk_py):
+    state = PolytopeState(
+        signature_hash=123,
+        vertices_V=1, edges_E=0, faces_F=0,
+        betti=[1.0, 0.0, 0.0, 0.0],
+        affective_tension_psi=1.0,
+        coherence=1.0,
+        budget_used=0.95 # > 0.9
+    )
+    assert dpk_py.validate_manifold_integrity_py(state) is False
+
+def test_validate_manifold_integrity_py_low_coherence(dpk_py):
+    state = PolytopeState(
+        signature_hash=123,
+        vertices_V=1, edges_E=0, faces_F=0,
+        betti=[1.0, 0.0, 0.0, 0.0],
+        affective_tension_psi=1.0,
+        coherence=0.2, # < 0.3
+        budget_used=0.0
+    )
+    assert dpk_py.validate_manifold_integrity_py(state) is False
+
+def test_native_validate_manifold_integrity():
+    mock_lib = MagicMock()
+    mock_lib.dpk_new.return_value = 12345
+    mock_lib.dpk_authorize.return_value = True
+    
+    with patch("backend.security.dpk.DiscreteProjectionKernel._load_native_lib", return_value=mock_lib):
+        dpk = DiscreteProjectionKernel()
+        
+        state = PolytopeState(
+            signature_hash=123,
+            vertices_V=1, edges_E=0, faces_F=0,
+            betti=[1.0, 0.0, 0.0, 0.0],
+            affective_tension_psi=1.0,
+            coherence=1.0,
+            budget_used=0.0
+        )
+        assert dpk.validate_manifold_integrity(state) is True
+        mock_lib.dpk_authorize.assert_called_once()
+        
+        mock_lib.dpk_authorize.return_value = False
+        assert dpk.validate_manifold_integrity(state) is False
+
+def test_native_validate_manifold_integrity_init_exception():
+    mock_lib = MagicMock()
+    mock_lib.dpk_new.side_effect = Exception("init error")
+    with patch("backend.security.dpk.DiscreteProjectionKernel._load_native_lib", return_value=mock_lib):
+        dpk = DiscreteProjectionKernel()
+        assert dpk.native_lib is None
+
+def test_del():
+    mock_lib = MagicMock()
+    mock_lib.dpk_new.return_value = 12345
+    with patch("backend.security.dpk.DiscreteProjectionKernel._load_native_lib", return_value=mock_lib):
+        dpk = DiscreteProjectionKernel()
+        dpk.__del__()
+        mock_lib.dpk_free.assert_called_once_with(12345)
+

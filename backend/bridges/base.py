@@ -150,6 +150,14 @@ class BridgeAdapter(ABC):
         """Verify the E2E encryption and connection status."""
         pass
 
+    async def disconnect(self) -> None:
+        """Close connections and cleanup background tasks."""
+        self.is_connected = False
+        if getattr(self, "_refresh_task", None) and not self._refresh_task.done():
+            self._refresh_task.cancel()
+        if hasattr(self, "client") and isinstance(self.client, httpx.AsyncClient):
+            await self.client.aclose()
+
     async def _dispatch_inbound(self, message: Dict[str, Any]):
         """
         Dispatches an inbound message to the orchestrator pipeline.

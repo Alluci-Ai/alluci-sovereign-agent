@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, patch, MagicMock, ANY
 from backend.orchestrator import ExecutiveOrchestrator
 from backend.ace.engine import AffectiveEngine
 from backend.config import Settings
@@ -171,3 +171,118 @@ async def test_handle_inbound_message_flow_mode_filtered(orchestrator):
     await orchestrator.handle_inbound_message(msg)
     # Should be ignored due to DEEP_WORK
     orchestrator.execute_objective.assert_not_called()
+
+@pytest.mark.asyncio
+async def test_ws_gateway_property(orchestrator):
+    mock_ws = MagicMock()
+    orchestrator.heartbeat = MagicMock()
+    orchestrator.ws_gateway = mock_ws
+    assert orchestrator.ws_gateway == mock_ws
+    assert orchestrator.heartbeat.ws_gateway == mock_ws
+
+@pytest.mark.asyncio
+async def test_broadcast_artifact(orchestrator):
+    mock_ws = AsyncMock()
+    orchestrator.ws_gateway = mock_ws
+    await orchestrator.broadcast_artifact("test", "content", "markdown")
+    mock_ws.broadcast_event.assert_awaited_once_with(
+        'orchestrator.artifact.updated',
+        {"title": "test", "content": "content", "language": "markdown", "timestamp": ANY}
+    )
+
+@pytest.mark.asyncio
+async def test_handle_task_complete(orchestrator):
+    mock_ws = AsyncMock()
+    orchestrator.ws_gateway = mock_ws
+    
+    # Artifact creation task
+    task = MagicMock()
+    task.action = "write_file"
+    task.result = "some long text " * 10
+    task.args = {"filename": "test.py"}
+    
+    await orchestrator._handle_task_complete(task)
+    mock_ws.broadcast_event.assert_awaited_once()
+
+@pytest.mark.asyncio
+async def test_build_system_context(orchestrator):
+    orchestrator.skill_manager = MagicMock()
+    orchestrator.skill_manager.list_skills = AsyncMock(return_value=[{"name": "test_skill", "description": "desc", "verified": True}])
+    
+    orchestrator.hlsm = MagicMock()
+    mock_ctx = MagicMock()
+    mock_ctx.to_prompt_block.return_value = "MEMORY_BLOCK"
+    orchestrator.hlsm.retrieve_context = AsyncMock(return_value=mock_ctx)
+    
+    # Manifest mock
+    orchestrator.vault.retrieve_secret = AsyncMock(return_value={
+        "identityCore": "Core test",
+        "reasoningStyle": "Reason test",
+        "frameworks": ["F1"],
+        "mindsets": ["M1"],
+        "methodologies": ["M2"],
+        "logic": ["L1"],
+        "chainsOfThought": ["COT"],
+        "bestPractices": ["BP"],
+        "executionGraph": {"edges": [{"source": "A", "target": "B"}]}
+    })
+    
+    ctx = await orchestrator._build_system_context(include_memory=True)
+    assert "Core test" in ctx
+    assert "F1" in ctx
+    assert "A MUST PRECEDE B" in ctx
+    assert "test_skill" in ctx
+    assert "MEMORY_BLOCK" in ctx
+
+@pytest.mark.asyncio
+async def test_perform_ppn_check(orchestrator):
+    # Remove the mock and test the real method
+    delattr(orchestrator, "_perform_ppn_check")
+    
+    orchestrator.ace.btm.psi_from_state.return_value = 0.5
+    
+    orchestrator.ppn = MagicMock()
+    import torch
+    orchestrator.ppn.return_value = (None, None, torch.tensor([1,1,1]), None, 1.0, 0.5, 0.8, 1.0, 1.0, None)
+    orchestrator.ppn.extract_simplex_counts.return_value = (3, 2, 1)
+    
+    orchestrator.dpk.compute_signature_hash.return_value = "hash123"
+    orchestrator.dpk.verify_manifold_integrity.return_value = (True, "OK")
+    
+    ok, state = orchestrator._perform_ppn_check("test obj", "autonomous")
+    assert ok is True
+    assert state.vertices_V == 3
+
+@pytest.mark.asyncio
+async def test_compact_all_memory(orchestrator):
+    orchestrator.hlsm = AsyncMock()
+    
+    mock_mem1 = MagicMock()
+    mock_mem1.source = "system"
+    mock_mem1.content = "mem1"
+    mock_mem1.id = 1
+    
+    orchestrator.hlsm.l1_get_recent.return_value = [mock_mem1]
+    
+    orchestrator.planner.router.get_response = AsyncMock(return_value="synthesis")
+    
+    await orchestrator.compact_all_memory()
+    
+    orchestrator.hlsm.l1_store.assert_awaited_once_with(
+        content="synthesis", 
+        source="daily_synthesis",
+        topological_importance=1.5
+    )
+    orchestrator.hlsm.delete.assert_awaited_once_with(1)
+
+@pytest.mark.asyncio
+async def test_multi_agent_delegate(orchestrator):
+    # This tests lines 829-856 which are the multi_agent_delegate method of orchestrator
+    orchestrator.planner = MagicMock()
+    orchestrator.planner.router = MagicMock()
+    
+    with patch("backend.orchestrator.asyncio.create_task") as mock_create_task:
+        res = await orchestrator.multi_agent_delegate("sub1", "test objective")
+        assert res["status"] == "spawned"
+        assert res["agent_id"] == "sub1"
+        mock_create_task.assert_called_once()

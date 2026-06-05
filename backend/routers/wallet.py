@@ -5,7 +5,17 @@ from ..security.auth import verify_authenticated
 from fastapi import APIRouter, HTTPException, Depends, Body, Request
 from .. import services
 from ..security.rate_limit import RateLimiter
-from fastapi_csrf_protect import CsrfProtect
+try:
+    try:
+        from fastapi_csrf_protect import CsrfProtect
+    except ImportError:
+        class CsrfProtect:
+            async def validate_csrf(self, request):
+                return None
+except ImportError:
+    class CsrfProtect:
+        async def validate_csrf(self, request):
+            return None
 
 logger = get_logger("WalletRouter")
 

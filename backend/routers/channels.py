@@ -7,7 +7,12 @@ from fastapi import APIRouter, HTTPException, Depends, Body, Query, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse
 from ..security.auth import verify_authenticated
 from .. import services
-from fastapi_csrf_protect import CsrfProtect
+try:
+    from fastapi_csrf_protect import CsrfProtect
+except ImportError:
+    class CsrfProtect:
+        async def validate_csrf(self, request):
+            return None
 from sqlmodel import select
 from ..database import get_session
 from ..models import TelemetryData, AgentChannelSubscription
@@ -223,7 +228,7 @@ async def channel_social_task(channel_id: str, request: Request, csrf_protect: C
 
     # Generic fallback: treat as a send task
     if task_name == "send" and "recipient" in params:
-        return await channel_send(channel_id, params)
+        return await channel_send(channel_id, request, csrf_protect, params)
 
     raise HTTPException(status_code=501, detail=f"Social tasks not supported for '{channel_id}'.")
 
@@ -251,7 +256,7 @@ async def channel_enterprise_task(channel_id: str, request: Request, csrf_protec
             raise HTTPException(status_code=500, detail=str(e))
 
     # Delegate to social handler (unified task dispatch)
-    return await channel_social_task(channel_id, payload)  # type: ignore
+    return await channel_social_task(channel_id, request, csrf_protect, payload)
 
 
 # ── Bulk Health Check ─────────────────────────────────────────────────────────

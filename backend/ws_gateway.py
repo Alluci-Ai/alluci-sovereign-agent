@@ -334,6 +334,7 @@ class JsonRpcGateway:
         if vault:
             try:
                 # Basic check: retrieve_secret works
+                await vault.retrieve_secret("health_check_dummy")
                 health["vault"] = "ok"
             except Exception:
                 health["vault"] = "error"

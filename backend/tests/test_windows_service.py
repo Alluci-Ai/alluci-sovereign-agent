@@ -2,9 +2,8 @@ import pytest
 import sys
 import asyncio
 
-# Skip all tests in this file if not on Windows
-if sys.platform != "win32":
-    pytest.skip("skipping windows-only tests", allow_module_level=True)
+# We no longer skip on non-Windows to ensure coverage runs everywhere.
+# We mock all the windows specific modules below.
 
 from unittest.mock import patch, MagicMock, AsyncMock
 
@@ -34,16 +33,10 @@ sys.modules["servicemanager"] = mock_servicemanager
 
 def get_service_class():
     """Helper to get the service class with proper mocks."""
-    # Mock msvcrt, ctypes.windll, and click._winconsole to prevent uvicorn/click import errors on macOS
-    sys.modules["msvcrt"] = MagicMock()
-    sys.modules["click._winconsole"] = MagicMock()
-    import ctypes
-    if not hasattr(ctypes, "windll"):
-        ctypes.windll = MagicMock()
-        
-    with patch("sys.platform", "win32"):
-        from backend.windows_service import AlluciBackendService
-        return AlluciBackendService
+    import os
+    os.environ["TEST_MODE"] = "1"
+    from backend.windows_service import AlluciBackendService
+    return AlluciBackendService
 
 def test_os_check_raises():
     with patch("sys.platform", "linux"):
@@ -86,28 +79,58 @@ def test_service_run():
 async def test_service_main():
     cls = get_service_class()
     svc = cls(["arg1"])
+    svc.is_running = False # to break check_stop loop immediately
     
     with patch("uvicorn.Server") as MockServer, \
          patch("asyncio.get_event_loop") as mock_loop:
         
         mock_server_instance = MockServer.return_value
-        mock_server_instance.serve = AsyncMock()
-        mock_server_instance.shutdown = AsyncMock()
+        
+        async def mock_serve(): pass
+        async def mock_shutdown(): pass
+        
+        mock_server_instance.serve.return_value = mock_serve()
+        mock_server_instance.shutdown.return_value = mock_shutdown()
         
         mock_loop_instance = MagicMock()
         mock_loop.return_value = mock_loop_instance
         
+        # Capture the coroutine passed to run_until_complete and actually await it
+        gathered_coro = None
         def fake_run(coro):
-            asyncio.run(coro)
+            nonlocal gathered_coro
+            gathered_coro = coro
             
         mock_loop_instance.run_until_complete.side_effect = fake_run
-        
-        async def stop_soon():
-            await asyncio.sleep(0.1)
-            svc.is_running = False
-            
-        asyncio.create_task(stop_soon())
         
         svc.main()
         
         assert mock_loop_instance.run_until_complete.called
+        if gathered_coro:
+            await gathered_coro
+
+def test_windows_service_dunder_main():
+    import sys
+    import runpy
+    import os
+    
+    os.environ["TEST_MODE"] = "1"
+    mock_svcmanager = sys.modules["servicemanager"]
+    mock_win32 = sys.modules["win32serviceutil"]
+    
+    mock_svcmanager.reset_mock()
+    mock_win32.reset_mock()
+    
+    # Test len(sys.argv) == 1 branch
+    with patch("sys.argv", ["script"]):
+        runpy.run_module("backend.windows_service", run_name="__main__")
+        
+        mock_svcmanager.Initialize.assert_called_once()
+        mock_svcmanager.StartServiceCtrlDispatcher.assert_called_once()
+    
+    # Test len(sys.argv) > 1 branch
+    mock_svcmanager.reset_mock()
+    with patch("sys.argv", ["script", "start"]):
+        runpy.run_module("backend.windows_service", run_name="__main__")
+        
+        mock_win32.HandleCommandLine.assert_called_once()

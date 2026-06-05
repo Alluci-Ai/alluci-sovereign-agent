@@ -50,7 +50,7 @@ async def export_identity_pem(
     _auth=Depends(verify_authenticated)
 ):
     try:
-        pem = services.vault_manager.export_identity_pem(body.export_passphrase)  # type: ignore
+        pem = services.vault.export_identity_pem(body.export_passphrase)  # type: ignore
         return {
             "pem": pem, 
             "warning": "Store this securely. It contains your encrypted private key."

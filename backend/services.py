@@ -15,7 +15,7 @@ from backend.skill_manager import SkillManager
 from backend.memory.manager import MemoryManager
 from backend.memory.hlsm_manager import HLSMManager
 from backend.analytics import UsageTracker
-from backend.orchestrator import ExecutiveOrchestrator
+pass  # Orchestrator import deferred
 from backend.tasks import TaskManager
 from backend.inference.local_bridge import LocalInferenceBridge
 from backend.ws_gateway import JsonRpcGateway
@@ -31,6 +31,11 @@ from backend.pcl import ProactiveCognitionLoop
 from backend.logging_config import get_logger
 
 logger = get_logger("PolytopeServices")
+try:
+    from backend.orchestrator import ExecutiveOrchestrator
+except Exception as e:
+    ExecutiveOrchestrator = None  # type: ignore
+    logger.warning(f"ExecutiveOrchestrator import failed: {e}")
 
 # Global Service Instances
 vault: Optional[VaultManager] = None

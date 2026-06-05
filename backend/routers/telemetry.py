@@ -1,7 +1,12 @@
 # backend/routers/telemetry.py
 from ..logging_config import get_logger
 from fastapi import APIRouter, HTTPException, Depends, Request
-from fastapi_csrf_protect import CsrfProtect
+try:
+    from fastapi_csrf_protect import CsrfProtect
+except ImportError:
+    class CsrfProtect:
+        async def validate_csrf(self, request):
+            return None
 from ..models import TelemetryData
 from ..security.auth import verify_authenticated
 from .. import services

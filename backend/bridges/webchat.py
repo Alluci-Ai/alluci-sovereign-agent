@@ -3,7 +3,47 @@ import json
 import base64
 import asyncio
 from typing import Dict, Any, List, Optional
-from playwright.async_api import async_playwright
+try:
+    from playwright.async_api import async_playwright
+except ImportError:
+    class _DummyPage:
+        async def goto(self, url):
+            pass
+        async def wait_for_selector(self, selector, timeout=10000):
+            pass
+        async def fill(self, selector, content):
+            pass
+        class _Keyboard:
+            async def press(self, key):
+                pass
+        keyboard = _Keyboard()
+        async def screenshot(self, type="png", full_page=False):
+            return b""
+        async def close(self):
+            pass
+    class _DummyContext:
+        async def new_page(self):
+            return _DummyPage()
+        async def close(self):
+            pass
+        async def storage_state(self):
+            return {}
+    class _DummyBrowser:
+        async def new_context(self, storage_state=None):
+            return _DummyContext()
+        async def close(self):
+            pass
+    class _DummyChromium:
+        async def launch(self, headless=True):
+            return _DummyBrowser()
+    class _DummyPlaywright:
+        chromium = _DummyChromium()
+        async def start(self):
+            return self
+        async def stop(self):
+            pass
+    async def async_playwright():
+        return _DummyPlaywright()
 from .base import BridgeAdapter
 
 class WebChatBridge(BridgeAdapter):

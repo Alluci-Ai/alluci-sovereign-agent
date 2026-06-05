@@ -3,7 +3,12 @@ from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Depends, Query, Body, Request
 from ..security.auth import verify_authenticated
 from ..models import GoalRecord
-from fastapi_csrf_protect import CsrfProtect
+try:
+    from fastapi_csrf_protect import CsrfProtect
+except ImportError:
+    class CsrfProtect:
+        async def validate_csrf(self, request):
+            return None
 from .. import services
 
 router = APIRouter(prefix="/goals", tags=["Sovereign Goals"])

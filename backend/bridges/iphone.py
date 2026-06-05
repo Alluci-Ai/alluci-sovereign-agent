@@ -5,7 +5,28 @@ import ssl
 import asyncio
 from typing import Dict, Any, List, Optional
 from collections import deque
-from zeroconf import Zeroconf, ServiceBrowser, ServiceListener, ServiceInfo
+try:
+    from zeroconf import Zeroconf, ServiceBrowser, ServiceListener, ServiceInfo
+except ImportError:
+    class Zeroconf:
+        def close(self):
+            pass
+    class ServiceBrowser:
+        def __init__(self, *args, **kwargs):
+            pass
+    class ServiceListener:
+        pass
+    class ServiceInfo:
+        def __init__(self, *args, **kwargs):
+            pass
+        def parsed_addresses(self):
+            return []
+        @property
+        def name(self):
+            return ""
+        @property
+        def port(self):
+            return 0
 from .base import BridgeAdapter
 
 class IPhoneBridge(BridgeAdapter, ServiceListener):

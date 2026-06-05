@@ -497,3 +497,116 @@ def test_quiet_hours_detection_crosses_midnight(daemon):
     with patch("backend.heartbeat.datetime") as mock_dt:
         mock_dt.now.return_value = MagicMock(hour=12)
         assert daemon._is_quiet_hours() is False
+
+# ── Action: notify_bridge ─────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_action_notify_bridge_success():
+    from backend.heartbeat import _action_notify_bridge
+    import backend.services as svc
+    
+    mock_adapter = AsyncMock()
+    mock_adapter.send_message = AsyncMock(return_value={"status": "success", "id": 1})
+    
+    original_registry = svc.channel_registry
+    svc.channel_registry = {"discord": mock_adapter}
+    
+    try:
+        outcome, detail = await _action_notify_bridge(
+            {"bridge_id": "discord", "recipient": "user1", "message_template": "{probe_detail}"},
+            "system issue",
+            {"label": "Test"},
+        )
+        assert outcome == "success"
+        mock_adapter.send_message.assert_awaited_once_with(recipient="user1", content="system issue")
+    finally:
+        svc.channel_registry = original_registry
+
+@pytest.mark.asyncio
+async def test_action_notify_bridge_no_recipient():
+    from backend.heartbeat import _action_notify_bridge
+    outcome, detail = await _action_notify_bridge({"bridge_id": "discord"}, "info", {})
+    assert outcome == "failed"
+
+@pytest.mark.asyncio
+async def test_action_notify_bridge_not_in_registry():
+    from backend.heartbeat import _action_notify_bridge
+    import backend.services as svc
+    original_registry = svc.channel_registry
+    svc.channel_registry = {}
+    try:
+        outcome, detail = await _action_notify_bridge({"bridge_id": "discord", "recipient": "user"}, "info", {})
+        assert outcome == "failed"
+    finally:
+        svc.channel_registry = original_registry
+
+# ── Daemon Loops and Evaluation ──────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_daemon_stop(daemon):
+    daemon._running = True
+    f = asyncio.Future()
+    daemon._task = f
+    
+    await daemon.stop()
+    assert daemon._running is False
+    assert f.cancelled()
+
+@pytest.mark.asyncio
+async def test_evaluate_all_orders(daemon):
+    # Mock the loaders
+    daemon._load_root_orders = AsyncMock(return_value=[{"id": "root1", "active": True}])
+    daemon._load_agent_orders = MagicMock(return_value=[("agent1", {"id": "agent1_order", "active": True})])
+    
+    # Mock due check and run
+    daemon._is_order_due = MagicMock(return_value=True)
+    daemon._run_order = AsyncMock()
+    
+    await daemon._evaluate_all_orders()
+    
+    # Should have run both orders
+    assert daemon._run_order.call_count == 2
+    
+@pytest.mark.asyncio
+async def test_run_order_success(daemon):
+    from backend.heartbeat import _run_action
+    
+    order = {"id": "ord1", "probe_type": "cron_expression", "action_type": "log_only"}
+    
+    # Mock the probe
+    with patch("backend.heartbeat._run_probe", new_callable=AsyncMock) as mock_probe:
+        mock_probe.return_value = (True, "Cron fired")
+        
+        # Mock the action
+        with patch("backend.heartbeat._run_action", new_callable=AsyncMock) as mock_action:
+            mock_action.return_value = ("success", "Logged")
+            
+            # Mock persistence
+            daemon._persist_outcome = MagicMock()
+            
+            await daemon._run_order(order, None)
+            
+            mock_probe.assert_awaited_once()
+            mock_action.assert_awaited_once()
+            daemon._persist_outcome.assert_called_once()
+            
+            # Check persistence args
+            args, kwargs = daemon._persist_outcome.call_args
+            assert args[0] == "ord1"  # order_id
+            assert args[4] == "success" # outcome
+
+@pytest.mark.asyncio
+async def test_tick_loop_handles_exception(daemon):
+    daemon._running = True
+    
+    async def side_effect():
+        daemon._running = False # stop after one tick
+        raise ValueError("Simulated error in evaluation")
+        
+    daemon._evaluate_all_orders = AsyncMock(side_effect=side_effect)
+    
+    with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+        # Run the tick loop
+        await daemon._tick_loop()
+        # It should catch the ValueError and sleep, then exit since running=False
+        mock_sleep.assert_awaited()

@@ -3,8 +3,21 @@ import os
 import logging
 from ..logging_config import get_logger
 from typing import Dict, Any, List
-from pypdf import PdfReader
-from docx import Document
+try:
+    from pypdf import PdfReader
+except ImportError:
+    class PdfReader:
+        def __init__(self, file_path):
+            self.pages = []  # No pages; stub
+        # If needed, could implement minimal interface
+
+try:
+    from docx import Document
+except ImportError:
+    class Document:
+        def __init__(self, file_path=None):
+            self.paragraphs = []  # Empty list of paragraphs
+
 from .base import Adapter
 from ..memory.manager import MemoryManager
 

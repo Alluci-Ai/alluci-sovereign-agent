@@ -1,11 +1,30 @@
 import os
-from opentelemetry import trace
-from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+try:
+    from opentelemetry import trace
+    from opentelemetry.sdk.resources import Resource
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
+    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+    from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+except ImportError:
+    # Define minimal stubs to allow imports without actual opentelemetry
+    class _Dummy:
+        def __getattr__(self, name):
+            return lambda *args, **kwargs: None
+        def __call__(self, *args, **kwargs):
+            return self
+    trace = _Dummy()
+    Resource = _Dummy()
+    class _TracerProvider(_Dummy):
+        def __init__(self, *args, **kwargs):
+            pass
+    TracerProvider = _TracerProvider
+    BatchSpanProcessor = lambda *args, **kwargs: _Dummy()
+    ConsoleSpanExporter = lambda *args, **kwargs: _Dummy()
+    OTLPSpanExporter = lambda *args, **kwargs: _Dummy()
+    FastAPIInstrumentor = _Dummy()
+    HTTPXClientInstrumentor = lambda *args, **kwargs: _Dummy()
 
 def configure_tracing(app=None, service_name: str = "alluci-sovereign-agent"):
     """

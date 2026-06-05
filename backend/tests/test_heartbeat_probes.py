@@ -10,6 +10,7 @@ import json
 import os
 import tempfile
 import time
+from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -212,3 +213,235 @@ class TestTaskDeadlineProbe:
        )
        fired, detail = await _probe_task_deadline({"path": str(tasks_file)})
        assert fired is False
+
+# ── Goal Progress Probe ──────────────────────────────────────────────────────
+
+class TestGoalProgressProbe:
+
+    @pytest.mark.asyncio
+    async def test_no_goal_id_does_not_fire(self):
+        from backend.heartbeat import _probe_goal_progress
+        fired, detail = await _probe_goal_progress({})
+        assert fired is False
+
+    @pytest.mark.asyncio
+    async def test_goal_below_threshold_fires(self):
+        from backend.heartbeat import _probe_goal_progress
+        import backend.services as svc
+        
+        mock_goal = MagicMock()
+        mock_goal.title = "Test Goal"
+        mock_goal.metric_current = 20.0
+        mock_goal.metric_target = 100.0
+        
+        mock_ge = AsyncMock()
+        mock_ge.get_goal = AsyncMock(return_value=mock_goal)
+        
+        original = svc.goal_engine
+        svc.goal_engine = mock_ge
+        try:
+            fired, detail = await _probe_goal_progress({"goal_id": 1, "threshold_pct": 50.0})
+            assert fired is True
+            assert "20.0%" in detail
+        finally:
+            svc.goal_engine = original
+
+    @pytest.mark.asyncio
+    async def test_goal_above_threshold_does_not_fire(self):
+        from backend.heartbeat import _probe_goal_progress
+        import backend.services as svc
+        
+        mock_goal = MagicMock()
+        mock_goal.title = "Test Goal"
+        mock_goal.metric_current = 80.0
+        mock_goal.metric_target = 100.0
+        
+        mock_ge = AsyncMock()
+        mock_ge.get_goal = AsyncMock(return_value=mock_goal)
+        
+        original = svc.goal_engine
+        svc.goal_engine = mock_ge
+        try:
+            fired, detail = await _probe_goal_progress({"goal_id": 1, "threshold_pct": 50.0})
+            assert fired is False
+            assert "above threshold" in detail
+        finally:
+            svc.goal_engine = original
+
+# ── URL Fetch Probe ──────────────────────────────────────────────────────────
+
+class TestUrlFetchProbe:
+
+    @pytest.mark.asyncio
+    async def test_no_url_does_not_fire(self):
+        from backend.heartbeat import _probe_url_fetch
+        fired, detail = await _probe_url_fetch({})
+        assert fired is False
+
+    @pytest.mark.asyncio
+    @patch('httpx.AsyncClient.get')
+    async def test_url_reachable_fires(self, mock_get):
+        from backend.heartbeat import _probe_url_fetch
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.text = "Hello World"
+        mock_get.return_value = mock_resp
+        
+        fired, detail = await _probe_url_fetch({"url": "http://example.com"})
+        assert fired is True
+        assert "reachable" in detail
+
+    @pytest.mark.asyncio
+    @patch('httpx.AsyncClient.get')
+    async def test_url_keyword_found(self, mock_get):
+        from backend.heartbeat import _probe_url_fetch
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.text = "Hello World"
+        mock_get.return_value = mock_resp
+        
+        fired, detail = await _probe_url_fetch({"url": "http://example.com", "keyword": "world"})
+        assert fired is True
+
+    @pytest.mark.asyncio
+    @patch('httpx.AsyncClient.get')
+    async def test_url_keyword_not_found(self, mock_get):
+        from backend.heartbeat import _probe_url_fetch
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.text = "Hello World"
+        mock_get.return_value = mock_resp
+        
+        fired, detail = await _probe_url_fetch({"url": "http://example.com", "keyword": "missing"})
+        assert fired is False
+
+    @pytest.mark.asyncio
+    @patch('httpx.AsyncClient.get')
+    async def test_url_change_detection(self, mock_get):
+        from backend.heartbeat import _probe_url_fetch
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.text = "Hello World v1"
+        mock_get.return_value = mock_resp
+        
+        # First call creates the file and fires
+        fired, detail = await _probe_url_fetch({"url": "http://example.com", "check_change": True})
+        assert fired is True
+        
+        # Second call with same text should NOT fire
+        fired, detail = await _probe_url_fetch({"url": "http://example.com", "check_change": True})
+        assert fired is False
+
+        # Third call with new text should fire
+        mock_resp.text = "Hello World v2"
+        fired, detail = await _probe_url_fetch({"url": "http://example.com", "check_change": True})
+        assert fired is True
+
+# ── Memory Pattern Probe ─────────────────────────────────────────────────────
+
+class TestMemoryPatternProbe:
+
+    @pytest.mark.asyncio
+    async def test_no_query_does_not_fire(self):
+        from backend.heartbeat import _probe_memory_pattern
+        fired, detail = await _probe_memory_pattern({})
+        assert fired is False
+
+    @pytest.mark.asyncio
+    async def test_memory_pattern_found(self):
+        from backend.heartbeat import _probe_memory_pattern
+        import backend.services as svc
+        
+        mock_mem = AsyncMock()
+        mock_mem.search = AsyncMock(return_value=[{"id": 1}, {"id": 2}])
+        
+        original = svc.memory
+        svc.memory = mock_mem
+        svc.hlsm_manager = mock_mem
+        try:
+            fired, detail = await _probe_memory_pattern({"query": "error", "min_occurrences": 2})
+            assert fired is True
+            assert "found 2" in detail
+        finally:
+            svc.memory = original
+
+# ── System Health Probe ──────────────────────────────────────────────────────
+
+class TestSystemHealthProbe:
+
+    @pytest.mark.asyncio
+    async def test_system_health_threshold_reached(self):
+        from backend.heartbeat import _probe_system_health
+        from backend.models import TaskRecord
+        import time
+        
+        records = [
+            TaskRecord(action="Task1", status="failed", end_time=datetime.fromtimestamp(time.time())),
+            TaskRecord(action="Task2", status="failed", end_time=datetime.fromtimestamp(time.time())),
+            TaskRecord(action="Task3", status="failed", end_time=datetime.fromtimestamp(time.time()))
+        ]
+        
+        with patch("sqlmodel.Session.exec") as mock_exec:
+            mock_exec.return_value.all.return_value = records
+            fired, detail = await _probe_system_health({"failure_threshold": 3, "hours": 4})
+            assert fired is True
+
+    @pytest.mark.asyncio
+    async def test_system_health_threshold_not_reached(self):
+        from backend.heartbeat import _probe_system_health
+        from backend.models import TaskRecord
+        import time
+        
+        records = [
+            TaskRecord(action="Task1", status="failed", end_time=datetime.fromtimestamp(time.time())),
+        ]
+        
+        with patch("sqlmodel.Session.exec") as mock_exec:
+            mock_exec.return_value.all.return_value = records
+            fired, detail = await _probe_system_health({"failure_threshold": 3, "hours": 4})
+            assert fired is False
+
+# ── Bridge Silence Probe ─────────────────────────────────────────────────────
+
+class TestBridgeSilenceProbe:
+
+    @pytest.mark.asyncio
+    async def test_no_bridge_id(self):
+        from backend.heartbeat import _probe_bridge_silence
+        fired, detail = await _probe_bridge_silence({})
+        assert fired is False
+
+    @pytest.mark.asyncio
+    async def test_bridge_silent_fires(self):
+        from backend.heartbeat import _probe_bridge_silence
+        import backend.services as svc
+        
+        mock_adapter = MagicMock()
+        mock_adapter.last_inbound_at = time.time() - (5 * 3600)  # 5 hours ago
+        mock_adapter.last_outbound_at = time.time() - (6 * 3600) # 6 hours ago
+        mock_adapter.last_inbound_sender = "user1"
+        
+        original_registry = svc.channel_registry
+        svc.channel_registry = {"discord": mock_adapter}
+        try:
+            fired, detail = await _probe_bridge_silence({"bridge_id": "discord", "silence_hours": 4})
+            assert fired is True
+        finally:
+            svc.channel_registry = original_registry
+
+    @pytest.mark.asyncio
+    async def test_bridge_not_silent(self):
+        from backend.heartbeat import _probe_bridge_silence
+        import backend.services as svc
+        
+        mock_adapter = MagicMock()
+        mock_adapter.last_inbound_at = time.time() - (1 * 3600)  # 1 hour ago
+        mock_adapter.last_outbound_at = time.time() - (2 * 3600)
+        
+        original_registry = svc.channel_registry
+        svc.channel_registry = {"discord": mock_adapter}
+        try:
+            fired, detail = await _probe_bridge_silence({"bridge_id": "discord", "silence_hours": 4})
+            assert fired is False
+        finally:
+            svc.channel_registry = original_registry

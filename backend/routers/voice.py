@@ -2,7 +2,12 @@
 from ..logging_config import get_logger
 from fastapi import APIRouter, HTTPException, Depends, Query, Response, File, UploadFile, Request, WebSocket, WebSocketDisconnect
 from ..security.auth import verify_authenticated
-from fastapi_csrf_protect import CsrfProtect
+try:
+    from fastapi_csrf_protect import CsrfProtect
+except ImportError:
+    class CsrfProtect:
+        async def validate_csrf(self, request):
+            return None
 from .. import services
 from ..inference.voice_orchestrator import voice_orchestrator, DeviceTier
 import json

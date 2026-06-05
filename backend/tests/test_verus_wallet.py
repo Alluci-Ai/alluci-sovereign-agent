@@ -223,3 +223,134 @@ async def test_vdxf_messaging(wallet_service):
 @pytest.mark.asyncio
 async def test_start_node(wallet_service):
     assert await wallet_service.start_node() is True
+
+# ── NEW EXCEPTION & EDGE CASE TESTS FOR 100% COVERAGE ──
+
+@pytest.mark.asyncio
+async def test_get_dashboard_exceptions(wallet_service, mock_rpc):
+    # general exception in connectivity check
+    mock_rpc.get_info.side_effect = Exception("Outer exception")
+    # if it raises in Lite mode too
+    with patch("backend.config.settings.VERUS_LITE_MODE", True):
+        dash = await wallet_service.get_dashboard()
+        assert not dash.connected
+    
+    # Exception in balance fetch
+    mock_rpc.get_info.side_effect = None
+    mock_rpc.get_balance.side_effect = Exception("Balance error")
+    dash = await wallet_service.get_dashboard()
+    assert dash.total_vrsc == 0.0
+    
+    # Exception in identity fetch
+    mock_rpc.get_balance.side_effect = None
+    mock_rpc.get_identity.side_effect = Exception("Identity error")
+    dash = await wallet_service.get_dashboard()
+    assert dash.identity is None
+    
+    # Exception in mining info
+    mock_rpc.get_identity.side_effect = None
+    mock_rpc.get_mining_info.side_effect = Exception("Mining error")
+    dash = await wallet_service.get_dashboard()
+    assert dash.mining["generating"] is False
+    
+    # Exception in transactions
+    mock_rpc.get_mining_info.side_effect = None
+    mock_rpc.list_transactions.side_effect = Exception("Tx error")
+    dash = await wallet_service.get_dashboard()
+    assert len(dash.recent_transactions) == 0
+
+@pytest.mark.asyncio
+async def test_dashboard_assembly_exception(wallet_service, mock_rpc):
+    # Force a failure in dashboard assembly by returning an invalid object from list_transactions that breaks formatting
+    # wait, easiest way is to mock get_info and trigger outer fallback
+    mock_rpc.get_info.return_value = {"name": "VRSC"} # Valid
+    # To hit final assembly exception, let's mock the final return or cause a TypeError
+    # Actually, we can patch `WalletDashboard` instantiation
+    with patch("backend.verus_wallet.WalletDashboard") as mock_dash:
+        mock_dash.side_effect = [Exception("Assembly Error"), MagicMock()]
+        res = await wallet_service.get_dashboard()
+        assert res is not None # returns the minimal one
+
+@pytest.mark.asyncio
+async def test_get_balances_exception(wallet_service, mock_rpc):
+    mock_rpc.get_balance.side_effect = Exception("Balance error")
+    res = await wallet_service.get_balances()
+    assert res["vrsc"] == 0.0
+
+@pytest.mark.asyncio
+async def test_get_transactions_exception(wallet_service, mock_rpc):
+    mock_rpc.list_transactions.side_effect = Exception("Tx error")
+    res = await wallet_service.get_transactions()
+    assert res["count"] == 0
+
+@pytest.mark.asyncio
+async def test_send_and_convert_exceptions(wallet_service, mock_rpc):
+    mock_rpc.send_currency.side_effect = Exception("Send error")
+    res = await wallet_service.send("addr", 10.0, "vETH", memo="hi")
+    assert res["success"] is False
+
+    mock_rpc.send_currency.side_effect = Exception("Convert error")
+    res2 = await wallet_service.convert(10.0, "VRSC", "vETH")
+    assert res2["success"] is False
+
+@pytest.mark.asyncio
+async def test_get_receive_address_exception(wallet_service, mock_rpc):
+    mock_rpc.get_new_address.side_effect = Exception("Addr error")
+    res = await wallet_service.get_receive_address()
+    assert res["address"] == ""
+
+@pytest.mark.asyncio
+async def test_create_invoice_exception(wallet_service, mock_rpc):
+    mock_rpc.get_new_address.side_effect = Exception("Invoice error")
+    res = await wallet_service.create_invoice(10.0)
+    assert res["success"] is False
+
+@pytest.mark.asyncio
+async def test_mining_staking_exceptions(wallet_service, mock_rpc):
+    mock_rpc.get_mining_info.side_effect = Exception("Mine error")
+    assert (await wallet_service.get_mining_status())["generating"] is False
+    
+    mock_rpc.set_generate.side_effect = Exception("Mine error")
+    assert (await wallet_service.start_mining())["success"] is False
+    assert (await wallet_service.start_staking())["success"] is False
+    assert (await wallet_service.stop_mining())["success"] is False
+
+@pytest.mark.asyncio
+async def test_defi_exceptions(wallet_service, mock_rpc):
+    mock_rpc.get_currency.side_effect = Exception("Curr error")
+    assert await wallet_service.get_currencies() == []
+    
+    mock_rpc.get_currency_converters.return_value = []
+    assert "error" in (await wallet_service.get_conversion_estimate(1.0, "VRSC", "vETH"))
+
+@pytest.mark.asyncio
+async def test_bridge_exceptions(wallet_service, mock_rpc):
+    mock_rpc.send_currency.side_effect = Exception("Bridge error")
+    assert (await wallet_service.bridge_to_eth(1.0, "VRSC", "0x"))["success"] is False
+    
+    mock_rpc.get_currency.side_effect = Exception("Bridge status error")
+    assert (await wallet_service.get_bridge_status())["active"] is False
+
+@pytest.mark.asyncio
+async def test_identity_methods_no_identity(wallet_service):
+    wallet_service.set_identity("")
+    assert "error" in await wallet_service.get_identity_info()
+    assert await wallet_service.get_manifest() == {}
+    assert (await wallet_service.update_manifest({}))["success"] is False
+    assert "error" in await wallet_service.update_identity_data("k", "v")
+    assert (await wallet_service.send_vdxf_message("rec", "msg"))["success"] is False
+    assert await wallet_service.fetch_vdxf_messages("peer") == []
+
+@pytest.mark.asyncio
+async def test_identity_methods_exceptions(wallet_service, mock_rpc):
+    mock_rpc.get_identity.side_effect = Exception("Id error")
+    assert "error" in await wallet_service.get_identity_info()
+    assert await wallet_service.get_manifest() == {}
+    assert (await wallet_service.update_manifest({}))["success"] is False
+    
+    mock_rpc.update_identity.side_effect = Exception("Id update error")
+    assert (await wallet_service.update_identity_data("k", "v"))["success"] is False
+    
+    mock_rpc.get_identity.side_effect = Exception("Id fetch error")
+    assert (await wallet_service.send_vdxf_message("r", "m"))["success"] is False
+    assert await wallet_service.fetch_vdxf_messages("r") == []

@@ -1,7 +1,7 @@
 import pytest
 import asyncio
 import time
-from unittest.mock import MagicMock, AsyncMock
+from unittest.mock import MagicMock, AsyncMock, patch
 from sqlmodel import Session, select
 
 from backend.pcl import (
@@ -367,3 +367,183 @@ async def test_heartbeat_signal_detector_in_registered_detectors(pcl_engine):
     assert len(names) == 8, (
         f"Expected 8 detectors, got {len(names)}: {names}"
     )
+
+@pytest.mark.asyncio
+async def test_base_detector_warning():
+    from backend.pcl import BaseDetector, WorldModel
+    class MyDetector(BaseDetector):
+        pass
+        
+    detector = MyDetector()
+    world = WorldModel()
+    
+    # Should not crash and should return None
+    res = await detector.detect(world)
+    assert res is None
+    # Verify the warned flag was set
+    assert MyDetector._warned is True
+
+@pytest.mark.asyncio
+async def test_recurring_topic_detector_conditions():
+    from backend.pcl import RecurringTopicDetector, WorldModel
+    detector = RecurringTopicDetector()
+    
+    # Empty world
+    world = WorldModel()
+    assert await detector.detect(world) is None
+    
+    # Short learning
+    world.recent_learnings = ["short"]
+    assert await detector.detect(world) is None
+
+@pytest.mark.asyncio
+async def test_task_failure_pattern_detector():
+    from backend.pcl import TaskFailurePatternDetector, WorldModel
+    detector = TaskFailurePatternDetector()
+    world = WorldModel()
+    
+    # Not enough failures
+    world.recent_failures = ["task_a", "task_a"]
+    assert await detector.detect(world) is None
+    
+    # Enough failures
+    world.recent_failures = ["task_a", "task_a", "task_a", "task_b"]
+    opp = await detector.detect(world)
+    assert opp is not None
+    assert opp.priority == 2
+    assert "Repeated failures: task_a (3×)" in opp.title
+
+@pytest.mark.asyncio
+async def test_memory_gap_detector():
+    from backend.pcl import MemoryGapDetector, WorldModel
+    detector = MemoryGapDetector()
+    world = WorldModel()
+    
+    goal_active = MagicMock(id=1, title="G1", status="active", l1_memory_count=0, days_since_update=8.0)
+    goal_inactive = MagicMock(id=2, title="G2", status="completed", l1_memory_count=0, days_since_update=8.0)
+    goal_recent = MagicMock(id=3, title="G3", status="active", l1_memory_count=5, days_since_update=8.0)
+    
+    world.active_goals = [goal_active, goal_inactive, goal_recent]
+    opp = await detector.detect(world)
+    
+    assert opp is not None
+    assert "Forgotten goal" in opp.title
+    assert opp.affects_goal_id == 1
+
+@pytest.mark.asyncio
+async def test_peak_opportunity_detector():
+    from backend.pcl import PeakOpportunityDetector, WorldModel
+    detector = PeakOpportunityDetector()
+    world = WorldModel()
+    
+    # Not peak performance
+    world.current_flow_mode = "STANDARD"
+    assert await detector.detect(world) is None
+    
+    # Peak performance but no high priority goals
+    world.current_flow_mode = "PEAK_PERFORMANCE"
+    goal_low = MagicMock(id=1, title="L", status="active", priority="LOW", metric_current=10, metric_target=100)
+    world.active_goals = [goal_low]
+    assert await detector.detect(world) is None
+    
+    # High priority pending goal
+    goal_high = MagicMock(id=2, title="H", status="active", priority="URGENT", metric_current=10, metric_target=100)
+    world.active_goals = [goal_high]
+    opp = await detector.detect(world)
+    
+    assert opp is not None
+    assert opp.recommended_action == "execute"
+    assert "Peak performance" in opp.title
+
+
+@pytest.mark.asyncio
+async def test_judge_intervention_additional():
+    from backend.pcl import InterventionJudge, WorldModel, Opportunity
+    
+    class MockDb:
+        def __init__(self, should_find=False):
+            self.should_find = should_find
+        def exec(self, query):
+            mock_res = MagicMock()
+            if self.should_find:
+                mock_opp = MagicMock(actioned_at=time.time() - 100, detected_at=time.time() - 100)
+                mock_res.first.return_value = mock_opp
+            else:
+                mock_res.first.return_value = None
+            return mock_res
+    
+    class MockSession:
+        def __init__(self, db):
+            self.db = db
+        def __enter__(self):
+            return self.db
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            pass
+
+    mock_db = MagicMock()
+    # In PCL, `with Session(self.db_engine) as session:` is used. 
+    # To mock this without importing sqlmodel, we can mock `backend.pcl.Session`.
+    
+    with patch("backend.pcl.Session") as mock_session_cls:
+        mock_session_cls.return_value = MockSession(MockDb(should_find=True))
+        judge = InterventionJudge(mock_db, settings_obj=MagicMock(PCL_QUIET_START_HOUR=22, PCL_QUIET_END_HOUR=7))
+        world = WorldModel(current_flow_mode="STANDARD")
+        opp = Opportunity(id="test_id", detector_name="T", title="T", description="T", priority=3, confidence=0.9, recommended_action="notify", cooldown_minutes=60)
+        
+        # Test cooldown failure
+        res, reason = judge._check_cooldown(opp)
+        assert res is False
+        assert "Cooldown" in reason
+        
+        # Test deduplication failure
+        res, reason = judge._check_deduplication(opp)
+        assert res is False
+        assert "Deduplicated" in reason
+
+    with patch("backend.pcl.Session") as mock_session_cls:
+        mock_session_cls.return_value = MockSession(MockDb(should_find=False))
+        judge = InterventionJudge(mock_db, settings_obj=MagicMock(PCL_QUIET_START_HOUR=22, PCL_QUIET_END_HOUR=7))
+        
+        # Test cooldown pass
+        res, reason = judge._check_cooldown(opp)
+        assert res is True
+        
+        # Test dedup pass
+        res, reason = judge._check_deduplication(opp)
+        assert res is True
+        
+        # Test low confidence execute
+        opp_exec = Opportunity(id="test_id", detector_name="T", title="T", description="T", priority=3, confidence=0.7, recommended_action="execute")
+        res, reason = judge._check_confidence(opp_exec)
+        assert res is False
+        
+        # Test low confidence notify
+        opp_notify = Opportunity(id="test_id", detector_name="T", title="T", description="T", priority=3, confidence=0.5, recommended_action="notify")
+        res, reason = judge._check_confidence(opp_notify)
+        assert res is False
+
+    # Test quiet hours logic without mocking datetime
+    from datetime import datetime, timezone
+    now_hour = datetime.now(timezone.utc).hour
+    
+    # Inside quiet hours
+    quiet_start = (now_hour - 1) % 24
+    quiet_end = (now_hour + 2) % 24
+    judge_in_quiet = InterventionJudge(mock_db, settings_obj=MagicMock(PCL_QUIET_START_HOUR=quiet_start, PCL_QUIET_END_HOUR=quiet_end))
+    
+    opp_normal = Opportunity(id="test_id", detector_name="T", title="T", description="T", priority=3, confidence=0.9, recommended_action="notify")
+    res, reason = judge_in_quiet._check_quiet_hours(opp_normal)
+    assert res is False
+    
+    # Critical execute bypasses quiet hours
+    opp_critical = Opportunity(id="test_id", detector_name="T", title="T", description="T", priority=1, confidence=0.9, recommended_action="execute")
+    res, reason = judge_in_quiet._check_quiet_hours(opp_critical)
+    assert res is True
+
+    # Outside quiet hours
+    quiet_start = (now_hour + 2) % 24
+    quiet_end = (now_hour + 5) % 24
+    judge_out_quiet = InterventionJudge(mock_db, settings_obj=MagicMock(PCL_QUIET_START_HOUR=quiet_start, PCL_QUIET_END_HOUR=quiet_end))
+    res, reason = judge_out_quiet._check_quiet_hours(opp_normal)
+    assert res is True
+

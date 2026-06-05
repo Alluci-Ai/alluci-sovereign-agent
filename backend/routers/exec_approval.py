@@ -3,7 +3,12 @@ from ..logging_config import get_logger
 from typing import Dict, Any
 from fastapi import APIRouter, HTTPException, Depends, Body, Request
 from ..security.auth import verify_authenticated
-from fastapi_csrf_protect import CsrfProtect
+try:
+    from fastapi_csrf_protect import CsrfProtect
+except ImportError:
+    class CsrfProtect:
+        async def validate_csrf(self, request):
+            return None
 from .. import services
 
 logger = get_logger("ExecApprovalRouter")

@@ -7,11 +7,19 @@ Sovereign Agentic Registration Kernel - auth.md Spec Protocol Enforcement Engine
 import os
 import httpx
 import jwt
+import importlib
+
+def _get_vault():
+    """Lazily import and return the vault instance from backend.services.
+    This avoids importing the entire services module at import time, which pulls in many heavy dependencies.
+    """
+    services = importlib.import_module('backend.services')
+    return services.vault
 import datetime
 import uuid
 import logging
 from typing import Dict, Any, Optional
-from backend.services import vault
+# Vault is fetched lazily via _get_vault()
 
 logger = logging.getLogger("AuthMDDiscoverer")
 
@@ -54,8 +62,9 @@ class AlluciAutonomousDiscoverer:
                         server_res = await client.get(f"{auth_server_url}/.well-known/oauth-authorization-server")
                         agent_auth_config = server_res.json().get("agent_auth", {})
 
+                # If still no agent_auth config, fallback to user claimed OTP flow
                 if not agent_auth_config:
-                    raise KeyError("Could not isolate valid agent_auth metadata maps for target provider.")
+                    return await self.execute_user_claimed_fallback(clean_domain)
 
                 # Extract explicit target registration endpoint routes
                 register_uri = agent_auth_config.get("register_uri")
@@ -89,10 +98,10 @@ class AlluciAutonomousDiscoverer:
         }
 
         # Retrieve secure private key from the Sovereign Vault
-        if vault is None:
+        local_vault = _get_vault()
+        if local_vault is None:
             raise RuntimeError("VaultManager is not initialized. Cannot perform cryptographic signing.")
-            
-        private_key, _ = await vault.get_or_create_jwt_keypair()
+        private_key, _ = await local_vault.get_or_create_jwt_keypair()
         
         # Generate the bearer authentication assertion token
         encoded_id_jag = jwt.encode(id_jag_claims, private_key, algorithm="RS256")

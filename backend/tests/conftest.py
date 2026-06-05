@@ -106,6 +106,7 @@ def temp_db():
          patch("backend.routers.dag.db_engine", engine, create=True), \
          patch("backend.routers.sessions.db_engine", engine, create=True), \
          patch("backend.security.audit_ledger.db_engine", engine, create=True), \
+         patch("backend.security.audit_verifier.db_engine", engine, create=True), \
          patch("backend.goals.engine.db_engine", engine, create=True), \
          patch("backend.sop.engine.db_engine", engine, create=True), \
          patch("backend.device_manager.db_engine", engine, create=True), \

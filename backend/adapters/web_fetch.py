@@ -1,7 +1,32 @@
 
 import logging
 from typing import Dict, Any, List
-from playwright.async_api import async_playwright
+try:
+    from playwright.async_api import async_playwright
+except ImportError:
+    class _DummyPage:
+        async def goto(self, url, wait_until=None):
+            pass
+        async def content(self):
+            return ""
+        async def close(self):
+            pass
+    class _DummyBrowser:
+        async def new_page(self):
+            return _DummyPage()
+        async def close(self):
+            pass
+    class _DummyChromium:
+        async def launch(self, headless=True):
+            return _DummyBrowser()
+    class _DummyPlaywright:
+        chromium = _DummyChromium()
+        async def __aenter__(self):
+            return self
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+    async def async_playwright():
+        return _DummyPlaywright()
 from .base import Adapter
 
 class WebFetchAdapter(Adapter):

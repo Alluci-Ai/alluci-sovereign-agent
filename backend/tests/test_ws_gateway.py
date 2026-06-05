@@ -199,21 +199,106 @@ def test_rpc_invalid_json(client, test_app):
 async def test_broadcast_event(test_app):
     app, gateway = test_app
     
-    mock_ws = AsyncMock()
-    c1 = ConnectedClient(mock_ws, "c1", "sub")
-    c1.subscriptions.add("log")
-    
+    mock_ws1 = AsyncMock()
     mock_ws2 = AsyncMock()
+    mock_ws3 = AsyncMock()
+    
+    # ws3 will throw an exception on send
+    mock_ws3.send_text.side_effect = Exception("Closed")
+    
+    c1 = ConnectedClient(mock_ws1, "c1", "sub")
+    c1.subscriptions.add("test_channel")
     c2 = ConnectedClient(mock_ws2, "c2", "sub")
-    c2.subscriptions.add("other_channel")
-    # Not subscribed to 'log'
+    c2.subscriptions.add("other")
+    c3 = ConnectedClient(mock_ws3, "c3", "sub")
+    c3.subscriptions.add("test_channel")
     
-    gateway.clients = {"c1": c1, "c2": c2}
+    gateway.clients["c1"] = c1
+    gateway.clients["c2"] = c2
+    gateway.clients["c3"] = c3
     
-    await gateway.broadcast_event("log", {"msg": "hello"})
+    await gateway.broadcast_event("test_channel", {"hello": "world"})
     
-    mock_ws.send_text.assert_awaited_once()
-    mock_ws2.send_text.assert_not_awaited()
+    mock_ws1.send_text.assert_called_once()
+    mock_ws2.send_text.assert_not_called()
+    mock_ws3.send_text.assert_called_once()
+    assert "c3" not in gateway.clients
+
+def test_rpc_system_health(client, test_app):
+    app, gateway = test_app
+    token = generate_test_token()
+    
+    # Trigger vault error
+    gateway._service_refs["vault"].retrieve_secret.side_effect = Exception("Vault down")
+    gateway._service_refs["router"] = MagicMock()
+    
+    with client.websocket_connect("/ws") as websocket:
+        websocket.send_text(json.dumps({"jsonrpc": "2.0", "params": {"token": token}}))
+        websocket.receive_text()
+        
+        websocket.send_text(json.dumps({"jsonrpc": "2.0", "id": 5, "method": "system.health"}))
+        resp = json.loads(websocket.receive_text())
+        assert resp["result"]["vault"] == "error"
+        assert resp["result"]["model_router"] == "ok"
+
+def test_rpc_system_presence(client, test_app):
+    app, gateway = test_app
+    token = generate_test_token()
+    
+    with patch("sqlmodel.Session") as mock_session:
+        mock_db = mock_session.return_value.__enter__.return_value
+        mock_beacon = MagicMock()
+        mock_beacon.client_id = "beacon1"
+        mock_beacon.subject = "test"
+        mock_beacon.data_fields = {}
+        mock_beacon.last_seen.isoformat.return_value = "2023"
+        mock_db.exec.return_value.all.return_value = [mock_beacon]
+        
+        gateway._service_refs["db_engine"] = MagicMock()
+        
+        with client.websocket_connect("/ws") as websocket:
+            websocket.send_text(json.dumps({"jsonrpc": "2.0", "params": {"token": token}}))
+            websocket.receive_text()
+            
+            websocket.send_text(json.dumps({"jsonrpc": "2.0", "id": 6, "method": "system.presence"}))
+            resp = json.loads(websocket.receive_text())
+            assert "beacon1" in [b["client_id"] for b in resp["result"]["beacons"]]
+
+def test_rpc_handler_exception(client, test_app):
+    app, gateway = test_app
+    token = generate_test_token()
+    
+    # Patch the handler to throw an exception
+    async def bad_handler(params, client):
+        raise Exception("Oops")
+    
+    gateway.register_method("bad.method", bad_handler)
+    
+    with client.websocket_connect("/ws") as websocket:
+        websocket.send_text(json.dumps({"jsonrpc": "2.0", "params": {"token": token}}))
+        websocket.receive_text()
+        
+        websocket.send_text(json.dumps({"jsonrpc": "2.0", "id": 7, "method": "bad.method"}))
+        resp = json.loads(websocket.receive_text())
+        assert resp["error"]["code"] == -32603
+
+@patch("backend.security.auth.verify_token")
+def test_authenticate_exception(mock_verify, client, test_app):
+    mock_verify.side_effect = Exception("Unexpected Error")
+    token = generate_test_token()
+    
+    with client.websocket_connect("/ws") as websocket:
+        websocket.send_text(json.dumps({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "hello",
+            "params": {"token": token}
+        }))
+        
+        # Expect auth failed
+        with pytest.raises(WebSocketDisconnect) as e:
+            websocket.receive_text()
+        assert e.value.code == 4000
 
 @pytest.mark.asyncio
 async def test_other_builtins(test_app):
@@ -263,3 +348,118 @@ async def test_other_builtins(test_app):
 
     res_mani = await gateway._rpc_manifold_pvt({}, dummy_client)
     assert "pvt" in res_mani or "error" in res_mani
+
+# --- NEW TESTS FOR COVERAGE ---
+
+@pytest.mark.asyncio
+async def test_authenticate_timeout(test_app):
+    app, gateway = test_app
+    
+    # Mock a websocket that sleeps forever on receive
+    ws = AsyncMock()
+    ws.receive_text.side_effect = asyncio.TimeoutError
+    ws.cookies = {}
+    
+    client = await gateway._authenticate(ws)
+    assert client is None
+    ws.close.assert_awaited_once_with(code=4002, reason="Auth timeout")
+
+def test_authenticate_invalid_token(test_app):
+    app, gateway = test_app
+    client = TestClient(app)
+    
+    with pytest.raises(Exception):
+        with client.websocket_connect("/ws") as websocket:
+            websocket.send_text(json.dumps({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "hello",
+                "params": {"token": "invalid.jwt.token"}
+            }))
+            websocket.receive_text()
+
+def test_rpc_missing_method(test_app, client):
+    app, gateway = test_app
+    token = generate_test_token()
+    
+    with client.websocket_connect("/ws") as websocket:
+        websocket.send_text(json.dumps({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "hello",
+            "params": {"token": token}
+        }))
+        websocket.receive_text() # consume hello
+        
+        # Send missing method
+        websocket.send_text(json.dumps({
+            "jsonrpc": "2.0",
+            "id": 2
+        }))
+        resp = json.loads(websocket.receive_text())
+        assert "error" in resp
+        assert resp["error"]["code"] == -32600
+
+def test_rpc_heartbeat_with_db(test_app, client):
+    app, gateway = test_app
+    gateway.inject_services(db_engine=MagicMock())
+    token = generate_test_token()
+    
+    with client.websocket_connect("/ws") as websocket:
+        websocket.send_text(json.dumps({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "hello",
+            "params": {"token": token}
+        }))
+        websocket.receive_text() # consume hello
+        
+        # Send heartbeat
+        websocket.send_text(json.dumps({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "heartbeat",
+            "params": {}
+        }))
+        resp = json.loads(websocket.receive_text())
+        assert resp["result"] == {"ok": True}
+
+@pytest.mark.asyncio
+async def test_rpc_sessions_patch(test_app):
+    app, gateway = test_app
+    gateway.inject_services(db_engine=MagicMock())
+    
+    # We won't actually hit the db because it's a mock, but we'll mock the Session
+    with patch("sqlmodel.Session") as mock_session:
+        mock_db = MagicMock()
+        mock_config = MagicMock()
+        mock_config.label = "new_label"
+        mock_db.exec.return_value.first.return_value = mock_config
+        mock_session.return_value.__enter__.return_value = mock_db
+        
+        res = await gateway._rpc_sessions_patch({"session_key": "123", "label": "new_label"}, None)
+        assert res["status"] == "patched"
+        assert res["label"] == "new_label"
+        mock_db.commit.assert_called_once()
+
+@pytest.mark.asyncio
+async def test_rpc_signal_register(test_app):
+    app, gateway = test_app
+    mock_signal = AsyncMock()
+    mock_signal.register.return_value = {"status": "success"}
+    gateway.inject_services(channel_registry={"signal": mock_signal})
+    
+    res = await gateway._rpc_signal_register({"phone_number": "+1234"}, None)
+    assert res["status"] == "success"
+    mock_signal.register.assert_awaited_once_with("+1234", False)
+
+@pytest.mark.asyncio
+async def test_rpc_signal_verify(test_app):
+    app, gateway = test_app
+    mock_signal = AsyncMock()
+    mock_signal.verify.return_value = {"status": "success"}
+    gateway.inject_services(channel_registry={"signal": mock_signal})
+    
+    res = await gateway._rpc_signal_verify({"phone_number": "+1234", "code": "000"}, None)
+    assert res["status"] == "success"
+    mock_signal.verify.assert_awaited_once_with("+1234", "000")

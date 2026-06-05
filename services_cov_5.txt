@@ -1,0 +1,213 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.9.6, pytest-8.3.2, pluggy-1.6.0 -- /Users/alluci/Downloads/alluci-sovereign-agent-main/.venv/bin/python3
+cachedir: .pytest_cache
+rootdir: /Users/alluci/Downloads/alluci-sovereign-agent-main/backend
+configfile: pytest.ini
+plugins: anyio-4.12.1, asyncio-0.24.0, cov-5.0.0, timeout-2.3.1, mock-3.14.0
+asyncio: mode=auto, default_loop_scope=None
+collecting ... collected 13 items
+
+backend/tests/test_services.py::test_init_services_core PASSED           [  7%]
+backend/tests/test_services.py::test_shutdown_services PASSED            [ 15%]
+backend/tests/test_services.py::test_init_channels PASSED                [ 23%]
+backend/tests/test_services.py::test_init_channels_legacy_fallback PASSED [ 30%]
+backend/tests/test_services.py::test_init_services_redis_error PASSED    [ 38%]
+backend/tests/test_services.py::test_init_services_redis_none_production PASSED [ 46%]
+backend/tests/test_services.py::test_init_services_alembic_upgrade PASSED [ 53%]
+backend/tests/test_services.py::test_broadcast_bridge_event PASSED       [ 61%]
+backend/tests/test_services.py::test_init_services_redis_error_production PASSED [ 69%]
+backend/tests/test_services.py::test_init_services_redis_success PASSED  [ 76%]
+backend/tests/test_services.py::test_init_services_chromadb_success PASSED [ 84%]
+backend/tests/test_services.py::test_init_services_chromadb_import_error PASSED [ 92%]
+backend/tests/test_services.py::test_init_services_oauth_refresh_loop FAILED [100%]
+
+=================================== FAILURES ===================================
+____________________ test_init_services_oauth_refresh_loop _____________________
+backend/tests/test_services.py:300: in test_init_services_oauth_refresh_loop
+    await services.init_services(mock_app)
+backend/services.py:129: in init_services
+    router = ModelRouter(settings, vault=vault, analytics=usage_tracker)
+backend/inference/router.py:76: in __init__
+    self.lm_studio_client = openai.AsyncOpenAI(
+.venv/lib/python3.9/site-packages/openai/_client.py:732: in __init__
+    super().__init__(
+.venv/lib/python3.9/site-packages/openai/_base_client.py:1509: in __init__
+    super().__init__(
+.venv/lib/python3.9/site-packages/openai/_base_client.py:388: in __init__
+    self._base_url = self._enforce_trailing_slash(URL(base_url))
+.venv/lib/python3.9/site-packages/httpx/_urls.py:119: in __init__
+    raise TypeError(
+E   TypeError: Invalid type for url.  Expected str or httpx.URL, got <class 'unittest.mock.MagicMock'>: <MagicMock name='settings.LM_STUDIO_URL' id='4952837520'>
+---------------------------- Captured stdout setup -----------------------------
+[2m2026-06-04T23:33:09.582013Z[0m [[32m[1mdebug    [0m] [1mUsing selector: KqueueSelector[0m [[0m[1m[34masyncio[0m][0m
+------------------------------ Captured log setup ------------------------------
+DEBUG    asyncio:selector_events.py:59 Using selector: KqueueSelector
+----------------------------- Captured stdout call -----------------------------
+[2m2026-06-04T23:33:09.584308Z[0m [[32m[1minfo     [0m] [1m[ SERVICES ] Initializing global system components...[0m [[0m[1m[34mPolytopeServices[0m][0m
+[2m2026-06-04T23:33:09.584393Z[0m [[33m[1mwarning  [0m] [1m[ CACHE ]: REDIS_URL not configured. Rate limiting is INACTIVE.[0m [[0m[1m[34mPolytopeServices[0m][0m
+[2m2026-06-04T23:33:09.584465Z[0m [[33m[1mwarning  [0m] [1m[ RATE_LIMITER ] Redis is not configured. Falling back to in-memory sliding window rate limiter. This limiter does not persist across restarts and does not coordinate across multiple worker processes.[0m [[0m[1m[34mPolytopeServices[0m][0m
+[2m2026-06-04T23:33:09.586509Z[0m [[32m[1minfo     [0m] [1mMaster key retrieved from OS Keychain.[0m [[0m[1m[34mVaultManager[0m][0m
+[2m2026-06-04T23:33:09.588143Z[0m [[31m[1merror    [0m] [1mFailed to decrypt RSA identity key: ('Could not deserialize key data. The data may be in an incorrect format, the provided password may be incorrect, it may be encrypted with an unsupported algorithm, or it may be an unsupported key type (e.g. EC curves with explicit parameters).', [<OpenSSLError(code=478150756, lib=57, reason=100, reason_text=bad decrypt)>, <OpenSSLError(code=293601396, lib=35, reason=116, reason_text=pkcs12 cipherfinal error)>, <OpenSSLError(code=478150756, lib=57, reason=100, reason_text=bad decrypt)>, <OpenSSLError(code=293601396, lib=35, reason=116, reason_text=pkcs12 cipherfinal error)>]). Asymmetric operations will be disabled.[0m [[0m[1m[34mVaultManager[0m][0m
+[2m2026-06-04T23:33:09.642780Z[0m [[33m[1mwarning  [0m] [1mEd25519 key load failed, falling back to hash: fromhex() argument must be str, not MagicMock[0m [[0m[1m[34mSovereignSecurity[0m][0m
+[2m2026-06-04T23:33:09.644017Z[0m [[32m[1minfo     [0m] [1mLocal Cognitive Engine (LCE) via MLX initialized.[0m [[0m[1m[34mModelRouter[0m][0m
+[C++ Proxy] Sovereign Router Initialized. Privacy Perimeter Active.
+------------------------------ Captured log call -------------------------------
+INFO     PolytopeServices:services.py:65 {'event': '[ SERVICES ] Initializing global system components...', 'level': 'info', 'logger': 'PolytopeServices', 'timestamp': '2026-06-04T23:33:09.584308Z'}
+WARNING  PolytopeServices:services.py:93 {'event': '[ CACHE ]: REDIS_URL not configured. Rate limiting is INACTIVE.', 'level': 'warning', 'logger': 'PolytopeServices', 'timestamp': '2026-06-04T23:33:09.584393Z'}
+WARNING  PolytopeServices:services.py:97 {'event': '[ RATE_LIMITER ] Redis is not configured. Falling back to in-memory sliding window rate limiter. This limiter does not persist across restarts and does not coordinate across multiple worker processes.', 'level': 'warning', 'logger': 'PolytopeServices', 'timestamp': '2026-06-04T23:33:09.584465Z'}
+INFO     VaultManager:vault.py:210 {'event': 'Master key retrieved from OS Keychain.', 'level': 'info', 'logger': 'VaultManager', 'timestamp': '2026-06-04T23:33:09.586509Z'}
+ERROR    VaultManager:vault.py:134 {'event': "Failed to decrypt RSA identity key: ('Could not deserialize key data. The data may be in an incorrect format, the provided password may be incorrect, it may be encrypted with an unsupported algorithm, or it may be an unsupported key type (e.g. EC curves with explicit parameters).', [<OpenSSLError(code=478150756, lib=57, reason=100, reason_text=bad decrypt)>, <OpenSSLError(code=293601396, lib=35, reason=116, reason_text=pkcs12 cipherfinal error)>, <OpenSSLError(code=478150756, lib=57, reason=100, reason_text=bad decrypt)>, <OpenSSLError(code=293601396, lib=35, reason=116, reason_text=pkcs12 cipherfinal error)>]). Asymmetric operations will be disabled.", 'level': 'error', 'logger': 'VaultManager', 'timestamp': '2026-06-04T23:33:09.588143Z'}
+WARNING  SovereignSecurity:verus.py:50 {'event': 'Ed25519 key load failed, falling back to hash: fromhex() argument must be str, not MagicMock', 'level': 'warning', 'logger': 'SovereignSecurity', 'timestamp': '2026-06-04T23:33:09.642780Z'}
+INFO     ModelRouter:router.py:64 {'event': 'Local Cognitive Engine (LCE) via MLX initialized.', 'level': 'info', 'logger': 'ModelRouter', 'timestamp': '2026-06-04T23:33:09.644017Z'}
+--------------------------- Captured stdout teardown ---------------------------
+[2m2026-06-04T23:33:09.690332Z[0m [[32m[1mdebug    [0m] [1mUsing selector: KqueueSelector[0m [[0m[1m[34masyncio[0m][0m
+---------------------------- Captured log teardown -----------------------------
+DEBUG    asyncio:selector_events.py:59 Using selector: KqueueSelector
+
+---------- coverage: platform darwin, python 3.9.6-final-0 -----------
+Name                                       Stmts   Miss  Cover   Missing
+------------------------------------------------------------------------
+backend/__init__.py                            0      0   100%
+backend/ace/__init__.py                        0      0   100%
+backend/ace/affect_kernel.py                  74     38    49%   12-13, 41-44, 66-68, 89-109, 113-145
+backend/ace/anti_spoof.py                     19     19     0%   1-39
+backend/ace/btm_mapper.py                    151     94    38%   59-62, 88-90, 96, 99, 106-107, 112-120, 124-132, 136-144, 147-217, 220-229, 233
+backend/ace/engine.py                         68     51    25%   31-66, 73-82, 86-87, 91-116, 120
+backend/ace/entropy_monitor.py                99     49    51%   45-48, 70-72, 78, 81, 88-89, 94-100, 104-106, 109-143
+backend/ace/memory_decay.py                   79     53    33%   37-40, 57-72, 76, 85-143
+backend/ace/watch_auth.py                     29     12    59%   32-33, 40-47, 53-56
+backend/adapters/__init__.py                   0      0   100%
+backend/adapters/base.py                       8      1    88%   17
+backend/adapters/bridge_actualization.py     153     97    37%   84, 87-141, 148-170, 174-184, 197-210, 214-225, 232-247, 250-274
+backend/adapters/code_exec.py                 89     65    27%   33-50, 57-67, 74-97, 103-146
+backend/adapters/doc_ingest.py                51     35    31%   32-89, 95
+backend/adapters/filesystem.py                42     29    31%   14, 18-21, 24-55
+backend/adapters/memory_adapter.py            46     34    26%   51-112
+backend/adapters/registry.py                  44     18    59%   34-58, 61
+backend/adapters/screen_capture.py            30     16    47%   30-57
+backend/adapters/shell.py                     47     33    30%   64-118
+backend/adapters/web.py                       45     45     0%   2-65
+backend/adapters/web_fetch.py                 18     10    44%   16-33
+backend/adapters/web_search.py                77     59    23%   30-60, 66-74, 92-111, 132-161, 171-201
+backend/analytics.py                         171    147    14%   62-73, 89-115, 126-139, 152-210, 232-258, 278-307, 316-341, 347-355, 372-384, 390-400, 404-410
+backend/app.py                               201    201     0%   2-356
+backend/auth/__init__.py                       0      0   100%
+backend/auth/autonomous_discoverer.py         62     62     0%   7-117
+backend/cli/__init__.py                        0      0   100%
+backend/config.py                            124     11    91%   16-17, 152-156, 164, 170-172
+backend/config_editor.py                     100     79    21%   75-83, 90-102, 112-159, 172-211, 217-218, 222-224, 228-230
+backend/core/__init__.py                       0      0   100%
+backend/core/startup_checks.py                32     32     0%   2-70
+backend/cron_engine.py                       228    170    25%   58, 65-72, 79-80, 96-97, 102-139, 145-216, 220-244, 249-252, 255-260, 263-269, 272-283, 286-293, 296-318, 322-328, 336-345, 351, 371
+backend/database.py                           66     50    24%   15-16, 32, 45-53, 60-90, 100-117, 121-122
+backend/device_manager.py                    106     75    29%   33-42, 46-60, 67-78, 89-121, 125-132, 136-143, 151-172, 180-193
+backend/engine/__init__.py                     0      0   100%
+backend/engine/critic.py                      22     12    45%   21-37
+backend/engine/dream_cycle.py                210    165    21%   15, 41-86, 100-108, 113-173, 176-184, 187-189, 198-266, 289-297, 304-306, 309-351
+backend/engine/errors.py                      10      0   100%
+backend/engine/executor.py                   168    135    20%   42-44, 50-103, 106-186, 192-210, 214-224, 227-264
+backend/engine/mlx_trainer.py                 49     28    43%   11-12, 38-44, 48-92
+backend/engine/planner.py                     58     45    22%   23-33, 39-46, 52-83, 86-106
+backend/engine/supervisor.py                  15      8    47%   22-35
+backend/exec_approval.py                      87     67    23%   46-77, 82-92, 97-107, 113-134, 138-158, 162-166, 179-187
+backend/goals/__init__.py                      0      0   100%
+backend/goals/engine.py                       81     63    22%   21-33, 36-51, 54-55, 58-64, 67-71, 78-139
+backend/harmonic_enhancer.py                 202    119    41%   62-65, 96-134, 148-153, 156-158, 176-178, 184, 187, 194-195, 200-209, 214-216, 219-248, 272-297, 304-340
+backend/heartbeat.py                         518    443    14%   62, 65, 69-72, 90-112, 117-134, 147-168, 172-205, 209-233, 237-256, 260-300, 304-319, 323-350, 354-374, 393-418, 424-441, 447-468, 478-499, 503-515, 521-532, 546-573, 615-618, 629-636, 639-673, 678-681, 686-697, 701-726, 731-752, 757-806, 818-834, 843-890, 900-925
+backend/log_streamer.py                      109     62    43%   47-52, 56-58, 62, 66-72, 76-82, 108-109, 125-177
+backend/logging_config.py                     55     19    65%   20-23, 33-35, 39-43, 72, 110-128
+backend/memory/__init__.py                     0      0   100%
+backend/memory/fts_manager.py                 77     77     0%   10-154
+backend/memory/hlsm_manager.py               462    360    22%   82-103, 158-159, 165-172, 177, 181-213, 216-218, 222-245, 248-259, 269-274, 277-283, 299-323, 326-328, 335-339, 346-421, 425-433, 437, 440-460, 469-502, 506-569, 573-581, 611-671, 699-746, 761-774, 789-870, 873-874, 877-878, 881-886, 889-895, 898-907, 914, 920-925, 932, 934, 936-938, 944-954, 979-980, 983-985, 995-997, 1002-1011, 1015-1016, 1030-1031, 1040-1049, 1052-1058
+backend/memory/manager.py                     79     66    16%   18-48, 52-71, 75-99, 103-117, 121-132
+backend/metrics.py                            34     11    68%   51-72, 81
+backend/models.py                            456      0   100%
+backend/network/__init__.py                    0      0   100%
+backend/network/ant_protocol.py               17     17     0%   1-47
+backend/orchestrator.py                      500    400    20%   20-21, 62, 106-108, 114, 126-135, 139-150, 158-187, 191-193, 209-212, 220-304, 315-408, 415-465, 468-757, 771-818, 829-852, 863-904, 908-915, 918-929, 932-937
+backend/pcl.py                               541    359    34%   146-147, 179-187, 201-216, 250-266, 304-316, 349-370, 398-413, 443-454, 485-499, 544-581, 622-646, 649-653, 656-666, 669-682, 685-691, 694-706, 785-786, 803, 810-817, 825, 827-834, 855, 859-900, 904-910, 914-924, 928-975, 984-1015, 1019-1054, 1064-1096, 1108-1117, 1129-1150, 1154-1187, 1191-1220, 1226-1254, 1257-1262, 1268-1282, 1286-1293, 1308-1358, 1364-1377
+backend/routers/__init__.py                    0      0   100%
+backend/routers/auth.py                      182    182     0%   2-473
+backend/routers/channels.py                  497    497     0%   1-765
+backend/routers/config.py                     24     24     0%   2-36
+backend/routers/crons.py                      37     37     0%   2-48
+backend/routers/dag.py                        20     20     0%   1-41
+backend/routers/exec_approval.py              42     42     0%   2-51
+backend/routers/gemini.py                     20     20     0%   2-46
+backend/routers/goals.py                      45     45     0%   2-69
+backend/routers/memory.py                    103    103     0%   2-129
+backend/routers/objectives.py                 80     80     0%   3-134
+backend/routers/security.py                   49     49     0%   1-69
+backend/routers/sessions.py                  124    124     0%   2-301
+backend/routers/sop.py                        39     39     0%   2-55
+backend/routers/soul.py                       43     43     0%   2-63
+backend/routers/system.py                    107    107     0%   2-196
+backend/routers/tasks.py                      35     35     0%   2-41
+backend/routers/telemetry.py                  34     34     0%   2-81
+backend/routers/vault.py                      89     89     0%   2-125
+backend/routers/voice.py                      78     78     0%   2-146
+backend/routers/wallet.py                     43     43     0%   2-52
+backend/routers/websockets.py                 97     97     0%   1-136
+backend/security/__init__.py                   0      0   100%
+backend/security/audit_ledger.py              68     35    49%   29-31, 49-50, 80-114, 118, 121-126
+backend/security/auth.py                      50     31    38%   31-36, 39-52, 61-83, 90-96
+backend/security/avl_gate.py                  53     41    23%   32-67, 79-118, 131-145
+backend/security/circuit_breaker.py           39     39     0%   1-61
+backend/security/credential_store.py          45     45     0%   5-86
+backend/security/csp.py                        7      7     0%   6-18
+backend/security/csrf.py                      11     11     0%   1-13
+backend/security/dpk.py                      106     48    55%   56-58, 74-78, 97-101, 108-112, 120-151, 155, 159-177
+backend/security/exceptions.py                 7      7     0%   1-13
+backend/security/guardrail.py                 64     50    22%   46-96, 103-125
+backend/security/health_monitor.py            71     57    20%   36-116, 129, 133
+backend/security/network_policy.py            22     22     0%   1-53
+backend/security/oauth_config.py              14     14     0%   7-126
+backend/security/oauth_handler.py             61     40    34%   25, 30-32, 53-81, 98-126
+backend/security/oauth_store.py               29     29     0%   2-53
+backend/security/policyEngine.py              43     43     0%   2-78
+backend/security/qr_sync_handler.py           60     44    27%   24-33, 40-78, 82-85
+backend/security/rate_limit.py                26     26     0%   1-52
+backend/security/rate_limiter.py              30     30     0%   6-66
+backend/security/resolution.py                27     27     0%   1-63
+backend/security/tunnel_handler.py            74     52    30%   28-37, 41-48, 52-76, 80-114, 121
+backend/security/utils.py                     26     26     0%   2-45
+backend/security/vault.py                    531    397    25%   25-27, 35-36, 40-41, 90, 94-120, 132, 137-155, 164-167, 185, 189-190, 202-203, 214-222, 225-228, 232-244, 253-265, 269, 273-279, 285-287, 293-300, 304, 321, 326-350, 356-364, 369-383, 393-396, 399-400, 405-438, 441-498, 501-508, 511, 514-517, 520, 523-527, 530, 533-539, 549, 552-666, 670-683, 689, 692-735, 741-751, 760, 763-780, 789-795, 802-826, 844-869
+backend/security/vdxf_store.py                75     59    21%   20-24, 27, 35-60, 67-91, 97-117, 121-126, 130-131
+backend/security/verus.py                     79     41    48%   11-12, 40-41, 47-48, 55, 60, 65-70, 77-97, 108-130
+backend/security/verus_node.py               122    122     0%   11-226
+backend/security/verus_rpc.py                143     84    41%   20, 26-28, 32-70, 76, 80, 84, 88, 92-95, 99, 103, 107, 111, 119-123, 129, 133, 137, 141-144, 148, 152, 156, 169-170, 174, 178, 182, 186, 192, 196, 200, 204, 208, 214, 218, 222, 226, 230, 241, 245, 249, 253, 259, 263, 267, 273, 277-278, 281
+backend/security/verusid_auth.py              95     70    26%   33-47, 56-106, 110-159, 163-166, 169-176
+backend/services.py                          242      2    99%   255-263
+backend/skill_manager.py                     190    162    15%   16, 24-41, 45-46, 53-110, 114-135, 139-164, 167-168, 172-181, 187-217, 221-222, 226-243, 257-261, 265-267, 275-324
+backend/sop/__init__.py                        0      0   100%
+backend/sop/engine.py                         60     44    27%   21-30, 33-34, 37-39, 46-118
+backend/subagents/__init__.py                  0      0   100%
+backend/tasks.py                             152    130    14%   16-20, 23-54, 64-70, 73, 76-140, 143, 146-169, 172, 175-199, 202, 205-225
+backend/tracing_config.py                     24     24     0%   1-45
+backend/updater.py                            64     31    52%   44-50, 55, 66-83, 87-93, 100-101, 107
+backend/verus_wallet.py                      303    262    14%   32-35, 44-192, 206-245, 251-264, 268-273, 282-294, 302-316, 320-325, 335-350, 356-370, 377-383, 387-391, 395-399, 405-420, 424-439, 445-457, 461-470, 476-482, 489-500, 506-525, 529-538, 547-573, 579-597, 609-610
+backend/windows_service.py                    49     49     0%   1-80
+backend/ws_gateway.py                        299    228    24%   31-36, 39, 42, 54, 58-61, 140-173, 179-211, 217-263, 271-284, 289-318, 331-355, 359-376, 391, 398-400, 403-405, 408-412, 415-417, 425-427, 436-462, 466-468, 472-475, 478-487, 490-499, 503-521, 525-534
+------------------------------------------------------------------------
+TOTAL                                      11158   8258    26%
+Coverage HTML written to dir htmlcov
+Coverage XML written to file coverage.xml
+
+[2m2026-06-04T23:33:09.809105Z[0m [[31m[1merror    [0m] [1mTask was destroyed but it is pending!
+task: <Task pending name='Task-34' coro=<HLSMManager._consolidation_loop() running at /Users/alluci/Downloads/alluci-sovereign-agent-main/backend/memory/hlsm_manager.py:931> wait_for=<Future pending cb=[<TaskWakeupMethWrapper object at 0x127125190>()]>>[0m [[0m[1m[34masyncio[0m][0m
+[2m2026-06-04T23:33:09.809233Z[0m [[31m[1merror    [0m] [1mTask was destroyed but it is pending!
+task: <Task pending name='Task-36' coro=<CronEngine._tick_loop() running at /Users/alluci/Downloads/alluci-sovereign-agent-main/backend/cron_engine.py:81> wait_for=<Future pending cb=[<TaskWakeupMethWrapper object at 0x123841f10>()]>>[0m [[0m[1m[34masyncio[0m][0m
+[2m2026-06-04T23:33:09.809289Z[0m [[31m[1merror    [0m] [1mTask was destroyed but it is pending!
+task: <Task pending name='Task-38' coro=<HeartbeatDaemon.start() running at /Users/alluci/Downloads/alluci-sovereign-agent-main/backend/heartbeat.py:626> wait_for=<Task pending name='Task-40' coro=<HeartbeatDaemon._tick_loop() running at /Users/alluci/Downloads/alluci-sovereign-agent-main/backend/heartbeat.py:638> cb=[<TaskWakeupMethWrapper object at 0x12711ecd0>()]>>[0m [[0m[1m[34masyncio[0m][0m
+[2m2026-06-04T23:33:09.809329Z[0m [[31m[1merror    [0m] [1mTask was destroyed but it is pending!
+task: <Task pending name='Task-40' coro=<HeartbeatDaemon._tick_loop() running at /Users/alluci/Downloads/alluci-sovereign-agent-main/backend/heartbeat.py:638> cb=[<TaskWakeupMethWrapper object at 0x12711ecd0>()]>[0m [[0m[1m[34masyncio[0m][0m
+[2m2026-06-04T23:33:09.809883Z[0m [[31m[1merror    [0m] [1mTask was destroyed but it is pending!
+task: <Task pending name='Task-48' coro=<HLSMManager._consolidation_loop() running at /Users/alluci/Downloads/alluci-sovereign-agent-main/backend/memory/hlsm_manager.py:931> wait_for=<Future pending cb=[<TaskWakeupMethWrapper object at 0x127217e80>()]>>[0m [[0m[1m[34masyncio[0m][0m
+[2m2026-06-04T23:33:09.810013Z[0m [[31m[1merror    [0m] [1mTask was destroyed but it is pending!
+task: <Task pending name='Task-56' coro=<HLSMManager._consolidation_loop() running at /Users/alluci/Downloads/alluci-sovereign-agent-main/backend/memory/hlsm_manager.py:931> wait_for=<Future pending cb=[<TaskWakeupMethWrapper object at 0x127196100>()]>>[0m [[0m[1m[34masyncio[0m][0m
+[2m2026-06-04T23:33:09.810099Z[0m [[31m[1merror    [0m] [1mTask was destroyed but it is pending!
+task: <Task pending name='Task-60' coro=<HLSMManager._consolidation_loop() running at /Users/alluci/Downloads/alluci-sovereign-agent-main/backend/memory/hlsm_manager.py:931> wait_for=<Future pending cb=[<TaskWakeupMethWrapper object at 0x1272fcaf0>()]>>[0m [[0m[1m[34masyncio[0m][0m
+FAIL Required test coverage of 95% not reached. Total coverage: 25.99%
+=========================== short test summary info ============================
+FAILED backend/tests/test_services.py::test_init_services_oauth_refresh_loop - TypeError: Invalid type for url.  Expected str or httpx.URL, got <class 'unittest.mock.MagicMock'>: <MagicMock name='settings.LM_STUDIO_URL' id='4952837520'>
+======================== 1 failed, 12 passed in 10.76s =========================

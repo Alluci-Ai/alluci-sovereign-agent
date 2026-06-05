@@ -65,7 +65,7 @@ async def trigger_consolidation(request: Request, csrf_protect: CsrfProtect = De
 async def pin_memory(entry_id: str, request: Request, data: Dict[str, Any] = Body(...), csrf_protect: CsrfProtect = Depends()):
     await csrf_protect.validate_csrf(request)
     from sqlmodel import Session
-    from ..database.models import HLSMEpisodicEntry
+    from ..models import HLSMEpisodicEntry
     from ..database import engine
     import json
     
@@ -85,7 +85,7 @@ async def pin_memory(entry_id: str, request: Request, data: Dict[str, Any] = Bod
 async def tag_memory(entry_id: str, request: Request, data: Dict[str, Any] = Body(...), csrf_protect: CsrfProtect = Depends()):
     await csrf_protect.validate_csrf(request)
     from sqlmodel import Session
-    from ..database.models import HLSMEpisodicEntry
+    from ..models import HLSMEpisodicEntry
     from ..database import engine
     import json
     
@@ -108,7 +108,7 @@ async def promote_memory(entry_id: str, request: Request, csrf_protect: CsrfProt
         raise HTTPException(status_code=503, detail="H-LSM manager not ready")
     
     from sqlmodel import Session
-    from ..database.models import HLSMEpisodicEntry
+    from ..models import HLSMEpisodicEntry
     from ..database import engine
     
     with Session(engine) as session:

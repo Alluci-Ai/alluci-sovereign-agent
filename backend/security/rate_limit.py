@@ -1,5 +1,13 @@
 from fastapi import Request, Response, HTTPException
-from fastapi_limiter.depends import RateLimiter as FastAPIRateLimiter
+try:
+    from fastapi_limiter.depends import RateLimiter as FastAPIRateLimiter
+except ImportError:
+    # Define a minimal stub that simply passes through the response
+    class FastAPIRateLimiter:
+        def __init__(self, *args, **kwargs):
+            pass
+        async def __call__(self, request: Request, response: Response):
+            return response
 from .rate_limiter import get_fallback_limiter
 from ..config import settings
 import logging

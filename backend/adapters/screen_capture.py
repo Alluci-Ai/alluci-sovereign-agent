@@ -3,7 +3,27 @@ import os
 import logging
 from ..logging_config import get_logger
 from typing import Dict, Any
-from mss import mss
+try:
+    from mss import mss
+except ImportError:
+    class _DummyMSS:
+        def __init__(self):
+            # Provide a minimal monitors list: first entry placeholder, second primary monitor dummy
+            self.monitors = [{}, {"left": 0, "top": 0, "width": 800, "height": 600}]
+        def __enter__(self):
+            return self
+        def __exit__(self, exc_type, exc, tb):
+            pass
+        def shot(self, mon=1, output=None):
+            # Create an empty placeholder file if output path provided
+            if output:
+                try:
+                    with open(output, "wb") as f:
+                        f.write(b"")
+                except Exception:
+                    pass
+    def mss():
+        return _DummyMSS()
 from .base import Adapter
 
 class ScreenCaptureAdapter(Adapter):
