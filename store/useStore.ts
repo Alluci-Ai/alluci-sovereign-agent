@@ -115,6 +115,8 @@ export interface AppState {
     setSkills: (val: SkillManifest[] | ((prev: SkillManifest[]) => SkillManifest[])) => void;
     selectedSkill: SkillManifest | null;
     setSelectedSkill: (val: SkillManifest | null) => void;
+    skillToEdit: SkillManifest | null;
+    setSkillToEdit: (val: SkillManifest | null) => void;
     auditLog: AuditEntry[];
     setAuditLog: (val: AuditEntry[] | ((prev: AuditEntry[]) => AuditEntry[])) => void;
 
@@ -334,6 +336,8 @@ export const useStore = create<AppState>((set) => ({
     })),
     selectedSkill: null,
     setSelectedSkill: (val) => set({ selectedSkill: val }),
+    skillToEdit: null,
+    setSkillToEdit: (val) => set({ skillToEdit: val }),
     auditLog: [],
     setAuditLog: (val) => set((state) => ({
         auditLog: typeof val === 'function' ? val(state.auditLog) : val

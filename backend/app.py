@@ -17,7 +17,7 @@ VERSION = open(VERSION_FILE).read().strip() if os.path.exists(VERSION_FILE) else
 
 logger = get_logger("PolytopeApp")
 
-from .routers import auth, objectives, telemetry, system, vault, channels, voice, crons, wallet, sessions, config, soul, exec_approval, tasks, dag, websockets, memory, goals, sop, gemini, security
+from .routers import auth, objectives, telemetry, system, vault, channels, voice, crons, wallet, sessions, config, soul, exec_approval, tasks, dag, websockets, memory, goals, sop, gemini, security, skills
 from .security import csrf # Initialize CSRF config
 from .engine.errors import AdapterError
 
@@ -337,6 +337,7 @@ app.include_router(soul.router, prefix="/api/v1")
 app.include_router(exec_approval.router, prefix="/api/v1")
 app.include_router(gemini.router, prefix="/api/v1")
 app.include_router(security.router, prefix="/api/v1")
+app.include_router(skills.router, prefix="/api/v1")
 
 from .metrics import metrics_router
 app.include_router(metrics_router, prefix="/api/v1", dependencies=[Depends(verify_authenticated)])

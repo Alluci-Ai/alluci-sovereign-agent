@@ -344,11 +344,11 @@ const StepCalibration: React.FC<Omit<StepProps, 'next'> & { onSave: () => void }
   </div>
 );
 
-const SkillBuilderWizard: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+const SkillBuilderWizard: React.FC<{ onClose: () => void, initialData?: SkillManifest }> = ({ onClose, initialData }) => {
   const token = useStore(state => state.accessToken);
   const [step, setStep] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
-  const [manifest, setManifest] = useState<Partial<SkillManifest>>({
+  const [manifest, setManifest] = useState<Partial<SkillManifest>>(initialData || {
     knowledge: [],
     mindsets: [],
     methodologies: [],
@@ -370,36 +370,14 @@ const SkillBuilderWizard: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     setIsSaving(true);
 
     try {
-      // 1. Get real cryptographic signature from the backend
-      const csrfToken = await getCsrfToken(DAEMON_URL, token);
-      const signRes = await fetch(`${DAEMON_URL}/api/v1/skill/sign`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-          ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {})
-        },
-        body: JSON.stringify(manifest)
-      });
-
-      if (!signRes.ok) {
-        throw new Error("Failed to sign skill manifest. Ensure the Sovereign Vault is unlocked.");
+      const payload = { ...manifest };
+      if (!payload.id) {
+          payload.id = (payload.name || "custom_skill").toLowerCase().replace(/\s+/g, '_') + '_' + Math.floor(Math.random() * 1000);
       }
 
-      const { signature, hash, signer } = await signRes.json();
-
-      // 2. Finalize object with real signature
-      const payload = {
-        ...manifest,
-        signature: signature,
-        hash: hash,
-        signer: signer,
-        publicKey: "pub_local_vault"
-      };
-
-      const csrfToken2 = await getCsrfToken(DAEMON_URL, token, true); // Refresh for next call if needed, or just reuse
-      const res = await fetch(`${DAEMON_URL}/api/v1/skills`, {
-        method: 'POST',
+      const csrfToken2 = await getCsrfToken(DAEMON_URL, token, true);
+      const res = await fetch(`${DAEMON_URL}/api/v1/skills/${payload.id}`, {
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { 'Authorization': `Bearer ${token}` } : {}),

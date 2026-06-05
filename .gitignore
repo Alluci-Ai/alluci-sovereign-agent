@@ -24,6 +24,7 @@ certs/
 *.jks
 .polytope/
 vault/
+alluci_vault/
 polytope_data.db
 polytope_data.db-journal
 

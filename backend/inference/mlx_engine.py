@@ -114,7 +114,9 @@ class MLXEngine:
     async def apply_context_moat(self, agent_id: str):
         """Injects LoRA adapters directly into the C++ Engine"""
         await self.ensure_loaded()
-        lora_path = os.path.abspath(f"alluci_vault/lora_forge/latest/polytope_adapters.safetensors")
+        import re
+        safe_agent_id = re.sub(r'[^a-zA-Z0-9_-]', '_', agent_id)
+        lora_path = os.path.abspath(os.path.join("models", "loras", f"agent_{safe_agent_id}_lora.safetensors"))
         
         if os.path.exists(lora_path) and self.current_lora != lora_path:
             logger.info(f"Injecting Native Polytope Adapters for Context Moat: {lora_path}")

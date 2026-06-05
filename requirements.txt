@@ -34,6 +34,8 @@ greenlet==3.2.2              # Fixed conflict between playwright and gevent
 # ─── LLM Providers ────────────────────────────────────────────────────────────
 google-generativeai==0.8.3
 google-auth==2.34.0
+mlx
+mlx-lm
 openai==1.12.0
 anthropic==0.18.0
 cohere==5.0.0
@@ -48,7 +50,7 @@ python-telegram-bot==21.6    # Telegram bridge
 nostr-sdk==0.42.0             # Nostr bridge (Updated for Python 3.14 compatibility)
 aiosmtplib==3.0.1            # Async SMTP for email bridge
 aioimaplib==1.1.0            # Async IMAP for email bridge
-pyicloud==2.0.0              # iCloud bridge (Updated for Python 3.14 compatibility)
+pyicloud==2.0.1              # iCloud bridge (Updated for Python 3.14 compatibility)
 pycryptodome==3.20.0          # WeCom AES decryption
 pyotp==2.9.0                  # iWatch pairing
 slack-sdk==3.41.0

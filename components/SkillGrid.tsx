@@ -164,9 +164,10 @@ export const SkillGrid: React.FC<SkillGridProps> = ({
 interface SkillDetailOverlayProps {
     skill: SkillManifest;
     onClose: () => void;
+    onEdit?: (skill: SkillManifest) => void;
 }
 
-export const SkillDetailOverlay: React.FC<SkillDetailOverlayProps> = ({ skill, onClose }) => {
+export const SkillDetailOverlay: React.FC<SkillDetailOverlayProps> = ({ skill, onClose, onEdit }) => {
     return (
         <div style={{
             position: 'fixed', inset: 0, zIndex: 500,
@@ -189,7 +190,10 @@ export const SkillDetailOverlay: React.FC<SkillDetailOverlayProps> = ({ skill, o
                         <p style={{ fontSize: 11, fontWeight: 500, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>{skill.category}</p>
                         <h3 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.01em' }}>{skill.name}</h3>
                     </div>
-                    <button onClick={onClose} className="glass-btn" style={{ fontSize: 12, padding: '4px 12px' }}>Close</button>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                        <button onClick={() => onEdit && onEdit(skill)} className="glass-btn glass-btn--primary" style={{ fontSize: 12, padding: '4px 12px' }}>Edit Module</button>
+                        <button onClick={onClose} className="glass-btn" style={{ fontSize: 12, padding: '4px 12px' }}>Close</button>
+                    </div>
                 </div>
 
                 {/* Content */}

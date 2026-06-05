@@ -58,6 +58,8 @@ const App: React.FC = () => {
     setApiKeys,
     connections, setConnections,
     setSkills,
+    selectedSkill, setSelectedSkill,
+    setSkillToEdit, setShowSkillWizard,
     setAuditLog,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     updateAgent,
@@ -99,7 +101,6 @@ const App: React.FC = () => {
 
   // Remaining Local States
   const [activeAuth, setActiveAuth] = useState<Connection | null>(null);
-  const [selectedSkill, setSelectedSkill] = useState<SkillManifest | null>(null);
   const [sovereignMode, setSovereignMode] = useState(true);
   const [audioStream, setAudioStream] = useState<MediaStream | null>(null);
 
@@ -221,7 +222,16 @@ const App: React.FC = () => {
   const fetchSkills = useCallback(async () => {
     const core = skillVerifier.current.getManifests();
     try {
-      const res = await fetch(`${DAEMON_URL}/api/v1/skills`, { credentials: 'include' });
+      const token = accessToken || localStorage.getItem('alluci_access_token');
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const res = await fetch(`${DAEMON_URL}/api/v1/skills`, { 
+        headers,
+        credentials: 'include' 
+      });
       if (res.ok) {
         const custom = await res.json();
         const combined = [...core];
@@ -356,7 +366,7 @@ const App: React.FC = () => {
         </main>
       </div>
 
-      {selectedSkill && <SkillDetailOverlay skill={selectedSkill} onClose={() => setSelectedSkill(null)} />}
+      {selectedSkill && <SkillDetailOverlay skill={selectedSkill} onClose={() => setSelectedSkill(null)} onEdit={(skill) => { setSelectedSkill(null); setSkillToEdit(skill); setShowSkillWizard(true); setActiveView('skills'); }} />}
       <RpcConsole />
       <canvas ref={canvasRef} width={320} height={240} className="hidden" />
     </div>

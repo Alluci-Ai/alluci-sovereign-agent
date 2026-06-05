@@ -78,6 +78,7 @@ const ViewManifold: React.FC<ViewManifoldProps> = ({
     showSkillWizard, setShowSkillWizard,
     skills, setSkills,
     setSelectedSkill,
+    skillToEdit, setSkillToEdit,
     apiKeys,
     canvasNodes,
     setIsProcessing,
@@ -107,14 +108,17 @@ const ViewManifold: React.FC<ViewManifoldProps> = ({
       return (
         <div className="inline-panel-wrapper">
           {showSkillWizard ? (
-            <SkillBuilderWizard onClose={() => { setShowSkillWizard(false); fetchSkills(); }} />
+            <SkillBuilderWizard
+                initialData={skillToEdit || undefined}
+                onClose={() => { setShowSkillWizard(false); setSkillToEdit(null); fetchSkills(); }}
+            />
           ) : (
             <SkillGrid
               skills={skills}
               onSelect={setSelectedSkill}
               onToggle={(id) => setSkills(prev => prev.map(x => x.id === id ? { ...x, verified: !x.verified } : x))}
               onDelete={() => { }}
-              onCreate={() => setShowSkillWizard(true)}
+              onCreate={() => { setSkillToEdit(null); setShowSkillWizard(true); }}
             />
           )}
         </div>

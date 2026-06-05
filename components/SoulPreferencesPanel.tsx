@@ -220,14 +220,12 @@ const IdentityForge: React.FC<{ onClose: () => void; onManifestUpdate?: (manifes
             return arr;
         };
         skillsToIngest.forEach(skill => {
-            if (!newManifest.knowledgeGraph.includes(skill.name)) newManifest.knowledgeGraph.push(skill.name);
-            newManifest.knowledgeGraph = addUnique(newManifest.knowledgeGraph, skill.knowledge);
-            newManifest.frameworks = addUnique(newManifest.frameworks, skill.frameworks);
-            newManifest.mindsets = addUnique(newManifest.mindsets, skill.mindsets);
-            newManifest.methodologies = addUnique(newManifest.methodologies, skill.methodologies);
-            newManifest.chainsOfThought = addUnique(newManifest.chainsOfThought, skill.chainsOfThought);
-            newManifest.logic = addUnique(newManifest.logic, skill.logic);
-            newManifest.bestPractices = addUnique(newManifest.bestPractices, skill.bestPractices);
+            if (!newManifest.active_skill_ids) {
+                newManifest.active_skill_ids = [];
+            }
+            if (!newManifest.active_skill_ids.includes(skill.id)) {
+                newManifest.active_skill_ids.push(skill.id);
+            }
         });
         setManifest(newManifest);
         setIsDirty(true);
@@ -405,7 +403,7 @@ const IdentityForge: React.FC<{ onClose: () => void; onManifestUpdate?: (manifes
                                     textAlign: 'center',
                                 }}
                             >
-                                + Import Domains from Skills
+                                + Assign Skills to Agent
                             </button>
                         </div>
                     </div>
@@ -454,7 +452,7 @@ const IdentityForge: React.FC<{ onClose: () => void; onManifestUpdate?: (manifes
                                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '12px 20px', borderTop: '1px solid var(--separator)' }}>
                                     <button onClick={() => setIsSkillPickerOpen(false)} className="glass-btn" style={{ fontSize: 12 }}>Cancel</button>
                                     <button onClick={handleIngestSkills} disabled={selectedSkillsForIngest.length === 0} className="glass-btn glass-btn--primary" style={{ fontSize: 12, opacity: selectedSkillsForIngest.length === 0 ? 0.4 : 1 }}>
-                                        Ingest Selected ({selectedSkillsForIngest.length})
+                                        Assign Selected ({selectedSkillsForIngest.length})
                                     </button>
                                 </div>
                             </div>

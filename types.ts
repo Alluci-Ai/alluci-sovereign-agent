@@ -153,6 +153,7 @@ export interface SoulManifest {
   logic: string[];
   chainsOfThought: string[];
   bestPractices: string[];
+  active_skill_ids?: string[];
 }
 
 export interface PersonalityTraits {
