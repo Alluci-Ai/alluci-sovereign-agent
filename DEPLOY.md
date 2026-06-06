@@ -1,4 +1,4 @@
-# Alluci Sovereign Agent v6.4 — Production Deployment Guide
+# Alluci Sovereign Agent beta v1.1.1 — Production Deployment Guide
 
 ## 1. Secrets & Root of Trust
 The Alluci Sovereign Agent uses a **Sovereign Vault** architecture. 
