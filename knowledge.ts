@@ -95,4 +95,6 @@ Guide the user to a realization without solving it for them immediately.
 // [ DATA_STRUCTURES ]
 // These map the semantic concepts above to specific IDs for the Runtime.
 
-export const SKILL_DATABASE: any[] = [];
+// Dynamically import all core skill JSON files
+const coreSkillModules = import.meta.glob('./core_skills/*.json', { eager: true });
+export const SKILL_DATABASE: any[] = Object.values(coreSkillModules) as any[];

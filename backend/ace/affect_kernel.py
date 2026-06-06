@@ -50,6 +50,7 @@ class AffectiveState:
     valence: float = 512.0   # 0=pessimistic, 512=neutral, 1024=optimistic
     arousal: float = 0.0     # 0=calm, 1024=maximum arousal
     tension: float = 0.0     # 0=relaxed, 1024=maximum contraction
+    hardware_status: int = 0 # 0=Unconfigured, 1=Unavailable, 2=Active
     
     # [ PPN-010 ] Physical Biometrics (Multimodal Polytope Fusion)
     heart_rate: float = 70.0       # bpm

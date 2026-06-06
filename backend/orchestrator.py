@@ -447,7 +447,8 @@ class ExecutiveOrchestrator:
                 affective_tension_psi=psi,
                 phi_total=phi_total,
                 coherence=coherence,
-                budget_used=budget
+                budget_used=budget,
+                hardware_status=affect_state.hardware_status
             )
             
             # 6. DPK Authorization
@@ -488,17 +489,18 @@ class ExecutiveOrchestrator:
                     prefs = vault_prefs
             except Exception:
                 pass
-            self.ace.process_semantic_telemetry(objective, preferences=prefs)
+            self.ace.process_semantic_fallback(objective, preferences=prefs)  # type: ignore
 
         # 1. PPN / DPK Manifold Check
         is_manifold_stable, polytope_state = self._perform_ppn_check(objective, autonomy)
+        
         if not is_manifold_stable:
-             self.logger.critical("🛑 MANIFOLD TEARING DETECTED via PPN/DPK. Execution Halted.")
-             return {
-                 "status": "halted",
-                 "reason": "Manifold stability check failed (PPN/DPK)",
-                 # ... existing diagnostics ...
-             }
+            self.logger.critical(f"🛑 MANIFOLD TEARING DETECTED via PPN/DPK. Execution Halted. Mode={mode.upper()}")
+            return {
+                "status": "halted",
+                "reason": "Manifold stability check failed (PPN/DPK)",
+                "diagnostics": getattr(polytope_state, '__dict__', {})
+            }
         
         # 1a. PVT Health Monitor (AAP-004)
         if polytope_state:

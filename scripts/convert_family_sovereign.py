@@ -72,10 +72,16 @@ def convert_family_weights(raw_model_dir: str, output_dir: str, quantization=Non
         # This acts as the placeholder for the adaptive optimization path.
         pass
         
-    # Save directly as uncompressed/optimized native MLX arrays
-    target_weights_path = output_path / "weights.npz"
-    print(f"[Core Engine] Serializing native MLX array buffer to: {target_weights_path}")
-    mx.savez(str(target_weights_path), **mlx_weights)
+    # Save each weight tensor individually to avoid nanobind kwarg limit
+    weights_dir = output_path / "weights"
+    weights_dir.mkdir(parents=True, exist_ok=True)
+    print(f"[Core Engine] Saving {len(mlx_weights)} tensors individually to {weights_dir}")
+    for name, arr in mlx_weights.items():
+        # Sanitize filename (replace '/' and other chars)
+        safe_name = name.replace("/", "_").replace(".", "_")
+        arr_path = weights_dir / f"{safe_name}.npy"
+        mx.save(str(arr_path), arr)
+    print(f"[Core Engine] Individual weight files saved.")
     
     # Copy vocabulary matrices and structural attributes
     for meta_file in ["config.json", "tokenizer.json", "tokenizer_config.json"]:

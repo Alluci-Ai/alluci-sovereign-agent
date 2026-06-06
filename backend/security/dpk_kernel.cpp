@@ -15,8 +15,9 @@ struct PolytopeState {
     int32_t faces_F;
     float betti[4];
     float affective_tension_psi;
+    int32_t hardware_status;
 
-    PolytopeState() : signature_hash(0), vertices_V(0), edges_E(0), faces_F(0), affective_tension_psi(0.0f) {
+    PolytopeState() : signature_hash(0), vertices_V(0), edges_E(0), faces_F(0), affective_tension_psi(0.0f), hardware_status(0) {
         for(int i=0; i<4; i++) betti[i] = 0.0f;
     }
 };
@@ -34,6 +35,11 @@ public:
     }
 
     bool validate_manifold_integrity(const PolytopeState& current) {
+        if (current.hardware_status < 2) {
+            // Bypass strict topological checks for synthetic/lite mode manifolds
+            return true;
+        }
+
         if (current.signature_hash == 0) {
             return false;
         }

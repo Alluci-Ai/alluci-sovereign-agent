@@ -220,6 +220,7 @@ class TelemetryData(BaseModel):
     focus: Optional[float] = 0.5
     respiratory_rate: Optional[float] = None
     sleep_efficiency: Optional[float] = None
+    hardware_status: Optional[int] = 0  # 0=Unconfigured, 1=Unavailable, 2=Active
 
 class SystemStatus(BaseModel):
     cpu_usage: float
@@ -240,6 +241,7 @@ class AffectiveState(BaseModel):
     valence: float = 512.0   # 0=pessimistic, 512=neutral, 1024=optimistic
     arousal: float = 0.0     # 0=calm, 1024=maximum arousal
     tension: float = 0.0     # 0=relaxed, 1024=maximum contraction
+    hardware_status: int = 0 # 0=Unconfigured, 1=Unavailable, 2=Active
 
 class PolytopeState(BaseModel):
     signature_hash: int
@@ -248,6 +250,7 @@ class PolytopeState(BaseModel):
     faces_F: int
     betti: List[float]
     affective_tension_psi: float
+    hardware_status: int = 0
     phi_total: int = 0
     coherence: float = 0.0
     budget_used: float = 0.0

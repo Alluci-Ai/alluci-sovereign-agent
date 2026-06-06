@@ -32,7 +32,7 @@ The `BridgeManager` provides a unified interface for disparate communication pro
 
 ## 5. Inference Manifold (The Model Router)
 The `ModelRouter` manages a fleet of LLM providers. It uses **Fail-Safe Cognitive Switching**:
-1. **Primary**: Locally hosted Llama-3 (Sovereign Local).
+1. **Primary**: Locally hosted Gemma 4 MLX (Sovereign Local).
 2. **Harmonic**: Gemini-1.5-Pro (Cloud High-Reasoning).
 3. **Emergency**: Groq/DeepSeek (Low-Latency burst).
 

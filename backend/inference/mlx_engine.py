@@ -5,14 +5,8 @@ import os
 from typing import AsyncGenerator, Optional, Dict, Any
 
 # Dynamically append the CMake build path to load the native C++ PyBind11 module
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../build")))
+# Removed C++ PyBind11 module import; will use mlx_lm for inference.
 
-try:
-    import alluci_core
-    ALLUCI_CORE_AVAILABLE = True
-except ImportError as e:
-    ALLUCI_CORE_AVAILABLE = False
-    logging.getLogger("MLXEngine").error(f"Failed to import native alluci_core: {e}")
 
 from backend.inference.profiler import HardwareProfiler
 
@@ -25,6 +19,7 @@ class MLXEngine:
     """
     engine: Optional[Any] = None
     current_lora: Optional[str] = None
+    # Use a regular bool annotation; we’ll initialise it in __new__
     is_loading: bool = False
     hardware_profile: Optional[Dict[str, Any]] = None
     _instance = None
@@ -39,34 +34,29 @@ class MLXEngine:
         return cls._instance
 
     def load_model_sync(self):
-        """Synchronously initializes the native C++ engine."""
-        if not ALLUCI_CORE_AVAILABLE:
-            logger.warning("alluci_core not installed. Inference will fail.")
-            raise ImportError("alluci_core is required for Native LCE.")
-
-        if self.engine is not None:
+        """Synchronously loads the MLX model and tokenizer using mlx_lm."""
+        if self.model is not None:
             return
 
         self.is_loading = True
         try:
             if not self.hardware_profile:
                 raise RuntimeError("Hardware profile not initialized.")
-            target_model_id = self.hardware_profile["recommended_model"]
-            logger.info(f"MLXEngine: Initializing Native Apple Silicon Engine with {target_model_id}...")
-            
-            # Load the compiled native C++ engine
-            model_dir = os.path.abspath(f"alluci_vault/raw_family/{target_model_id}")
-            self.engine = alluci_core.AlluciCognitiveEngine(model_dir)
-            logger.info("MLXEngine: Native Engine allocated successfully.")
+            target_model_path = self.hardware_profile["recommended_model"]
+            logger.info(f"MLXEngine: Loading MLX model from {target_model_path}...")
+            # Use mlx_lm to load model and tokenizer
+            from mlx_lm import load
+            self.model, self.tokenizer, *_ = load(target_model_path)
+            logger.info("MLXEngine: Model and tokenizer loaded successfully.")
         except Exception as e:
-            logger.error(f"MLXEngine Load Error: {e}")
+            logger.error(f"MLXEngine load error: {e}")
             raise
         finally:
             self.is_loading = False
 
     async def ensure_loaded(self):
         """Asynchronously ensures the model is loaded."""
-        if self.engine is None and not self.is_loading:
+        if self.model is None and not self.is_loading:
             await asyncio.to_thread(self.load_model_sync)
         while self.is_loading:
             await asyncio.sleep(0.1)
@@ -90,39 +80,35 @@ class MLXEngine:
         return prompt, temperature
 
     async def generate(self, prompt: str, max_tokens: int = 1024, temperature: float = 0.7) -> str:
-        """Generates a complete response via the Native C++ Engine."""
+        """Generates a complete response via the native MLX model."""
         await self.ensure_loaded()
         prompt, temperature = self._apply_ace_logic(prompt, temperature)
-        
+        # Prepare input using tokenizer's chat template
+        messages = [{"role": "user", "content": prompt}]
+        formatted_prompt = self.tokenizer.apply_chat_template(messages, add_generation_prompt=True)
+        from mlx_lm import generate
         def _sync_gen():
-            return self.engine.evaluate_intent(prompt, max_tokens, temperature)  # type: ignore
-            
+            return generate(self.model, self.tokenizer, prompt=formatted_prompt, max_tokens=max_tokens, temperature=temperature)
         return await asyncio.to_thread(_sync_gen)
 
     async def generate_stream(self, prompt: str, max_tokens: int = 1024, temperature: float = 0.7) -> AsyncGenerator[str, None]:
-        """
-        Streams response via the Native C++ Engine. 
-        Note: C++ PyBind11 evaluate_intent is synchronous currently, so it yields the full response immediately.
-        """
+        """Streams response by chunking the generated text for UI consumption."""
         response = await self.generate(prompt, max_tokens, temperature)
-        # Yield the response in chunks to simulate streaming for the UI
         chunk_size = 20
         for i in range(0, len(response), chunk_size):
             yield response[i:i+chunk_size]
             await asyncio.sleep(0.01)
 
     async def apply_context_moat(self, agent_id: str):
-        """Injects LoRA adapters directly into the C++ Engine"""
+        """Loads LoRA adapters if present. Currently a no-op for pure MLX models."""
         await self.ensure_loaded()
-        import re
+        # Placeholder: MLX models can load adapters via tokenizer or model method if supported.
+        # For now, simply log if an adapter path exists.
+        import re, os
         safe_agent_id = re.sub(r'[^a-zA-Z0-9_-]', '_', agent_id)
         lora_path = os.path.abspath(os.path.join("models", "loras", f"agent_{safe_agent_id}_lora.safetensors"))
-        
         if os.path.exists(lora_path) and self.current_lora != lora_path:
-            logger.info(f"Injecting Native Polytope Adapters for Context Moat: {lora_path}")
-            def _sync_inject():
-                self.engine.inject_lora_adapters(lora_path)  # type: ignore
-            await asyncio.to_thread(_sync_inject)
+            logger.info(f"LoRA adapter found at {lora_path}, but loading not implemented for MLX. Skipping.")
             self.current_lora = lora_path
 
 engine = MLXEngine()

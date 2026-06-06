@@ -186,6 +186,7 @@ async def init_services(app_instance):
     exec_approval = ExecApprovalManager(db_engine, ws_gateway=ws_gw)
 
     # 10. Executive Orchestrator
+    assert ExecutiveOrchestrator is not None, "Fatal: ExecutiveOrchestrator failed to import"
     orchestrator = ExecutiveOrchestrator(
         router=router,
         vault=vault,

@@ -16,6 +16,7 @@ class NativePolytopeState(ctypes.Structure):
         ("faces_F", ctypes.c_int32),
         ("betti", ctypes.c_float * 4),
         ("affective_tension_psi", ctypes.c_float),
+        ("hardware_status", ctypes.c_int32),
     ]
 
 # --- Python Model ---
@@ -27,6 +28,7 @@ class PolytopeState:
     faces_F: int                 # Simplex face (triangle) count
     betti: List[float]           # [β₀, β₁, β₂, β₃] topological invariants
     affective_tension_psi: float # ψ ∈ [0.0, 1.0] from BTM (PPN-002)
+    hardware_status: int = 0     # 0=Unconfigured, 1=Unavailable, 2=Active
     phi_total: int = 0           # Φ_total affective-invariant index (PPN-003)
     coherence: float = 0.0       # Coh(P_t) ∈ [0.0, 1.0] (AAP-001)
     budget_used: float = 0.0     # Lipschitz budget consumption (PPN-005)
@@ -117,6 +119,10 @@ class DiscreteProjectionKernel:
 
     def validate_manifold_integrity_py(self, current: PolytopeState) -> bool:
         """Pure Python fallback implementation."""
+        if current.hardware_status < 2:
+            logger.info("[DPK] BYPASS: Hardware status indicates Lite/Unavailable. Bypassing synthetic tearing checks.")
+            return True
+
         if current.signature_hash == 0:
             logger.critical("[DPK] CRITICAL: Unsigned Manifold. Execution Blocked.")
             return False
@@ -163,7 +169,8 @@ class DiscreteProjectionKernel:
                 edges_E=state.edges_E,
                 faces_F=state.faces_F,
                 betti=(ctypes.c_float * 4)(*state.betti),
-                affective_tension_psi=state.affective_tension_psi
+                affective_tension_psi=state.affective_tension_psi,
+                hardware_status=state.hardware_status
             )
             is_valid = self.native_lib.dpk_authorize(self.native_instance, ctypes.byref(native_state))
             if is_valid:

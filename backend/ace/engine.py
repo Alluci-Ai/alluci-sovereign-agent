@@ -1,8 +1,10 @@
 
 from ..models import TelemetryData
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from .affect_kernel import AffectKernel, AffectiveState
 from .btm_mapper import BTMMapper
+import datetime  # type: ignore
+import psutil  # type: ignore
 
 class AffectiveEngine:
     """
@@ -29,6 +31,10 @@ class AffectiveEngine:
         """Ingests raw telemetry and outputs an abstracted Flow state."""
         # Update AffectiveState using BTMMapper (PPN-002)
         self._affective_state = self.btm.map(data)
+        
+        # Determine Hardware Status (1=Unavailable/Charging, 2=Active/Wrist)
+        hw_status = 2 if data.hr is not None and data.hr > 0 else 1
+        self._affective_state.hardware_status = hw_status
         
         # Backward compatibility for current_state
         stress = (self._affective_state.tension / 1024.0) * 100.0
@@ -65,13 +71,12 @@ class AffectiveEngine:
 
         return self._evaluate_flow_state()
 
-    def process_semantic_telemetry(self, objective: str, preferences: Any = None) -> Dict[str, Any]:
+    # IDE Cache Refresh Trigger
+    def process_semantic_fallback(self, objective: str, preferences: Any = None) -> Dict[str, Any]:
         """
         Synthesizes an AffectiveState using semantic analysis of the prompt,
         environmental factors, and Soul preferences (Lite Mode).
         """
-        import datetime
-        import psutil
 
         # 1. Base initialization from SoulPreferences
         tone = getattr(preferences, 'tone', 0.5) if preferences else 0.5
@@ -113,7 +118,7 @@ class AffectiveEngine:
         # DPK Compatibility: Ensure tension >= 820 to pass psi >= 0.8
         synthetic_tension = max(820.0, tension)
 
-        self._affective_state = AffectiveState(valence=valence, arousal=arousal, tension=synthetic_tension)
+        self._affective_state = AffectiveState(valence=valence, arousal=arousal, tension=synthetic_tension, hardware_status=0)
         self.current_state["physical_vitality"] = 1.0
         
         if valence > 716.0:
@@ -136,7 +141,8 @@ class AffectiveEngine:
             state = AffectiveState(
                 valence=state.valence,
                 arousal=state.arousal,
-                tension=max(state.tension, self._deadline_override_tension)
+                tension=max(state.tension, self._deadline_override_tension),
+                hardware_status=state.hardware_status
             )
             self._deadline_override_turns -= 1
         return state
