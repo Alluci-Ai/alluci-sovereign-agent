@@ -30,5 +30,8 @@ jobs:
 
     - name: Run Pytest & Enforce 95% Coverage
       run: |
-        pytest backend/ --cov=backend --cov-report=term-missing --cov-fail-under=95
+        pytest backend/ --cov=backend --cov-report=term-missing --cov-report=xml:backend/coverage.xml --cov-branch --cov-fail-under=95
+    - name: Enforce security branch coverage thresholds
+      run: |
+        python scripts/check_branch_coverage.py
 

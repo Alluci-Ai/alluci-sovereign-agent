@@ -94,3 +94,8 @@ async def get_current_user(auth: bool = Depends(verify_authenticated)):
             headers={"WWW-Authenticate": "Bearer"},
         )
     return {"id": "root", "name": "Sovereign User"}
+
+# Admin dependency – simply verifies the token using existing authentication logic.
+async def verify_admin(request: Request):
+    """Admin endpoint guard – validates token using existing authentication logic."""
+    return await verify_authenticated(request)

@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { ApiManifoldKeys } from '../types';
 import { useStore } from '../store/useStore';
+import { NetworkEgressStep } from './NetworkEgressStep';
 
 const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
 
@@ -33,7 +34,8 @@ const CATEGORIES = [
     { id: 'audio', label: 'Audio & Voice', icon: Mic2, desc: 'Voice synthesis and real-time audio interaction.' },
     { id: 'music', label: 'Music Synthesis', icon: Music, desc: 'Sonic generation and structural composition engines.' },
     { id: 'image', label: 'Image Generation', icon: ImageIcon, desc: 'Visual synthesis and image generation.' },
-    { id: 'video', label: 'Video Generation', icon: Video, desc: 'Kinetic visual synthesis and temporal coherence.' }
+    { id: 'video', label: 'Video Generation', icon: Video, desc: 'Kinetic visual synthesis and temporal coherence.' },
+    { id: 'network', label: 'Network Egress', icon: Shield, desc: 'Control allowed LLM hosts and rotation schedule for outbound traffic.' },
 ];
 
 const DEFAULT_PROVIDERS = {
@@ -65,6 +67,8 @@ const DEFAULT_PROVIDERS = {
 
 const ApiWizard: React.FC<ApiWizardProps> = ({ isOpen, onClose, apiKeys, onSave }) => {
     const [currentStep, setCurrentStep] = useState(0);
+    const [egressHosts, setEgressHosts] = useState<string[]>([]);
+    const [rotationSchedule, setRotationSchedule] = useState<{ interval_days: number; last_rotated: string | null }>({ interval_days: 30, last_rotated: null });
     const [localKeys, setLocalKeys] = useState<ApiManifoldKeys>(apiKeys);
     const [masterKey, setMasterKey] = useState("");
     const [isAuthenticating, setIsAuthenticating] = useState(false);
@@ -81,8 +85,6 @@ const ApiWizard: React.FC<ApiWizardProps> = ({ isOpen, onClose, apiKeys, onSave 
     };
 
     const handlePrev = () => { if (currentStep > 0) setCurrentStep(currentStep - 1); };
-
-
 
     const handleDaemonLogin = async () => {
         setIsAuthenticating(true); setAuthError("");
@@ -106,6 +108,22 @@ const ApiWizard: React.FC<ApiWizardProps> = ({ isOpen, onClose, apiKeys, onSave 
             setIsAuthenticating(false); 
         }
     };
+
+    // Fetch egress config when component mounts or after auth
+    useEffect(() => {
+        if (isOpen) {
+            (async () => {
+                try {
+                    const hostsRes = await fetch(`${DAEMON_URL}/api/v1/egress/hosts`, { credentials: 'include' });
+                    if (hostsRes.ok) setEgressHosts((await hostsRes.json()).hosts);
+                    const rotRes = await fetch(`${DAEMON_URL}/api/v1/egress/rotation`, { credentials: 'include' });
+                    if (rotRes.ok) setRotationSchedule(await rotRes.json());
+                } catch (e) {
+                    console.error('Failed to load egress config', e);
+                }
+            })();
+        }
+    }, [isOpen]);
 
     const updateKey = (category: string, provider: string, val: string) => {
         setLocalKeys(prev => ({ ...prev, [category]: { ...prev[category as keyof ApiManifoldKeys], [provider]: val } }));
@@ -199,6 +217,8 @@ const ApiWizard: React.FC<ApiWizardProps> = ({ isOpen, onClose, apiKeys, onSave 
                                 {isAuthenticating ? 'Verifying...' : 'Authenticate'}
                             </button>
                         </div>
+                    ) : stepInfo.id === 'network' ? (
+                        <NetworkEgressStep hosts={egressHosts} setHosts={setEgressHosts} rotation={rotationSchedule} setRotation={setRotationSchedule} />
                     ) : (
                         <div style={{
                             display: 'grid',

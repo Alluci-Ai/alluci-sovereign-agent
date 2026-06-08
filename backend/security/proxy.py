@@ -1,5 +1,6 @@
 import re
-from typing import Dict
+from typing import Dict, List, Tuple
+from .pii_config import PII_SCRUBBER, WHITELIST_TOKENS
 
 class OptimizedSovereignPacket:
     def __init__(self, compressed_abstract_prompt: str, secure_ephemeral_vault: Dict[str, str]):
@@ -12,14 +13,24 @@ class AlluciSecureProxy:
     Zero-Trust Bidirectional Topological Anonymization Proxy.
     Extracts PII/secrets into an ephemeral vault, sending only abstract logic to the cloud.
     """
+
     def __init__(self):
-        # Regex entities for scrubbing sensitive personal identifiers
-        self.privacy_filter_registry = [
-            ("[ALLUCI_NAME_TOKEN]", re.compile(r"\b([A-Z][a-z]+)\s+([A-Z][a-z]+)\b")),
-            ("[ALLUCI_EMAIL_TOKEN]", re.compile(r"[\w\.-]+@[\w\.-]+\.\w+")),
-            ("[ALLUCI_CRYPTO_TOKEN]", re.compile(r"\b(0x)[a-fA-F0-9]{40}\b")),
-            ("[ALLUCI_FINANCE_TOKEN]", re.compile(r"\b\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}\b"))
-        ]
+        # No initialization needed; configuration is imported.
+        pass
+
+    @property
+    def privacy_filter_registry(self) -> List[Tuple[str, re.Pattern]]:
+        """Compatibility shim returning the global ``PII_SCRUBBER``.
+
+        Existing code accessing ``self.privacy_filter_registry`` will continue
+        to work.
+        """
+        return PII_SCRUBBER
+
+    @property
+    def registry(self) -> List[Tuple[str, re.Pattern]]:
+        """Backward‑compatible alias for ``privacy_filter_registry``."""
+        return self.privacy_filter_registry
         
     def process_outbound_prompt(self, raw_user_prompt: str) -> OptimizedSovereignPacket:
         """
@@ -36,6 +47,9 @@ class AlluciSecureProxy:
             unique_matches = set(m.group(0) for m in matches)
             
             for exact_match in unique_matches:
+                # Skip tokens that are in the whitelist (safe to expose)
+                if exact_match in WHITELIST_TOKENS:
+                    continue
                 composite_key = f"{placeholder}_{token_instance_id}"
                 # Safe-store private data in volatile memory
                 secure_ephemeral_vault[composite_key] = exact_match

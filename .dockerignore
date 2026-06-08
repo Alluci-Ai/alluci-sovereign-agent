@@ -29,10 +29,10 @@ dist-ssr/
 
 # ── Backend — not needed in frontend image ────────────────────────────────────
 # (backend image uses its own COPY backend/ directive)
-backend/
-requirements.txt
-requirements-dev.txt
-requirements-tda.txt
+# backend/
+# requirements.txt
+# requirements-dev.txt
+# requirements-tda.txt
 
 # ── Python artefacts ───────────────────────────────────────────────────────────
 __pycache__/

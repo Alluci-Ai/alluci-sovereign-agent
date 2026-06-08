@@ -1,5 +1,5 @@
 # docker-compose.yml
-version: "3.9"
+# version field removed (Docker Compose v2 ignores it)
 
 x-logging: &default-logging
   driver: "json-file"
@@ -10,7 +10,7 @@ x-logging: &default-logging
 services:
 
   db:
-    image: postgres:16-alpine@sha256:4624467c6999201509355609322237f374718503d2e0717208d1797c558c7340
+    image: postgres:16-alpine
     environment:
       POSTGRES_USER: alluci
       # NO :-default fallback. If DB_PASSWORD is unset, compose will error at startup.
@@ -53,7 +53,7 @@ services:
 
 
   redis:
-    image: redis:7-alpine@sha256:80299f0e210103636d10c1f2ca886c5f78c575d2728286940a0c4f8776856a94
+    image: redis:7-alpine
     command: >
       redis-server
       --requirepass "${REDIS_PASSWORD:?REDIS_PASSWORD must be set}"
@@ -112,30 +112,43 @@ services:
           cpus: "2.0"
           memory: "1G"
     logging: *default-logging
-
-  frontend:
-    build:
-      context: .
-      dockerfile: Dockerfile.frontend
-    depends_on:
-      backend:
-        condition: service_healthy
+  backend_envoy:
+    image: envoyproxy/envoy:v1.28.0
+    command: ["envoy","-c","/etc/envoy/base.yaml","--service-cluster","backend"]
+    volumes:
+      - ./docker/envoy/base.yaml:/etc/envoy/base.yaml
+      - ./logs/egress:/app/logs/egress
+    ports:
+      - "${ENVOY_ADMIN_PORT:-15001}:15001"
+      - "${ENVOY_LISTENER_PORT:-15000}:15000"
     networks:
       - sovereign_net
-    ports:
-      - "3000:8080"
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080 > /dev/null || exit 1"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
-    deploy:
-      resources:
-        limits:
-          cpus: "0.5"
-          memory: "256M"
-    logging: *default-logging
+    depends_on:
+      - backend
+
+#  frontend:
+#    build:
+#      context: .
+#      dockerfile: Dockerfile.frontend
+#    depends_on:
+#      backend:
+#        condition: service_healthy
+#    networks:
+#      - sovereign_net
+#    ports:
+#      - "3000:8080"
+#    healthcheck:
+#      test: ["CMD-SHELL", "wget -qO- http://localhost:8080 > /dev/null || exit 1"]
+#      interval: 30s
+#      timeout: 5s
+#      retries: 3
+#      start_period: 30s
+#    deploy:
+#      resources:
+#        limits:
+#          cpus: "0.5"
+#          memory: "256M"
+#    logging: *default-logging
 
 volumes:
   postgres_data:
@@ -143,5 +156,5 @@ volumes:
 
 networks:
   sovereign_net:
-    driver: overlay
+    driver: bridge
     attachable: true

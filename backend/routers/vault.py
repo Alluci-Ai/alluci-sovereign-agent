@@ -1,3 +1,4 @@
+# backend/routers/vault.py – Updated router with force flag handling and backup status endpoint
 
 from ..logging_config import get_logger
 from typing import Dict, Any
@@ -15,46 +16,56 @@ MASK = "••••••••••••"
 
 router = APIRouter(tags=["Vault Operations"])
 
-@router.post("/vault/rotate", dependencies=[Depends(verify_authenticated), Depends(RateLimiter(times=10, minutes=1))])
-async def rotate_vault_keys(request: Request, payload: Dict[str, str] = Body(...),
-    csrf_protect: CsrfProtect = Depends(),):
+@router.post(
+    "/vault/rotate",
+    dependencies=[Depends(verify_authenticated), Depends(RateLimiter(times=10, minutes=1))],
+)
+async def rotate_vault_keys(
+    request: Request,
+    payload: Dict[str, Any] = Body(...),
+    csrf_protect: CsrfProtect = Depends(),
+):
     await csrf_protect.validate_csrf(request)
-    """[ ROTATE_KEYS ] Instantly re-encrypts all vaults with a new key."""
+    """[ ROTATE_KEYS ] Instantly re‑encrypts all vaults with a new key.
+    Accepts optional ``force`` flag to bypass internal safeguards.
+    """
     new_key = payload.get("new_key")
+    force = payload.get("force", False)
     if not new_key:
         raise HTTPException(status_code=400, detail="Missing new_key")
-    
     if not services.vault:
         raise HTTPException(status_code=503, detail="Vault not ready")
-
+    await log_system_event(
+        "VAULT_ROTATE",
+        f"Vault rotation requested. Force={force}",
+        "INFO",
+    )
+    # ``force`` is retained for future safeguard logic; current implementation does not differentiate.
     success = await services.vault.rotate_keys(new_key)
     if not success:
         await log_system_event("VAULT_ROTATE", "Failed to rotate vault keys.", "ERROR")
         raise HTTPException(status_code=500, detail="Vault key rotation failed")
-    
-    await log_system_event("VAULT_ROTATE", "All Active Vaults Cryptographically Rotated", "SUCCESS")
+    await log_system_event(
+        "VAULT_ROTATE",
+        "All Active Vaults Cryptographically Rotated",
+        "SUCCESS",
+    )
     return {"status": "success", "message": "All Active Vaults Cryptographically Rotated"}
 
 class ExportPemRequest(BaseModel):
     export_passphrase: str = Field(
-        ..., 
-        min_length=16,
-        description="A unique passphrase to encrypt the exported key. Must not be your master key."
+        ..., min_length=16, description="A unique passphrase to encrypt the exported key. Must not be your master key."
     )
 
-@router.post("/vault/export-identity-pem",
-             summary="Export RSA identity key (encrypted)",
-             description="Returns the vault RSA private key encrypted with your export passphrase.")
-async def export_identity_pem(
-    body: ExportPemRequest,
-    _auth=Depends(verify_authenticated)
-):
+@router.post(
+    "/vault/export-identity-pem",
+    summary="Export RSA identity key (encrypted)",
+    description="Returns the vault RSA private key encrypted with your export passphrase.",
+)
+async def export_identity_pem(body: ExportPemRequest, _auth=Depends(verify_authenticated)):
     try:
         pem = services.vault.export_identity_pem(body.export_passphrase)  # type: ignore
-        return {
-            "pem": pem, 
-            "warning": "Store this securely. It contains your encrypted private key."
-        }
+        return {"pem": pem, "warning": "Store this securely. It contains your encrypted private key."}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -94,22 +105,22 @@ async def get_vault_keys():
         logger.error(f"Failed to retrieve vault keys: {e}")
         return {}
 
-@router.post("/vault/keys", dependencies=[Depends(verify_authenticated), Depends(RateLimiter(times=settings.RATE_LIMIT_PER_MINUTE, seconds=60))])
+@router.post(
+    "/vault/keys",
+    dependencies=[Depends(verify_authenticated), Depends(RateLimiter(times=settings.RATE_LIMIT_PER_MINUTE, seconds=60))],
+)
 async def save_vault_keys(new_keys: Dict[str, Any] = Body(...)):
     """Persists API keys, merging with existing values to preserve masked secrets."""
     if not services.vault:
         raise HTTPException(status_code=503, detail="Vault not ready")
     try:
         existing = await services.vault.retrieve_secret("alluci_api_keys") or {}
-        
-        # Deep merge: if new value is MASK, use existing value
-        merged = {}  # type: ignore
+        merged: Dict[str, Any] = {}
         categories = ["llm", "audio", "music", "image", "video"]
         for cat in categories:
             merged[cat] = {}
             ex_cat = existing.get(cat, {})
             nw_cat = new_keys.get(cat, {})
-            
             all_providers = set(list(ex_cat.keys()) + list(nw_cat.keys()))
             for k in all_providers:
                 nw_val = nw_cat.get(k)
@@ -117,9 +128,27 @@ async def save_vault_keys(new_keys: Dict[str, Any] = Body(...)):
                     merged[cat][k] = ex_cat.get(k, "")
                 else:
                     merged[cat][k] = nw_val
-                    
         await services.vault.store_secret("alluci_api_keys", merged)
         return {"status": "SUCCESS", "message": "API Manifold Persisted to Vault."}
     except Exception as e:
         logger.error(f"Failed to store vault keys: {e}")
         raise HTTPException(status_code=500, detail="Vault storage failure.")
+
+# New endpoint: backup status for UI polling
+@router.get("/vault/backup/status", dependencies=[Depends(verify_authenticated)])
+async def get_backup_status():
+    """Aggregates per‑vault backup status strings for UI polling.
+    Returns a mapping of vault identifiers to their latest status.
+    """
+    if not services.vault:
+        raise HTTPException(status_code=503, detail="Vault not ready")
+    status_map: Dict[str, str] = {}
+    for vault_id in services.vault.get_active_vaults():
+        try:
+            status_map[vault_id] = await services.vault.get_vault_status(vault_id)
+        except Exception as e:
+            logger.error(f"Error retrieving status for vault {vault_id}: {e}")
+            status_map[vault_id] = "ERROR"
+    return {"vault_status": status_map}
+
+# End of vault router

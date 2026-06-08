@@ -5,7 +5,7 @@ WORKDIR /app
 
 # [ CACHE_L0 ]: Dependencies
 COPY package.json package-lock.json* ./
-RUN npm ci
+RUN npm ci --omit=dev --omit=optional
 
 # [ CACHE_L1 ]: Source Code (EXPLICIT ALLOWLIST)
 # Only copy necessary files to prevent secret leakage into Docker layers.

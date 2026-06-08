@@ -119,13 +119,12 @@ class DiscreteProjectionKernel:
 
     def validate_manifold_integrity_py(self, current: PolytopeState) -> bool:
         """Pure Python fallback implementation."""
-        if current.hardware_status < 2:
-            logger.info("[DPK] BYPASS: Hardware status indicates Lite/Unavailable. Bypassing synthetic tearing checks.")
-            return True
-
         if current.signature_hash == 0:
             logger.critical("[DPK] CRITICAL: Unsigned Manifold. Execution Blocked.")
             return False
+        if current.hardware_status < 2:
+            logger.info("[DPK] BYPASS: Hardware status indicates Lite/Unavailable. Bypassing synthetic tearing checks.")
+            return True
 
         chi = current.vertices_V - current.edges_E + current.faces_F
         betti_chi = round(current.betti[0] - current.betti[1] + current.betti[2] - current.betti[3])
