@@ -1,69 +1,17 @@
-# .dockerignore — CREATE THIS FILE at repository root
-
-# ── Secrets — never include in any image layer ─────────────────────────────────
-certs/
-*.pem
-*.key
-*.crt
-*.p12
-*.pfx
-.env
-.env.*
-.polytope/
-
-# ── Dependencies — rebuilt inside the image ────────────────────────────────────
-node_modules/
-.npm/
-
-# ── Test artefacts ─────────────────────────────────────────────────────────────
-coverage/
-playwright-report/
-test-results/
-e2e-results.xml
-.pytest_cache/
-htmlcov/
-
-# ── Build outputs — rebuilt inside the image ──────────────────────────────────
-dist/
-dist-ssr/
-
-# ── Backend — not needed in frontend image ────────────────────────────────────
-# (backend image uses its own COPY backend/ directive)
-# backend/
-# requirements.txt
-# requirements-dev.txt
-# requirements-tda.txt
-
-# ── Python artefacts ───────────────────────────────────────────────────────────
-__pycache__/
-*.pyc
+__pycache__
+*.py[cod]
 *.pyo
-*.egg-info/
-.venv/
-venv/
-env/
-*.db
-*.db-shm
-*.db-wal
-
-# ── Native build artefacts ────────────────────────────────────────────────────
-*.o
-*.so
-*.dylib
-*.dll
-
-# ── Version control ───────────────────────────────────────────────────────────
-.git/
+*.pyd
+.env
+*.sqlite3
+.git
 .gitignore
-
-# ── Editor / OS ───────────────────────────────────────────────────────────────
-.DS_Store
-.idea/
-.vscode/
-*.suo
-*.sw?
-
-# ── Logs ──────────────────────────────────────────────────────────────────────
+.vscode
+.idea
+tests/
+docs/
+coverage/
+htmlcov/
 *.log
-logs/
-nohup.out
+Dockerfile
+docker-compose.yml

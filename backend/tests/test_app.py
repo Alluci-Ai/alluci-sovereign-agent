@@ -56,15 +56,23 @@ def test_exception_handler_global_error_production(mock_settings):
     assert "Secret internal failure" not in response.json()["detail"]
     assert "Internal Server Error" in response.json()["message"]
 
-def test_exception_handler_global_error_dev():
-    @app.get("/test-global-error-dev")
+@patch("backend.app.settings")
+def test_exception_handler_global_error_dev(mock_settings):
+    # Enable debug mode for this test
+    mock_settings.DEBUG = True
+    # Reload the backend.app module so the patched settings are observed
+    import importlib
+    import backend.app as app_module
+    importlib.reload(app_module)
+
+    @app_module.app.get("/test-global-error-dev")
     def trigger_global_error_dev():
         raise RuntimeError("Secret internal failure")
-        
-    client = TestClient(app, raise_server_exceptions=False)
+
+    client = TestClient(app_module.app, raise_server_exceptions=False)
     response = client.get("/test-global-error-dev")
     assert response.status_code == 500
-    # In testing, APP_ENV is testing, so details should be exposed
+    # In testing, APP_ENV is "testing", so details should be exposed
     assert "Secret internal failure" in response.json()["detail"]
 
 @pytest.mark.asyncio

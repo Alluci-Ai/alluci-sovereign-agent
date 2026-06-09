@@ -9,6 +9,7 @@ from typing import Literal, Dict, Any, List, Optional
 from ..logging_config import get_logger
 from .executive import ExecutiveRouter
 from .mlx_engine import engine as mlx_engine
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 logger = get_logger("ModelRouter")
 
@@ -53,13 +54,13 @@ class ModelRouter(ExecutiveRouter):
     Implements the ExecutiveRouter interface for LCE Decoupling.
     """
     def __init__(self, settings, vault=None, analytics=None):
-        self.logger = get_logger("ModelRouter")
+        import os
+        self.logger = logger
         self.settings = settings
+        self.lce_enabled = getattr(settings, "LOCAL_LCE_ENABLED", True)
+        self._inference_semaphore = asyncio.Semaphore(int(os.getenv("MAX_CONCURRENCY", "5")))
         self.vault = vault
         self.analytics = analytics
-        self.ws_gateway = None
-
-        self.lce_enabled = getattr(settings, "LOCAL_LCE_ENABLED", True)
         if self.lce_enabled:
             self.logger.info("Local Cognitive Engine (LCE) via MLX initialized.")
             try:
@@ -92,15 +93,17 @@ class ModelRouter(ExecutiveRouter):
         # Primary cloud: Gemini
         self.gemini_flash = None
         self.gemini_pro = None
-        if not sovereign and GEMINI_AVAILABLE and settings.GEMINI_API_KEY:
+        if not sovereign and GEMINI_AVAILABLE and getattr(settings, "GEMINI_API_KEY", None):
             genai.configure(api_key=settings.GEMINI_API_KEY)
             self.gemini_flash = genai.GenerativeModel("gemini-2.0-flash")
             self.gemini_pro = genai.GenerativeModel("gemini-2.5-pro-preview-05-06")
             self.logger.info("Gemini models ready (cloud 1).")
+        else:
+            logger.debug("Gemini API key missing; Gemini provider disabled.")
 
         # Cloud failover 2: OpenAI
         self.openai_client = None
-        if not sovereign and OPENAI_AVAILABLE and settings.OPENAI_API_KEY:
+        if not sovereign and OPENAI_AVAILABLE and getattr(settings, "OPENAI_API_KEY", None):
             base_url = None
             if settings.OPENAI_API_KEY.startswith("github_pat_"):
                 base_url = "https://models.inference.ai.azure.com"
@@ -109,17 +112,23 @@ class ModelRouter(ExecutiveRouter):
                 base_url=base_url,
             )
             self.logger.info("OpenAI client ready (cloud 2).")
+        else:
+            logger.debug("OpenAI API key missing; OpenAI provider disabled.")
 
         # Cloud failover 3: Anthropic
         self.anthropic_client = None
-        if not sovereign and ANTHROPIC_AVAILABLE and settings.ANTHROPIC_API_KEY:
+        if not sovereign and ANTHROPIC_AVAILABLE and getattr(settings, "ANTHROPIC_API_KEY", None):
             self.anthropic_client = anthropic.AsyncAnthropic(
                 api_key=settings.ANTHROPIC_API_KEY
             )
             self.logger.info("Anthropic client ready (cloud 3).")
+        else:
+            logger.debug("Anthropic API key missing; Anthropic provider disabled.")
 
         # Groq — tactical KCM shortcut
-        self.groq_api_key = None if sovereign else getattr(settings, "GROQ_API_KEY", None)
+        self.groq_api_key = None if sovereign else (getattr(settings, "GROQ_API_KEY", None) if getattr(settings, "GROQ_API_KEY", None) else None)
+        if self.groq_api_key is None:
+            logger.debug("Groq API key missing; Groq provider disabled.")
 
         # Cloud failover 4: DeepSeek
         self.deepseek_client = None
@@ -145,6 +154,8 @@ class ModelRouter(ExecutiveRouter):
                     "X-Title": "Polytope Sovereign OS",
                 },
             )
+        else:
+            logger.debug("OpenRouter API key missing; OpenRouter provider disabled.")
 
         # Cloud failovers 6–8: Together, Cohere, Bedrock
         self.together_client = None
@@ -153,12 +164,16 @@ class ModelRouter(ExecutiveRouter):
                 api_key=settings.TOGETHER_API_KEY,
                 base_url="https://api.together.xyz/v1",
             )
+        else:
+            logger.debug("Together API key missing; Together provider disabled.")
 
         self.cohere_client = None
         if not sovereign and COHERE_AVAILABLE and getattr(settings, "COHERE_API_KEY", None):
             self.cohere_client = cohere.AsyncClient(
                 api_key=settings.COHERE_API_KEY
             )
+        else:
+            logger.debug("Cohere API key missing; Cohere provider disabled.")
 
         self.bedrock_session = None
         if (not sovereign and BOTO3_AVAILABLE
@@ -174,11 +189,19 @@ class ModelRouter(ExecutiveRouter):
             None if sovereign
             else getattr(settings, "NVIDIA_NIM_API_KEY", None)
         )
+        if self.nvidia_nim_api_key is None:
+            logger.debug("NVIDIA NIM API key missing; NVIDIA provider disabled.")
 
         # ElevenLabs, image, video — not affected by sovereign mode
         self.elevenlabs_api_key = getattr(settings, "ELEVENLABS_API_KEY", None)
+        if self.elevenlabs_api_key is None:
+            logger.debug("ElevenLabs API key missing; ElevenLabs provider disabled.")
         self.midjourney_api_key = getattr(settings, "MIDJOURNEY_API_KEY", None)
+        if self.midjourney_api_key is None:
+            logger.debug("Midjourney API key missing; Midjourney provider disabled.")
         self.runway_api_key = getattr(settings, "RUNWAY_API_KEY", None)
+        if self.runway_api_key is None:
+            logger.debug("Runway API key missing; Runway provider disabled.")
 
 
 
@@ -216,6 +239,7 @@ class ModelRouter(ExecutiveRouter):
         await mlx_engine.apply_context_moat(agent_id)
         return await mlx_engine.generate(full_prompt)
 
+    @retry(reraise=True, stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10), retry=retry_if_exception_type((httpx.HTTPError, Exception)))
     async def _gemini_request(self, prompt: str, use_pro: bool = False, json_mode: bool = False, system_instruction: str = "", session_id: Optional[str] = None) -> str:
         """Cloud Failover 1: Gemini."""
         if not self.gemini_flash and self.vault:
@@ -247,8 +271,7 @@ class ModelRouter(ExecutiveRouter):
             
         response = await model.generate_content_async(prompt, generation_config=generation_config)  # type: ignore
         
-        # Log Usage
-        if self.analytics and session_id:
+        if self.analytics and session_id and hasattr(self.analytics, "record_turn"):
             try:
                 meta = response.usage_metadata
                 self.analytics.record_turn(
@@ -256,7 +279,7 @@ class ModelRouter(ExecutiveRouter):
                     model=model.model_name.split("/")[-1],
                     provider="Google",
                     input_tokens=meta.prompt_token_count,
-                    output_tokens=meta.candidates_token_count
+                    output_tokens=meta.candidates_token_count,
                 )
             except Exception as e:
                 self.logger.warning(f"Failed to record Gemini usage: {e}")
@@ -266,6 +289,7 @@ class ModelRouter(ExecutiveRouter):
             content = self.secure_proxy.deanonymize_response(content, manifest.pii_vault_registry)
         return content
 
+    @retry(reraise=True, stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10), retry=retry_if_exception_type((httpx.HTTPError, Exception)))
     async def _openai_request(self, prompt: str, use_strong: bool = False, json_mode: bool = False, system_instruction: str = "", session_id: Optional[str] = None) -> str:
         """Cloud Failover 2: OpenAI."""
         if not self.openai_client:
@@ -310,6 +334,7 @@ class ModelRouter(ExecutiveRouter):
             content = self.secure_proxy.deanonymize_response(content, manifest.pii_vault_registry)
         return content
 
+    @retry(reraise=True, stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10), retry=retry_if_exception_type((httpx.HTTPError, Exception)))
     async def _generic_openai_request(self, prompt: str, client: Any, name: str, use_strong: bool = False, system_instruction: str = "") -> str:
         """Handles generic OpenAI-compatible providers like DeepSeek, Together, OpenRouter."""
         model_map = {
@@ -331,6 +356,7 @@ class ModelRouter(ExecutiveRouter):
         )
         return response.choices[0].message.content
 
+    @retry(reraise=True, stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10), retry=retry_if_exception_type((httpx.HTTPError, Exception)))
     async def _anthropic_request(self, prompt: str, use_strong: bool = False, system_instruction: str = "") -> str:
         """Cloud Failover 3: Anthropic."""
         if not self.anthropic_client:
@@ -348,6 +374,7 @@ class ModelRouter(ExecutiveRouter):
         message = await self.anthropic_client.messages.create(**kwargs)
         return message.content[0].text
 
+    @retry(reraise=True, stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10), retry=retry_if_exception_type((httpx.HTTPError, Exception)))
     async def _kimi_request(self, prompt: str, thinking: bool = True, system_instruction: str = "") -> str:
         """NVIDIA NIM integration for Kimi k2.5."""
         if not self.nvidia_nim_api_key:
@@ -373,6 +400,7 @@ class ModelRouter(ExecutiveRouter):
             data = response.json()
             return data["choices"][0]["message"]["content"]
 
+    @retry(reraise=True, stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10), retry=retry_if_exception_type((httpx.HTTPError, Exception)))
     async def _cohere_request(self, prompt: str, use_strong: bool = False, system_instruction: str = "") -> str:
         """Failover 7: Cohere."""
         if not self.cohere_client:
@@ -390,6 +418,7 @@ class ModelRouter(ExecutiveRouter):
         response = await self.cohere_client.chat(**kwargs)
         return response.text
 
+    @retry(reraise=True, stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10), retry=retry_if_exception_type((httpx.HTTPError, Exception)))
     async def _bedrock_request(self, prompt: str, use_strong: bool = False, system_instruction: str = "") -> str:
         """Failover 8: AWS Bedrock."""
         if not self.bedrock_session:
@@ -587,21 +616,22 @@ class ModelRouter(ExecutiveRouter):
         from ..security.circuit_breaker import circuit_breaker
         tracer = get_tracer("Inference.Router")
 
-        with tracer.start_as_current_span("get_response") as span:
-            # P1-002: Financial Circuit Breaker (Cost Estimation)
-            estimated_cost = (len(prompt) / 4.0) * 0.00001
-            circuit_breaker.check_llm_spend(estimated_cost)
-            circuit_breaker.record_llm_spend(estimated_cost)
-            
-            span.set_attribute("complexity", complexity)
-            span.set_attribute("psi", psi)
+        async with self._inference_semaphore:
+            with tracer.start_as_current_span("get_response") as span:
+                # P1-002: Financial Circuit Breaker (Cost Estimation)
+                estimated_cost = (len(prompt) / 4.0) * 0.00001
+                circuit_breaker.check_llm_spend(estimated_cost)
+                circuit_breaker.record_llm_spend(estimated_cost)
 
-            use_strong = (complexity == "HIGH")
-            use_tactical = False
-            
-            if psi > 0.0:
-                strong_penalty = math.cosh(psi) * 3000.0
-                light_penalty = math.cosh(psi) * 200.0
+                span.set_attribute("complexity", complexity)
+                span.set_attribute("psi", psi)
+
+                use_strong = (complexity == "HIGH")
+                use_tactical = False
+
+                if psi > 0.0:
+                    strong_penalty = math.cosh(psi) * 3000.0
+                    light_penalty = math.cosh(psi) * 200.0
                 if strong_penalty > 2.0 * light_penalty and psi > 0.7:
                     use_tactical = True
                     use_strong = False
@@ -786,6 +816,7 @@ class ModelRouter(ExecutiveRouter):
         )
         return await self.get_structured_plan(prompt, agent_id=agent_id)
 
+    @retry(reraise=True, stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10), retry=retry_if_exception_type((httpx.HTTPError, Exception)))
     async def get_fast_tactical_response(self, prompt: str, system_instruction: str = "", agent_id: str = "executive") -> str:
         """Shortcut method directly using Groq for fast, simple tactical decisions."""
         if not self.groq_api_key:

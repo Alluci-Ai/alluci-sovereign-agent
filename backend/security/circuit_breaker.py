@@ -7,6 +7,63 @@ logger = get_logger("CircuitBreaker")
 
 from .exceptions import SecurityException
 
+class ProviderCircuitBreaker:
+    """Per‑provider token quota circuit breaker.
+
+    Tracks token usage per provider in a rolling time window (default 60 seconds).
+    When a provider exceeds its token quota, a ``SecurityException`` with
+    ``PROVIDER_QUOTA_EXCEEDED`` is raised.
+    """
+    _instance = None
+    DEFAULT_MAX_TOKENS_PER_MINUTE = 100_000  # configurable default quota
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(ProviderCircuitBreaker, cls).__new__(cls)
+            cls._instance._init()
+        return cls._instance
+
+    def _init(self):
+        # Mapping: provider -> {"tokens": int, "window_start": float}
+        self.provider_usage: Dict[str, Dict[str, float]] = {}
+        self.window_seconds = 60  # one‑minute sliding window
+
+    def _reset_window_if_needed(self, provider: str):
+        info = self.provider_usage.get(provider)
+        if not info:
+            return
+        now = time.time()
+        if now - info["window_start"] > self.window_seconds:
+            info["tokens"] = 0
+            info["window_start"] = now
+
+    def check_quota(self, provider: str, tokens: int = 0):
+        """Validate that ``provider`` can consume ``tokens`` without exceeding quota.
+        Raises ``SecurityException`` if the quota would be exceeded.
+        """
+        self._reset_window_if_needed(provider)
+        usage = self.provider_usage.setdefault(
+            provider, {"tokens": 0, "window_start": time.time()}
+        )
+        if usage["tokens"] + tokens > self.DEFAULT_MAX_TOKENS_PER_MINUTE:
+            raise SecurityException(
+                f"Provider {provider} token quota exceeded.",
+                exception_type="PROVIDER_QUOTA_EXCEEDED",
+                metadata={"provider": provider, "requested": tokens, "used": usage["tokens"]}
+            )
+        return True
+
+    def record_usage(self, provider: str, tokens: int = 0):
+        """Record that ``provider`` has consumed ``tokens``.
+        Should be called after a successful request.
+        """
+        self._reset_window_if_needed(provider)
+        usage = self.provider_usage.setdefault(
+            provider, {"tokens": 0, "window_start": time.time()}
+        )
+        usage["tokens"] += tokens
+        return True
+
 class FinancialCircuitBreaker:
     _instance = None
     

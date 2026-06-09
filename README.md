@@ -177,3 +177,11 @@ Unauthorized copying, reproduction, distribution, modification, or use of this S
 
 ---
 <p align="center"><em>"Alluci-Polytope: Turning AI from a passive tool into a sovereign, affective partner."</em></p>
+## 🔧 Debug Mode
+
+The `DEBUG` environment variable (default `False`) controls error verbosity.
+
+- **Production (`DEBUG=False`)** – JSON‑RPC errors omit the `data` field and FastAPI exception details are masked.
+- **Development (`DEBUG=True`)** – Detailed validation errors are included in the `data` field and full exception messages are returned.
+
+Set `DEBUG=True` in your `.env` or export the variable locally to enable detailed diagnostics during development.

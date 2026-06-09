@@ -41,6 +41,12 @@ class RateLimiter:
     async def __call__(self, request: Request, response: Response):
         try:
             return await self._limiter(request, response)
+        except HTTPException as e:
+            if e.status_code == 429:
+                logger.warning(f"Provider rate limit hit (429): {e.detail}")
+                # Continue to fallback logic below
+            else:
+                raise
         except Exception as e:
             if settings.APP_ENV == "production":
                 logger.error(f"Redis rate limiter failed in PRODUCTION: {e}")

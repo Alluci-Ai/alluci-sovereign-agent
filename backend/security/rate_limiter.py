@@ -48,6 +48,7 @@ class SlidingWindowLimiter:
                     detail="Rate limit exceeded. Please slow down.",
                     headers={"Retry-After": str(seconds)},
                 )
+            # removed unnecessary int conversion
 
             dq.append(now)
 

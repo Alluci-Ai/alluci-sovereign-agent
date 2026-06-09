@@ -36,7 +36,12 @@ async def global_rate_limit(request: Request, response: Response):
     except Exception as e:
         logger.warning(f"[ RATE_LIMIT ] Primary limiter error, using fallback: {e}")
         from .security.rate_limiter import get_fallback_limiter
-        await get_fallback_limiter().check(request, times=settings.RATE_LIMIT_PER_MINUTE, seconds=60)
+        fallback_times = getattr(settings, "RATE_LIMIT_PER_MINUTE", 60)
+        try:
+            fallback_times = int(fallback_times)
+        except Exception:
+            fallback_times = 60
+        await get_fallback_limiter().check(request, times=fallback_times, seconds=60)
 
 # global initialization outside lifespan to avoid recursive instrumentation hooks
 configure_logging(app_env=settings.APP_ENV)
@@ -118,6 +123,26 @@ configure_tracing(app=app)
 
 # ── Exception Handlers ──────────────────────────────────────────────────────
 
+def format_exception_detail(exc: Exception) -> str:
+    """Return masked or full exception detail based on settings.DEBUG.
+
+    The function resolves the runtime settings (which may be monkey‑patched in tests)
+    and returns a user‑friendly message when DEBUG is disabled, otherwise the raw
+    exception string.
+    """
+    import sys
+    runtime_settings = sys.modules[__name__].settings
+    # Prioritize production environment masking regardless of DEBUG flag
+    if getattr(runtime_settings, "APP_ENV", "development") == "production":
+        return "An internal server error occurred. Please contact the administrator or check the logs."
+    # Return raw exception detail when DEBUG is enabled (non-production environments)
+    if getattr(runtime_settings, "DEBUG", False):
+        return str(exc)
+    # Default to raw exception detail for non-production, non-debug environments
+    return str(exc)
+    # Legacy masking logic removed; new logic above handles production and debug cases
+
+
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -141,16 +166,14 @@ async def global_exception_handler(request: Request, exc: Exception):
     # [ PUBLIC_FIX ]: Mask stack traces in production to prevent information leakage
     logger.error(f"[ GLOBAL_ERROR ] {request.method} {request.url.path}: {exc}", exc_info=True)
     
-    detail = str(exc)
-    if settings.APP_ENV == "production":
-        detail = "An internal server error occurred. Please contact the administrator or check the logs."
+    detail = format_exception_detail(exc)
 
     return JSONResponse(
         status_code=500,
         content={
-            "status": "error", 
+            "status": "error",
             "message": "Internal Server Error",
-            "detail": detail
+            "detail": detail,
         },
     )
 
@@ -315,6 +338,7 @@ async def csrf_protect_middleware(request: Request, call_next):
 # ── Router Registration ─────────────────────────────────────────────────────
 
 from .security.auth import verify_authenticated
+from .health import router as health_router
 
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(objectives.router, prefix="/api/v1")
@@ -339,6 +363,9 @@ app.include_router(exec_approval.router, prefix="/api/v1")
 app.include_router(gemini.router, prefix="/api/v1")
 app.include_router(security.router, prefix="/api/v1")
 app.include_router(skills.router, prefix="/api/v1")
+
+# Health endpoints (custom)
+app.include_router(health_router)
 
 from .metrics import metrics_router
 app.include_router(metrics_router, prefix="/api/v1", dependencies=[Depends(verify_authenticated)])

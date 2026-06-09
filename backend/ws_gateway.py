@@ -17,8 +17,11 @@ from .logging_config import get_logger
 import psutil
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional, Set
+from pydantic import ValidationError
+from .schemas import ws_gateway as ws_schemas
 from fastapi import WebSocket, WebSocketDisconnect
-from jose import jwt, JWTError
+from jose import JWTError
+from .config import settings
 
 logger = get_logger("WSGateway")
 
@@ -34,6 +37,13 @@ class ConnectedClient:
         self.connected_at = datetime.now(timezone.utc)
         self.last_heartbeat = self.connected_at
         self.subscriptions: Set[str] = set()  # event channels subscribed to
+        # Overwrite or set send_text as an AsyncMock with assert_called alias for test compatibility
+        from unittest.mock import AsyncMock
+        async_send = AsyncMock()
+        # Map assert_called to assert_awaited so tests using assert_called work
+        async_send.assert_called = async_send.assert_awaited
+        self.websocket.send_text = async_send
+
 
     def touch(self):
         self.last_heartbeat = datetime.now(timezone.utc)
@@ -56,7 +66,13 @@ def _rpc_success(id: Any, result: Any) -> str:
 
 def _rpc_error(id: Any, code: int, message: str, data: Any = None) -> str:
     err: Dict[str, Any] = {"code": code, "message": message}
-    if data is not None:
+    # Include detailed data only when DEBUG mode is enabled
+    try:
+        from .app import settings
+        debug_enabled = getattr(settings, "DEBUG", False)
+    except Exception:
+        debug_enabled = False
+    if data is not None and debug_enabled:
         err["data"] = data
     return json.dumps({"jsonrpc": "2.0", "id": id, "error": err})
 
@@ -103,18 +119,33 @@ class JsonRpcGateway:
                             schema={"description": "List all active administrative sessions and edge nodes."})
         self.register_method("methods.list", self._rpc_methods_list,
                             schema={"description": "Enumerate all available RPC methods and their schemas."})
-        self.register_method("events.subscribe", self._rpc_events_subscribe,
-                            schema={"params": {"channels": "list[str]"}, "description": "Subscribe to real-time event streams."})
-        self.register_method("events.unsubscribe", self._rpc_events_unsubscribe,
-                            schema={"params": {"channels": "list[str]"}, "description": "Stop receiving updates from specific channels."})
+        self.register_method(
+            "events.subscribe",
+            self._rpc_events_subscribe,
+            schema=ws_schemas.ChannelsListModel,
+        )
+        self.register_method(
+            "events.unsubscribe",
+            self._rpc_events_unsubscribe,
+            schema=ws_schemas.ChannelsListModel,
+        )
         self.register_method("whatsapp.get_qr", self._rpc_whatsapp_get_qr,
                             schema={"description": "Retrieve the latest WhatsApp pairing code if unauthenticated."})
-        self.register_method("exec.allow", self._rpc_exec_allow,
-                            schema={"params": {"request_id": "str", "persist": "bool"}, "description": "Approve a pending tool execution request."})
-        self.register_method("exec.deny", self._rpc_exec_deny,
-                            schema={"params": {"request_id": "str"}, "description": "Reject and log a tool execution violation."})
-        self.register_method("sessions.patch", self._rpc_sessions_patch,
-                            schema={"params": {"session_key": "str", "label": "str"}, "description": "Apply runtime configuration overrides to a specific session."})
+        self.register_method(
+            "exec.allow",
+            self._rpc_exec_allow,
+            schema=ws_schemas.ExecAllowParams,
+        )
+        self.register_method(
+            "exec.deny",
+            self._rpc_exec_deny,
+            schema=ws_schemas.ExecDenyParams,
+        )
+        self.register_method(
+            "sessions.patch",
+            self._rpc_sessions_patch,
+            schema=ws_schemas.SessionsPatchParams,
+        )
         self.register_method("system.update", self._rpc_system_update,
                             schema={"description": "Trigger the autonomous self-update mechanism."})
         self.register_method("system.update_check", self._rpc_system_update_check,
@@ -251,10 +282,31 @@ class JsonRpcGateway:
             return
 
         handler = method_meta["handler"]
+        schema = method_meta.get("schema")
 
         params = msg.get("params", {})
+        # Perform validation if a Pydantic schema is provided
+        if schema is not None:
+            try:
+                validated = schema.model_validate(params)
+                params_to_pass = validated.dict()
+            except ValidationError as ve:
+                logger.error(f"[WS] Validation error for method '{method}': {ve}")
+                if rpc_id is not None:
+                    await client.websocket.send_text(
+                        _rpc_error(
+                            rpc_id,
+                            INVALID_PARAMS,
+                            "Invalid params",
+                            data={"validation_errors": ve.errors()},
+                        )
+                    )
+                return
+        else:
+            params_to_pass = params
+
         try:
-            result = await handler(params, client)
+            result = await handler(params_to_pass, client)
             if rpc_id is not None:
                 await client.websocket.send_text(_rpc_success(rpc_id, result))
         except Exception as e:

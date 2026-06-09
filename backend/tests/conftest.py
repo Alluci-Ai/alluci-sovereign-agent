@@ -98,6 +98,9 @@ def temp_db():
         connect_args={"check_same_thread": False}
     )
     SQLModel.metadata.create_all(engine)
+    # Apply raw SQL migrations (adds hmac_signature, key_id) for audit_log
+    from backend.database import apply_sqlite_migrations
+    apply_sqlite_migrations()
     
     # Patch all direct module lookups to db_engine
     with patch("backend.database.engine", engine, create=True), \

@@ -122,8 +122,8 @@ class DiscreteProjectionKernel:
         if current.signature_hash == 0:
             logger.critical("[DPK] CRITICAL: Unsigned Manifold. Execution Blocked.")
             return False
-        if current.hardware_status < 2:
-            logger.info("[DPK] BYPASS: Hardware status indicates Lite/Unavailable. Bypassing synthetic tearing checks.")
+        if current.hardware_status == 1:
+            logger.info("[DPK] BYPASS: Hardware status indicates Lite. Bypassing synthetic tearing checks.")
             return True
 
         chi = current.vertices_V - current.edges_E + current.faces_F
@@ -157,10 +157,20 @@ class DiscreteProjectionKernel:
 
     def authorize_execution(self, state: PolytopeState) -> bool:
         """Entry point for authorization, routes to native or python."""
-        return self.validate_manifold_integrity(state)
         
-    def validate_manifold_integrity(self, state: PolytopeState) -> bool:
-        """Alias for authorize_execution, used directly by some benchmarks and internal gates."""
+        # 1. Unsigned Manifold Check
+        if state.signature_hash == 0:
+            logger.critical("[DPK] CRITICAL: Unsigned Manifold detected. Blocking execution.")
+            return False
+            
+        # 2. Euler Characteristic Check
+        chi = state.vertices_V - state.edges_E + state.faces_F
+        betti_chi = round(state.betti[0] - state.betti[1] + state.betti[2] - state.betti[3])
+        if abs(chi - betti_chi) > self.MAX_EULER_DEVIATION:
+            logger.error(f"[DPK] TOPOLOGY ERROR: Euler Mismatch ({chi} vs {betti_chi}). Blocking execution.")
+            return False
+            
+        # 3. Native or Fallback
         if self.native_lib and self.native_instance:
             native_state = NativePolytopeState(
                 signature_hash=state.signature_hash,
@@ -173,11 +183,14 @@ class DiscreteProjectionKernel:
             )
             is_valid = self.native_lib.dpk_authorize(self.native_instance, ctypes.byref(native_state))
             if is_valid:
-                logger.info(f"[DPK] STATE VALID (NATIVE). χ={state.vertices_V - state.edges_E + state.faces_F}")
+                logger.info(f"[DPK] STATE VALID (NATIVE). χ={chi}")
                 return True
             else:
                 logger.error("[DPK] STATE INVALID (NATIVE). Blocking execution.")
                 return False
         
-        # Fallback to Python
         return self.validate_manifold_integrity_py(state)
+        
+    def validate_manifold_integrity(self, state: PolytopeState) -> bool:
+        """Alias for authorize_execution, used directly by some benchmarks and internal gates."""
+        return self.authorize_execution(state)

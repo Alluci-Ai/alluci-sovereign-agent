@@ -28,6 +28,7 @@ from .adapters.registry import AdapterRegistry
 from .harmonic_enhancer import HarmonicAssistant
 from .heartbeat import HeartbeatDaemon
 from .skill_manager import SkillManager
+from . import queue as task_queue
 
 from .security.dpk import DiscreteProjectionKernel, PolytopeState
 from .security.avl_gate import AVLGate
@@ -58,6 +59,7 @@ class ExecutiveOrchestrator:
         self.hlsm = hlsm_manager          # H-LSM manager (new)
         self.agent_id = agent_id
         self.vault_root = vault_root
+        self.queue = task_queue
         if self.agent_id:
             self._current_session_key = self.agent_id
         
@@ -778,62 +780,73 @@ class ExecutiveOrchestrator:
 
 
     async def execute_research(self, objective: str) -> Dict[str, Any]:
+        """Enqueue a research task and return a job identifier.
+
+        The heavy lifting is performed asynchronously by a background worker via ``_run_research``.
         """
-        Autonomous Research Pipeline:
-        1. Deconstruct -> 2. Search -> 3. Fetch -> 4. Synthesize
+        queued_task = self.queue.enqueue(
+            "backend.orchestrator.ExecutiveOrchestrator._run_research",
+            objective,
+        )
+        self.logger.info(f"🗂️ Enqueued research job {queued_task.id} for objective: {objective}")
+        return {"job_id": queued_task.id, "status": "queued"}
+
+    async def _run_research(self, objective: str, task_id: str) -> None:
+        """Actual research implementation – invoked by the background worker.
+
+        Mirrors the original ``execute_research`` logic but records progress and
+        final results in the task queue.
         """
-        self.logger.info(f"🔍 Starting Autonomous Research: {objective}")
-        
-        # Phase 1: Planning / Deconstruction
-        plan_prompt = f"Deconstruct this research objective into 3-5 specific search queries: {objective}. Return as a JSON list of strings."
-        queries_json = await self.planner.router.get_response(plan_prompt, complexity="MEDIUM")
         try:
-            queries = json.loads(queries_json)
-            if not isinstance(queries, list):
+            # Phase 1: Planning / Deconstruction
+            plan_prompt = f"Deconstruct this research objective into 3-5 specific search queries: {objective}. Return as a JSON list of strings."
+            queries_json = await self.planner.router.get_response(plan_prompt, complexity="MEDIUM")
+            try:
+                queries = json.loads(queries_json)
+                if not isinstance(queries, list):
+                    queries = [objective]
+            except json.JSONDecodeError:
+                self.logger.debug("[Orchestrator] Research query decomposition returned non-JSON — falling back to single query.")
                 queries = [objective]
-        except json.JSONDecodeError:
-            self.logger.debug(
-                "[Orchestrator] Research query decomposition returned non-JSON "
-                "— falling back to single query."
-            )
-            queries = [objective]
 
-        research_results = []
-        
-        # Phase 2: Search & Fetch
-        for query in queries[:3]: # Limit to top 3 queries for safety
-            self.logger.info(f"🌐 Searching: {query}")
-            search_tool = self.adapter_registry.get("web_search")
-            assert search_tool is not None, "Web search tool must be registered"
-            search_data = await search_tool.execute({"query": query})
-            
-            # Fetch top 2 results
-            links = [res["link"] for res in search_data.get("results", [])[:2]]
-            for link in links:
-                self.logger.info(f"📄 Fetching: {link}")
-                fetch_tool = self.adapter_registry.get("web_fetch")
-                assert fetch_tool is not None, "Web fetch tool must be registered"
-                content = await fetch_tool.execute({"url": link})
-                research_results.append({
-                    "source": link,
-                    "content": content.get("text", "")[:5000] # Cap content per source
-                })
+            research_results = []
+            # Phase 2: Search & Fetch (limit to top 3 queries)
+            for query in queries[:3]:
+                self.logger.info(f"🌐 Searching: {query}")
+                search_tool = self.adapter_registry.get("web_search")
+                assert search_tool is not None, "Web search tool must be registered"
+                search_data = await search_tool.execute({"query": query})
+                links = [res["link"] for res in search_data.get("results", [])[:2]]
+                for link in links:
+                    self.logger.info(f"📄 Fetching: {link}")
+                    fetch_tool = self.adapter_registry.get("web_fetch")
+                    assert fetch_tool is not None, "Web fetch tool must be registered"
+                    content = await fetch_tool.execute({"url": link})
+                    research_results.append({
+                        "source": link,
+                        "content": content.get("text", "")[:5000]
+                    })
 
-        # Phase 3: Synthesis
-        synthesis_prompt = f"""
-        Objective: {objective}
-        Research Data: {json.dumps(research_results)}
-        
-        Synthesize a professional, grounded research report. 
-        Cite sources by their source index.
-        """
-        report = await self.planner.router.get_response(synthesis_prompt, complexity="HIGH")
-        
-        return {
-            "status": "success",
-            "result": report,
-            "sources": [r["source"] for r in research_results]
-        }
+            # Phase 3: Synthesis
+            synthesis_prompt = f"""
+            Objective: {objective}
+            Research Data: {json.dumps(research_results)}
+
+            Synthesize a professional, grounded research report.
+            Cite sources by their source index.
+            """
+            report = await self.planner.router.get_response(synthesis_prompt, complexity="HIGH")
+
+            result_payload = {
+                "status": "success",
+                "result": report,
+                "sources": [r["source"] for r in research_results]
+            }
+            self.queue.record_result(task_id, result_payload)
+        except Exception as e:
+            error_payload = {"status": "failed", "error": str(e)}
+            self.queue.record_result(task_id, error_payload, error=str(e))
+            self.logger.error(f"Research task {task_id} failed: {e}")
 
     async def multi_agent_delegate(self, agent_id: str, task: str) -> Dict[str, Any]:
         """

@@ -62,7 +62,7 @@ class RuntimeSettings(BaseModel):
     LOG_LEVEL: str = "INFO"
     HOST: str = "0.0.0.0"
     PORT: int = 8000
-    DATABASE_URL: str = "sqlite:///polytope_data.db"
+    DATABASE_URL: str = "sqlite:///:memory:"
     REDIS_URL: Optional[str] = None
     TOTAL_RAM_MB: int = get_system_ram_mb()
     LITE_MODE: bool = False
@@ -109,6 +109,7 @@ class Settings(BaseSettings):
     # Governance
     RATE_LIMIT_PER_MINUTE: int = 60
     MAX_CONCURRENT_TASKS: int = 5
+    MAX_CONCURRENCY: int = 5  # Controls inference concurrency, can be overridden via env var
     MAX_AUTONOMY_RETRIES: int = 3
     CRITIC_THRESHOLD: float = 0.75
     HEARTBEAT_INTERVAL: int = 30
@@ -137,6 +138,7 @@ class Settings(BaseSettings):
     WEBAUTHN_ORIGIN: Optional[str] = None
     
     # Modes
+    DEBUG: bool = False
     LITE_MODE: bool = False
     
     model_config = SettingsConfigDict(
