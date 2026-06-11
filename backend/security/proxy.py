@@ -58,7 +58,7 @@ class AlluciSecureProxy:
                 token_instance_id += 1
 
         # Run graph token pruning to optimize message length
-        compressed_prompt = self._compress_token_density(text_working_buffer)
+        compressed_prompt = self._prune_token_density(text_working_buffer)
         return OptimizedSovereignPacket(compressed_prompt, secure_ephemeral_vault)
         
     def process_inbound_response(self, raw_cloud_response: str, fallback_vault: Dict[str, str], agent_id: str, abstract_prompt: str) -> str:
@@ -75,7 +75,7 @@ class AlluciSecureProxy:
             
         return final_output_buffer
         
-    def _compress_token_density(self, target_text: str) -> str:
+    def _prune_token_density(self, target_text: str) -> str:
         """
         Prune conversational filler to minimize token use and lower API costs.
         """
@@ -109,7 +109,20 @@ class AlluciSecureProxy:
         }
         
         try:
+            import zstandard as zstd
+            import base64
+            
+            cctx = zstd.ZstdCompressor()
+            raw_json = json.dumps(entry).encode('utf-8')
+            compressed_data = cctx.compress(raw_json)
+            b64_data = base64.b64encode(compressed_data).decode('ascii')
+            
+            manifest_entry = {
+                "v": "zstd-1",
+                "data": b64_data
+            }
+            
             with open(pool_path, "a") as f:
-                f.write(json.dumps(entry) + "\n")
+                f.write(json.dumps(manifest_entry) + "\n")
         except Exception as e:
             print(f"Failed to write to dream pool for {agent_id}: {e}")

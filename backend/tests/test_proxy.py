@@ -44,9 +44,9 @@ def test_process_outbound_prompt_multiple(proxy):
     assert packet.compressed_abstract_prompt.count("[ALLUCI_EMAIL_TOKEN]_1001") == 2
     assert len(packet.secure_ephemeral_vault) == 1
 
-def test_compress_token_density(proxy):
+def test_prune_token_density(proxy):
     raw = "Please kindly help me optimize this now"
-    compressed = proxy._compress_token_density(raw)
+    compressed = proxy._prune_token_density(raw)
     assert compressed == "this"
 
 def test_process_inbound_response(proxy):
@@ -66,7 +66,17 @@ def test_log_to_dream_pool(proxy):
             handle = mocked_file()
             handle.write.assert_called_once()
             written = handle.write.call_args[0][0]
-            data = json.loads(written)
+            manifest_entry = json.loads(written)
+            assert manifest_entry["v"] == "zstd-1"
+            
+            import zstandard as zstd
+            import base64
+            
+            compressed_data = base64.b64decode(manifest_entry["data"])
+            dctx = zstd.ZstdDecompressor()
+            raw_json = dctx.decompress(compressed_data)
+            data = json.loads(raw_json)
+            
             assert data["prompt"] == "abstract prompt"
             assert data["response"] == "cloud response"
 
