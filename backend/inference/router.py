@@ -622,6 +622,9 @@ class ModelRouter(ExecutiveRouter):
 
         async with self._inference_semaphore:
             with tracer.start_as_current_span("get_response") as span:
+                if inference_mode == "TACTICAL":
+                    return await self.get_fast_tactical_response(prompt, system_instruction=system_instruction, agent_id=agent_id)
+
                 # P1-002: Financial Circuit Breaker (Cost Estimation)
                 estimated_cost = (len(prompt) / 4.0) * 0.00001
                 circuit_breaker.check_llm_spend(estimated_cost)

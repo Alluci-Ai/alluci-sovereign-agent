@@ -285,6 +285,7 @@ async def add_security_headers(request: Request, call_next):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
 
 @app.middleware("http")
 async def request_id_middleware(request: Request, call_next):
