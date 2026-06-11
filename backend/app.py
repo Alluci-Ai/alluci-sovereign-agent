@@ -103,7 +103,10 @@ app = FastAPI(
     description="Sovereign Executive Assistant with Polytopic Manifolds",
     version=VERSION,
     lifespan=lifespan,
-    dependencies=[Depends(global_rate_limit)]
+    dependencies=[Depends(global_rate_limit)],
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
 )
 
 from fastapi import HTTPException
