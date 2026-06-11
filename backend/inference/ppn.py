@@ -277,7 +277,7 @@ class PPNEmbeddingModule:
         """
         betti_sum = sum(float(b) for b in betti)
         # Modulate by affective valence (normalized to [0,1])
-        valence_norm = float(affect_state.valence) / 1024.0
+        valence_norm = affect_state.valence / 1024.0
         phi = (betti_sum * (1.0 + valence_norm)) * 1000
         return int(abs(phi)) % 65536
 
