@@ -8,12 +8,25 @@ try:
     from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
     from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 except ImportError:
-    # Define minimal stubs to allow imports without actual opentelemetry
+    class _DummySpan:
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def set_attribute(self, *args, **kwargs): pass
+        def add_event(self, *args, **kwargs): pass
+        def set_status(self, *args, **kwargs): pass
+
+    class _DummyTracer:
+        def start_as_current_span(self, *args, **kwargs):
+            return _DummySpan()
+
     class _Dummy:
         def __getattr__(self, name):
+            if name == "get_tracer":
+                return lambda *args, **kwargs: _DummyTracer()
             return lambda *args, **kwargs: None
         def __call__(self, *args, **kwargs):
             return self
+    
     trace = _Dummy()
     Resource = _Dummy()
     class _TracerProvider(_Dummy):

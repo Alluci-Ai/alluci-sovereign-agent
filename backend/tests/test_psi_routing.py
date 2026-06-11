@@ -16,9 +16,12 @@ async def test_psi_routing_logic():
         AWS_SECRET_ACCESS_KEY="",
         AWS_REGION="us-east-1"
     )
-    router = ModelRouter(settings)
-    router.lce_enabled = False
-    router.lm_studio_client = None
+    from unittest.mock import patch
+    with patch("backend.inference.router.genai", MagicMock(), create=True), \
+         patch("backend.inference.router.GEMINI_AVAILABLE", True):
+        router = ModelRouter(settings)
+        router.lce_enabled = False
+        router.lm_studio_client = None
     
     # Mock request methods
     router._gemini_request = AsyncMock(return_value="gemini response")  # type: ignore
@@ -27,17 +30,18 @@ async def test_psi_routing_logic():
     print("router.gemini_flash:", router.gemini_flash)
     
     # Test 1: Low psi, MEDIUM complexity -> Gemini Flash (use_pro=False)
-    res = await router.get_response("test prompt", complexity="MEDIUM", psi=0.5)
+    # Using a code prompt so cloud fallback is allowed for MEDIUM complexity
+    res = await router.get_response("write a python function", complexity="MEDIUM", psi=0.5)
     print("RETURN VALUE:", res)
-    router._gemini_request.assert_called_with("test prompt", use_pro=False, json_mode=False, system_instruction=ANY, session_id=ANY)
+    router._gemini_request.assert_called_with("write a python function", use_pro=False, json_mode=False, system_instruction=ANY, session_id=ANY)
     
     # Test 2: High psi (> 0.7), MEDIUM complexity -> KCM routes to tactical/light.
     # With no groq_api_key, tactical route falls through to Gemini Flash (use_pro=False)
     router._gemini_request.reset_mock()
-    await router.get_response("test prompt", complexity="MEDIUM", psi=0.9)
+    await router.get_response("write a python function", complexity="MEDIUM", psi=0.9)
     # Since use_tactical=True but no Groq, falls through. use_strong stays False because
     # use_tactical=True prevents the override on line `if not use_tactical:`.
-    router._gemini_request.assert_called_with("test prompt", use_pro=False, json_mode=False, system_instruction=ANY, session_id=ANY)
+    router._gemini_request.assert_called_with("write a python function", use_pro=False, json_mode=False, system_instruction=ANY, session_id=ANY)
 
     # Test 3: HIGH complexity -> Gemini Pro (use_pro=True) regardless of psi
     router._gemini_request.reset_mock()

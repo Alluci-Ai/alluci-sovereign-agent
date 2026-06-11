@@ -146,6 +146,15 @@ class TestOutputScanning:
         assert not is_safe
 
     @pytest.mark.security
+    async def test_active_secret_not_in_output_passes(self, scanner):
+        """Active secrets provided but not leaked in output should pass, including short secrets."""
+        active_key = "my-real-active-key-value-12345"
+        short_secret = "abc12345"  # len <= 8
+        output_no_leak = "Normal response here."
+        is_safe, _ = await scanner.scan_output(output_no_leak, active_secrets=[active_key, short_secret, ""])
+        assert is_safe
+
+    @pytest.mark.security
     async def test_clean_output_passes(self, scanner):
         """Normal assistant response with no credentials passes output scan."""
         clean_output = (

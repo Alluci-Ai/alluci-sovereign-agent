@@ -79,7 +79,7 @@ class TestModelRouterLocalRoute:
                 mock_lm.side_effect = Exception("LM Studio down")
                 with patch.object(router, "_gemini_request", new_callable=AsyncMock) as mock_gemini:
                     mock_gemini.return_value = "Gemini response"
-                    result = await router.get_response("Test prompt")
+                    result = await router.get_response("Test prompt", complexity="HIGH")
 
         assert result == "Gemini response"
 
@@ -191,7 +191,8 @@ class TestFailoversAndSpecificRequests:
     @pytest.mark.asyncio
     async def test_bedrock_request(self):
         settings = make_mock_settings(AWS_ACCESS_KEY_ID="test")
-        with patch("backend.inference.router.BOTO3_AVAILABLE", True):
+        with patch("backend.inference.router.BOTO3_AVAILABLE", True), \
+             patch("backend.inference.router.aioboto3", MagicMock(), create=True):
             from backend.inference.router import ModelRouter
             router = ModelRouter(settings)
             

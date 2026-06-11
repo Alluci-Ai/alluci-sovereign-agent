@@ -633,6 +633,8 @@ class ModelRouter(ExecutiveRouter):
                 use_strong = (complexity == "HIGH")
                 use_tactical = False
 
+                strong_penalty = 0.0
+                light_penalty = 0.0
                 if psi > 0.0:
                     strong_penalty = math.cosh(psi) * 3000.0
                     light_penalty = math.cosh(psi) * 200.0
