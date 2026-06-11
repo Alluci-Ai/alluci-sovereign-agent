@@ -4,7 +4,7 @@ VENV = .venv
 PYTHON = $(VENV)/bin/python3
 UVICORN = $(VENV)/bin/uvicorn
 
-.PHONY: start stop restart status init doctor logs clean quality
+.PHONY: start stop restart status init doctor logs clean quality docs
 
 help:
 	@echo "Alluci Sovereign Agent — Automation"
@@ -57,3 +57,10 @@ quality: preflight
 
 logs:
 	@tail -f backend.log frontend.log
+
+docs:
+	@echo "Extracting OpenAPI schema..."
+	@$(PYTHON) scripts/export_openapi.py
+	@echo "Generating Markdown API Reference..."
+	@npx widdershins --search false --language_tabs "python:Python" "javascript:JavaScript" --summary Documentation/openapi.json -o Documentation/API_Reference.md
+	@echo "API Reference generated at Documentation/API_Reference.md"
