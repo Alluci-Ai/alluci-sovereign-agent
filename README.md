@@ -152,6 +152,18 @@ The ACE aligns machine logic with human biology. It bridges raw data and human s
 
 ---
 
+## 🌍 Data Residency & EU Compliance
+
+For enterprise environments requiring strict GDPR or Schrems II compliance, the Sovereign Agent utilizes a "Defense in Depth" proxy strategy:
+- **AlluciSecureProxy:** The proxy automatically intercepts outbound LLM requests, extracts PII into a local ephemeral vault, and sends only mathematically abstract payloads (pseudonymization) to cloud providers (OpenAI/Gemini).
+- **Hard-Locked Egress:** Setting `DATA_REGION="EU"` in the environment mathematically prevents any cloud egress without passing through the pseudonymization proxy.
+- **Physical Endpoint Overrides:** Setting `ENFORCE_EU_ENDPOINTS=True` forces Azure OpenAI and Google Vertex API clients to dynamically route to EU-based datacenters on the fly.
+
+> [!NOTE]
+> See the full [Data Residency & Compliance Architecture](Documentation/Data_Residency_and_Compliance.md) for legal and technical implementation details.
+
+---
+
 ## 🚀 Quick Start & Local Setup Guide
 
 The new **Sovereignty Level Wizard** makes onboarding seamless. Choose between Cloud-only (Level 1), Local Edge (Level 2), or the Full Sovereign Base (Level 3).
@@ -176,7 +188,11 @@ Clone the repository and initialize the environment:
 ```bash
 cp .env.example .env
 ```
-Fill in your `POLYTOPE_MASTER_KEY` (used for Vault 2FA and encryption) and `JWT_SECRET_KEY`.
+Fill in your environment variables:
+- `POLYTOPE_MASTER_KEY`: Your core cryptographic seed for Vault 2FA and encryption.
+- `JWT_SECRET_KEY`: Used for secure session management.
+- `DATA_REGION`: Set to `EU` to enforce the SecureProxy pseudonymization firewall.
+- `ENFORCE_EU_ENDPOINTS`: Set to `True` for strict Schrems II physical endpoint enforcement.
 
 ### 4. Backend Execution
 ```bash
@@ -242,6 +258,26 @@ This script executes:
 - **Deploy**: Validates deployment manifests for immutable image digests.
 - **Reporting**: Generates a timestamped markdown report in `reports/`.
 
+### ⚡ Load Testing Harness
+To validate system stability under extreme concurrent load, a **Locust** load-testing harness is integrated. It simulates hundreds of concurrent agents processing multi-step DAG workflows:
+```bash
+locust -f load_test.py --headless -u 50 -r 10
+```
+
+### 🛡️ Continuous Licensing Compliance
+The CI pipeline incorporates a strict `license_finder` firewall to protect proprietary IP. Any attempt to introduce GPL, AGPL, or incompatible copyleft dependencies will automatically fail the build, ensuring **zero IP contamination risk**.
+
+---
+
+## 🔧 Debug Mode
+
+The `DEBUG` environment variable (default `False`) controls error verbosity.
+
+- **Production (`DEBUG=False`)** – JSON‑RPC errors omit the `data` field and FastAPI exception details are masked.
+- **Development (`DEBUG=True`)** – Detailed validation errors are included in the `data` field and full exception messages are returned.
+
+Set `DEBUG=True` in your `.env` or export the variable locally to enable detailed diagnostics during development.
+
 ---
 
 ## 📜 License
@@ -253,11 +289,3 @@ Unauthorized copying, reproduction, distribution, modification, or use of this S
 
 ---
 <p align="center"><em>"Alluci-Polytope: Turning AI from a passive tool into a sovereign, affective partner."</em></p>
-## 🔧 Debug Mode
-
-The `DEBUG` environment variable (default `False`) controls error verbosity.
-
-- **Production (`DEBUG=False`)** – JSON‑RPC errors omit the `data` field and FastAPI exception details are masked.
-- **Development (`DEBUG=True`)** – Detailed validation errors are included in the `data` field and full exception messages are returned.
-
-Set `DEBUG=True` in your `.env` or export the variable locally to enable detailed diagnostics during development.
