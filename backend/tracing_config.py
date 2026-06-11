@@ -30,14 +30,26 @@ except ImportError:
     trace = _Dummy()
     Resource = _Dummy()
     class _TracerProvider(_Dummy):
-        def __init__(self, *args, **kwargs):
-            pass
+        def __init__(self, *args, **kwargs): pass
+        def add_span_processor(self, *args, **kwargs): pass
+
     TracerProvider = _TracerProvider
-    BatchSpanProcessor = lambda *args, **kwargs: _Dummy()
-    ConsoleSpanExporter = lambda *args, **kwargs: _Dummy()
-    OTLPSpanExporter = lambda *args, **kwargs: _Dummy()
-    FastAPIInstrumentor = _Dummy()
-    HTTPXClientInstrumentor = lambda *args, **kwargs: _Dummy()
+
+    class BatchSpanProcessor(_Dummy):
+        def __init__(self, *args, **kwargs): pass
+
+    class ConsoleSpanExporter(_Dummy):
+        def __init__(self, *args, **kwargs): pass
+
+    class OTLPSpanExporter(_Dummy):
+        def __init__(self, *args, **kwargs): pass
+
+    class FastAPIInstrumentor(_Dummy):
+        @classmethod
+        def instrument_app(cls, *args, **kwargs): pass
+
+    class HTTPXClientInstrumentor(_Dummy):
+        def instrument(self, *args, **kwargs): pass
 
 def configure_tracing(app=None, service_name: str = "alluci-sovereign-agent"):
     """
@@ -58,14 +70,14 @@ def configure_tracing(app=None, service_name: str = "alluci-sovereign-agent"):
     if otlp_endpoint:
         # Production: OTLP over gRPC or HTTP
         exporter = OTLPSpanExporter(endpoint=otlp_endpoint, insecure=True)
-        processor = BatchSpanProcessor(exporter)
-        provider.add_span_processor(processor)
+        processor = BatchSpanProcessor(exporter)  # type: ignore
+        provider.add_span_processor(processor)    # type: ignore
     else:
         # Development: Simple console output
-        processor = BatchSpanProcessor(ConsoleSpanExporter())
-        provider.add_span_processor(processor)
+        processor = BatchSpanProcessor(ConsoleSpanExporter())  # type: ignore
+        provider.add_span_processor(processor)    # type: ignore
         
-    trace.set_tracer_provider(provider)
+    trace.set_tracer_provider(provider)  # type: ignore
     
     if app:
         # Auto-instrument FastAPI routes and HTTPX requests
