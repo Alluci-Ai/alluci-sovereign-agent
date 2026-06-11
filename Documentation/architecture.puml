@@ -28,6 +28,7 @@ package "3. Deep Local Storage & Security" #E8F5E9 {
     [Verus Vaults\n(Keys & Ephemeral PII)] as Vaults
     [Wallet\n(Cryptographic Signing)] as Wallet
     [Audits\n(Local SQLite Ledger)] as Audits
+    database "PPN\n(Polytope Projection Network)" as PPN #BBDEFB
 }
 
 ' --- ZONE 4: COMPLIANCE EGRESS BOUNDARY (Right) ---
@@ -77,6 +78,11 @@ AVL --> Tasks : Value-Aligned Response (Deanonymized)
 SecureProxy ..> Vaults : Ephemeral Swap / Retrieve Keys
 Tasks ..> Audits : Log Execution State
 AVL ..> Audits : Log Value Alignment Check
+
+' PPN Cognitive Anchoring
+ACE <--> PPN : Topological Context Retrieval
+PPN <--> LCE : Geometric Weight Loading
+PPN <--> Audits : Structure Raw Memories
 
 ' Blockchain Anchoring
 Audits --> Wallet : Request Signature
