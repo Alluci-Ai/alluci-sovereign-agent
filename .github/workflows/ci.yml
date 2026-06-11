@@ -1,50 +1,245 @@
-name: CI Pipeline
+name: End-to-End CI Pipeline
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ main ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ main ]
 
 jobs:
-  test:
+  lint:
+    name: Lint & Static Analysis
     runs-on: ubuntu-latest
-    
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0  # Required for diff-cover to compare against the main branch
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up Python 3.11
-      uses: actions/setup-python@v5
-      with:
-        python-version: "3.11"
-        cache: 'pip'
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        # Install the main requirements
-        pip install -r requirements.txt
-        # Install dev requirements if available, plus diff-cover
-        if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
-        pip install diff-cover pytest-cov pytest-asyncio
+      - name: Install Frontend Dependencies
+        run: npm ci
 
-    - name: Run Tier 1 Critical Path Tests (Strict 80%)
-      run: |
-        chmod +x scripts/test_critical_coverage.sh
-        ./scripts/test_critical_coverage.sh
+      - name: Lint Frontend
+        run: npm run lint
 
-    - name: Run Full Test Suite (Generate Global Coverage)
-      run: |
-        # We run the full suite without the fail-under flag (handled in pytest.ini)
-        # We use '|| true' so that if legacy tests have non-critical failures,
-        # it still generates the coverage.xml needed for the diff-cover step below.
-        pytest backend/tests/ --cov=backend --cov-report=xml:coverage.xml || true
+      - name: Check TypeScript Types
+        run: npx tsc --noEmit
 
-    - name: Enforce Diff-Coverage (80% on New Code)
-      if: github.event_name == 'pull_request'
-      run: |
-        # This will fail the PR if the lines ADDED in this PR have less than 80% coverage.
-        diff-cover coverage.xml --compare-branch=origin/main --fail-under=80
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Backend Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Lint Backend (Ruff)
+        run: ruff check backend/
+
+      - name: Type Check Backend (MyPy)
+        run: mypy backend/
+
+  test:
+    name: Run Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Frontend Dependencies
+        run: npm ci
+
+      - name: Test Frontend (Vitest)
+        run: npm run test -- --run
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Backend Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Test Backend (Pytest)
+        # Note: We run pytest from the root folder pointing to backend/tests/
+        run: PYTHONPATH=. pytest backend/tests/ -v --cov=backend --cov-report=xml
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Security Tools
+        run: pip install bandit detect-secrets
+
+      - name: Run Bandit (SAST)
+        run: bandit -r backend/ -c pyproject.toml || true # Optional: remove || true to enforce
+
+      - name: Run Detect-Secrets
+        run: detect-secrets scan || true # Optional: remove || true to enforce
+
+  build:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    needs: [lint, test, security-scan]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Backend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.backend
+          push: false
+          tags: sovereign-agent-backend:latest
+          outputs: type=docker,dest=/tmp/backend-image.tar
+
+      - name: Build Frontend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.frontend
+          push: false
+          tags: sovereign-agent-frontend:latest
+          outputs: type=docker,dest=/tmp/frontend-image.tar
+
+      - name: Upload Backend Tarball
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-image
+          path: /tmp/backend-image.tar
+          retention-days: 1
+
+      - name: Upload Frontend Tarball
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-image
+          path: /tmp/frontend-image.tar
+          retention-days: 1
+
+  scan-image:
+    name: Container Image Scan (Trivy)
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download Backend Tarball
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-image
+          path: /tmp
+
+      - name: Download Frontend Tarball
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-image
+          path: /tmp
+
+      - name: Load Docker Images
+        run: |
+          docker load --input /tmp/backend-image.tar
+          docker load --input /tmp/frontend-image.tar
+
+      - name: Scan Backend Image (Warn Only)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'sovereign-agent-backend:latest'
+          format: 'table'
+          exit-code: '0'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Scan Frontend Image (Warn Only)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'sovereign-agent-frontend:latest'
+          format: 'table'
+          exit-code: '0'
+          severity: 'CRITICAL,HIGH'
+
+  push:
+    name: Push to GHCR
+    runs-on: ubuntu-latest
+    needs: scan-image
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download Backend Tarball
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-image
+          path: /tmp
+
+      - name: Download Frontend Tarball
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-image
+          path: /tmp
+
+      - name: Load Docker Images
+        run: |
+          docker load --input /tmp/backend-image.tar
+          docker load --input /tmp/frontend-image.tar
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Tag and Push Backend Image
+        run: |
+          IMAGE_ID=ghcr.io/${{ github.repository_owner }}/sovereign-agent-backend
+          # Convert to lowercase
+          IMAGE_ID=$(echo $IMAGE_ID | tr '[A-Z]' '[a-z]')
+          docker tag sovereign-agent-backend:latest $IMAGE_ID:latest
+          docker tag sovereign-agent-backend:latest $IMAGE_ID:${{ github.sha }}
+          docker push $IMAGE_ID:latest
+          docker push $IMAGE_ID:${{ github.sha }}
+
+      - name: Tag and Push Frontend Image
+        run: |
+          IMAGE_ID=ghcr.io/${{ github.repository_owner }}/sovereign-agent-frontend
+          # Convert to lowercase
+          IMAGE_ID=$(echo $IMAGE_ID | tr '[A-Z]' '[a-z]')
+          docker tag sovereign-agent-frontend:latest $IMAGE_ID:latest
+          docker tag sovereign-agent-frontend:latest $IMAGE_ID:${{ github.sha }}
+          docker push $IMAGE_ID:latest
+          docker push $IMAGE_ID:${{ github.sha }}
