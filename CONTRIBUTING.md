@@ -1,59 +1,64 @@
-# Contributing to Alluci Sovereign Agent
+# Contributing to the Alluci Sovereign Agent
 
-First off, thank you for considering contributing to Alluci! It's people like you that make Alluci such a great tool.
+Welcome, and thank you for your interest in the Alluci Sovereign Agent architecture.
 
-## Code of Conduct
+**The Alluci Sovereign Agent is 100% proprietary software.** We are building a mathematically secure, zero-trust cognitive architecture designed to guarantee absolute data sovereignty. Because of the highly sensitive, cryptographic, and topological nature of this system, we do not operate under a standard open-source contribution model.
 
-This project and everyone participating in it is governed by our Code of Conduct. By participating, you are expected to uphold this code.
+We maintain a strictly-gated, high-trust engineering environment. **We do not accept unsolicited pull requests, automated AI-generated code dumps, or "vibe-coded" patches.** Every line of code entering the main branch is subjected to rigorous zero-trust security audits, topological continuity checks, and manual architectural review.
 
-## How Can I Contribute?
+If you are an elite, highly qualified engineer who aligns with the ethos of absolute data sovereignty and local-first compute, we welcome you to apply for "Verified Contributor" status.
 
-### Reporting Bugs
+---
 
-This section guides you through submitting a bug report for Alluci. Following these guidelines helps maintainers and the community understand your report, reproduce the behavior, and find related reports.
+## 1. The "Verified Contributor" Gate
 
-### Suggesting Enhancements
+To prevent repository bloat and ensure the highest security standards, all contributions must be pre-authorized. **Unsolicited Pull Requests from unverified actors will be immediately closed.**
 
-This section guides you through submitting an enhancement suggestion for Alluci, including completely new features and minor improvements to existing functionality.
+### How to Apply for Verified Status
+We do not use GitHub Issues for contributor requests, as this creates unnecessary noise for the core engineering team.
 
-### Your First Code Contribution
+If you are interested in contributing, please send an **Expression of Interest** to **query@alluci.ai** with the subject line:
+`[Alluci Core Contributor Request] - <Your Name>`
 
-Unsure where to begin contributing to Alluci? You can start by looking through these `beginner` and `help-wanted` issues.
+Please include:
+1. A brief summary of your professional engineering background (e.g., GitHub profile, LinkedIn, or portfolio).
+2. The specific architectural subsystem you wish to enhance (e.g., *Polytope Projection Network*, *Sovereign Proxies*, *Axiomatic Value Logic*, *Local Cognitive Engines*).
+3. A brief outline of the value you intend to bring to the architecture.
 
-## Styleguides
+Our core team will review your request privately. If your expertise aligns with our roadmap, you will undergo our verification process. Once cleared, you will be granted **Verified Contributor** status and authorized to open Pull Requests.
 
-### Git Commit Messages
+---
 
-* Use the present tense ("Add feature" not "Added feature")
-* Use the imperative mood ("Move cursor to..." not "Moves cursor to...")
-* Limit the first line to 72 characters or less
-* Reference issues and pull requests liberally after the first line
+## 2. Engineering & Quality Standards
 
-### JavaScript / TypeScript Styleguide
+Verified Contributors must adhere to strict zero-trust engineering principles:
 
-* Use TypeScript for all new code.
-* Follow the existing linting rules.
-* Ensure all sensitive operations use the `SovereignSecurityManager`.
+- **Zero AI-Vibe Coding:** While AI coding assistants are powerful tools for scaffolding, contributors are held 100% accountable for the determinism, security, and mathematical soundness of their commits. Blindly pushing AI-generated code without deep architectural understanding is grounds for immediate revocation of contributor status.
+- **Local Quality Gates:** You MUST run the production readiness suite before committing. If your code fails the local tests, type checks, or security scans, the PR will be rejected.
+  ```bash
+  # Run the full quality and security gate
+  make quality
+  ```
+- **Commit Message Standards:** We enforce [Conventional Commits](https://www.conventionalcommits.org/). This maintains a clean, auditable cryptographic history.
+  - Examples: `feat(ppn): Implement new homology projection algorithm`, `fix(proxy): Resolve PII leakage in edge case`, `sec(avl): Harden Lipschitz budget constraints`.
 
-### Python Styleguide
+---
 
-* Use Python 3.12+.
-* Use `Ruff` for linting and formatting.
-* Ensure all API calls are proxied through `router.py`.
+## 3. Pull Request (PR) Requirements
 
-### Third-Party Subtree Management
+When a Verified Contributor opens a Pull Request, our automated **Security Impact Review** template will trigger. 
 
-* Changes to `third-party/*` subtrees are discouraged.
-* Any changes to vendored code must include a `PROVENANCE.md` file explaining the rationale, version drift, and security impact.
-* Pull Requests modifying `third-party/` must be labeled with `third-party-review` and require explicit sign-off from a security maintainer.
+**Every PR must explicitly address:**
+1. **Data Egress Boundaries:** Does this code touch or alter any network egress pathways?
+2. **Cryptographic Handling:** Does this interact with the Verus Vault, JWT keys, or local encryption?
+3. **Topological Determinism:** Does this introduce any floating-point non-determinism into the cognitive topology or PPN?
 
-## Production Readiness
+### The Review Checklist
+Before your code is merged, it must satisfy the following:
+- [ ] You are a **Verified Contributor**.
+- [ ] The code passes `make quality` locally.
+- [ ] You have written comprehensive unit tests for the newly introduced logic.
+- [ ] The **Security Impact Review** section in the PR template is fully completed.
+- [ ] No GPL, AGPL, or other viral open-source licenses have been introduced to the dependency graph.
 
-Every Pull Request must pass the automated quality gates:
-1. `make quality` must return a PASS.
-2. A `Release Readiness Report` must be attached to the PR.
-3. No placeholder digests (`PIN_THIS_DIGEST`) are allowed in deployment manifests.
-
-## Security
-
-Please report security vulnerabilities for the Alluci project responsibly. Do not open public issues for security vulnerabilities.
+We are deeply committed to building the most secure, autonomous cognitive architecture in the world. We look forward to collaborating with engineers who share this vision.
