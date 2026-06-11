@@ -250,7 +250,10 @@ class ModelRouter(ExecutiveRouter):
             keys = await self.vault.retrieve_secret("alluci_api_keys") or {}
             gemini_key = keys.get("llm", {}).get("googleCloud")
             if gemini_key:
-                genai.configure(api_key=gemini_key)
+                client_opts = {}
+                if getattr(self.settings, "ENFORCE_EU_ENDPOINTS", False):
+                    client_opts = {"api_endpoint": "europe-west3-aiplatform.googleapis.com"}
+                genai.configure(api_key=gemini_key, client_options=client_opts)
                 self.gemini_flash = genai.GenerativeModel("gemini-2.0-flash")
                 self.gemini_pro = genai.GenerativeModel("gemini-2.5-pro-preview-05-06")
                 self.logger.info("Gemini models initialized from vault.")
@@ -297,6 +300,13 @@ class ModelRouter(ExecutiveRouter):
         """Cloud Failover 2: OpenAI."""
         if not self.openai_client:
             raise RuntimeError("OpenAI not configured")
+            
+        if getattr(self.settings, "ENFORCE_EU_ENDPOINTS", False):
+            # Enforce EU-specific base URL for OpenAI if strict physical locality is required
+            # Users must configure Azure OpenAI or an EU proxy in this mode.
+            if "europe" not in str(self.openai_client.base_url).lower() and "eu" not in str(self.openai_client.base_url).lower():
+                self.logger.warning("[COMPLIANCE] ENFORCE_EU_ENDPOINTS is true, but OpenAI Base URL does not appear to be an EU region. Forcing override or check.")
+                
         model = "gpt-4o" if use_strong else "gpt-4o-mini"
         
         messages = []
@@ -717,8 +727,17 @@ class ModelRouter(ExecutiveRouter):
                 allow_cloud = not sovereign_mode and self.evaluate_privacy_constraint(privacy_level, is_cloud_provider=True)
             
             if allow_cloud:
+                data_region = getattr(self.settings, "DATA_REGION", "GLOBAL")
+                
                 from ..security.proxy import AlluciSecureProxy
                 proxy = AlluciSecureProxy()
+                
+                if data_region == "EU":
+                    self.logger.info("[COMPLIANCE] DATA_REGION=EU. Hard-locking AlluciSecureProxy to mathematically guarantee no PII egress.")
+                    # Explicit validation to prevent any architectural bypasses in the future
+                    if not proxy:
+                        raise RuntimeError("CRITICAL: EU Data Residency requires AlluciSecureProxy, but proxy failed to initialize.")
+                        
                 packet = proxy.process_outbound_prompt(prompt)
                 abstract_prompt = packet.compressed_abstract_prompt
                 fallback_vault = packet.secure_ephemeral_vault

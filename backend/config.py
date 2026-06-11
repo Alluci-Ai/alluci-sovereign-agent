@@ -141,6 +141,10 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     LITE_MODE: bool = False
     
+    # Compliance & Data Residency
+    DATA_REGION: Literal["US", "EU", "GLOBAL"] = "GLOBAL"
+    ENFORCE_EU_ENDPOINTS: bool = False
+    
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
