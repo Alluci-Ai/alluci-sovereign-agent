@@ -1,10 +1,12 @@
+import pytest
+pytestmark = pytest.mark.unit
+
 """
 Analytics Unit Tests — Cost Calculation Accuracy
 
 INVARIANT: Token costs must be calculated to 6 decimal places using the
 pricing table. Any rounding error in billing is a production defect.
 """
-import pytest
 from unittest.mock import MagicMock
 from backend.analytics import UsageTracker
 

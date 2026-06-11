@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 from unittest.mock import MagicMock, AsyncMock, patch
 import json
 from fastapi import FastAPI

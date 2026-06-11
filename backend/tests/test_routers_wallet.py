@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 from unittest.mock import patch, AsyncMock
 
 def test_get_wallet_status_success(app_client, auth_headers):

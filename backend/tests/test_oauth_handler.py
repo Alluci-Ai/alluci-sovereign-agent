@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 from unittest.mock import AsyncMock, patch, MagicMock
 import httpx
 from backend.security.oauth_handler import OAuthHandler

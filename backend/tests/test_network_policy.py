@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 import httpx
 from unittest.mock import AsyncMock, patch, MagicMock
 from backend.security.network_policy import EgressFilterTransport, get_secure_client

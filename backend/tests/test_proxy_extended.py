@@ -1,3 +1,6 @@
+import pytest
+pytestmark = pytest.mark.unit
+
 # backend/tests/test_proxy_extended.py
 """Tests for AlluciSecureProxy privacy filtering behavior.
 These tests cover:
@@ -11,7 +14,6 @@ These tests cover:
 import os
 import json
 import base64
-import pytest
 
 from backend.security.proxy import AlluciSecureProxy
 from backend.security.pii_config import WHITELIST_TOKENS, PII_SCRUBBER

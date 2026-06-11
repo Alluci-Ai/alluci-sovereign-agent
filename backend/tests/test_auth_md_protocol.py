@@ -1,5 +1,7 @@
-# tests/test_auth_md_protocol.py
 import pytest
+pytestmark = pytest.mark.unit
+
+# tests/test_auth_md_protocol.py
 import jwt
 import datetime
 

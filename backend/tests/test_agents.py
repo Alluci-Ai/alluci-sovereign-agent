@@ -1,3 +1,6 @@
+import pytest
+pytestmark = pytest.mark.unit
+
 """
 Agent Constellation CRUD — Production Test Suite
 =================================================
@@ -12,7 +15,6 @@ Covers:
   - GET /heartbeat/history (root)
 """
 import json
-import pytest
 from datetime import datetime, timezone
 from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock, AsyncMock

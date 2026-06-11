@@ -1,9 +1,11 @@
+import pytest
+pytestmark = pytest.mark.unit
+
 try:
     import torch
     HAS_TORCH = True
 except ImportError:
     HAS_TORCH = False
-import pytest
 from backend.ace.affect_kernel import AffectKernel, AffectiveState
 
 def test_affect_kernel_identity():

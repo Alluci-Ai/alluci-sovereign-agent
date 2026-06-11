@@ -1,3 +1,6 @@
+import pytest
+pytestmark = pytest.mark.unit
+
 """
 Unit tests for the HeartbeatDaemon probe system.
 
@@ -13,7 +16,6 @@ import time
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
 
 from backend.heartbeat import (
    _parse_legacy_markdown,

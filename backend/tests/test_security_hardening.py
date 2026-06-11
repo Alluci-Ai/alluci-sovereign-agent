@@ -1,3 +1,6 @@
+import pytest
+pytestmark = pytest.mark.unit
+
 """
 Security Hardening Tests
 
@@ -12,7 +15,6 @@ CATEGORIES:
   5. Request boundary violations
   6. Rate limiting enforcement
 """
-import pytest
 import time
 import json
 

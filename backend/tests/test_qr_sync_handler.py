@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 import time
 from unittest.mock import AsyncMock, patch, MagicMock
 from backend.security.qr_sync_handler import QRSyncHandler

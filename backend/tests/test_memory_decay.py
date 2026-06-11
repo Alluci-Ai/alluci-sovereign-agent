@@ -1,3 +1,6 @@
+import pytest
+pytestmark = pytest.mark.unit
+
 import time
 from backend.ace.memory_decay import MemoryTopologyDecay
 

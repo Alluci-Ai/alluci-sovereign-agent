@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 from backend.app import SovereignAPIException
 
 def test_api_exception_structure():

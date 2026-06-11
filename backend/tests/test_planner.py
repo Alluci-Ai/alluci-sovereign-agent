@@ -1,3 +1,6 @@
+import pytest
+pytestmark = pytest.mark.unit
+
 """
 Planner Unit Tests
 
@@ -11,7 +14,6 @@ INVARIANTS:
   - Valid DAGs with complex topologies are built correctly
   - Empty plan from LLM raises ValueError
 """
-import pytest
 import asyncio
 from unittest.mock import AsyncMock, MagicMock
 from backend.engine.planner import Planner

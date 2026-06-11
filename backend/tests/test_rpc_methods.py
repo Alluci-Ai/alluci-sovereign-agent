@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 from backend.ws_gateway import _rpc_success, _rpc_error
 from backend.config import settings
 

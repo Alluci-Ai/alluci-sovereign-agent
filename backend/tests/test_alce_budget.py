@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 torch = pytest.importorskip("torch")
 from backend.inference.ppn import PPNEmbeddingModule
 

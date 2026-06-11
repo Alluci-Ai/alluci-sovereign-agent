@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 import json
 import hashlib
 from unittest.mock import AsyncMock, patch, MagicMock

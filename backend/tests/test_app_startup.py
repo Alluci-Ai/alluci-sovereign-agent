@@ -1,6 +1,8 @@
+import pytest
+pytestmark = pytest.mark.unit
+
 from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi.testclient import TestClient
-import pytest
 
 import backend.services
 import backend.core.startup_checks

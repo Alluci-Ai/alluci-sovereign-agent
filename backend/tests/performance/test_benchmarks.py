@@ -1,9 +1,11 @@
+import pytest
+pytestmark = pytest.mark.unit
+
 """
 Synchronous performance benchmarks for critical code paths.
 These run as part of the normal pytest suite with a timeout guard.
 """
 import time
-import pytest
 from backend.security.guardrail import GuardrailScanner
 from backend.security.dpk import DiscreteProjectionKernel, PolytopeState
 

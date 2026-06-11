@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 import asyncio
 import numpy as np
 from unittest.mock import patch, MagicMock, mock_open

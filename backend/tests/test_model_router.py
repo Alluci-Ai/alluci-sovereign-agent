@@ -1,9 +1,11 @@
+import pytest
+pytestmark = pytest.mark.unit
+
 import json
 """
 Unit tests for ModelRouter.
 All external API calls are mocked — no real network traffic.
 """
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 import sys
 

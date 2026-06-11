@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 import os
 from unittest.mock import AsyncMock, patch, MagicMock
 from fastapi.testclient import TestClient

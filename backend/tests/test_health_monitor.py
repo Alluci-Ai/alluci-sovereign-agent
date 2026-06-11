@@ -1,3 +1,6 @@
+import pytest
+pytestmark = pytest.mark.unit
+
 from backend.security.health_monitor import PVTManifoldHealthMonitor
 from backend.security.dpk import PolytopeState
 

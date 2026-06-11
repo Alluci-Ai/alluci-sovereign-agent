@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 import os
 import yaml  # type: ignore
 from cryptography.fernet import Fernet

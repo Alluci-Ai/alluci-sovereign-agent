@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 import asyncio
 import json
 import os

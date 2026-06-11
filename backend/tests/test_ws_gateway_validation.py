@@ -1,6 +1,8 @@
+import pytest
+pytestmark = pytest.mark.unit
+
 import asyncio
 import json
-import pytest
 from backend.ws_gateway import JsonRpcGateway, ConnectedClient
 from backend.ws_gateway import _rpc_error, _rpc_success
 from backend.schemas.ws_gateway import ExecAllowParams

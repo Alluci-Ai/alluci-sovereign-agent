@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 import base64
 from fastapi import Request
 from backend.security.csp import generate_nonce, get_nonce

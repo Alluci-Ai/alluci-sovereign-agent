@@ -1,9 +1,11 @@
+import pytest
+pytestmark = pytest.mark.unit
+
 """
 Affective Engine (ACE) Unit Tests
 
 Tests flow state transitions, telemetry processing, and boundary conditions.
 """
-import pytest
 from backend.ace.engine import AffectiveEngine
 from backend.models import TelemetryData
 

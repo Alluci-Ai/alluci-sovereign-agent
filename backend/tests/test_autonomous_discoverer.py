@@ -1,10 +1,12 @@
+import pytest
+pytestmark = pytest.mark.unit
+
 # -*- coding: utf-8 -*-
 """
 Test suite for backend/auth/autonomous_discoverer.py
 Ensures core discovery and registration flows behave correctly under mocked network and vault interactions.
 """
 
-import pytest
 from unittest.mock import AsyncMock, patch
 
 from backend.auth.autonomous_discoverer import AlluciAutonomousDiscoverer

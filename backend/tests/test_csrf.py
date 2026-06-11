@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 from backend.security.csrf import CsrfSettings
 from backend.config import settings
 

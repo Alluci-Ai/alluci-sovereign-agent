@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 from fastapi import HTTPException
 from unittest.mock import AsyncMock, patch
 from backend.security.utils import sanitize_input, log_system_event

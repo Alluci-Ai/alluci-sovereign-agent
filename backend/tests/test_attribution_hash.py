@@ -1,3 +1,6 @@
+import pytest
+pytestmark = pytest.mark.unit
+
 from backend.security.dpk import DiscreteProjectionKernel
 
 def test_attribution_hash_determinism():

@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 from unittest.mock import AsyncMock, patch, MagicMock, ANY
 from backend.orchestrator import ExecutiveOrchestrator
 from backend.ace.engine import AffectiveEngine

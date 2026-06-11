@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 from unittest.mock import AsyncMock, patch
 from backend.subagents.boot_template import AlluciSubagentRuntime, test_boot_sequence
 

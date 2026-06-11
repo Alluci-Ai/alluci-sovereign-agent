@@ -1,5 +1,7 @@
-import os
 import pytest
+pytestmark = pytest.mark.unit
+
+import os
 from sqlmodel import Session, select
 from backend.security.audit_ledger import sync_audit_entry
 from backend.models import AuditEntry, AuditLog

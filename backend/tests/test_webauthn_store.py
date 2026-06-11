@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 from unittest.mock import AsyncMock
 import base64
 from backend.security.webauthn_store import WebAuthnChallengeStore

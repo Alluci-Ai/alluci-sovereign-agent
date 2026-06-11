@@ -1,5 +1,7 @@
-import json
 import pytest
+pytestmark = pytest.mark.unit
+
+import json
 from backend.ws_gateway import _rpc_error
 from backend.config import settings
 

@@ -1,7 +1,9 @@
+import pytest
+pytestmark = pytest.mark.unit
+
 """
 Integration tests for the FastAPI application endpoints.
 """
-import pytest
 from unittest.mock import patch, MagicMock, AsyncMock
 from fastapi.testclient import TestClient
 

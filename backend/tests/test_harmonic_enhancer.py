@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 from backend.harmonic_enhancer import LatticeAnalyzer, TopologyMapper, AttentionSignal
 
 def test_lattice_analyzer_periodic():

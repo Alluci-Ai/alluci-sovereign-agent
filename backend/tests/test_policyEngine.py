@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 from backend.security.policyEngine import AutonomyPolicyEngine, ExecutionManifest, AceStateVector, AutonomyLevel
 
 @pytest.fixture

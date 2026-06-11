@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 from backend.security.proxy import AlluciSecureProxy
 
 def test_token_pruning_logic():

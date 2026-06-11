@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 import datetime
 from unittest.mock import AsyncMock, MagicMock
 from sqlmodel import Session, create_engine, SQLModel

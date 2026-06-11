@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 from unittest.mock import AsyncMock, patch, MagicMock
 from sqlmodel import Session
 from backend.models import SessionConfig, AgentRecord

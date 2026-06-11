@@ -1,3 +1,6 @@
+import pytest
+pytestmark = pytest.mark.unit
+
 from backend.ace.engine import AffectiveEngine
 
 def test_deadline_contraction():

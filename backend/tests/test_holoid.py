@@ -1,3 +1,6 @@
+import pytest
+pytestmark = pytest.mark.unit
+
 from backend.inference.holoid import HoloidConsensus
 
 def test_holoid_aggregation():

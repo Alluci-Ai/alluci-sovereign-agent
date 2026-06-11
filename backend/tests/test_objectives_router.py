@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 
 def test_objective_execute_success(app_client, auth_headers):
     """Sanity‑check that the /objective/execute endpoint returns 200 and a basic response.

@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 import time
 from unittest.mock import patch
 from backend.security.circuit_breaker import FinancialCircuitBreaker

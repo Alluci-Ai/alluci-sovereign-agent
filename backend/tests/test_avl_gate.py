@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 from backend.security.avl_gate import AVLGate
 from backend.security.dpk import PolytopeState
 

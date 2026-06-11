@@ -1,9 +1,11 @@
+import pytest
+pytestmark = pytest.mark.unit
+
 """
 [ PPN-032 ] Topological Route Classifier Test Suite.
 Validates that prompt analysis correctly routes to optimal cloud providers.
 """
 
-import pytest
 from unittest.mock import MagicMock
 
 

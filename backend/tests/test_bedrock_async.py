@@ -1,9 +1,11 @@
+import pytest
+pytestmark = pytest.mark.unit
+
 """
 T-01 Verification: AWS Bedrock _bedrock_request must not block the event loop.
 """
 import asyncio
 import json
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 class FakeBodyStream:

@@ -1,3 +1,6 @@
+import pytest
+pytestmark = pytest.mark.unit
+
 """
 Guardrail Scanner Tests — Adversarial Coverage
 
@@ -14,7 +17,6 @@ INVARIANTS:
   - Empty input is rejected
   - Input over 15,000 characters is rejected
 """
-import pytest
 import asyncio
 from backend.security.guardrail import GuardrailScanner
 

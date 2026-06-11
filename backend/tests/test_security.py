@@ -1,7 +1,9 @@
+import pytest
+pytestmark = pytest.mark.unit
+
 """
 Unit tests for Security modules: Vault, Auth, DPK.
 """
-import pytest
 import os
 import tempfile
 from unittest.mock import patch

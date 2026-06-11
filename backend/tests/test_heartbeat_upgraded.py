@@ -1,3 +1,6 @@
+import pytest
+pytestmark = pytest.mark.unit
+
 """
 Upgraded Heartbeat — Production Test Suite
 ==========================================
@@ -18,7 +21,6 @@ import asyncio
 import json
 import os
 import time
-import pytest
 import tempfile
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch

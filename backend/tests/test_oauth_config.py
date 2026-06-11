@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 import os
 from unittest.mock import patch
 from backend.security.oauth_config import get_provider_config, get_client_credentials

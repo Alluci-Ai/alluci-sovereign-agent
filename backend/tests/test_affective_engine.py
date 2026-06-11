@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 from backend.ace.engine import AffectiveEngine
 from backend.models import TelemetryData
 from backend.ace.affect_kernel import AffectiveState

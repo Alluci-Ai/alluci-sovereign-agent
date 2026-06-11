@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 from backend.security.proxy_stub import NoOpSecureProxy
 
 def test_noop_secure_proxy_isolate_personal_perimeter():

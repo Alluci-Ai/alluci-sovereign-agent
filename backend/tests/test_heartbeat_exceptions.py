@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 from unittest.mock import AsyncMock, patch, MagicMock
 from backend.heartbeat import (
     _load_orders_from_manifest,

@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 torch = pytest.importorskip("torch")
 from unittest.mock import patch, MagicMock
 from backend.orchestrator import ExecutiveOrchestrator

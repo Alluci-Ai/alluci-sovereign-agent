@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 import asyncio
 from backend.inference.voice_orchestrator import AlluciVoiceOrchestrator, DeviceTier
 

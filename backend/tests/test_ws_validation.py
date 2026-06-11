@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 import json
 from fastapi.testclient import TestClient
 from backend.ws_gateway import JsonRpcGateway, ConnectedClient

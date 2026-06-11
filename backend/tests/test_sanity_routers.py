@@ -1,3 +1,6 @@
+import pytest
+pytestmark = pytest.mark.unit
+
 import asyncio
 from fastapi import FastAPI, Depends
 from fastapi.testclient import TestClient

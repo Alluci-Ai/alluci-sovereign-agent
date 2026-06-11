@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 import httpx
 from unittest.mock import AsyncMock, patch, MagicMock
 from backend.security.verus_rpc import VerusRPCClient

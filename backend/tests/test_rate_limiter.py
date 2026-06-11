@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 import time
 from fastapi import Request, Response, HTTPException
 from unittest.mock import MagicMock, AsyncMock, patch

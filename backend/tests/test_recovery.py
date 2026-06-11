@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 import base64
 import hashlib
 import sys

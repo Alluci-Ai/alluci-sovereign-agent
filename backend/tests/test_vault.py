@@ -1,3 +1,6 @@
+import pytest
+pytestmark = pytest.mark.unit
+
 """
 Vault Manager Unit Tests — Production Coverage
 
@@ -16,7 +19,6 @@ import os
 import json
 import stat
 import tempfile
-import pytest
 from unittest.mock import patch
 from cryptography.fernet import Fernet, InvalidToken
 

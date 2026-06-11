@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 from unittest.mock import patch, AsyncMock
 from backend.models import TaskUpdate, TaskPriority
 

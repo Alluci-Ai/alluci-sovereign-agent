@@ -1,3 +1,6 @@
+import pytest
+pytestmark = pytest.mark.unit
+
 from backend.ace.btm_mapper import BTMMapper
 from backend.ace.affect_kernel import AffectiveState
 from backend.models import TelemetryData

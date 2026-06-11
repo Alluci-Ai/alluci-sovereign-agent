@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 from fastapi.testclient import TestClient
 from backend.app import app
 from backend.security.oauth_config import OAUTH_CONFIG as OAUTH_CONFIGS

@@ -1,9 +1,11 @@
+import pytest
+pytestmark = pytest.mark.unit
+
 """
 Critic Unit Tests
 
 Tests score evaluation, threshold enforcement, and error handling.
 """
-import pytest
 from backend.engine.critic import Critic
 from unittest.mock import AsyncMock
 

@@ -1,9 +1,11 @@
+import pytest
+pytestmark = pytest.mark.unit
+
 """
 [ PPN-030 ] Voice Pipeline Validation Suite.
 Tests audio segmentation, device tiering, and orchestrator model routing.
 """
 
-import pytest
 import numpy as np
 
 

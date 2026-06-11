@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 import json
 import time
 from unittest.mock import AsyncMock, patch, MagicMock

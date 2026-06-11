@@ -1,5 +1,7 @@
-from backend.bridges.iwatch import IWatchBridge
 import pytest
+pytestmark = pytest.mark.unit
+
+from backend.bridges.iwatch import IWatchBridge
 from unittest.mock import MagicMock
 
 @pytest.fixture

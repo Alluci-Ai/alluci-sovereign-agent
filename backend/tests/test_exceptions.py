@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 from backend.security.exceptions import SecurityException
 
 def test_security_exception():

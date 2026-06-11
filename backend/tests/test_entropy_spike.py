@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 numpy = pytest.importorskip("numpy")
 from backend.ace.entropy_monitor import EntropySpikeDetector
 

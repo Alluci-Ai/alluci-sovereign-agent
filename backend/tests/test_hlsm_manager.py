@@ -1,3 +1,6 @@
+import pytest
+pytestmark = pytest.mark.unit
+
 """
 H-LSM Manager (Hierarchical Long-Short Term Memory) — Production Test Suite
 ========================================================================
@@ -11,7 +14,6 @@ Covers:
   - Metadata preservation
 """
 import uuid
-import pytest
 import asyncio
 from datetime import datetime, timezone
 from sqlmodel import Session, select

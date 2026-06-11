@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 from unittest.mock import patch
 from backend.ws_gateway import _rpc_error
 

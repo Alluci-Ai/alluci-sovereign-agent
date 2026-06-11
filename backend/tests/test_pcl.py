@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 import asyncio
 import time
 from unittest.mock import MagicMock, AsyncMock, patch

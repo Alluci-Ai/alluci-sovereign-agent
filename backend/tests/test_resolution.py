@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 import asyncio
 from unittest.mock import AsyncMock, patch
 from backend.security.resolution import SecurityResolutionManager

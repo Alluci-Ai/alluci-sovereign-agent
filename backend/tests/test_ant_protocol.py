@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 from unittest.mock import AsyncMock
 from backend.network.ant_protocol import AntNetworkProtocol
 

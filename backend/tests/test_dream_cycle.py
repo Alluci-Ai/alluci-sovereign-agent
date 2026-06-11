@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 from unittest.mock import AsyncMock, patch, MagicMock
 from backend.engine.dream_cycle import CognitiveDistiller, DreamingCycleDaemon, SleepStateOrchestrator
 from backend.ace.affect_kernel import AffectiveState

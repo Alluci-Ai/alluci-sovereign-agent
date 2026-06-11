@@ -1,10 +1,12 @@
+import pytest
+pytestmark = pytest.mark.unit
+
 try:
     import torch
     HAS_TORCH = True
 except ImportError:
     HAS_TORCH = False
 
-import pytest
 import asyncio
 import os
 from unittest.mock import MagicMock

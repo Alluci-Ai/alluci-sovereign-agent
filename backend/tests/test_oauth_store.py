@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.unit
+
 import json
 from unittest.mock import AsyncMock
 from backend.security.oauth_store import OAuthStateStore

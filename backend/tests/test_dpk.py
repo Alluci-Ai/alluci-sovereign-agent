@@ -1,3 +1,6 @@
+import pytest
+pytestmark = pytest.mark.unit
+
 """
 Discrete Projection Kernel Unit Tests
 
@@ -10,7 +13,6 @@ INVARIANTS:
   - Manifold tearing (sudden Betti shift > threshold) always blocks
   - Valid, consistent state always passes
 """
-import pytest
 from backend.security.dpk import DiscreteProjectionKernel, PolytopeState
 
 
