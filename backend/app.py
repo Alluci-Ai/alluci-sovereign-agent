@@ -2,6 +2,10 @@
 import logging
 import contextlib
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, Response, Depends
+import structlog
+from structlog.contextvars import bind_contextvars, clear_contextvars
+import uuid
+from opentelemetry import trace
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -18,6 +22,7 @@ VERSION = open(VERSION_FILE).read().strip() if os.path.exists(VERSION_FILE) else
 logger = get_logger("PolytopeApp")
 
 from .routers import auth, objectives, telemetry, system, vault, channels, voice, crons, wallet, sessions, config, soul, exec_approval, tasks, dag, websockets, memory, goals, sop, gemini, security, skills, egress
+from .security.auth import verify_authenticated
 from .security import csrf # Initialize CSRF config
 from .engine.errors import AdapterError
 
@@ -117,8 +122,18 @@ async def sovereign_api_exception_handler(request: Request, exc: SovereignAPIExc
         headers={"X-RateLimit-Remaining": str(getattr(request.state, 'rate_limit_remaining', 'unknown'))}
     )
 
-# Instrument after app instance is created
-configure_tracing(app=app)
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+
+# Templates directory
+templates = Jinja2Templates(directory="backend/templates")
+# Static files (CSS, JS, images)
+app.mount("/static", StaticFiles(directory="backend/static"), name="static")
+
+# Include new routers
+from .routers import monitoring, metrics_json
+app.include_router(monitoring.router, prefix="/monitoring", dependencies=[Depends(verify_authenticated)])
+app.include_router(metrics_json.router, prefix="/metrics")
 
 
 # ── Exception Handlers ──────────────────────────────────────────────────────
@@ -231,6 +246,8 @@ async def readiness_check(request: Request):
 from .metrics import metrics_middleware
 app.middleware("http")(metrics_middleware)
 
+
+
 from .security.csp import generate_nonce
 
 @app.middleware("http")
@@ -268,7 +285,26 @@ async def add_security_headers(request: Request, call_next):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+
+@app.middleware("http")
+async def request_id_middleware(request: Request, call_next):
+    # Generate a unique request ID for tracing and logging
+    request_id = str(uuid.uuid4())
+    bind_contextvars(request_id=request_id)
+    tracer = trace.get_tracer(__name__)
+    with tracer.start_as_current_span("http_request", attributes={
+        "request_id": request_id,
+        "http.method": request.method,
+        "http.route": request.url.path,
+    }):
+        response = await call_next(request)
+    # Attach the request ID to the response headers for client visibility
+    response.headers["X-Request-ID"] = request_id
+    # Clear context to avoid leaking into other requests
+    clear_contextvars()
     return response
+
+
 
 MAX_SIZE = 10 * 1024 * 1024  # 10MB
 @app.middleware("http")

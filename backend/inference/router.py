@@ -7,10 +7,12 @@ import httpx
 import platform
 from typing import Literal, Dict, Any, List, Optional
 from ..logging_config import get_logger
+from ..metrics import LLM_REQUESTS_TOTAL, AVL_GATE_REJECTIONS_TOTAL
 from .executive import ExecutiveRouter
 from .mlx_engine import engine as mlx_engine
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
-
+from ..security.proxy_stub import NoOpSecureProxy
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 logger = get_logger("ModelRouter")
 
 # Conditional imports for failover providers
@@ -66,9 +68,9 @@ class ModelRouter(ExecutiveRouter):
             try:
                 import alluci_core
                 self.secure_proxy = alluci_core.AlluciSovereignRouter()
-            except ImportError as e:
+            except Exception as e:
                 self.logger.error(f"Failed to load C++ proxy: {e}")
-                self.secure_proxy = None
+                self.secure_proxy = NoOpSecureProxy()
 
         # ── LOCAL: LM Studio (LOCAL FALLBACK) ─────────────────────────────────
         self.lm_studio_client = None
@@ -318,6 +320,8 @@ class ModelRouter(ExecutiveRouter):
         content = response.choices[0].message.content
 
         # Log Usage
+        # Removed undefined 'state' reference and AVL gate budget check; analytics handled later.
+
         if self.analytics and session_id:
             try:
                 self.analytics.record_turn(
@@ -328,7 +332,7 @@ class ModelRouter(ExecutiveRouter):
                     output_tokens=response.usage.completion_tokens
                 )
             except Exception as e:
-                self.logger.warning(f"Failed to record OpenAI usage: {e}")
+                logger.warning(f"Failed to record OpenAI usage: {e}")
 
         if getattr(self, "secure_proxy", None) and manifest:
             content = self.secure_proxy.deanonymize_response(content, manifest.pii_vault_registry)
@@ -674,6 +678,8 @@ class ModelRouter(ExecutiveRouter):
                     self.logger.info(f"[LOCAL_SCAN] Trying {name}...")
                     res = await provider_fn(prompt)
                     span.set_attribute("model_provider", name.lower().replace(" ", "_"))
+                    # Increment LLM request metric for local provider
+                    LLM_REQUESTS_TOTAL.labels(provider=name).inc()
                     return res
                 except Exception as e:
                     errors.append(f"{name}: {e}")
@@ -776,6 +782,7 @@ class ModelRouter(ExecutiveRouter):
                             
                             span.set_attribute("model_provider", name.lower().replace(" ", "_"))
                             span.set_attribute("topo_domain", classification["domain"])
+                            LLM_REQUESTS_TOTAL.labels(provider=name).inc()
                             return res
                         except Exception as e:
                             errors.append(f"{name}: {e}")

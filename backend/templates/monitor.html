@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Alluci Observability Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/static/css/monitor.css" />
+    <script src="https://unpkg.com/htmx.org@1.9.6"></script>
+</head>
+<body>
+    <header class="header">
+        <h1>Observability Dashboard</h1>
+    </header>
+    <main class="grid">
+        <!-- LLM Requests Total per provider -->
+        <section class="card" id="llm-requests">
+            <h2>LLM Requests</h2>
+            <div hx-get="/metrics/json" hx-trigger="every 5s" hx-swap="innerHTML" class="content">
+                Loading…
+            </div>
+        </section>
+        <!-- AVL Gate Rejections -->
+        <section class="card" id="avl-rejections">
+            <h2>AVL Gate Rejections</h2>
+            <div hx-get="/metrics/json" hx-trigger="every 5s" hx-swap="innerHTML" class="content">
+                Loading…
+            </div>
+        </section>
+        <!-- Additional metric cards can be added here -->
+    </main>
+</body>
+</html>

@@ -44,6 +44,19 @@ MEMORY_CONSOLIDATION_TOTAL = Counter(
     ["tier"]
 )
 
+# New Prometheus metrics
+LLM_REQUESTS_TOTAL = Counter(
+    "alluci_llm_requests_total",
+    "Total LLM requests with provider label",
+    ["provider"]
+)
+
+AVL_GATE_REJECTIONS_TOTAL = Counter(
+    "alluci_avl_gate_rejections_total",
+    "Total AVL gate rejections",
+    []
+)
+
 # ── Middleware ────────────────────────────────────────────────────────────────
 
 async def metrics_middleware(request: Request, call_next):

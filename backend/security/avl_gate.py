@@ -1,5 +1,6 @@
 import logging
 from ..logging_config import get_logger
+from ..metrics import metrics as metrics_facade, AVL_GATE_REJECTIONS_TOTAL
 from typing import Tuple, Optional
 from .dpk import PolytopeState
 
@@ -31,6 +32,7 @@ class AVLGate:
         # Pillar 1: Sovereign Attribution Check
         if state.signature_hash == 0:
             logger.critical("[AVL) UNSIGNED manifold — rejecting completion")
+            AVL_GATE_REJECTIONS_TOTAL.inc()
             return False, "Unsigned manifold state"
 
         # Pillar 2: ALCE Gradient Smoothness Check
@@ -38,6 +40,7 @@ class AVLGate:
             logger.warning(
                 f"[AVL] Lipschitz budget exceeded: {state.budget_used:.3f}"
             )
+            AVL_GATE_REJECTIONS_TOTAL.inc()
             return False, (
                 f"Manifold deformation budget exceeded "
                 f"({state.budget_used:.2f} > 1.0)"
@@ -57,6 +60,7 @@ class AVLGate:
             logger.error(
                 f"[AVL] Topological rupture: χ={chi} vs β_chi={betti_chi}"
             )
+            AVL_GATE_REJECTIONS_TOTAL.inc()
             return False, (
                 f"Topological rupture detected (χ={chi} vs β_chi={betti_chi})"
             )

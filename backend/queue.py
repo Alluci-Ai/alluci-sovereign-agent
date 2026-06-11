@@ -78,4 +78,4 @@ def record_result(task_id: str, result: Dict[str, Any], error: Optional[str] = N
             task.updated_at = datetime.now(timezone.utc)
             session.add(task)
             session.commit()
-}
+
