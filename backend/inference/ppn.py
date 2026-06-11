@@ -57,6 +57,31 @@ except Exception as e:
     logger.warning(f"[PPN] Failed to initialize native instance: {e}. Falling back to Python.")
     _native_lib = None
 
+# ── Hardware / GPU Detection ──────────────────────────────────────────────────
+GPU_AVAILABLE = False
+
+try:
+    import torch
+    if torch.cuda.is_available():
+        GPU_AVAILABLE = True
+        logger.info("[PPN] GPU/CUDA hardware detected via PyTorch.")
+except ImportError:
+    pass
+
+# Fallback to checking the native C++ kernel for GPU acceleration support
+if not GPU_AVAILABLE and _native_lib and hasattr(_native_lib, "is_gpu_enabled"):
+    try:
+        _native_lib.is_gpu_enabled.restype = ctypes.c_bool
+        if _native_lib.is_gpu_enabled():
+            GPU_AVAILABLE = True
+            logger.info("[PPN] GPU hardware detected via Native C++ Kernel.")
+    except Exception as e:
+        logger.debug(f"[PPN] Native GPU check failed: {e}")
+
+if not GPU_AVAILABLE:
+    logger.info("[PPN] Running in CPU-only mode.")
+# ──────────────────────────────────────────────────────────────────────────────
+
 
 class PPNEmbeddingModule:
     """

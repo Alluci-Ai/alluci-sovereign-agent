@@ -5,26 +5,27 @@ from ..logging_config import get_logger
 import os
 import uuid
 import httpx
+import contextlib
+
 try:
     import websockets
 except ImportError:
     class _DummyWebSocket:
-        async def __aenter__(self):
-            return self
-        async def __aexit__(self, exc_type, exc, tb):
-            pass
-        async def __aiter__(self):
-            return self
-        async def __anext__(self):
-            raise StopAsyncIteration
         async def send(self, data):
             pass
         async def recv(self):
             return ""
+        async def __aiter__(self):
+            return self
+        async def __anext__(self):
+            raise StopAsyncIteration
+
     class _DummyWebsockets:
         @staticmethod
+        @contextlib.asynccontextmanager
         async def connect(uri, extra_headers=None):
-            return _DummyWebSocket()
+            yield _DummyWebSocket()
+            
     websockets = _DummyWebsockets()
 from typing import Dict, Any, Optional
 

@@ -42,8 +42,8 @@ class SlackBridge(BridgeAdapter):
             return False
             
         self._credentials = credentials
-        self.bot_token = credentials.get("access_token", credentials.get("bot_token", ""))
-        self.default_channel = credentials.get("default_channel", self.default_channel)
+        self.bot_token = credentials.get("access_token") or credentials.get("bot_token") or ""
+        self.default_channel = credentials.get("default_channel") or self.default_channel or ""
         self._refresh_token = credentials.get("refresh_token")
         self._token_expires_at = credentials.get("expires_at", 0.0)
         self._signing_secret = credentials.get("signing_secret") or settings.SLACK_SIGNING_SECRET  # type: ignore
