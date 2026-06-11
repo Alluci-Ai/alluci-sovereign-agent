@@ -169,15 +169,15 @@ class TestGuardrailFallback:
     """Tests for graceful degradation when the LLM router is unavailable."""
 
     @pytest.mark.security
-    async def test_fallback_to_open_on_router_failure(self, failing_router):
-        """If the LLM scan fails, the guardrail MUST fail open (return True) for availability."""
+    async def test_fallback_to_close_on_router_failure(self, failing_router):
+        """If the LLM scan fails, the guardrail MUST fail CLOSED (return False) for zero-trust security."""
         scanner = GuardrailScanner(router=failing_router)
         is_safe, reason = await scanner.scan_input("Safe legitimate input")
         
         # Heuristic checks still run, but since input is safe, it should go to LLM and fail.
-        # Fallback should then return True.
-        assert is_safe
-        assert reason == ""
+        # Fallback should then return False.
+        assert not is_safe
+        assert "timeout" in reason.lower()
 
     @pytest.mark.security
     async def test_fallback_still_blocks_heuristics_on_router_failure(self, failing_router):
