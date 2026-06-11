@@ -22,7 +22,7 @@ class GDriveBridge(BridgeAdapter):
         if not token:
             return False
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             res = await client.get(
                 "https://www.googleapis.com/oauth2/v3/userinfo",
                 headers={"Authorization": f"Bearer {token}"}
@@ -78,7 +78,7 @@ class GDriveBridge(BridgeAdapter):
             f"--{boundary}--"
         )
         
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             res = await client.post(
                 "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
                 headers={
@@ -101,7 +101,7 @@ class GDriveBridge(BridgeAdapter):
         if not self.is_connected or not token:
             return []
             
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             res = await client.get(
                 f"{self.base_url}/files",
                 headers={"Authorization": f"Bearer {token}"},

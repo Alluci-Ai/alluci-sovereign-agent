@@ -24,7 +24,7 @@ class GmailBridge(BridgeAdapter):
         if not token:
             return False
             
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             res = await client.get(
                 "https://www.googleapis.com/oauth2/v3/userinfo",
                 headers={"Authorization": f"Bearer {token}"}
@@ -87,7 +87,7 @@ class GmailBridge(BridgeAdapter):
 
         raw_msg = base64.urlsafe_b64encode(msg.as_bytes()).decode('utf-8')
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             res = await client.post(
                 "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
                 headers={"Authorization": f"Bearer {token}"},
@@ -133,7 +133,7 @@ class GmailBridge(BridgeAdapter):
             return []
             
         messages = []
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             res = await client.get(
                 "https://gmail.googleapis.com/gmail/v1/users/me/messages",
                 headers={"Authorization": f"Bearer {token}"},

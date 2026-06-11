@@ -106,7 +106,7 @@ class TunnelHandler:
         url = f"{self.local_base_url}{path}"
         
         try:
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=30.0) as client:
                 # Remove host header to avoid local app rejection
                 headers.pop("host", None)
                 headers.pop("Host", None)

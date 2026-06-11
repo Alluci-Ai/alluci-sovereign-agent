@@ -80,7 +80,7 @@ class VerusNodeManager:
         logger.info(f"[Node] Downloading verusd from {release_url}...")
         
         tmp_file = self.alluci_dir / "verus_cli.tgz"
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             resp = await client.get(release_url, follow_redirects=True, timeout=300.0)
             resp.raise_for_status()
             with open(tmp_file, "wb") as f:

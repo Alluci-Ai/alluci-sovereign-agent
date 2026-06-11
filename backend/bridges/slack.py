@@ -52,7 +52,7 @@ class SlackBridge(BridgeAdapter):
             return False
 
         # Validate token via auth.test
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             res = await client.post(
                 f"{self.api_url}/auth.test",
                 headers={"Authorization": f"Bearer {self.bot_token}"},
@@ -307,7 +307,7 @@ class SlackBridge(BridgeAdapter):
 
     async def validate_integrity(self) -> bool:
         if not self.bot_token: return False
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             res = await client.post(
                 f"{self.api_url}/auth.test",
                 headers={"Authorization": f"Bearer {self.bot_token}"},

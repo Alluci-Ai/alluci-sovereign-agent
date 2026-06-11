@@ -10,6 +10,7 @@ from ..logging_config import get_logger
 from ..metrics import LLM_REQUESTS_TOTAL, AVL_GATE_REJECTIONS_TOTAL
 from .executive import ExecutiveRouter
 from .mlx_engine import engine as mlx_engine
+from .cache import prompt_cache
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from ..security.proxy_stub import NoOpSecureProxy
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
@@ -622,6 +623,12 @@ class ModelRouter(ExecutiveRouter):
 
         async with self._inference_semaphore:
             with tracer.start_as_current_span("get_response") as span:
+                
+                # Check Prompt Cache
+                cached_res = await prompt_cache.get(prompt, system_instruction, inference_mode)
+                if cached_res:
+                    return cached_res
+
                 if inference_mode == "TACTICAL":
                     return await self.get_fast_tactical_response(prompt, system_instruction=system_instruction, agent_id=agent_id)
 
@@ -785,6 +792,9 @@ class ModelRouter(ExecutiveRouter):
                             # Reinject PII and log to dream pool via Teacher Distillation mapping
                             res = proxy.process_inbound_response(res, fallback_vault, agent_id, abstract_prompt)
                             
+                            # Cache the successful response
+                            await prompt_cache.set(prompt, system_instruction, inference_mode, res)
+
                             span.set_attribute("model_provider", name.lower().replace(" ", "_"))
                             span.set_attribute("topo_domain", classification["domain"])
                             LLM_REQUESTS_TOTAL.labels(provider=name).inc()
@@ -834,6 +844,11 @@ class ModelRouter(ExecutiveRouter):
         if not self.groq_api_key:
             return await self.get_response(prompt, complexity="LOW", system_instruction=system_instruction, agent_id=agent_id)
         
+        # Check Prompt Cache
+        cached_res = await prompt_cache.get(prompt, system_instruction, "TACTICAL")
+        if cached_res:
+            return cached_res
+        
         messages = []
         if system_instruction:
             messages.append({"role": "system", "content": system_instruction})
@@ -846,7 +861,9 @@ class ModelRouter(ExecutiveRouter):
                 response = await client.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload)
                 response.raise_for_status()
                 data = response.json()
-                return data["choices"][0]["message"]["content"]
+                content = data["choices"][0]["message"]["content"]
+                await prompt_cache.set(prompt, system_instruction, "TACTICAL", content)
+                return content
             except Exception:
                 return await self._gemini_request(prompt, use_pro=False, system_instruction=system_instruction)
 

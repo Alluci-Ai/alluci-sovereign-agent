@@ -60,7 +60,7 @@ class UpdateManager:
         """
         url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
         try:
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=30.0) as client:
                 # Use a timeout of 10s to avoid hanging during network issues
                 resp = await client.get(url, timeout=10.0)
                 if resp.status_code == 200:
