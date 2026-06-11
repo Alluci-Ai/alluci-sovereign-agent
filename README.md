@@ -29,6 +29,9 @@
 
 Alluci abandons traditional, hallucination-prone Euclidean vector spaces in favor of **Topologically Stable Geometric Intelligence** (The Polytope Projection Network).
 
+> [!NOTE]
+> **View the visual architectural blueprint:** We have mapped the entire cognitive pipeline and data egress firewall. See the comprehensive PlantUML diagram in [Documentation/architecture.puml](Documentation/architecture.puml).
+
 ### 1. The Local Cognitive Engine (LCE)
 - **Neural Decoupling Layer**: The `ExecutiveRouter` dynamically maps inputs to the local Gemma 4 model or 3rd-party APIs based on strict privacy checks, allowing underlying base weights to be hot-swapped without breaking your skill manifests.
 - **Adaptive Bit-Width Quantization**: Maintains high-fidelity reasoning in the first dense layers while crushing MoE weights down to a 1.58-bit footprint, allowing massive 30B+ parameter models to run on consumer hardware (M1/M2/RTX 4090).
