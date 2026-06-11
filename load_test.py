@@ -113,13 +113,15 @@ class AlluciAgentUser(HttpUser):
         
         # Fire request to the Executive Objective endpoint
         with self.client.post("/api/v1/objective/execute", json=payload, headers=headers, catch_response=True) as response:
+            # Add type ignores because IDEs (Pylance/MyPy) think response is requests.Response
+            # but Locust returns a ResponseContextManager when catch_response=True
             if response.status_code in [200, 202]:
-                response.success()
+                response.success()  # type: ignore
             elif response.status_code == 403:
                 # 403 can happen if the dynamic PSI blocked the AutonomyLevel! This is intended behavior.
-                response.success()
+                response.success()  # type: ignore
             else:
-                response.failure(f"Unexpected status: {response.status_code}")
+                response.failure(f"Unexpected status: {response.status_code}")  # type: ignore
 
     @task(2)
     def check_memory_store(self):
