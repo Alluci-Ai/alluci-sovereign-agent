@@ -1,0 +1,86 @@
+@startuml Alluci_Sovereign_Agent_Architecture
+!theme plain
+skinparam componentStyle uml2
+skinparam linetype ortho
+skinparam DefaultFontName Arial
+skinparam BackgroundColor #FFFFFF
+
+title Alluci Sovereign Agent - Core Architecture & Data Flow
+
+' --- ZONE 1: USER INPUT & TRIGGERS (Left) ---
+package "1. User Input & Trigger Zone" #E3F2FD {
+    [Bridges\n(Telegram, Nostr, Email)] as Bridges
+    [Cron Engine\n(Scheduled Events)] as Crons
+    [Web UI / Biometrics] as UI
+}
+
+' --- ZONE 2: SOVEREIGN ORCHESTRATOR (Center) ---
+package "2. Sovereign Orchestrator Zone" #FFF3E0 {
+    [PCL\n(Personal Cognitive Loop)] as PCL
+    [ACE\n(Agent Cognitive Engine)] as ACE
+    [Planner] as Planner
+    [DAG Engine] as DAG
+    [Task Execution] as Tasks
+}
+
+' --- ZONE 3: SECURITY & MEMORY (Bottom) ---
+package "3. Deep Local Storage & Security" #E8F5E9 {
+    [Verus Vaults\n(Keys & Ephemeral PII)] as Vaults
+    [Wallet\n(Cryptographic Signing)] as Wallet
+    [Audits\n(Local SQLite Ledger)] as Audits
+}
+
+' --- ZONE 4: COMPLIANCE EGRESS BOUNDARY (Right) ---
+package "4. Compliance Egress & Inference Boundary" #FFEBEE {
+    [SecureProxy\n(PII Pseudonymization)] as SecureProxy
+    [Topology Classifier\n(Routing Logic)] as Topology
+    
+    database "LCE\n(Local Cognitive Engine)" as LCE #C8E6C9
+    cloud "Cloud Provider Support\n(OpenAI / Gemini)" as Cloud #FFCDD2
+    
+    [DPK\n(Data/Domain Proof Key)] as DPK
+    [AVL Gate\n(Axiomatic Value Logic)] as AVL
+}
+
+' --- ZONE 5: IMMUTABLE LEDGER (Far Right) ---
+package "5. Immutable Ledger Zone" #EDE7F6 {
+    [Verus ID / VDXF\n(Identity & Data Format)] as VDXF
+    node "Verus Daemon / Node" as VerusNode
+}
+
+' --- DEFINING THE DATA FLOW ---
+
+' Triggers to ACE
+Bridges --> PCL : Stimulus
+Crons --> PCL : Scheduled Trigger
+UI --> PCL : User Command
+PCL -> ACE : Context & Goal Injection
+
+' Planning Phase
+ACE -> Planner : Request Action Plan
+Planner -> DAG : Compile Dependency Graph
+DAG -> Tasks : Yield Actionable Tasks
+
+' Execution to Inference (The Firewall)
+Tasks --> SecureProxy : Request LLM Inference
+SecureProxy --> Topology : Abstracted Prompt
+Topology --> LCE : Local-First Route
+Topology --> Cloud : Cloud Egress Route (Pseudonymized)
+
+' Validation Phase
+LCE --> DPK : Raw Response
+Cloud --> DPK : Raw Response
+DPK --> AVL : Cryptographic Integrity Validated
+AVL --> Tasks : Value-Aligned Response (Deanonymized)
+
+' Memory and Security Linkages
+SecureProxy ..> Vaults : Ephemeral Swap / Retrieve Keys
+Tasks ..> Audits : Log Execution State
+AVL ..> Audits : Log Value Alignment Check
+
+' Blockchain Anchoring
+Audits --> Wallet : Request Signature
+Wallet --> VDXF : Format Payload
+VDXF --> VerusNode : Anchor to Blockchain
+
+@enduml
