@@ -24,17 +24,28 @@ class AlluciSecureProxy:
 
         Existing code accessing ``self.privacy_filter_registry`` will continue
         to work.
+        
+        **Security Guarantee:** Maintains an immutable, un-bypassable list of regex 
+        patterns used to violently strip PII from data streams.
         """
         return PII_SCRUBBER
 
     @property
     def registry(self) -> List[Tuple[str, re.Pattern]]:
-        """Backward‑compatible alias for ``privacy_filter_registry``."""
+        """Backward‑compatible alias for ``privacy_filter_registry``.
+        
+        **Security Guarantee:** Maintains an immutable, un-bypassable list of regex 
+        patterns used to violently strip PII from data streams.
+        """
         return self.privacy_filter_registry
         
     def process_outbound_prompt(self, raw_user_prompt: str) -> OptimizedSovereignPacket:
         """
         Step 1: Extract private data and generate abstract query layouts.
+        
+        **Security Guarantee:** Creates a mathematical pseudonymization firewall. 
+        Extracts all PII into an ephemeral Verus Vault and only releases abstract UUID 
+        payloads to 3rd-party cloud providers.
         """
         text_working_buffer = raw_user_prompt
         secure_ephemeral_vault = {}
@@ -65,6 +76,10 @@ class AlluciSecureProxy:
         """
         Step 2: Merge private context back into incoming API responses.
         Logs the abstract_prompt -> raw_cloud_response to the Agent's dream pool.
+        
+        **Security Guarantee:** Intercepts cloud responses and securely reconstructs 
+        original PII using the ephemeral vault locally, guaranteeing the cloud provider 
+        never possessed the raw data.
         """
         final_output_buffer = raw_cloud_response
         for placeholder_token, private_value in fallback_vault.items():

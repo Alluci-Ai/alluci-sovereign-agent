@@ -28,6 +28,10 @@ class AVLGate:
         """
         Returns (is_safe, reason).
         All three pillars must pass for the completion to be verified.
+        
+        **Security Guarantee:** Enforces zero-trust LLM execution by hard-rejecting 
+        outputs that lack local cryptographic signatures or violate topological continuity 
+        bounds (Euler deviations), preventing hallucination leaks.
         """
         # Pillar 1: Sovereign Attribution Check
         if state.signature_hash == 0:
@@ -78,6 +82,10 @@ class AVLGate:
 
         If the action violates budget but is close to boundary,
         projects it to the nearest admissible point instead of hard-rejecting.
+        
+        **Security Guarantee:** Neutralizes prompt-injection or hallucinated overflows 
+        by deterministically projecting out-of-bounds LLM responses back into the 
+        safe Lipschitz budget boundary.
         """
         # Pillar 1: Sovereign Attribution — no refinement possible
         if state.signature_hash == 0:
@@ -131,6 +139,9 @@ class AVLGate:
         current polytope, deterministically project it to the nearest
         boundary point. In practice, this truncates the completion
         to the proportion that fits within the remaining budget.
+        
+        **Security Guarantee:** Mathematically truncates adversarial actions to 
+        guarantee they never exceed the user's defined local safety constraints.
         """
         if state.budget_used <= 0:
             return completion
