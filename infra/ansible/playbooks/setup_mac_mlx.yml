@@ -1,0 +1,34 @@
+---
+- name: Provision Sovereign Agent for Apple MLX (Native)
+  hosts: local
+  gather_facts: false
+  tasks:
+    - name: Verify operating system is macOS
+      assert:
+        that: "ansible_distribution == 'MacOSX'"
+        fail_msg: "This playbook is strictly for Apple Silicon / macOS targeting MLX."
+
+    - name: Install PM2 (Process Manager) globally via npm
+      npm:
+        name: pm2
+        global: yes
+        state: present
+
+    - name: Start Database and Vault via Docker Compose (No GPU needed)
+      shell: "docker-compose up -d postgres redis vault"
+      args:
+        chdir: "../../.."
+
+    - name: Configure PM2 for Native MLX FastAPI Engine
+      shell: |
+        pm2 start ../../../backend/app.py --name "alluci-engine" --interpreter ../../../.venv/bin/python
+        pm2 save
+      args:
+        creates: ~/.pm2/dump.pm2
+
+    - name: Configure PM2 for Vite Frontend
+      shell: |
+        pm2 start npm --name "alluci-frontend" -- run dev
+        pm2 save
+      args:
+        creates: ~/.pm2/dump.pm2

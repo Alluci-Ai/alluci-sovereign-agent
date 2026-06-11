@@ -1,4 +1,5 @@
 import anyio
+from anyio import to_thread
 
 
 import logging
@@ -34,7 +35,7 @@ async def sync_audit_entry(entry: AuditEntry, topo: Optional[dict] = None):
     async with lock:
         try:
             # We use a thread pool for DB operations as SQLModel/SQLAlchemy Session is sync
-            return await anyio.to_thread.run_sync(_sync_audit_entry_sync, entry, topo)
+            return await to_thread.run_sync(_sync_audit_entry_sync, entry, topo)
         except Exception as e:
             logger.error(f"Audit sync failed: {e}")
             return {"status": "ERROR", "message": str(e)}
@@ -131,7 +132,7 @@ async def anchor_audit_batch(limit: int = 100):
 
 async def read_audit_log(limit: int = 100, offset: int = 0, status: Optional[str] = None):
     """Retrieves paginated audit entries from the database."""
-    return await anyio.to_thread.run_sync(_read_audit_log_sync, limit, offset, status)
+    return await to_thread.run_sync(_read_audit_log_sync, limit, offset, status)
 
 def _read_audit_log_sync(limit: int, offset: int, status: Optional[str]):
     with Session(db_engine) as session:

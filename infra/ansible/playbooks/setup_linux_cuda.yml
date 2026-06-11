@@ -1,0 +1,24 @@
+---
+- name: Provision Sovereign Agent for Linux/WSL2 (CUDA/Docker)
+  hosts: local
+  gather_facts: false
+  tasks:
+    - name: Verify operating system is Linux
+      assert:
+        that: "ansible_distribution != 'MacOSX'"
+        fail_msg: "This playbook is strictly for Linux/WSL2 with CUDA support."
+
+    - name: Ensure Docker and Nvidia Container Toolkit are installed
+      shell: "docker info | grep -i nvidia"
+      ignore_errors: yes
+      register: nvidia_check
+
+    - name: Fail if Nvidia toolkit is missing
+      fail:
+        msg: "Nvidia Container Toolkit is missing. Please install it to use CUDA passthrough."
+      when: nvidia_check.rc != 0
+
+    - name: Start Full Stack via Docker Compose (With GPU Passthrough)
+      shell: "docker-compose -f ../../../docker-compose.yml -f ../../../docker/docker-compose.gpu.yml up -d"
+      args:
+        chdir: "../../.."
