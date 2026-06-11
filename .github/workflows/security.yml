@@ -36,3 +36,32 @@ jobs:
         with:
           name: SBOM
           path: alluci-agent-sbom.json
+
+  license_audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Ruby for LicenseFinder
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+
+      - name: Install LicenseFinder
+        run: gem install license_finder
+
+      - name: Run License Audit
+        run: |
+          license_finder permitted_licenses add MIT
+          license_finder permitted_licenses add Apache-2.0
+          license_finder permitted_licenses add BSD
+          license_finder permitted_licenses add ISC
+          license_finder permitted_licenses add Python
+          license_finder permitted_licenses add Zlib
+          license_finder permitted_licenses add LGPL
+          license_finder approvals add psycopg2-binary --why "Dynamically linked LGPL is permitted"
+          license_finder approvals add python-telegram-bot --why "Dynamically linked LGPL is permitted"
+          license_finder approvals add pylint --why "Dev dependency only"
+          license_finder approvals add astroid --why "Dev dependency only"
+          license_finder

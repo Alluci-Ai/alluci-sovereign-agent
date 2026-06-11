@@ -49,7 +49,7 @@ discord.py==2.3.2            # Discord bridge
 python-telegram-bot==21.6    # Telegram bridge
 nostr-sdk==0.42.0             # Nostr bridge (Updated for Python 3.14 compatibility)
 aiosmtplib==3.0.1            # Async SMTP for email bridge
-aioimaplib==1.1.0            # Async IMAP for email bridge
+
 pyicloud==2.0.1              # iCloud bridge (Updated for Python 3.14 compatibility)
 pycryptodome==3.20.0          # WeCom AES decryption
 pyotp==2.9.0                  # iWatch pairing
