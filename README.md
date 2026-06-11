@@ -164,50 +164,74 @@ For enterprise environments requiring strict GDPR or Schrems II compliance, the 
 
 ---
 
-## 🚀 Quick Start & Local Setup Guide
+## 🚀 Comprehensive Onboarding Guide
 
 The new **Sovereignty Level Wizard** makes onboarding seamless. Choose between Cloud-only (Level 1), Local Edge (Level 2), or the Full Sovereign Base (Level 3).
 
-### 1. Prerequisites
+### Prerequisites
 - **Frontend**: [Node.js](https://nodejs.org/) (v20+)
 - **Backend**: [Python](https://www.python.org/) (v3.12+)
-- **Local Inference Tools** (Optional based on Sovereignty Level):
-    - [Ollama](https://ollama.com/) (Hosts the Gemma 4 model family for active inference)
-    - [Whisper.cpp](https://github.com/ggerganov/whisper.cpp) (ASR)
-    - [Piper](https://github.com/rhasspy/piper) (TTS)
+- **Local Inference Tools**: [Ollama](https://ollama.com/), [Whisper.cpp](https://github.com/ggerganov/whisper.cpp), [Piper](https://github.com/rhasspy/piper)
 
-### 2. Automated Stack Setup
+---
+
+### 1. Running locally
+
+**Automated Stack Setup**
 Run the setup script to install local binaries and pull the required models:
 ```bash
 chmod +x scripts/setup_sovereign_stack.sh
 ./scripts/setup_sovereign_stack.sh
 ```
 
-### 3. Environment Configuration
-Clone the repository and initialize the environment:
+**Start the Stack via Makefile**
+The easiest way to run the entire stack locally is using our pre-configured Makefile:
+```bash
+make init
+make start
+```
+*Alternatively, run them manually:*
+- **Backend:** `source .venv/bin/activate && pip install -r requirements.txt && uvicorn backend.app:app --reload`
+- **Frontend:** `npm install && npm run dev`
+
+Open `http://localhost:5173` to access the Alluci Sovereign Gateway. Upon first launch, the **Sovereignty Wizard** will guide you through your stack configuration.
+
+---
+
+### 2. Configuring vault secrets
+
+The Sovereign Agent uses a strictly local `.env` file to seed its Verus Vault and configuration parameters. 
+
+Clone the template to initialize your environment:
 ```bash
 cp .env.example .env
 ```
-Fill in your environment variables:
-- `POLYTOPE_MASTER_KEY`: Your core cryptographic seed for Vault 2FA and encryption.
+Fill in your critical environment variables:
+- `POLYTOPE_MASTER_KEY`: Your core cryptographic seed for Vault 2FA and AES-256 encryption. Keep this safe!
 - `JWT_SECRET_KEY`: Used for secure session management.
 - `DATA_REGION`: Set to `EU` to enforce the SecureProxy pseudonymization firewall.
 - `ENFORCE_EU_ENDPOINTS`: Set to `True` for strict Schrems II physical endpoint enforcement.
 
-### 4. Backend Execution
+---
+
+### 3. Running the test suite
+
+We enforce a rigorous zero-trust testing philosophy. To validate your local deployment, run the full quality gate:
+
 ```bash
-python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-python -m uvicorn backend.app:app --reload
+make quality
 ```
 
-### 5. Frontend Execution
+**This executes the following suite:**
+- **Preflight**: Validates your python and node toolchains.
+- **Testing**: Runs the `pytest` backend suite and the frontend unit tests.
+- **Security**: Performs `npm audit`, `pip-audit`, and `detect-secrets` scanning to prevent supply chain attacks.
+
+To run tests manually:
 ```bash
-npm install
-npm run dev
+source .venv/bin/activate
+pytest backend/tests/ -v
 ```
-Open `http://localhost:5173` to access the Alluci Sovereign Gateway. Upon first launch, the **Sovereignty Wizard** will guide you through your stack configuration.
 
 ---
 
