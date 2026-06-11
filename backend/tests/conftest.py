@@ -41,7 +41,7 @@ os.environ.update({
     "CSRF_SECRET_KEY":       "test-csrf-secret-key-12345678",
     "DB_PASSWORD":           "test-db-password",
     "GEMINI_API_KEY":        "test-gemini-key-placeholder",
-    "DATABASE_URL":          "sqlite:///./test_polytope.db",
+    "DATABASE_URL":          "sqlite:///:memory:",
     "OTEL_SDK_DISABLED":     "true",
     "RATE_LIMIT_PER_MINUTE": "9999",    # Disable rate limits in tests
     "VERUS_AUTH_ENABLED":    "false",
@@ -114,7 +114,8 @@ def temp_db():
          patch("backend.sop.engine.db_engine", engine, create=True), \
          patch("backend.device_manager.db_engine", engine, create=True), \
          patch("backend.orchestrator.db_engine", engine, create=True), \
-         patch("backend.models.engine", engine, create=True):
+         patch("backend.models.engine", engine, create=True), \
+         patch("backend.queue.engine", engine, create=True):
         yield engine
 
     os.unlink(db_path)
@@ -159,7 +160,7 @@ def mock_settings():
     settings.MAX_CONTEXT_TOKENS = 8000
     settings.MAX_CONCURRENT_TASKS = 5
     settings.RATE_LIMIT_PER_MINUTE = 9999
-    settings.DATABASE_URL = "sqlite:///./test_polytope.db"
+    settings.DATABASE_URL = "sqlite:///:memory:"
     settings.AUTH_COOKIE_NAME = "alluci_daemon_token"
     settings.AUTH_COOKIE_SECURE = False
     settings.AUTH_COOKIE_HTTPONLY = True

@@ -19,13 +19,23 @@ connect_args = {}
 if "sqlite" in db_url:
     connect_args["check_same_thread"] = False
 
+from sqlalchemy.pool import StaticPool
+
+from typing import Any
+
 # Create the primary sync engine
 if "sqlite" in db_url:
+    engine_kwargs: dict[str, Any] = {
+        "connect_args": connect_args,
+        "pool_pre_ping": True,
+        "echo": False,
+    }
+    if db_url == "sqlite:///:memory:":
+        engine_kwargs["poolclass"] = StaticPool
+        
     engine = create_engine(
         db_url,
-        connect_args=connect_args,
-        pool_pre_ping=True,
-        echo=False,
+        **engine_kwargs
     )
 else:
     # Production pooling for Postgres

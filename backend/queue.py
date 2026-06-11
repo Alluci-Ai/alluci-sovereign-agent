@@ -10,8 +10,7 @@ from typing import Any, Dict, Optional
 from sqlmodel import Session, select
 
 from .models import QueuedTask, TaskStatus
-from .database import get_session
-
+from .database import engine
 
 def enqueue(func_path: str, *args: Any, **kwargs: Any) -> QueuedTask:
     """Create a new queued task.
@@ -33,7 +32,7 @@ def enqueue(func_path: str, *args: Any, **kwargs: Any) -> QueuedTask:
         status=TaskStatus.QUEUED,
         payload=payload,
     )
-    with get_session() as session:
+    with Session(engine) as session:
         session.add(task)
         session.commit()
         session.refresh(task)
@@ -42,7 +41,7 @@ def enqueue(func_path: str, *args: Any, **kwargs: Any) -> QueuedTask:
 
 def set_status(task_id: str, status: TaskStatus) -> None:
     """Update the status of a queued task."""
-    with get_session() as session:
+    with Session(engine) as session:
         task = session.get(QueuedTask, task_id)
         if task:
             task.status = status
@@ -53,7 +52,7 @@ def set_status(task_id: str, status: TaskStatus) -> None:
 
 def record_checkpoint(task_id: str, data: Dict[str, Any]) -> None:
     """Store intermediate checkpoint data for a task."""
-    with get_session() as session:
+    with Session(engine) as session:
         task = session.get(QueuedTask, task_id)
         if task:
             task.checkpoint = data
@@ -64,7 +63,7 @@ def record_checkpoint(task_id: str, data: Dict[str, Any]) -> None:
 
 def record_result(task_id: str, result: Dict[str, Any], error: Optional[str] = None) -> None:
     """Record the final result (or error) of a task and set its terminal status."""
-    with get_session() as session:
+    with Session(engine) as session:
         task = session.get(QueuedTask, task_id)
         if task:
             task.result = result

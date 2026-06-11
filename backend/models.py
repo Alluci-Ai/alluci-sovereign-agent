@@ -55,7 +55,7 @@ class RunStatus(str, Enum):
 
 # --- New Persistent Queue Model ---
 class QueuedTask(SQLModel, table=True):
-    __tablename__: ClassVar[str] = "queued_task"
+    __tablename__ = "queued_task"  # type: ignore
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
     status: TaskStatus = Field(default=TaskStatus.QUEUED, sa_column=Column(SAEnum(TaskStatus)))
     payload: dict = Field(sa_column=Column(JSON), default_factory=dict)
@@ -84,26 +84,29 @@ class TelemetryData(BaseModel):
         extra = "allow"
 
 # AuditEntry: simple audit record for logging events
-class AuditEntry(SQLModel, table=True):
-    __tablename__: ClassVar[str] = "audit_entry"
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
-    event_id: str = Field(index=True)
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    payload: dict = Field(sa_column=Column(JSON), default_factory=dict)
+class AuditEntry(SQLModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    event: str
+    details: str = ""
+    status: str = "INFO"
+    timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 # AuditLog: represents persisted audit logs used by ledger and verifier
 class AuditLog(SQLModel, table=True):
-    __tablename__: ClassVar[str] = "audit_log"
+    __tablename__ = "audit_log"  # type: ignore
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
     event_id: str = Field(index=True)
     verus_txid: Optional[str] = Field(default=None, index=True)
     status: Optional[str] = Field(default=None)
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    integrity_hash: Optional[str] = Field(default=None)
+    vdxf_key: Optional[str] = Field(default=None, index=True)
+    anchored_timestamp: Optional[datetime] = Field(default=None)
     data: dict = Field(sa_column=Column(JSON), default_factory=dict)
 
 # AgentChannelSubscription: minimal stub for channel subscription model
 class AgentChannelSubscription(SQLModel, table=True):
-    __tablename__: ClassVar[str] = "agent_channel_subscription"
+    __tablename__ = "agent_channel_subscription"  # type: ignore
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
     agent_id: str = Field(index=True)
     channel_id: str = Field(index=True)
@@ -111,7 +114,7 @@ class AgentChannelSubscription(SQLModel, table=True):
 
 # --- HLSM Memory Models ---
 class HLSMEpisodicEntry(SQLModel, table=True):
-    __tablename__: ClassVar[str] = "hlsm_episodic"
+    __tablename__ = "hlsm_episodic"  # type: ignore
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
     content: str = Field(sa_column=Column(JSON))
     source: str = Field(default="task_result")
@@ -129,7 +132,7 @@ class HLSMEpisodicEntry(SQLModel, table=True):
     extra_metadata: Optional[dict] = Field(sa_column=Column(JSON), default=None)
 
 class HLSMWorkingEntry(SQLModel, table=True):
-    __tablename__: ClassVar[str] = "hlsm_working"
+    __tablename__ = "hlsm_working"  # type: ignore
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
     session_key: str = Field(index=True)
     content: str = Field()
@@ -140,7 +143,7 @@ class HLSMWorkingEntry(SQLModel, table=True):
 # --- Device and Binding Models ---
 
 class Device(SQLModel, table=True):
-    __tablename__: ClassVar[str] = "device"
+    __tablename__ = "device"  # type: ignore
     id: int = Field(default=None, primary_key=True)
     name: str = Field(index=True)
     public_key: str = Field(nullable=False)
@@ -150,7 +153,7 @@ class Device(SQLModel, table=True):
     last_seen: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class DeviceBinding(SQLModel, table=True):
-    __tablename__: ClassVar[str] = "device_binding"
+    __tablename__ = "device_binding"  # type: ignore
     id: int = Field(default=None, primary_key=True)
     device_id: int = Field(foreign_key="device.id")
     agent_id: str = Field(index=True)
@@ -160,7 +163,7 @@ class DeviceBinding(SQLModel, table=True):
 # --- Additional Model Stubs for Goals and PCL ---
 
 class GoalRecord(SQLModel, table=True):
-    __tablename__: ClassVar[str] = "goal_record"
+    __tablename__ = "goal_record"  # type: ignore
     id: int = Field(default=None, primary_key=True)
     title: str = Field(index=True)
     description: Optional[str] = Field(default=None)
@@ -168,7 +171,7 @@ class GoalRecord(SQLModel, table=True):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class PCLOpportunity(SQLModel, table=True):
-    __tablename__: ClassVar[str] = "pcl_opportunity"
+    __tablename__ = "pcl_opportunity"  # type: ignore
     id: int = Field(default=None, primary_key=True)
     detected_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     actioned: bool = Field(default=False)
@@ -177,23 +180,40 @@ class PCLOpportunity(SQLModel, table=True):
     # Additional fields can be added as needed
 
 class PCLWorldModelSnapshot(SQLModel, table=True):
-    __tablename__: ClassVar[str] = "pcl_world_model_snapshot"
+    __tablename__ = "pcl_world_model_snapshot"  # type: ignore
     id: int = Field(default=None, primary_key=True)
     snapshot_data: dict = Field(sa_column=Column(JSON), default_factory=dict)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class TaskRecord(SQLModel, table=True):
-    __tablename__: ClassVar[str] = "task_record"
+    __tablename__ = "task_record"  # type: ignore
     id: int = Field(default=None, primary_key=True)
-    task_id: int = Field(index=True)
+    run_id: Optional[int] = Field(default=None, index=True)
+    task_id: Optional[int] = Field(default=None, index=True)
+    agent_id: Optional[str] = Field(default=None)
+    task_dag_id: Optional[str] = Field(default=None)
+    action: Optional[str] = Field(default=None)
+    args: Optional[dict] = Field(sa_column=Column(JSON), default_factory=dict)
     status: str = Field(index=True)
+    error: Optional[str] = Field(default=None)
     result: Optional[dict] = Field(sa_column=Column(JSON), default_factory=dict)
+    end_time: Optional[datetime] = Field(default=None)
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class ModelPricing(SQLModel, table=True):
+    __tablename__ = "model_pricing"  # type: ignore
+    id: int = Field(default=None, primary_key=True)
+    model_id: str = Field(index=True, unique=True)
+    input_price_per_1m: float
+    output_price_per_1m: float
+    cache_read_price: Optional[float] = Field(default=None)
+    cache_write_price: Optional[float] = Field(default=None)
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 # Additional SOP model stub
 
 class SOPRecord(SQLModel, table=True):
-    __tablename__: ClassVar[str] = "sop_record"
+    __tablename__ = "sop_record"  # type: ignore
     id: int = Field(default=None, primary_key=True)
     name: str = Field(index=True)
     description: Optional[str] = Field(default=None)
@@ -204,7 +224,7 @@ class SOPRecord(SQLModel, table=True):
 # End of added stubs
 # --- Additional Model Stubs for Execution and Auth ---
 class Run(SQLModel, table=True):
-    __tablename__: ClassVar[str] = "run"
+    __tablename__ = "run"  # type: ignore
     id: int = Field(default=None, primary_key=True)
     objective: str = Field()
     autonomy_level: str = Field()
@@ -222,14 +242,14 @@ class LoginRequest(BaseModel):
     key: str
 
 class CronJob(SQLModel, table=True):
-    __tablename__: ClassVar[str] = "cron_job"
+    __tablename__ = "cron_job"  # type: ignore
     id: int = Field(default=None, primary_key=True)
     agent_id: str = Field(index=True)
     enabled: bool = Field(default=True)
     # Additional fields can be added as needed
 
 class CronRun(SQLModel, table=True):
-    __tablename__: ClassVar[str] = "cron_run"
+    __tablename__ = "cron_run"  # type: ignore
     id: int = Field(default=None, primary_key=True)
     job_id: int = Field(foreign_key="cron_job.id")
     started_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -246,17 +266,17 @@ class DAGTask(BaseModel):
     action: str
     args: dict = {}
     dependencies: list[str] = []
-    status: str = "PENDING"
+    status: TaskStatus = TaskStatus.PENDING
     result: Optional[str] = None
 
 class SessionConfig(SQLModel, table=True):
-    __tablename__: ClassVar[str] = "session_config"
+    __tablename__ = "session_config"  # type: ignore
     id: int = Field(default=None, primary_key=True)
     session_key: str = Field(index=True)
     # Extend with additional config fields as needed
 
 class AgentRecord(SQLModel, table=True):
-    __tablename__: ClassVar[str] = "agent_record"
+    __tablename__ = "agent_record"  # type: ignore
     id: str = Field(default=None, primary_key=True)
     name: str = Field(index=True)
     status: str = Field(index=True)
@@ -264,7 +284,7 @@ class AgentRecord(SQLModel, table=True):
     heartbeat_orders: Optional[dict] = Field(sa_column=Column(JSON), default=None)
 
 class HeartbeatOrderRecord(SQLModel, table=True):
-    __tablename__: ClassVar[str] = "heartbeat_order_record"
+    __tablename__ = "heartbeat_order_record"  # type: ignore
     id: int = Field(default=None, primary_key=True)
     agent_id: str = Field(foreign_key="agent_record.id")
     order: int = Field()
@@ -293,7 +313,7 @@ class CurrencyBalance(BaseModel):
     amount: float
 
 class WalletDashboard(SQLModel, table=True):
-    __tablename__: ClassVar[str] = "wallet_dashboard"
+    __tablename__ = "wallet_dashboard"  # type: ignore
     id: int = Field(default=None, primary_key=True)
     user_id: str = Field(index=True)
     # Store balances as a JSON dict mapping currency to amount for simplicity

@@ -8,7 +8,7 @@ from backend.orchestrator import ExecutiveOrchestrator
 from backend.models import Run, TaskRecord, RunStatus
 
 @pytest.fixture
-def mock_orchestrator(tmp_path):
+def mock_orchestrator(tmp_path, temp_db):
     router = AsyncMock()
     vault = AsyncMock()
     ace = MagicMock()
@@ -169,12 +169,15 @@ async def test_execute_objective_refine_plan_exception(mock_orchestrator):
 @pytest.mark.asyncio
 async def test_execute_research_json_fallback(mock_orchestrator):
     mock_orchestrator.planner.router.get_response.side_effect = ["invalid json", "report"]
-    mock_orchestrator.adapter_registry = {
-        "web_search": AsyncMock(execute=AsyncMock(return_value={"results": []})),
-        "web_fetch": AsyncMock(execute=AsyncMock(return_value={"text": ""}))
-    }
-    res = await mock_orchestrator.execute_research("obj")
-    assert res["status"] == "success"
+    mock_search = AsyncMock()
+    mock_search.execute = AsyncMock(return_value={"results": []})
+    mock_fetch = AsyncMock()
+    mock_fetch.execute = AsyncMock(return_value={"text": ""})
+    
+    mock_orchestrator.adapter_registry.get = MagicMock(side_effect=lambda name: mock_search if name == "web_search" else mock_fetch)
+    
+    await mock_orchestrator._run_research("obj", "task_123")
+    assert mock_orchestrator.planner.router.get_response.call_count == 2
 
 @pytest.mark.asyncio
 async def test_compact_all_memory(mock_orchestrator):
@@ -202,11 +205,12 @@ def test_persistence_methods(mock_orchestrator):
     
     with patch("backend.orchestrator.db_engine", engine):
         rid = mock_orchestrator._create_run_record("obj", "auto")
-        mock_orchestrator._update_run_status(rid, "completed", 1.0, "f")
+        from backend.models import RunStatus
+        mock_orchestrator._update_run_status(rid, RunStatus.COMPLETED, 1.0, "f")
         mock_orchestrator._save_manifest(rid, "sig")
         
         with Session(engine) as session:
             r = session.get(Run, rid)
-            assert r.status == "completed"
+            assert r.status == RunStatus.COMPLETED
             assert r.score == 1.0
             assert r.manifest_signature == "sig"

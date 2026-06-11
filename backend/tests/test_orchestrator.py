@@ -76,7 +76,8 @@ async def test_cancel_run(orchestrator, db_session):
     # Create a real DB run to cancel
     run = Run(
         objective="Test Run",
-        status="running",
+        autonomy_level="autonomous",
+        status=RunStatus.ACTIVE,
         started_at=datetime.now(timezone.utc),
         completed_at=datetime.now(timezone.utc),
     )
@@ -86,6 +87,7 @@ async def test_cancel_run(orchestrator, db_session):
 
     task_rec = TaskRecord(
         run_id=run.id,
+        task_id=1,
         task_dag_id="task_1",
         action="test",
         args="{}",
@@ -149,14 +151,11 @@ async def test_execute_research(orchestrator):
     
     orchestrator.adapter_registry.get = MagicMock(side_effect=lambda name: mock_search if name == "web_search" else mock_fetch)
     
-    # The method uses self._save_manifest which we already mocked
-    # We just want to check it completes and returns a dict
-    result = await orchestrator.execute_research("Test research")
-    assert isinstance(result, dict)
-    assert result["status"] == "success"
-    # The execute_research method writes the results to a file or returns a specific payload
-    # Let's just check the sources or result contains the query
-    assert "sources" in result or "result" in result
+    with patch("backend.queue.record_result") as mock_record:
+        # Check that it completes
+        await orchestrator._run_research("Test research", "task_123")
+        assert orchestrator.planner.router.get_response.call_count == 2
+        mock_record.assert_called_once()
 
 @pytest.mark.asyncio
 async def test_handle_inbound_message(orchestrator):

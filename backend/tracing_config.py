@@ -14,6 +14,7 @@ except ImportError:
         def set_attribute(self, *args, **kwargs): pass
         def add_event(self, *args, **kwargs): pass
         def set_status(self, *args, **kwargs): pass
+        def record_exception(self, *args, **kwargs): pass
 
     class _DummyTracer:
         def start_as_current_span(self, *args, **kwargs):

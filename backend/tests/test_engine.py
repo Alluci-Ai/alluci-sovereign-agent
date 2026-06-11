@@ -140,7 +140,7 @@ class TestExecutor:
         }
         
         with Session(temp_db) as session:
-            run = Run(objective="Test dep")
+            run = Run(objective="Test dep", autonomy_level="SEMI_AUTONOMOUS")
             session.add(run)
             session.commit()
             run_id = run.id
@@ -162,7 +162,7 @@ class TestExecutor:
         }
 
         with Session(temp_db) as session:
-            run = Run(objective="Test agent propagation", agent_id="sub_agent_xyz")
+            run = Run(objective="Test agent propagation", autonomy_level="SEMI_AUTONOMOUS", agent_id="sub_agent_xyz")
             session.add(run)
             session.commit()
             run_id = run.id
@@ -190,7 +190,7 @@ class TestExecutor:
         }
 
         with Session(temp_db) as session:
-            run = Run(objective="Test fail")
+            run = Run(objective="Test fail", autonomy_level="SEMI_AUTONOMOUS")
             session.add(run)
             session.commit()
             run_id = run.id
@@ -217,7 +217,7 @@ class TestExecutor:
         }
 
         with Session(temp_db) as session:
-            run = Run(objective="Cascade test")
+            run = Run(objective="Cascade test", autonomy_level="SEMI_AUTONOMOUS")
             session.add(run)
             session.commit()
             run_id = run.id

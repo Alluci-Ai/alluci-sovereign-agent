@@ -40,7 +40,7 @@ async def test_sync_audit_entry():
     with Session(db_engine) as session:
         db_entry = session.exec(select(AuditLog).where(AuditLog.event_id == "test-event-1")).first()
         assert db_entry is not None
-        assert db_entry.event == "test.event"
+        assert db_entry.data.get("event") == "test.event"
         assert db_entry.integrity_hash is not None
         assert db_entry.verus_txid is None
 
@@ -121,7 +121,9 @@ async def test_audit_verifier_tamper_alert(mock_get_content):
     with Session(db_engine) as session:
         db_entry = session.exec(select(AuditLog).where(AuditLog.event_id == "test-tamper-1")).first()
         assert db_entry is not None
-        db_entry.details = "hacked data" # Tamper!
+        new_data = dict(db_entry.data)
+        new_data["details"] = "hacked data" # Tamper!
+        db_entry.data = new_data
         session.add(db_entry)
         session.commit()
 
@@ -169,12 +171,13 @@ async def test_sync_audit_entry_with_topo():
     with Session(db_engine) as session:
         log = session.exec(select(AuditLog).where(AuditLog.event_id == "topo-event")).first()
         assert log is not None
-        assert log.betti == json.dumps([1, 2, 3])
-        assert log.phi_total == 0.5
-        assert log.coherence == 0.8
-        assert log.psi == 1.1
-        assert log.merkle_attribution_hash == "abc123hash"
-        assert log.pvt_json == json.dumps({"proof": "xyz"})
+        topo_data = log.data.get("topo", {})
+        assert topo_data.get("betti") == [1, 2, 3]
+        assert topo_data.get("phi_total") == 0.5
+        assert topo_data.get("coherence") == 0.8
+        assert topo_data.get("psi") == 1.1
+        assert topo_data.get("merkle_attribution_hash") == "abc123hash"
+        assert topo_data.get("pvt_json") == {"proof": "xyz"}
 
 @pytest.mark.asyncio
 async def test_sync_audit_entry_error():

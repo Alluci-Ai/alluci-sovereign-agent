@@ -76,7 +76,7 @@ class TestAuditLedger:
             "timestamp": datetime.now().isoformat(),
             "id": str(uuid.uuid4()),
             "event": "test_event",
-            "details": {"description": "Integration test audit entry"},
+            "details": "Integration test audit entry",
             "hash": "dummy_hash",
             "prevHash": "dummy_prev_hash"
         }

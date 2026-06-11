@@ -182,7 +182,8 @@ class ExecutiveOrchestrator:
                 t.end_time = datetime.now(timezone.utc)
                 session.add(t)
 
-            run.status = "failed"
+            from .models import RunStatus
+            run.status = RunStatus.FAILED
             session.add(run)
             session.commit()
 
@@ -941,7 +942,7 @@ class ExecutiveOrchestrator:
             assert run.id is not None, "Run ID must be generated"
             return run.id
 
-    def _update_run_status(self, run_id: int, status: str, score: float = 0.0, feedback: Optional[str] = None):
+    def _update_run_status(self, run_id: int, status: RunStatus, score: float = 0.0, feedback: Optional[str] = None):
         with Session(db_engine) as session:
             run = session.get(Run, run_id)
             if run:

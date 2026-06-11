@@ -1,3 +1,5 @@
+import anyio
+
 
 import logging
 from ..logging_config import get_logger
@@ -14,7 +16,13 @@ import asyncio
 logger = get_logger("AuditLedger")
 
 # Global lock to prevent race conditions on rolling hash
-audit_lock = asyncio.Lock()
+_audit_lock: Optional[asyncio.Lock] = None
+
+def get_audit_lock() -> asyncio.Lock:
+    global _audit_lock
+    if _audit_lock is None:
+        _audit_lock = asyncio.Lock()
+    return _audit_lock
 
 async def sync_audit_entry(entry: AuditEntry, topo: Optional[dict] = None):
     """
@@ -22,10 +30,11 @@ async def sync_audit_entry(entry: AuditEntry, topo: Optional[dict] = None):
     Computes a rolling SHA-256 chain hash for tamper evidence.
     Optionally anchors to the Verus blockchain when VerusID is enabled.
     """
-    async with audit_lock:
+    lock = get_audit_lock()
+    async with lock:
         try:
             # We use a thread pool for DB operations as SQLModel/SQLAlchemy Session is sync
-            return await asyncio.to_thread(_sync_audit_entry_sync, entry, topo)
+            return await anyio.to_thread.run_sync(_sync_audit_entry_sync, entry, topo)
         except Exception as e:
             logger.error(f"Audit sync failed: {e}")
             return {"status": "ERROR", "message": str(e)}
@@ -49,20 +58,27 @@ def _sync_audit_entry_sync(entry: AuditEntry, topo: Optional[dict] = None):
         except ValueError:
             ts = datetime.now(timezone.utc)
 
+        # Prepare the nested JSON data payload
+        log_data: Dict[str, Any] = {
+            "event": entry.event,
+            "details": details_str,
+        }
+        if topo:
+            log_data["topo"] = {
+                "betti": topo.get("betti"),
+                "phi_total": topo.get("phi_total"),
+                "coherence": topo.get("coherence"),
+                "psi": topo.get("psi"),
+                "merkle_attribution_hash": topo.get("merkle_hash"),
+                "pvt_json": topo.get("pvt")
+            }
+
         log_row = AuditLog(
             event_id=entry.id,
             timestamp=ts,
-            event=entry.event,
-            details=details_str,
             status=entry.status or "INFO",
             integrity_hash=integrity_hash,
-            # Topological fields (when provided)
-            betti=json.dumps(topo["betti"]) if topo and "betti" in topo else None,
-            phi_total=topo.get("phi_total") if topo else None,
-            coherence=topo.get("coherence") if topo else None,
-            psi=topo.get("psi") if topo else None,
-            merkle_attribution_hash=topo.get("merkle_hash") if topo else None,
-            pvt_json=json.dumps(topo["pvt"]) if topo and "pvt" in topo else None,
+            data=log_data,
         )
         session.add(log_row)
         session.commit()
@@ -115,7 +131,7 @@ async def anchor_audit_batch(limit: int = 100):
 
 async def read_audit_log(limit: int = 100, offset: int = 0, status: Optional[str] = None):
     """Retrieves paginated audit entries from the database."""
-    return await asyncio.to_thread(_read_audit_log_sync, limit, offset, status)
+    return await anyio.to_thread.run_sync(_read_audit_log_sync, limit, offset, status)
 
 def _read_audit_log_sync(limit: int, offset: int, status: Optional[str]):
     with Session(db_engine) as session:
