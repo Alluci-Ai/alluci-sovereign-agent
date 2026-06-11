@@ -311,5 +311,7 @@ Set `DEBUG=True` in your `.env` or export the variable locally to enable detaile
 This software and associated documentation files (the "Software") are the proprietary property of Alluci-Ai. 
 Unauthorized copying, reproduction, distribution, modification, or use of this Software, via any medium, is strictly prohibited without the express written permission of Alluci-Ai.
 
+For information on our strictly-gated proprietary contribution process, please review our [Contribution Guidelines](CONTRIBUTING.md).
+
 ---
 <p align="center"><em>"Alluci-Polytope: Turning AI from a passive tool into a sovereign, affective partner."</em></p>
