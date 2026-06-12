@@ -2,12 +2,13 @@ import React, { useEffect } from 'react';
 import { useStore } from '../../store/useStore';
 import PolytopeIdentity from '../../components/Identity';
 import { HeartbeatIndicator } from '../../components/Visualizers';
-import { Menu, Sun, Moon } from 'lucide-react';
+import { Menu, Sun, Moon, Activity } from 'lucide-react';
 import { SessionSelector } from '../sessions/SessionSelector';
 import { ThinkingLevelToggle } from '../chat/ThinkingLevelToggle';
 import { FocusModeToggle } from '../chat/FocusModeToggle';
 import SessionKeyPill from '../shell/SessionKeyPill';
 import PresenceCountBadge from '../shell/PresenceCountBadge';
+import AgentContextSelector from '../../components/AgentContextSelector';
 
 interface SystemHeaderProps {
     isConnected: boolean;
@@ -33,7 +34,8 @@ const SystemHeader: React.FC<SystemHeaderProps> = ({
         theme,
         toggleTheme,
         operatingMode,
-        setOperatingMode
+        setOperatingMode,
+        flowMode
     } = useStore();
 
     // Apply theme to DOM on mount
@@ -83,9 +85,32 @@ const SystemHeader: React.FC<SystemHeaderProps> = ({
             </div>
 
             <div className="topbar__center flex items-center gap-4">
-                <span className="topbar__view-title">{VIEW_TITLES[activeView] || ''}</span>
+                <span className="topbar__view-title hidden lg:block">{VIEW_TITLES[activeView] || ''}</span>
+                
+                <div className="flex items-center gap-2">
+                    <AgentContextSelector />
+                    
+                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-white/5 border border-white/10" title={
+                        flowMode === 'DEEP_WORK' ? 'Silencing non-emergency bridge notifications.' :
+                        flowMode === 'PEAK_PERFORMANCE' ? 'Accelerated task execution and deep research enabled.' :
+                        flowMode === 'RECOVERY_MODE' ? 'Reducing cognitive load. Compacting memories.' :
+                        'Standard harmonic flow assistance.'
+                    }>
+                        <Activity size={12} className={
+                            flowMode === 'DEEP_WORK' ? 'text-purple-400' :
+                            flowMode === 'PEAK_PERFORMANCE' ? 'text-amber-400' :
+                            flowMode === 'RECOVERY_MODE' ? 'text-blue-400' : 'text-green-400'
+                        } />
+                        <span className={`text-[10px] font-bold tracking-widest uppercase ${
+                            flowMode === 'DEEP_WORK' ? 'text-purple-400' :
+                            flowMode === 'PEAK_PERFORMANCE' ? 'text-amber-400' :
+                            flowMode === 'RECOVERY_MODE' ? 'text-blue-400' : 'text-green-400'
+                        }`}>{flowMode.replace('_', ' ')}</span>
+                    </div>
+                </div>
+
                 {activeView === 'chat' && (
-                    <div className="hidden md:flex items-center gap-3 ml-4 animate-in fade-in zoom-in duration-300">
+                    <div className="hidden xl:flex items-center gap-3 ml-4 animate-in fade-in zoom-in duration-300">
                         <SessionSelector />
                         <div className="h-4 w-px bg-glass-edge mx-1" />
                         <ThinkingLevelToggle />

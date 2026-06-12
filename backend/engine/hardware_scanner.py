@@ -41,3 +41,27 @@ class HardwareScanner:
                 return "torch_cuda"
         
         return "numpy_cpu"
+
+    @staticmethod
+    def get_optimal_polytope_variant(available_ram_gb: float, backend: BackendType) -> str:
+        """
+        Dynamically routes the agent to the optimal Sovereign Polytope model
+        based on the host's total system memory and backend execution context.
+        """
+        is_mlx = backend == "mlx"
+        prefix = "alluci-polytope-gemma-4"
+        suffix = "mlx-4bit" if is_mlx else "Q4_K_M.gguf"
+
+        if available_ram_gb >= 64:
+            variant = "31b-it-4bit" if is_mlx else "31B-it-GGUF"
+        elif available_ram_gb >= 32:
+            variant = "26B-A4B-it-OptiQ-4bit" if is_mlx else "26B-A4B-it-GGUF"
+        elif available_ram_gb >= 16:
+            variant = "12B-it-OptiQ-4bit" if is_mlx else "12B-it-GGUF"
+        elif available_ram_gb >= 8:
+            variant = "e4b-it-OptiQ-4bit" if is_mlx else "E4B-it-GGUF"
+        else:
+            variant = "e2b-it-4bit" if is_mlx else "E2B-it-GGUF"
+
+        return f"{prefix}-{variant}"
+

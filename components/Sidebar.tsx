@@ -177,32 +177,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 })}
             </nav>
 
-            {/* Agent Context Selector (Phase 9) */}
-            {!isSidebarCollapsed && <AgentContextSelector />}
 
-            {/* Ambient ACE Indicator */}
-            {!isSidebarCollapsed && (
-                <div className="mx-3 mb-2 p-3 rounded-xl bg-black/20 border border-white/5 overflow-hidden relative shadow-inner">
-                    <div className="flex items-center gap-2 mb-1.5">
-                        <Activity size={12} className={
-                            flowMode === 'DEEP_WORK' ? 'text-purple-400' :
-                            flowMode === 'PEAK_PERFORMANCE' ? 'text-amber-400' :
-                            flowMode === 'RECOVERY_MODE' ? 'text-blue-400' : 'text-green-400'
-                        } />
-                        <span className={`text-[10px] font-bold tracking-widest uppercase ${
-                            flowMode === 'DEEP_WORK' ? 'text-purple-400' :
-                            flowMode === 'PEAK_PERFORMANCE' ? 'text-amber-400' :
-                            flowMode === 'RECOVERY_MODE' ? 'text-blue-400' : 'text-green-400'
-                        }`}>{flowMode.replace('_', ' ')}</span>
-                    </div>
-                    <p className="text-[10px] text-gray-500 leading-tight font-mono">
-                        {flowMode === 'DEEP_WORK' ? 'Silencing non-emergency bridge notifications.' :
-                         flowMode === 'PEAK_PERFORMANCE' ? 'Accelerated task execution and deep research enabled.' :
-                         flowMode === 'RECOVERY_MODE' ? 'Reducing cognitive load. Compacting memories.' :
-                         'Standard harmonic flow assistance.'}
-                    </p>
-                </div>
-            )}
 
             {/* Affective Engine widget at bottom */}
             {!isSidebarCollapsed && (

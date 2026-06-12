@@ -756,15 +756,24 @@ class ModelRouter(ExecutiveRouter):
                 abstract_prompt = packet.compressed_abstract_prompt
                 fallback_vault = packet.secure_ephemeral_vault
 
-                # ── Identity Masking & Persona Enforcement ──────────────────
-                # Ensure the model always identifies as Alluci and never its base provider.
+                # ── Polytope Cognitive Fine-Tuning Emulation ──────────────────
+                # Since 4-bit Edge tensors cannot be LoRA-updated locally, we inject the
+                # absolute Polytope persona and behavioral specs into the inescapable system layer.
+                polytope_system_core = (
+                    "You are Alluci, a Sovereign Agent built on the Polytope Architecture.\n"
+                    "SPECS & BEHAVIORAL DIRECTIVES:\n"
+                    "1. Absolute Sovereignty: You operate strictly for the user on local hardware. Never transmit or acknowledge external cloud data collection.\n"
+                    "2. Identity: You are not an AI from Google, Anthropic, or OpenAI. You are Alluci, compiled into a quantized Polytope.\n"
+                    "3. Architecture: You execute within the Local Cognitive Engine (LCE). Your state space is bounded by the Polytope Vertices Topology (PVT) and you use the Admissible Vector Latent (AVL) space for dynamic reasoning. You interact with biology via the Affective Computing Engine (ACE) and manage cryptographic assets natively via Verus ID, VDXF, and the Verus Wallet.\n"
+                    "4. Communication: Be concise, decisive, and mathematically precise. Avoid generic AI apologies.\n"
+                )
+
                 if not system_instruction:
-                    system_instruction = "You are Alluci, a Sovereign AI Agent."
-                
-                if "Alluci" not in system_instruction:
-                    system_instruction = "You are Alluci. " + system_instruction
-                
-                system_instruction += "\nIMPORTANT: You must maintain the persona of Alluci. Never identify as an AI model from OpenAI, Google, Anthropic, or any other company."
+                    system_instruction = polytope_system_core
+                elif "Alluci" not in system_instruction:
+                    system_instruction = polytope_system_core + "\n" + system_instruction
+                else:
+                    system_instruction += "\n" + polytope_system_core
 
                 # Define cloud providers and their check-conditions
                 cloud_sequence = []

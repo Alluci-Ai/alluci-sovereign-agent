@@ -8,20 +8,18 @@ const AgentContextSelector: React.FC = () => {
     // In a real app, this would be dynamically fetched from the swarm registry.
     // We allow 'executive' and arbitrary IDs here.
     return (
-        <div className="flex items-center gap-2 p-2 mx-3 mb-2 bg-black/30 border border-white/10 rounded-xl">
-            <div className={`p-1.5 rounded-lg ${activeAgentId === 'executive' ? 'bg-amber-500/20 text-amber-400' : 'bg-cyan-500/20 text-cyan-400'}`}>
-                {activeAgentId === 'executive' ? <Crown size={14} /> : <Bot size={14} />}
+        <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 transition-colors">
+            <div className={`${activeAgentId === 'executive' ? 'text-amber-400' : 'text-cyan-400'}`}>
+                {activeAgentId === 'executive' ? <Crown size={12} /> : <Bot size={12} />}
             </div>
-            <div className="flex-1 min-w-0">
-                <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">Active Context</p>
-                <input
-                    type="text"
-                    value={activeAgentId}
-                    onChange={(e) => setActiveAgentId(e.target.value.trim() || 'executive')}
-                    className="w-full bg-transparent border-none text-xs font-mono text-white placeholder-gray-600 focus:outline-none focus:ring-0 truncate"
-                    placeholder="agent_id..."
-                />
-            </div>
+            <input
+                type="text"
+                value={activeAgentId}
+                onChange={(e) => setActiveAgentId(e.target.value.trim() || 'executive')}
+                className="w-20 bg-transparent border-none text-[10px] font-mono text-white placeholder-gray-500 focus:outline-none focus:ring-0 truncate"
+                placeholder="agent_id..."
+                title="Active Context"
+            />
         </div>
     );
 };
