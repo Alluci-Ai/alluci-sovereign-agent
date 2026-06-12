@@ -2,60 +2,17 @@ import math
 import numpy as np
 from typing import Tuple, Optional, List
 from ..ace.affect_kernel import AffectiveState
-import ctypes
+from ..engine.hardware_scanner import HardwareScanner
 import os
 import platform
 import logging
 
 logger = logging.getLogger("PPN")
 
-
 try:
     import gudhi
 except ImportError:
     gudhi = None
-
-
-# Load native library
-_native_lib = None
-try:
-    _dir = os.path.dirname(os.path.abspath(__file__))
-    _build_dir = os.path.join(_dir, "build")
-    _system = platform.system()
-    _candidates = {
-        "Darwin": os.path.join(_build_dir, "libtopology_kernel.dylib"),
-        "Linux":  os.path.join(_build_dir, "libtopology_kernel.so"),
-        "Windows": os.path.join(_build_dir, "topology_kernel.dll"),
-    }
-    _lib_path = _candidates.get(_system)
-    
-    if _lib_path and os.path.isfile(_lib_path):
-        _native_lib = ctypes.CDLL(_lib_path)
-        
-        _native_lib.topology_compute.argtypes = [
-            ctypes.POINTER(ctypes.c_float),
-            ctypes.c_int,
-            ctypes.c_int,
-            ctypes.POINTER(ctypes.c_float)
-        ]
-        _native_lib.topology_compute.restype = None
-        
-        _native_lib.simplex_counts.argtypes = [
-            ctypes.POINTER(ctypes.c_float),
-            ctypes.c_int,
-            ctypes.c_int,
-            ctypes.c_float,
-            ctypes.POINTER(ctypes.c_int32),
-            ctypes.POINTER(ctypes.c_int32),
-            ctypes.POINTER(ctypes.c_int32)
-        ]
-        _native_lib.simplex_counts.restype = None
-        logger.info("[PPN] Native C++ Topology Kernel Loaded.")
-    else:
-        logger.info("[PPN] Native Topology kernel not found. Using Python fallback.")
-except Exception as e:
-    logger.warning(f"[PPN] Failed to initialize native instance: {e}. Falling back to Python.")
-    _native_lib = None
 
 # ── Hardware / GPU Detection ──────────────────────────────────────────────────
 GPU_AVAILABLE = False
@@ -68,15 +25,7 @@ try:
 except ImportError:
     pass
 
-# Fallback to checking the native C++ kernel for GPU acceleration support
-if not GPU_AVAILABLE and _native_lib and hasattr(_native_lib, "is_gpu_enabled"):
-    try:
-        _native_lib.is_gpu_enabled.restype = ctypes.c_bool
-        if _native_lib.is_gpu_enabled():
-            GPU_AVAILABLE = True
-            logger.info("[PPN] GPU hardware detected via Native C++ Kernel.")
-    except Exception as e:
-        logger.debug(f"[PPN] Native GPU check failed: {e}")
+GPU_AVAILABLE = HardwareScanner.get_optimal_backend() in ["mlx", "torch_cuda"]
 
 if not GPU_AVAILABLE:
     logger.info("[PPN] Running in CPU-only mode.")
@@ -130,15 +79,6 @@ class PPNEmbeddingModule:
         if n == 1:
             return np.array([1.0, 0.0, 0.0, 0.0])
 
-        if _native_lib:
-            # Flatten to contiguous C array
-            pts = np.ascontiguousarray(points, dtype=np.float32).flatten()
-            betti_out = (ctypes.c_float * 4)()
-            pts_ptr = pts.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
-            
-            _native_lib.topology_compute(pts_ptr, n, points.shape[1], betti_out)
-            return np.array([betti_out[0], betti_out[1], betti_out[2], betti_out[3]])
-
         # 1. Build Adjacency Matrix (Rips Complex epsilon=0.5)
         diff = points[:, np.newaxis, :] - points[np.newaxis, :, :]
         d_matrix = np.sqrt(np.sum(diff**2, axis=-1))
@@ -183,9 +123,33 @@ class PPNEmbeddingModule:
         elif not isinstance(x, np.ndarray):
             x = np.array(x)
         
-        # 2. Linear Projection
-        h = np.tanh(x @ self.proj_w)
-        points = h @ self.manifold_w
+        # 2. Linear Projection (Hardware-Aware Routing)
+        backend = HardwareScanner.get_optimal_backend()
+        
+        if backend == "mlx":
+            import mlx.core as mx
+            x_mx = mx.array(x)
+            proj_w_mx = mx.array(self.proj_w)
+            manifold_w_mx = mx.array(self.manifold_w)
+            
+            h_mx = mx.tanh(mx.matmul(x_mx, proj_w_mx))
+            points_mx = mx.matmul(h_mx, manifold_w_mx)
+            points = np.array(points_mx.tolist())
+            
+        elif backend == "torch_cuda":
+            import torch
+            x_t = torch.tensor(x, device="cuda", dtype=torch.float32)
+            proj_w_t = torch.tensor(self.proj_w, device="cuda", dtype=torch.float32)
+            manifold_w_t = torch.tensor(self.manifold_w, device="cuda", dtype=torch.float32)
+            
+            h_t = torch.tanh(torch.matmul(x_t, proj_w_t))
+            points_t = torch.matmul(h_t, manifold_w_t)
+            points = points_t.cpu().numpy()
+            
+        else:
+            # Fallback NumPy CPU execution
+            h = np.tanh(x @ self.proj_w)
+            points = h @ self.manifold_w
         
         # 3. Geometric Attributes
         phi_total = int(np.sum(np.abs(points)) * (1.0 + psi)) % 1000
@@ -234,17 +198,6 @@ class PPNEmbeddingModule:
         points = G.reshape(-1, self.manifold_dim)
         n = points.shape[0]
         if n < 3: return (n, 0, 0)
-
-        if _native_lib:
-            pts = np.ascontiguousarray(points, dtype=np.float32).flatten()
-            pts_ptr = pts.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
-            
-            v = ctypes.c_int32()
-            e = ctypes.c_int32()
-            f = ctypes.c_int32()
-            
-            _native_lib.simplex_counts(pts_ptr, n, self.manifold_dim, ctypes.c_float(0.5), ctypes.byref(v), ctypes.byref(e), ctypes.byref(f))
-            return (v.value, e.value, f.value)
 
         # 1. Vertices
         v = n
