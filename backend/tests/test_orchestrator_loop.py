@@ -34,6 +34,7 @@ def mock_orchestrator(tmp_path):
     orch.ws_gateway = AsyncMock()
     orch.avl = MagicMock()
     orch.health_monitor = MagicMock()
+    orch._save_manifest = MagicMock()
     return orch
 
 @pytest.mark.asyncio

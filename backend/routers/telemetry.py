@@ -18,8 +18,8 @@ router = APIRouter(tags=["Telemetry"])
 @router.post("/telemetry", dependencies=[Depends(verify_authenticated)])
 async def post_telemetry(
     request: Request,
+    data: TelemetryData,
     csrf_protect: CsrfProtect = Depends(),
-    data: TelemetryData = Depends(),
 ):
     """
     Ingests biometric telemetry from companion devices (Apple Watch, etc.)

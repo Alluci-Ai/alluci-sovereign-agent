@@ -91,7 +91,7 @@ async def test_updater_monitor_loop(updater):
 async def test_perform_update(updater):
     res = await updater.perform_update()
     assert res["ok"] is False
-    assert "In-place updates are disabled" in res["error"]
+    assert "No update available" in res["error"]
 
 def test_get_status(updater):
     status = updater.get_status()

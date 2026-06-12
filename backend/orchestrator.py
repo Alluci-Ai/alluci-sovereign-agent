@@ -719,7 +719,7 @@ class ExecutiveOrchestrator:
                     timestamp=datetime.now(timezone.utc).isoformat(),
                     id=str(uuid.uuid4()),
                     event="OBJECTIVE_EXECUTION",
-                    details={"objective": objective, "result_summary": results_summary[:500]},
+                    details=json.dumps({"objective": objective, "result_summary": results_summary[:500]}),
                     status="INFO"
                 )
                 topo = {

@@ -247,7 +247,7 @@ class VaultManager:
             id=str(uuid.uuid4()),
             timestamp=datetime.now(timezone.utc).isoformat(),
             event="VAULT_SECRET_STORE",
-            details={"bridge_id": bridge_id},
+            details=json.dumps({"bridge_id": bridge_id}),
             status="INFO"
         ))
 
@@ -312,7 +312,7 @@ class VaultManager:
             id=str(uuid.uuid4()),
             timestamp=datetime.now(timezone.utc).isoformat(),
             event="VAULT_SECRET_RETRIEVAL",
-            details={"bridge_id": bridge_id, "success": bool(data)},
+            details=json.dumps({"bridge_id": bridge_id, "success": bool(data)}),
             status="INFO" if data else "WARNING"
         ))
 
@@ -661,7 +661,7 @@ class VaultManager:
                     id=str(uuid.uuid4()),
                     timestamp=datetime.now(timezone.utc).isoformat(),
                     event="VAULT_KEY_ROTATION",
-                    details={"success": success},
+                    details=json.dumps({"success": success}),
                     status="CRITICAL"
                 )))
             except Exception:

@@ -95,7 +95,7 @@ def test_add_audit_entry(mock_sync, app_client, auth_headers):
     payload = {
         "id": "123",
         "event": "login",
-        "details": {"user": "admin"},
+        "details": '{"user": "admin"}',
         "timestamp": "2023-01-01T00:00:00Z"
     }
     response = app_client.post("/api/v1/audit/entry", json=payload, headers=auth_headers)

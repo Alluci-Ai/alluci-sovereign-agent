@@ -14,16 +14,12 @@ from ..models import AuditLog, AuditEntry
 from ..config import settings
 import asyncio
 
+import threading
+
 logger = get_logger("AuditLedger")
 
-# Global lock to prevent race conditions on rolling hash
-_audit_lock: Optional[asyncio.Lock] = None
-
-def get_audit_lock() -> asyncio.Lock:
-    global _audit_lock
-    if _audit_lock is None:
-        _audit_lock = asyncio.Lock()
-    return _audit_lock
+# Global lock to prevent race conditions on rolling hash and SQLite segfaults
+_audit_lock = threading.Lock()
 
 async def sync_audit_entry(entry: AuditEntry, topo: Optional[dict] = None):
     """
@@ -31,58 +27,57 @@ async def sync_audit_entry(entry: AuditEntry, topo: Optional[dict] = None):
     Computes a rolling SHA-256 chain hash for tamper evidence.
     Optionally anchors to the Verus blockchain when VerusID is enabled.
     """
-    lock = get_audit_lock()
-    async with lock:
-        try:
-            # We use a thread pool for DB operations as SQLModel/SQLAlchemy Session is sync
-            return await to_thread.run_sync(_sync_audit_entry_sync, entry, topo)
-        except Exception as e:
-            logger.error(f"Audit sync failed: {e}")
-            return {"status": "ERROR", "message": str(e)}
+    try:
+        # We use a thread pool for DB operations as SQLModel/SQLAlchemy Session is sync
+        return await to_thread.run_sync(_sync_audit_entry_sync, entry, topo)
+    except Exception as e:
+        logger.error(f"Audit sync failed: {e}")
+        return {"status": "ERROR", "message": str(e)}
 
 def _sync_audit_entry_sync(entry: AuditEntry, topo: Optional[dict] = None):
-    with Session(db_engine) as session:
-        # 1. Compute rolling chain hash (hash of previous entry's hash + new content)
-        prev = session.exec(
-            select(AuditLog).order_by(desc(AuditLog.id)).limit(1)
-        ).first()
-        prev_hash = prev.integrity_hash if prev else "genesis"
-        
-        # Consistent string representation for hashing
-        details_str = json.dumps(entry.details, sort_keys=True) if not isinstance(entry.details, str) else entry.details
-        chain_input = f"{prev_hash}:{entry.event}:{details_str}:{entry.timestamp}"
-        integrity_hash = hashlib.sha256(chain_input.encode()).hexdigest()
+    with _audit_lock:
+        with Session(db_engine) as session:
+            # 1. Compute rolling chain hash (hash of previous entry's hash + new content)
+            prev = session.exec(
+                select(AuditLog).order_by(desc(AuditLog.id)).limit(1)
+            ).first()
+            prev_hash = prev.integrity_hash if prev else "genesis"
+            
+            # Consistent string representation for hashing
+            details_str = json.dumps(entry.details, sort_keys=True) if not isinstance(entry.details, str) else entry.details
+            chain_input = f"{prev_hash}:{entry.event}:{details_str}:{entry.timestamp}"
+            integrity_hash = hashlib.sha256(chain_input.encode()).hexdigest()
 
-        # 2. Create DB record
-        try:
-            ts = datetime.fromisoformat(entry.timestamp.replace('Z', '+00:00'))
-        except ValueError:
-            ts = datetime.now(timezone.utc)
+            # 2. Create DB record
+            try:
+                ts = datetime.fromisoformat(entry.timestamp.replace('Z', '+00:00'))
+            except ValueError:
+                ts = datetime.now(timezone.utc)
 
-        # Prepare the nested JSON data payload
-        log_data: Dict[str, Any] = {
-            "event": entry.event,
-            "details": details_str,
-        }
-        if topo:
-            log_data["topo"] = {
-                "betti": topo.get("betti"),
-                "phi_total": topo.get("phi_total"),
-                "coherence": topo.get("coherence"),
-                "psi": topo.get("psi"),
-                "merkle_attribution_hash": topo.get("merkle_hash"),
-                "pvt_json": topo.get("pvt")
+            # Prepare the nested JSON data payload
+            log_data: Dict[str, Any] = {
+                "event": entry.event,
+                "details": details_str,
             }
+            if topo:
+                log_data["topo"] = {
+                    "betti": topo.get("betti"),
+                    "phi_total": topo.get("phi_total"),
+                    "coherence": topo.get("coherence"),
+                    "psi": topo.get("psi"),
+                    "merkle_attribution_hash": topo.get("merkle_hash"),
+                    "pvt_json": topo.get("pvt")
+                }
 
-        log_row = AuditLog(
-            event_id=entry.id,
-            timestamp=ts,
-            status=entry.status or "INFO",
-            integrity_hash=integrity_hash,
-            data=log_data,
-        )
-        session.add(log_row)
-        session.commit()
+            log_row = AuditLog(
+                event_id=entry.id,
+                timestamp=ts,
+                status=entry.status or "INFO",
+                integrity_hash=integrity_hash,
+                data=log_data,
+            )
+            session.add(log_row)
+            session.commit()
 
     # 3. Anchor to Verus blockchain is now handled via periodic batch anchoring
     # (See anchor_audit_batch below or the AuditVerifier daemon)

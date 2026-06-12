@@ -245,8 +245,19 @@ class CronJob(SQLModel, table=True):
     __tablename__ = "cron_job"  # type: ignore
     id: int = Field(default=None, primary_key=True)
     agent_id: str = Field(index=True)
+    name: str = Field(default="")
+    schedule_type: str = Field(default="")
+    schedule_value: str = Field(default="")
+    payload: str = Field(default="")
+    model_override: Optional[str] = Field(default=None)
+    thinking_level: Optional[int] = Field(default=None)
+    delivery_channel: Optional[str] = Field(default=None)
+    delivery_account_id: Optional[str] = Field(default=None)
+    delivery_to: Optional[str] = Field(default=None)
+    delivery_mode: Optional[str] = Field(default=None)
+    reset_context: bool = Field(default=False)
     enabled: bool = Field(default=True)
-    # Additional fields can be added as needed
+    last_run_at: Optional[datetime] = Field(default=None)
 
 class CronRun(SQLModel, table=True):
     __tablename__ = "cron_run"  # type: ignore
