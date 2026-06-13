@@ -5,7 +5,6 @@ import { HeartbeatIndicator } from '../../components/Visualizers';
 import { Menu, Sun, Moon, Activity } from 'lucide-react';
 import { SessionSelector } from '../sessions/SessionSelector';
 import { ThinkingLevelToggle } from '../chat/ThinkingLevelToggle';
-import { FocusModeToggle } from '../chat/FocusModeToggle';
 import SessionKeyPill from '../shell/SessionKeyPill';
 import PresenceCountBadge from '../shell/PresenceCountBadge';
 import AgentContextSelector from '../../components/AgentContextSelector';
@@ -80,7 +79,7 @@ const SystemHeader: React.FC<SystemHeaderProps> = ({
                 <PolytopeIdentity color={accentColor} size={22} active={isConnected} />
                 <div className="topbar__brand">
                     <h1 className="topbar__title">POLYTOPE</h1>
-                    <span className="topbar__subtitle">Sovereign OS Beta v4.3</span>
+                    <span className="topbar__subtitle">Sovereign OS Beta v0.1.1.1</span>
                 </div>
             </div>
 
@@ -114,7 +113,6 @@ const SystemHeader: React.FC<SystemHeaderProps> = ({
                         <SessionSelector />
                         <div className="h-4 w-px bg-glass-edge mx-1" />
                         <ThinkingLevelToggle />
-                        <FocusModeToggle />
                     </div>
                 )}
             </div>

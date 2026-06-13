@@ -28,6 +28,7 @@ const CommandBar: React.FC<CommandBarProps> = ({
 }) => {
     const { startRecording, stopRecording } = useVoice();
     const isVoiceRecording = useStore(state => state.isVoiceRecording);
+    const theme = useStore(state => state.theme);
     const [inputMode, setInputMode] = React.useState<'chat' | 'dispatch'>('chat');
 
     const onSubmit = async (e: React.FormEvent) => {
@@ -72,7 +73,7 @@ const CommandBar: React.FC<CommandBarProps> = ({
                     <button 
                         type="button" 
                         onClick={() => setInputMode('chat')}
-                        className={`px-4 py-1.5 text-[11px] font-bold rounded-full transition-all ${inputMode === 'chat' ? 'bg-[rgba(255,255,255,0.15)] text-white shadow-sm' : 'text-text-tertiary hover:text-text-secondary'}`}
+                        className={`px-4 py-1.5 text-[11px] font-bold rounded-full transition-all ${inputMode === 'chat' ? (theme === 'light' ? 'bg-[rgba(0,0,0,0.06)] text-black shadow-sm' : 'bg-[rgba(255,255,255,0.15)] text-white shadow-sm') : 'text-text-tertiary hover:text-text-secondary'}`}
                     >
                         Conversational
                     </button>

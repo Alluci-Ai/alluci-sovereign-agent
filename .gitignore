@@ -120,3 +120,9 @@ build/
 dist/
 *.spec
 
+# Test coverage & quality gate report files
+services_cov*.txt
+total_cov.txt
+coverage_report.txt
+eslint_report.txt
+
