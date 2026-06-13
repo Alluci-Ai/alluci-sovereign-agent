@@ -126,3 +126,9 @@ total_cov.txt
 coverage_report.txt
 eslint_report.txt
 
+# Scratch & Local Developer Files
+error.txt
+test_out.txt
+compile_commands.json
+*.bak
+
