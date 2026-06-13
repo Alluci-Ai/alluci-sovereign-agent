@@ -18,8 +18,9 @@ class MLXEngine:
     Wraps the highly optimized C++ AlluciCognitiveEngine via PyBind11.
     """
     engine: Optional[Any] = None
+    model: Optional[Any] = None
+    tokenizer: Optional[Any] = None
     current_lora: Optional[str] = None
-    # Use a regular bool annotation; we’ll initialise it in __new__
     is_loading: bool = False
     hardware_profile: Optional[Dict[str, Any]] = None
     _instance = None
@@ -28,6 +29,8 @@ class MLXEngine:
         if not cls._instance:
             cls._instance = super(MLXEngine, cls).__new__(cls)
             cls._instance.engine = None
+            cls._instance.model = None
+            cls._instance.tokenizer = None
             cls._instance.current_lora = None
             cls._instance.is_loading = False
             cls._instance.hardware_profile = HardwareProfiler.get_system_profile()
@@ -42,7 +45,28 @@ class MLXEngine:
         try:
             if not self.hardware_profile:
                 raise RuntimeError("Hardware profile not initialized.")
+
+            # ── Alluci Polytope Local Model Routing MOAT ──
+            tier = self.hardware_profile.get("tier", "TIER_4_EDGE")
+            local_mapping = {
+                "TIER_1_MAX": "mirror_cache/gemma-4-31b-it-4bit",
+                "TIER_2_PRO": "mirror_cache/gemma-4-26B-A4B-it-OptiQ-4bit",
+                "TIER_3_BASE": "mirror_cache/gemma-4-12B-it-OptiQ-4bit",
+                "TIER_4_EDGE": "mirror_cache/gemma-4-e2b-it-4bit"
+            }
+
             target_model_path = self.hardware_profile["recommended_model"]
+
+            # Resolve absolute path to the local model folder in the project workspace
+            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            local_path = os.path.join(base_dir, local_mapping.get(tier, ""))
+
+            if local_path and os.path.exists(local_path):
+                target_model_path = local_path
+                logger.info(f"MLXEngine: Native Alluci Polytope local model detected in cache. Routing to: {target_model_path}")
+            else:
+                logger.info(f"MLXEngine: Local cache not found. Fallback to HF repository: {target_model_path}")
+
             logger.info(f"MLXEngine: Loading MLX model from {target_model_path}...")
             # Use mlx_lm to load model and tokenizer
             from mlx_lm import load
