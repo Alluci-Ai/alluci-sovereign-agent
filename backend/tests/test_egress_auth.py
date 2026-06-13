@@ -12,8 +12,8 @@ def client():
     def override_fail():
         raise HTTPException(status_code=401, detail="Admin auth failed")
     app.dependency_overrides[verify_admin] = override_fail
-    with TestClient(app) as c:
-        yield c
+    c = TestClient(app)
+    yield c
     app.dependency_overrides.clear()
 
 def test_get_allowed_hosts_unauthenticated(client: TestClient):

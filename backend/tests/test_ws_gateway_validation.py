@@ -3,6 +3,7 @@ pytestmark = pytest.mark.unit
 
 import asyncio
 import json
+from unittest.mock import patch
 from backend.ws_gateway import JsonRpcGateway, ConnectedClient
 from backend.ws_gateway import _rpc_error, _rpc_success
 from backend.schemas.ws_gateway import ExecAllowParams
@@ -32,11 +33,12 @@ class MockWebSocket:
         return {}
 
 @pytest.mark.asyncio
+@patch("backend.ws_gateway.settings.DEBUG", True)
 async def test_invalid_params_return_error_with_validation_details():
     # Prepare gateway and a mock client
     gateway = JsonRpcGateway(jwt_secret="test-secret")
     mock_ws = MockWebSocket()
-    client = ConnectedClient(mock_ws, client_id="c1", subject="test")
+    client = ConnectedClient(mock_ws, client_id="c1", subject="test")  # type: ignore
 
     # Craft a request missing the required 'request_id' for exec.allow
     request = json.dumps({
@@ -59,7 +61,7 @@ async def test_invalid_params_return_error_with_validation_details():
 async def test_valid_params_return_success():
     gateway = JsonRpcGateway(jwt_secret="test-secret")
     mock_ws = MockWebSocket()
-    client = ConnectedClient(mock_ws, client_id="c2", subject="test")
+    client = ConnectedClient(mock_ws, client_id="c2", subject="test")  # type: ignore
 
     # Provide all required fields for ExecAllowParams
     request = json.dumps({

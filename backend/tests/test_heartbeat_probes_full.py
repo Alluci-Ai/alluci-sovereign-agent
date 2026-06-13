@@ -29,15 +29,16 @@ async def test_probe_url_fetch_full():
         mock_client.return_value.__aenter__.return_value.get = AsyncMock(return_value=mock_resp)
         
         # Keyword fail
-        fired, _ = await _probe_url_fetch({"url": "http://x", "keyword": "notfound"})
+        unique_url = "http://test-full-unique-url-x.com"
+        fired, _ = await _probe_url_fetch({"url": unique_url, "keyword": "notfound"})
         assert fired is False
         
         # Check change first time
-        fired, _ = await _probe_url_fetch({"url": "http://x", "check_change": True})
+        fired, _ = await _probe_url_fetch({"url": unique_url, "check_change": True})
         assert fired is True
         
         # Check change second time
-        fired, _ = await _probe_url_fetch({"url": "http://x", "check_change": True})
+        fired, _ = await _probe_url_fetch({"url": unique_url, "check_change": True})
         assert fired is False
 
 @pytest.mark.asyncio

@@ -79,6 +79,7 @@ class TelemetryData(BaseModel):
     arousal: Optional[float] = None
     focus: Optional[float] = None
     device_id: Optional[str] = None
+    sleep_efficiency: Optional[float] = None
     # allow extra fields for future extensions
     class Config:
         extra = "allow"
@@ -142,6 +143,12 @@ class HLSMWorkingEntry(SQLModel, table=True):
 
 # --- Device and Binding Models ---
 
+class PresenceBeacon(SQLModel, table=True):
+    __tablename__ = "presence_beacon"  # type: ignore
+    client_id: str = Field(primary_key=True)
+    subject: str = Field(index=True)
+    last_seen: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
 class Device(SQLModel, table=True):
     __tablename__ = "device"  # type: ignore
     id: int = Field(default=None, primary_key=True)
@@ -168,7 +175,12 @@ class GoalRecord(SQLModel, table=True):
     title: str = Field(index=True)
     description: Optional[str] = Field(default=None)
     status: str = Field(index=True)
+    priority: str = Field(default="MEDIUM")
+    metric_current: float = Field(default=0.0)
+    metric_target: Optional[float] = Field(default=None)
+    deadline: Optional[datetime] = Field(default=None)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: Optional[datetime] = Field(default=None)
 
 class PCLOpportunity(SQLModel, table=True):
     __tablename__ = "pcl_opportunity"  # type: ignore
@@ -258,6 +270,8 @@ class CronJob(SQLModel, table=True):
     reset_context: bool = Field(default=False)
     enabled: bool = Field(default=True)
     last_run_at: Optional[datetime] = Field(default=None)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class CronRun(SQLModel, table=True):
     __tablename__ = "cron_run"  # type: ignore
@@ -284,22 +298,39 @@ class SessionConfig(SQLModel, table=True):
     __tablename__ = "session_config"  # type: ignore
     id: int = Field(default=None, primary_key=True)
     session_key: str = Field(index=True)
-    # Extend with additional config fields as needed
+    label: Optional[str] = Field(default=None)
+    model_override: Optional[str] = Field(default=None)
+    thinking_level: Optional[int] = Field(default=None)
+    verbose_level: Optional[int] = Field(default=None)
+    reasoning_level: Optional[int] = Field(default=None)
 
 class AgentRecord(SQLModel, table=True):
     __tablename__ = "agent_record"  # type: ignore
     id: str = Field(default=None, primary_key=True)
     name: str = Field(index=True)
     status: str = Field(index=True)
+    model: str = Field(default="gpt-4o")
+    description: Optional[str] = Field(default=None)
+    fallback_chain: Optional[str] = Field(default="gemini-flash,claude-haiku")
+    system_prompt: Optional[str] = Field(default=None)
     # Optional JSON field for heartbeat orders
-    heartbeat_orders: Optional[dict] = Field(sa_column=Column(JSON), default=None)
+    heartbeat_orders: Optional[str] = Field(sa_column=Column(JSON), default=None)
+    soul_manifest_override: Optional[str] = Field(sa_column=Column(JSON), default=None)
+    created_at: Optional[datetime] = Field(default=None)
+    updated_at: Optional[datetime] = Field(default=None)
 
 class HeartbeatOrderRecord(SQLModel, table=True):
     __tablename__ = "heartbeat_order_record"  # type: ignore
     id: int = Field(default=None, primary_key=True)
-    agent_id: str = Field(foreign_key="agent_record.id")
-    order: int = Field()
-    # Additional fields can be added as needed
+    agent_id: Optional[str] = Field(default=None, foreign_key="agent_record.id")
+    order_id: str = Field(index=True)
+    order: Optional[int] = Field(default=None)
+    fired_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    probe_type: Optional[str] = Field(default=None)
+    action_type: Optional[str] = Field(default=None)
+    outcome: Optional[str] = Field(default=None)
+    detail: Optional[str] = Field(default=None)
+    signal_stored: bool = Field(default=False)
 
 # --- Soul Models (stub) ---
 
@@ -308,12 +339,15 @@ class SoulPreferences(BaseModel):
     Extend with actual fields as needed.
     """
     preferences: dict = {}
+    conciseness: Any = 5
+    model_config = {"extra": "allow"}
 
 class SoulManifest(BaseModel):
     """Placeholder for the soul manifest payload.
     The real implementation includes detailed schema; this stub satisfies imports.
     """
     manifest: dict = {}
+    directives: list = []
     preferences: Optional[SoulPreferences] = None
 
 # --- Wallet Models (stub) ---
@@ -323,9 +357,14 @@ class CurrencyBalance(BaseModel):
     currency: str
     amount: float
 
-class WalletDashboard(SQLModel, table=True):
-    __tablename__ = "wallet_dashboard"  # type: ignore
-    id: int = Field(default=None, primary_key=True)
-    user_id: str = Field(index=True)
-    # Store balances as a JSON dict mapping currency to amount for simplicity
-    balances: dict = Field(sa_column=Column(JSON), default_factory=dict)
+class WalletDashboard(BaseModel):
+    connected: bool = False
+    identity: Optional[Dict[str, Any]] = None
+    balances: List[CurrencyBalance] = []
+    total_vrsc: float = 0.0
+    unconfirmed: float = 0.0
+    mining: Optional[Dict[str, Any]] = None
+    recent_transactions: List[Dict[str, Any]] = []
+    blockchain: Optional[Dict[str, Any]] = None
+    pbaas_chains: List[str] = []
+    timestamp: str

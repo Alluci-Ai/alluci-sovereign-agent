@@ -181,7 +181,7 @@ async def test_sync_audit_entry_with_topo():
 
 @pytest.mark.asyncio
 async def test_sync_audit_entry_error():
-    with patch("asyncio.to_thread", side_effect=Exception("DB Error")):
+    with patch("backend.security.audit_ledger.to_thread.run_sync", side_effect=Exception("DB Error")):
         entry = AuditEntry(id="err1", timestamp="", event="ERR", details="")
         res = await sync_audit_entry(entry)
         assert res["status"] == "ERROR"

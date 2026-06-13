@@ -340,7 +340,7 @@ async def _probe_system_health(cfg: Dict) -> Tuple[bool, str]:
                 .limit(100)
             ).all()
         recent = [
-            r.action
+            r.action or "unknown"
             for r in records
             if r.end_time and r.end_time.timestamp() > cutoff_ts
         ]
@@ -755,7 +755,11 @@ class HeartbeatDaemon:
                 ).first()
             if last is None:
                 return True
-            return (time.time() - last.fired_at) >= interval_secs
+            if isinstance(last.fired_at, datetime):
+                last_ts = last.fired_at.timestamp() if last.fired_at.tzinfo else last.fired_at.replace(tzinfo=timezone.utc).timestamp()
+            else:
+                last_ts = float(last.fired_at)
+            return (time.time() - last_ts) >= interval_secs
         except Exception as exc:
             self.logger.debug("[HB] Due check error for %s: %s", order_id, exc)
             return True  # fire on error to avoid silent stalls
@@ -827,7 +831,7 @@ class HeartbeatDaemon:
         record = HeartbeatOrderRecord(
             order_id=order_id,
             agent_id=agent_id,
-            fired_at=time.time(),
+            fired_at=datetime.now(timezone.utc),
             probe_type=probe_type,
             action_type=action_type,
             outcome=outcome,

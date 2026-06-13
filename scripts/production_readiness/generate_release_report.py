@@ -19,15 +19,22 @@ checks = [
     ("Deploy", ["bash", "scripts/production_readiness/deploy_gate.sh"]),
 ]
 
+import tempfile
+
 rows = []
 for name, cmd in checks:
     print(f"Running {name} check...")
-    try:
-        result = subprocess.run(cmd, cwd=ROOT, check=True, capture_output=True, text=True)
-        rows.append((name, "PASS", ""))
-    except subprocess.CalledProcessError as exc:
-        print(f"FAILED {name}")
-        rows.append((name, f"FAIL ({exc.returncode})", exc.stderr or exc.stdout))
+    with tempfile.TemporaryFile(mode="w+t", encoding="utf-8") as out_f, tempfile.TemporaryFile(mode="w+t", encoding="utf-8") as err_f:
+        try:
+            subprocess.run(cmd, cwd=ROOT, check=True, stdout=out_f, stderr=err_f, text=True)
+            rows.append((name, "PASS", ""))
+        except subprocess.CalledProcessError as exc:
+            print(f"FAILED {name}")
+            out_f.seek(0)
+            err_f.seek(0)
+            out_content = out_f.read()
+            err_content = err_f.read()
+            rows.append((name, f"FAIL ({exc.returncode})", err_content or out_content))
 
 status = "PASS" if all(r[1] == "PASS" for r in rows) else "FAIL"
 

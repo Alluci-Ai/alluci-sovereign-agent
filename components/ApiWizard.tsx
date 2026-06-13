@@ -77,8 +77,6 @@ const ApiWizard: React.FC<ApiWizardProps> = ({ isOpen, onClose, apiKeys, onSave 
     const [showCustomInput, setShowCustomInput] = useState<string | null>(null);
     const { setAccessToken } = useStore();
 
-    if (!isOpen) return null;
-
     const handleNext = () => {
         if (currentStep < CATEGORIES.length - 1) setCurrentStep(currentStep + 1);
         else { onSave(localKeys); onClose(); }
@@ -142,6 +140,8 @@ const ApiWizard: React.FC<ApiWizardProps> = ({ isOpen, onClose, apiKeys, onSave 
             return { ...prev, [category]: updated };
         });
     };
+
+    if (!isOpen) return null;
 
     const stepInfo = CATEGORIES[currentStep];
     const Icon = stepInfo.icon;

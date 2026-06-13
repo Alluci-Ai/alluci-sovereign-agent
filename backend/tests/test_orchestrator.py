@@ -151,7 +151,7 @@ async def test_execute_research(orchestrator):
     
     orchestrator.adapter_registry.get = MagicMock(side_effect=lambda name: mock_search if name == "web_search" else mock_fetch)
     
-    with patch("backend.queue.record_result") as mock_record:
+    with patch("backend.task_queue.record_result") as mock_record:
         # Check that it completes
         await orchestrator._run_research("Test research", "task_123")
         assert orchestrator.planner.router.get_response.call_count == 2

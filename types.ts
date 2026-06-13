@@ -170,7 +170,8 @@ export type AuthType =
   | 'QR_SYNC'
   | 'TOKEN'
   | 'WEB_SESSION'
-  | 'VDXF_HANDSHAKE';
+  | 'VDXF_HANDSHAKE'
+  | 'MACOS_PERMS';
 
 export interface HardwareProfile {
   arch: string;

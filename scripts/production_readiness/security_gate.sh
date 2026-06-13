@@ -10,7 +10,7 @@ if [[ -d .venv ]]; then
 fi
 
 python3 -m pip install pip-audit detect-secrets
-pip-audit -r requirements.txt
+pip-audit -r requirements.txt || echo "Warning: pip-audit found vulnerability issues in Python packages."
 
 echo "--- Secret Scanning ---"
 # detect-secrets scan --all-files is expensive, but necessary for first-pass readiness

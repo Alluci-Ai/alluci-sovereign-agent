@@ -9,10 +9,9 @@ from fastapi import HTTPException
 @pytest.fixture(scope="function")
 def client():
     """TestClient with verify_admin overridden to succeed, cleaned up after test."""
-    # No exception means admin passes
     app.dependency_overrides[verify_admin] = lambda: None
-    with TestClient(app) as c:
-        yield c
+    c = TestClient(app)
+    yield c
     app.dependency_overrides.clear()
 
 def test_get_allowed_hosts(client: TestClient):

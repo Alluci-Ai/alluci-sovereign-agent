@@ -10,6 +10,7 @@ from backend.config import Settings
 async def test_psi_routing_logic():
     settings = Settings(  # type: ignore
         GEMINI_API_KEY="test",
+        SOVEREIGN_MODE=False,
         LOCAL_LLM_ENABLED=False,
         LOCAL_LCE_ENABLED=False,
         LM_STUDIO_URL="",

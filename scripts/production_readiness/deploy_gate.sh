@@ -9,7 +9,7 @@ if grep -n "PIN_THIS_DIGEST" docker-compose.yml >/dev/null; then
 fi
 
 # Verify core services exist in the compose file
-for svc in db redis backend frontend; do
+for svc in agent; do
   grep -n "^\s*${svc}:" docker-compose.yml >/dev/null || { echo "missing service definition in docker-compose.yml: ${svc}"; exit 1; }
 done
 

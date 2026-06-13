@@ -48,15 +48,17 @@ class DummyHLSMManager:
     async def consolidation_sweep(self):
         return {}
 
-# Apply stubs to the services module
+from unittest.mock import patch
 import backend.services as services
-services.goal_engine = DummyGoalEngine()
-services.memory = DummyMemory()
-services.hlsm_manager = DummyHLSMManager()
-
-# Patch security resolution manager to always succeed
 import backend.security.resolution as resolution_mod
-resolution_mod.resolution_manager.provide_resolution = lambda *args, **kwargs: True
+
+@pytest.fixture(autouse=True)
+def patch_services():
+    with patch("backend.services.goal_engine", DummyGoalEngine()), \
+         patch("backend.services.memory", DummyMemory()), \
+         patch("backend.services.hlsm_manager", DummyHLSMManager()), \
+         patch("backend.security.resolution.resolution_manager.provide_resolution", lambda *args, **kwargs: True):
+        yield
 
 app = FastAPI()
 # Override auth dependency for each router

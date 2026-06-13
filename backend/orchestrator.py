@@ -28,7 +28,7 @@ from .adapters.registry import AdapterRegistry
 from .harmonic_enhancer import HarmonicAssistant
 from .heartbeat import HeartbeatDaemon
 from .skill_manager import SkillManager
-from . import queue as task_queue
+from . import task_queue
 
 from .security.dpk import DiscreteProjectionKernel, PolytopeState
 from .security.avl_gate import AVLGate

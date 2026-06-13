@@ -114,3 +114,9 @@ backups/
 mirror_cache/
 alignment_cache/
 dataset_cache/
+
+# PyInstaller Build Artifacts
+build/
+dist/
+*.spec
+

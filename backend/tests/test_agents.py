@@ -250,7 +250,7 @@ def test_delegate_to_agent(app_client, auth_headers, temp_db):
 def test_agent_heartbeat_history(app_client, auth_headers, temp_db):
     from backend.models import HeartbeatOrderRecord, AgentRecord
     from sqlmodel import Session
-    import time as _time
+    from datetime import timedelta
 
     with Session(temp_db) as session:
         session.add(AgentRecord(
@@ -261,7 +261,7 @@ def test_agent_heartbeat_history(app_client, auth_headers, temp_db):
             session.add(HeartbeatOrderRecord(
                 order_id=f"ord_hist_{i:02d}",
                 agent_id="agt_hist_01",
-                fired_at=_time.time() - i * 60,
+                fired_at=datetime.now(timezone.utc) - timedelta(seconds=i*60),
                 probe_type="cron_expression",
                 action_type="log_only",
                 outcome="success",
@@ -285,14 +285,14 @@ def test_agent_heartbeat_history(app_client, auth_headers, temp_db):
 def test_root_heartbeat_history(app_client, auth_headers, temp_db):
     from backend.models import HeartbeatOrderRecord
     from sqlmodel import Session
-    import time as _time
+    from datetime import timedelta
 
     with Session(temp_db) as session:
         for i in range(2):
             session.add(HeartbeatOrderRecord(
                 order_id=f"root_hist_{i:02d}",
                 agent_id=None,
-                fired_at=_time.time() - i * 120,
+                fired_at=datetime.now(timezone.utc) - timedelta(seconds=i*120),
                 probe_type="task_deadline",
                 action_type="notify_ws",
                 outcome="success",

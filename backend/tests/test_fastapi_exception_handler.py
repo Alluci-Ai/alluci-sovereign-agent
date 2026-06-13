@@ -4,11 +4,11 @@ pytestmark = pytest.mark.unit
 from fastapi.testclient import TestClient
 from backend.app import app, settings
 
-client = TestClient(app)
+client = TestClient(app, raise_server_exceptions=False)
 
 def _add_error_route(path: str):
     # Add a route that raises an exception if not already added
-    if not any(route.path == path for route in app.routes):
+    if not any(getattr(route, "path", None) == path for route in app.routes):
         @app.get(path)
         async def error_endpoint():
             raise RuntimeError("Sensitive error")

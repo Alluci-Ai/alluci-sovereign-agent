@@ -156,9 +156,8 @@ def format_exception_detail(exc: Exception) -> str:
     # Return raw exception detail when DEBUG is enabled (non-production environments)
     if getattr(runtime_settings, "DEBUG", False):
         return str(exc)
-    # Default to raw exception detail for non-production, non-debug environments
-    return str(exc)
-    # Legacy masking logic removed; new logic above handles production and debug cases
+    # Default to generic message for non-production, non-debug environments
+    return "An internal server error occurred. Please contact the administrator or check the logs."
 
 
 from fastapi.exceptions import RequestValidationError

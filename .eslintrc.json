@@ -17,6 +17,7 @@
     "public",
     "htmlcov",
     "coverage",
+    "model_forge",
     "*.config.js",
     "*.config.cjs",
     ".eslintrc.json"

@@ -267,7 +267,7 @@ class TestFailoversAndSpecificRequests:
             
             with patch.object(router, "_gemini_request", new_callable=AsyncMock) as mock_gem:
                 mock_gem.return_value = "gemini tactical"
-                res = await router.get_fast_tactical_response("hello")
+                res = await router.get_fast_tactical_response("hello fallback")
                 assert res == "gemini tactical"
 
 class TestModelRouterGenerators:

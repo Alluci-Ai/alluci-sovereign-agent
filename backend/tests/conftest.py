@@ -81,6 +81,29 @@ init_jwt_keys(_test_priv_key, _test_pub_key)
 # DATABASE FIXTURES
 # ══════════════════════════════════════════════════════════════════════════════
 
+@pytest.fixture(autouse=True)
+def cleanup_heartbeat_state_files():
+    """
+    Autouse fixture to clean up temporary heartbeat probe state files
+    (.hb_fw_*.json and .hb_url_*.json) created during tests to ensure
+    isolation and prevent pollution of the workspace root.
+    """
+    import glob
+    # Clean up before test
+    for f in glob.glob(".hb_fw_*.json") + glob.glob(".hb_url_*.json"):
+        try:
+            os.remove(f)
+        except Exception:
+            pass
+    yield
+    # Clean up after test
+    for f in glob.glob(".hb_fw_*.json") + glob.glob(".hb_url_*.json"):
+        try:
+            os.remove(f)
+        except Exception:
+            pass
+
+
 @pytest.fixture(scope="function")
 def temp_db():
     """
@@ -115,7 +138,7 @@ def temp_db():
          patch("backend.device_manager.db_engine", engine, create=True), \
          patch("backend.orchestrator.db_engine", engine, create=True), \
          patch("backend.models.engine", engine, create=True), \
-         patch("backend.queue.engine", engine, create=True):
+         patch("backend.task_queue.engine", engine, create=True):
         yield engine
 
     os.unlink(db_path)

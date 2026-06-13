@@ -18,7 +18,7 @@ import psutil
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional, Set
 from pydantic import ValidationError
-from .schemas import ws_gateway as ws_schemas
+from .schemas.ws_gateway import ChannelsListModel, ExecAllowParams, ExecDenyParams, SessionsPatchParams
 from fastapi import WebSocket, WebSocketDisconnect
 from jose import JWTError
 from .config import settings
@@ -37,12 +37,6 @@ class ConnectedClient:
         self.connected_at = datetime.now(timezone.utc)
         self.last_heartbeat = self.connected_at
         self.subscriptions: Set[str] = set()  # event channels subscribed to
-        # Overwrite or set send_text as an AsyncMock with assert_called alias for test compatibility
-        from unittest.mock import AsyncMock
-        async_send = AsyncMock()
-        # Map assert_called to assert_awaited so tests using assert_called work
-        async_send.assert_called = async_send.assert_awaited
-        self.websocket.send_text = async_send
 
 
     def touch(self):
@@ -122,29 +116,29 @@ class JsonRpcGateway:
         self.register_method(
             "events.subscribe",
             self._rpc_events_subscribe,
-            schema=ws_schemas.ChannelsListModel,
+            schema=ChannelsListModel,
         )
         self.register_method(
             "events.unsubscribe",
             self._rpc_events_unsubscribe,
-            schema=ws_schemas.ChannelsListModel,
+            schema=ChannelsListModel,
         )
         self.register_method("whatsapp.get_qr", self._rpc_whatsapp_get_qr,
                             schema={"description": "Retrieve the latest WhatsApp pairing code if unauthenticated."})
         self.register_method(
             "exec.allow",
             self._rpc_exec_allow,
-            schema=ws_schemas.ExecAllowParams,
+            schema=ExecAllowParams,
         )
         self.register_method(
             "exec.deny",
             self._rpc_exec_deny,
-            schema=ws_schemas.ExecDenyParams,
+            schema=ExecDenyParams,
         )
         self.register_method(
             "sessions.patch",
             self._rpc_sessions_patch,
-            schema=ws_schemas.SessionsPatchParams,
+            schema=SessionsPatchParams,
         )
         self.register_method("system.update", self._rpc_system_update,
                             schema={"description": "Trigger the autonomous self-update mechanism."})
@@ -157,8 +151,8 @@ class JsonRpcGateway:
         self.register_method("manifold.pvt", self._rpc_manifold_pvt,
                             schema={"description": "Query the current PVT (Pressure/Volume/Temperature) manifold health state."})
 
-    def register_method(self, name: str, handler, schema: Optional[Dict[str, Any]] = None):
-        """Register a JSON-RPC method with optional schema documentation."""
+    def register_method(self, name: str, handler, schema: Any = None):
+        """Register a new RPC method. Schema can be a Pydantic model class or a dict."""
         self._methods[name] = {
             "handler": handler,
             "schema": schema or {"description": "No documentation provided."}
@@ -286,7 +280,7 @@ class JsonRpcGateway:
 
         params = msg.get("params", {})
         # Perform validation if a Pydantic schema is provided
-        if schema is not None:
+        if schema is not None and hasattr(schema, "model_validate"):
             try:
                 validated = schema.model_validate(params)
                 params_to_pass = validated.dict()
@@ -440,11 +434,14 @@ class JsonRpcGateway:
         }
 
     async def _rpc_methods_list(self, params: dict, client: ConnectedClient) -> dict:
-        return {
-            "methods": {
-                name: meta["schema"] for name, meta in self._methods.items()
-            }
-        }
+        methods_info = {}
+        for name, meta in self._methods.items():
+            schema = meta["schema"]
+            if hasattr(schema, "model_json_schema"):
+                methods_info[name] = schema.model_json_schema()
+            else:
+                methods_info[name] = schema
+        return {"methods": methods_info}
 
     async def _rpc_events_subscribe(self, params: dict, client: ConnectedClient) -> dict:
         channels = params.get("channels", [])

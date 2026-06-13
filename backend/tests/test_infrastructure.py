@@ -98,7 +98,7 @@ class TestDatabaseMigrations:
         tables = set(inspector.get_table_names())
 
         required_tables = {
-            "run", "taskrecord",  # DAG engine
+            "run", "task_record",  # DAG engine
         }
         missing = required_tables - tables
         assert not missing, f"Missing tables after migration: {missing}"

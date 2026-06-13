@@ -363,7 +363,7 @@ def test_order_not_due_within_interval(daemon, sqlite_engine):
         session.add(HeartbeatOrderRecord(
             order_id="recent_order_001",
             agent_id=None,
-            fired_at=time.time() - 30,  # 30 seconds ago
+            fired_at=datetime.fromtimestamp(time.time() - 30, tz=timezone.utc),  # 30 seconds ago
             probe_type="task_deadline",
             action_type="notify_ws",
             outcome="success",
@@ -380,7 +380,7 @@ def test_order_due_after_interval_elapsed(daemon, sqlite_engine):
         session.add(HeartbeatOrderRecord(
             order_id="old_order_001",
             agent_id=None,
-            fired_at=time.time() - 3700,  # just over 1 hour ago
+            fired_at=datetime.fromtimestamp(time.time() - 3700, tz=timezone.utc),  # just over 1 hour ago
             probe_type="cron_expression",
             action_type="log_only",
             outcome="success",
@@ -547,7 +547,7 @@ async def test_action_notify_bridge_not_in_registry():
 @pytest.mark.asyncio
 async def test_daemon_stop(daemon):
     daemon._running = True
-    f = asyncio.Future()
+    f: asyncio.Future = asyncio.Future()
     daemon._task = f
     
     await daemon.stop()
