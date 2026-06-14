@@ -74,3 +74,10 @@
   color: var(--text-tertiary);
   text-align: center;
 }
+
+/* === Mermaid Diagram SVG scaling === */
+.mermaid-diagram svg {
+  max-width: 100% !important;
+  height: auto !important;
+  background: transparent !important;
+}

@@ -233,20 +233,26 @@ export class AlluciGeminiService {
     }
   }
 
-  async processMultimodal(text: string, files: FilePart[], inferenceMode: string = 'HYBRID'): Promise<string> {
+  async processMultimodal(
+    text: string, 
+    files: FilePart[], 
+    inferenceMode: string = 'HYBRID', 
+    onToken?: (token: string) => void
+  ): Promise<string> {
     const state = useStore.getState();
     const token = state.accessToken || this.getAuthToken();
     
     if (!token) {
       return "[ ERROR ]: Authentication required. Please log in via the Sovereign Identity portal.";
     }
-
-    const executeRequest = async (forceCsrf = false) => {
+ 
+    const executeRequest = async (forceCsrf = false, isStream = false) => {
       const csrfToken = await getCsrfToken(this.DAEMON_URL, token, forceCsrf);
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
-
-      return await fetch(`${this.DAEMON_URL}/api/v1/gemini/proxy`, {
+ 
+      const endpoint = isStream ? '/api/v1/gemini/proxy/stream' : '/api/v1/gemini/proxy';
+      return await fetch(`${this.DAEMON_URL}${endpoint}`, {
         method: 'POST',
         headers: headers,
         body: JSON.stringify({ 
@@ -258,19 +264,63 @@ export class AlluciGeminiService {
         credentials: 'include'
       });
     };
-
+ 
     try {
-      let response = await executeRequest();
+      const isStream = typeof onToken === 'function';
+      let response = await executeRequest(false, isStream);
       
       // If 403 (CSRF Invalid), try refreshing once
       if (response.status === 403) {
         console.warn("[ GEMINI_PROXY ]: CSRF Invalid, retrying with forced refresh...");
-        response = await executeRequest(true);
+        response = await executeRequest(true, isStream);
       }
-
+ 
       if (response.ok) {
-        const data = await response.json();
-        return data.result || "[ SIGNAL_LOST ]";
+        if (isStream) {
+          const reader = response.body?.getReader();
+          const decoder = new TextDecoder();
+          let fullText = '';
+          if (reader) {
+            let buffer = '';
+            while (true) {
+              const { value, done } = await reader.read();
+              if (done) break;
+              buffer += decoder.decode(value, { stream: true });
+              const lines = buffer.split('\n');
+              // Save the last partial line back to the buffer
+              buffer = lines.pop() || '';
+              for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                  const dataStr = line.slice(6);
+                  try {
+                    const parsed = JSON.parse(dataStr);
+                    const tokenText = parsed.text || '';
+                    fullText += tokenText;
+                    if (onToken) onToken(tokenText);
+                  } catch (err) {
+                    console.error("Failed to parse SSE JSON chunk:", err, dataStr);
+                  }
+                }
+              }
+            }
+            // Process any remaining bytes in buffer
+            if (buffer.startsWith('data: ')) {
+              const dataStr = buffer.slice(6);
+              try {
+                const parsed = JSON.parse(dataStr);
+                const tokenText = parsed.text || '';
+                fullText += tokenText;
+                if (onToken) onToken(tokenText);
+              } catch (err) {
+                console.error("Failed to parse SSE JSON chunk:", err, dataStr);
+              }
+            }
+          }
+          return fullText;
+        } else {
+          const data = await response.json();
+          return data.result || "[ SIGNAL_LOST ]";
+        }
       } else {
         const errData = await response.json().catch(() => ({ detail: response.statusText }));
         return `[ ERROR ]: Backend failure (${response.status}): ${errData.detail || "Unknown error"}`;

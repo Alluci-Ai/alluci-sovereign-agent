@@ -26,6 +26,13 @@ vi.mock('../chat/ReadingIndicator', () => ({
     ReadingIndicator: () => <div data-testid="reading-indicator" />
 }));
 
+vi.mock('mermaid', () => ({
+    default: {
+        initialize: vi.fn(),
+        render: vi.fn().mockResolvedValue({ svg: '<svg data-testid="mock-mermaid-svg"></svg>' })
+    }
+}));
+
 describe('TerminalView', () => {
     const mockProps = {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -111,5 +118,32 @@ describe('TerminalView', () => {
         // JumpToNewButton or ReadingIndicator might be tracked by text
         render(<TerminalView {...mockProps} />);
         expect(screen.getByTestId('execution-timeline')).toBeInTheDocument();
+    });
+
+    it('renders mermaid and other code blocks correctly', async () => {
+        const mockTranscriptions = [
+            {
+                isUser: false,
+                text: 'Here is a diagram:\n```mermaid\ngraph TD\nA --> B\n```\nAnd code:\n```javascript\nconsole.log("hello");\n```',
+                timestamp: '2026-03-22T23:00:00Z',
+                isCompaction: false
+            }
+        ];
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (useStore as any).mockReturnValue({
+            transcriptions: mockTranscriptions,
+            isProcessing: false
+        });
+
+        render(<TerminalView {...mockProps} />);
+
+        // It should render loading indicator or mermaid diagram
+        expect(screen.getByText('Rendering diagram...')).toBeInTheDocument();
+        expect(screen.getByText('console.log("hello");')).toBeInTheDocument();
+
+        // Wait for async rendering of SVG
+        const svg = await screen.findByTestId('mock-mermaid-svg');
+        expect(svg).toBeInTheDocument();
     });
 });

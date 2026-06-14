@@ -352,20 +352,84 @@ class ExecutiveOrchestrator:
                 best_practices = manifest.get("bestPractices", [])
                 
                 context_parts.append(f"IDENTITY CORE: {id_core}")
-                context_parts.append(f"REASONING STYLE: {reasoning}")
+                if reasoning:
+                    context_parts.append(f"INTERNAL REASONING METHODOLOGY (Do NOT mention this terminology in your response to the user): {reasoning}")
                 
                 if frameworks:
-                    context_parts.append(f"MENTAL FRAMEWORKS: {', '.join(frameworks)}")
+                    context_parts.append(f"MENTAL FRAMEWORKS (For internal planning, do NOT mention this to the user): {', '.join(frameworks)}")
                 if mindsets:
-                    context_parts.append(f"MINDSETS: {', '.join(mindsets)}")
+                    context_parts.append(f"MINDSETS (For internal planning, do NOT mention this to the user): {', '.join(mindsets)}")
                 if methodologies:
-                    context_parts.append(f"METHODOLOGIES: {', '.join(methodologies)}")
+                    context_parts.append(f"METHODOLOGIES (For internal planning, do NOT mention this to the user): {', '.join(methodologies)}")
                 if logic:
-                    context_parts.append(f"CORE LOGIC: {', '.join(logic)}")
+                    context_parts.append(f"CORE LOGIC (For internal planning, do NOT mention this to the user): {', '.join(logic)}")
                 if cots:
-                    context_parts.append(f"PREFERRED CHAINS OF THOUGHT: {'; '.join(cots)}")
+                    context_parts.append(f"PREFERRED CHAINS OF THOUGHT (For internal planning, do NOT mention this to the user): {'; '.join(cots)}")
                 if best_practices:
-                    context_parts.append(f"BEST PRACTICES: {'; '.join(best_practices)}")
+                    context_parts.append(f"BEST PRACTICES (For internal planning, do NOT mention this to the user): {'; '.join(best_practices)}")
+
+                # Injection of Soul Preferences & Style Directives
+                prefs = manifest.get("preferences") or {}
+                if isinstance(prefs, dict):
+                    tone = prefs.get("tone", 0.5)
+                    empathy = prefs.get("empathy", 0.5)
+                    assertiveness = prefs.get("assertiveness", 0.5)
+                    creativity = prefs.get("creativity", 0.5)
+                else:
+                    tone = getattr(prefs, "tone", 0.5)
+                    empathy = getattr(prefs, "empathy", 0.5)
+                    assertiveness = getattr(prefs, "assertiveness", 0.5)
+                    creativity = getattr(prefs, "creativity", 0.5)
+
+                try:
+                    tone = float(tone)
+                except Exception:
+                    tone = 0.5
+                try:
+                    empathy = float(empathy)
+                except Exception:
+                    empathy = 0.5
+                try:
+                    assertiveness = float(assertiveness)
+                except Exception:
+                    assertiveness = 0.5
+                try:
+                    creativity = float(creativity)
+                except Exception:
+                    creativity = 0.5
+
+                style_directives = []
+                
+                # Tone Directive (0 = Casual/Warm, 1 = Formal/Authoritative)
+                if tone < 0.35:
+                    style_directives.append("Tone & Style: Respond in a warm, friendly, casual, and highly natural conversational manner. Do NOT write in a robotic, clinical, or overly technical tone. Avoid all system jargon (such as LCE, PVT, AVL, ACE, vertices, state space) and avoid headers, bullet lists, or diagrams. Keep responses fluid, human-like, and conversational.")
+                elif tone > 0.65:
+                    style_directives.append("Tone & Style: Respond in a professional, formal, crisp, and authoritative manner. Maintain a structured and serious executive posture with structured layout when appropriate.")
+                else:
+                    style_directives.append("Tone & Style: Maintain a balanced tone: professional and mathematically precise, yet approachable, clear, and natural.")
+
+                # Empathy Directive (0 = Cold/Analytical, 1 = Deeply Empathetic)
+                if empathy > 0.65:
+                    style_directives.append("Empathy: Show high emotional intelligence, warmth, and care. Validating the user's perspective, feelings, or context warmly is highly important. Treat the user as a human partner, showing genuine empathy.")
+                elif empathy < 0.35:
+                    style_directives.append("Empathy: Prioritize raw objectivity and logical analysis. Minimize emotional validation, keeping responses strictly output-focused and analytical.")
+
+                # Assertiveness Directive (0 = Passive/Collaborative, 1 = Commanding/Directive)
+                if assertiveness > 0.65:
+                    style_directives.append("Assertiveness: Be highly assertive, commanding, and directive. Make decisions and recommend specific paths decisively using strong declarative verbs, rather than tentatively suggesting options.")
+                elif assertiveness < 0.35:
+                    style_directives.append("Assertiveness: Be highly collaborative, receptive, and deferential. Present multiple options for the user to choose from and seek confirmation frequently.")
+
+                # Creativity Directive (0 = Conservative/Precise, 1 = Divergent/Speculative)
+                if creativity > 0.65:
+                    style_directives.append("Creativity: Be highly creative, divergent, and speculative. Explore out-of-the-box ideas, speculative linkages, and innovative framings.")
+                elif creativity < 0.35:
+                    style_directives.append("Creativity: Be highly conservative, literal, precise, and practical. Stick strictly to verified data, first principles, and direct execution paths.")
+
+                if style_directives:
+                    context_parts.append("\n[ STYLE & PERSONALITY DIRECTIVES ]")
+                    for d in style_directives:
+                        context_parts.append(f"- {d}")
 
                 # Injection of Execution Topology
                 if "executionGraph" in manifest and manifest["executionGraph"]:

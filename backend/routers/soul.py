@@ -45,6 +45,10 @@ async def update_soul_manifest(request: Request, manifest: SoulManifest, csrf_pr
     if settings.VERUS_AUTH_ENABLED and settings.VERUS_ID_IDENTITY:
         await wallet_service.update_manifest(manifest.dict())
         
+    # Invalidate cached soul manifest memory in orchestrator
+    if services.orchestrator:
+        services.orchestrator._cached_soul = None
+
     return {"status": "SUCCESS"}
 
 @router.post("/soul/preview", dependencies=[Depends(verify_authenticated), Depends(RateLimiter(times=5, seconds=60))])

@@ -328,3 +328,44 @@ class TestModelRouterGenerators:
             res = await router.check_health()
             assert "lm_studio" in res
             assert res["lm_studio"]["status"] == "HEALTHY"
+
+class TestModelRouterStream:
+    @pytest.mark.asyncio
+    async def test_stream_local_lce_success(self):
+        settings = make_mock_settings(LOCAL_LCE_ENABLED=True)
+        from backend.inference.router import ModelRouter
+        router = ModelRouter(settings)
+        router.lce_enabled = True
+
+        async def mock_generate_stream(*args, **kwargs):
+            yield "Token A "
+            yield "Token B"
+
+        with patch("backend.inference.router.mlx_engine") as mock_mlx:
+            mock_mlx.apply_context_moat = AsyncMock()
+            mock_mlx.generate_stream = mock_generate_stream
+            
+            chunks = []
+            async for chunk in router.get_response_stream("prompt", inference_mode="LOCAL"):
+                chunks.append(chunk)
+
+            assert chunks == ["Token A ", "Token B"]
+            mock_mlx.apply_context_moat.assert_called_once_with("executive")
+
+    @pytest.mark.asyncio
+    async def test_stream_fallback_when_lce_disabled(self):
+        settings = make_mock_settings()
+        from backend.inference.router import ModelRouter
+        router = ModelRouter(settings)
+        router.lce_enabled = False
+
+        with patch.object(router, "get_response", new_callable=AsyncMock) as mock_get_resp:
+            mock_get_resp.return_value = "Fallback full response"
+            
+            chunks = []
+            async for chunk in router.get_response_stream("prompt", inference_mode="HYBRID"):
+                chunks.append(chunk)
+
+            assert chunks == ["Fallback full response"]
+            mock_get_resp.assert_called_once()
+

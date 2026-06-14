@@ -489,7 +489,7 @@ class MLXEngine:
             state = services.ace.current_state
             ace_state = state.get("ace_state", "<ACE_STATE_0>")
             
-            ace_system_inject = f"\n[ AFFECTIVE COMPUTING GATE: {ace_state} ]"
+            ace_system_inject = f"\nYour current affective computing state is: {ace_state}. Adjust your emotional valence to match this state, but do not echo or output this state token or brackets in your response."
             if system_instruction:
                 system_instruction = system_instruction + ace_system_inject
             else:
@@ -525,13 +525,50 @@ class MLXEngine:
             return generate(model, tokenizer, prompt=formatted_prompt, max_tokens=max_tokens, sampler=sampler)
         return await asyncio.to_thread(_sync_gen)
 
-    async def generate_stream(self, prompt: str, max_tokens: int = 1024, temperature: float = 0.7) -> AsyncGenerator[str, None]:
-        """Streams response by chunking the generated text for UI consumption."""
-        response = await self.generate(prompt, max_tokens=max_tokens, temperature=temperature)
-        chunk_size = 20
-        for i in range(0, len(response), chunk_size):
-            yield response[i:i+chunk_size]
-            await asyncio.sleep(0.01)
+    async def generate_stream(self, prompt: str, system_instruction: str = "", max_tokens: int = 1024, temperature: float = 0.7) -> AsyncGenerator[str, None]:
+        """Streams response token-by-token natively using mlx_lm.stream_generate."""
+        await self.ensure_loaded()
+        model = self.model
+        tokenizer = self.tokenizer
+        if model is None or tokenizer is None:
+            raise RuntimeError("Model or tokenizer not loaded.")
+        prompt, system_instruction, temperature = self._apply_ace_logic(prompt, system_instruction, temperature)
+        
+        # Prepare input using tokenizer's chat template
+        messages = []
+        if system_instruction:
+            messages.append({"role": "system", "content": system_instruction})
+        messages.append({"role": "user", "content": prompt})
+        formatted_prompt = tokenizer.apply_chat_template(messages, add_generation_prompt=True)
+        
+        from mlx_lm import stream_generate
+        from mlx_lm.sample_utils import make_sampler
+        sampler = make_sampler(temp=temperature)
+
+        q: asyncio.Queue = asyncio.Queue()
+        loop = asyncio.get_running_loop()
+
+        def _run_generator():
+            try:
+                for response in stream_generate(model, tokenizer, prompt=formatted_prompt, max_tokens=max_tokens, sampler=sampler):
+                    loop.call_soon_threadsafe(q.put_nowait, response.text)
+                loop.call_soon_threadsafe(q.put_nowait, None)  # sentinel
+            except Exception as e:
+                logger.error(f"stream_generate error: {e}")
+                loop.call_soon_threadsafe(q.put_nowait, e)
+
+        gen_task = asyncio.create_task(asyncio.to_thread(_run_generator))
+
+        try:
+            while True:
+                item = await q.get()
+                if item is None:
+                    break
+                if isinstance(item, Exception):
+                    raise item
+                yield item
+        finally:
+            await gen_task
 
     async def apply_context_moat(self, agent_id: str):
         """Loads LoRA adapters if present. Currently a no-op for pure MLX models."""

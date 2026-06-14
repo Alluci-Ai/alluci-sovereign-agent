@@ -33,6 +33,7 @@ const CommandBar: React.FC<CommandBarProps> = ({
 
     const onSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (isProcessing) return;
         if (inputMode === 'chat') {
             handleCommandSubmit(e);
         } else {

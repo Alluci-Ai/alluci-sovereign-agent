@@ -22,6 +22,7 @@ export const useInteractions = (
         setAttachments
     } = useStore();
     const messageQueue = useRef<{ text: string, attachments: PendingAttachment[] }[]>([]);
+    const submittingRef = useRef(false);
 
     // Shared AbortController — AbortButton signals via this ref
     const abortControllerRef = useRef<AbortController | null>(null);
@@ -30,7 +31,11 @@ export const useInteractions = (
      * Core inference call, wrapped with AbortController lifecycle.
      * Returns the response text, or throws AbortError if cancelled.
      */
-    const runInference = async (text: string, files: PendingAttachment[]): Promise<string> => {
+    const runInference = async (
+        text: string, 
+        files: PendingAttachment[], 
+        onToken?: (token: string) => void
+    ): Promise<string> => {
         // Create a fresh controller for this request
         const controller = new AbortController();
         abortControllerRef.current = controller;
@@ -38,7 +43,7 @@ export const useInteractions = (
         try {
             if (geminiServiceRef.current) {
                 const mode = sovereignMode ? 'LOCAL' : 'CLOUD';
-                const responseText = await geminiServiceRef.current.processMultimodal(text, files, mode);
+                const responseText = await geminiServiceRef.current.processMultimodal(text, files, mode, onToken);
 
                 // Check if aborted during the call
                 if (controller.signal.aborted) {
@@ -58,30 +63,50 @@ export const useInteractions = (
 
     const handleCommandSubmit = async (e?: React.FormEvent) => {
         if (e) e.preventDefault();
-
+ 
         const currentText = textInput.trim();
         const currentAttachments = [...attachments];
-
+ 
         if (!currentText && currentAttachments.length === 0) return;
-
+ 
+        if (submittingRef.current) return;
+        submittingRef.current = true;
+ 
         // Message Queueing: Buffer if currently processing
         if (isProcessing) {
             messageQueue.current.push({ text: currentText, attachments: currentAttachments });
             setTextInput("");
             setAttachments([]);
             console.info("[ UX ]: Message buffered during stream.");
+            submittingRef.current = false;
             return;
         }
-
+ 
         setTranscriptions(prev => [...prev, { text: currentText, isUser: true, timestamp: new Date().toISOString() }]);
         setTextInput("");
         setAttachments([]);
         setIsProcessing(true);
-
+ 
+        const assistantMsgId = `assistant-stream-${Date.now()}`;
+        setTranscriptions(prev => [...prev, { 
+            text: '', 
+            isUser: false, 
+            timestamp: new Date().toISOString(), 
+            id: assistantMsgId 
+        }]);
+ 
         try {
-            const responseText = await runInference(currentText, currentAttachments);
-            setTranscriptions(prev => [...prev, { text: responseText, isUser: false, timestamp: new Date().toISOString() }]);
-
+            let cumulativeText = '';
+            const responseText = await runInference(currentText, currentAttachments, (token) => {
+                cumulativeText += token;
+                setTranscriptions(prev => prev.map(msg => 
+                    msg.id === assistantMsgId ? { ...msg, text: cumulativeText } : msg
+                ));
+            });
+            setTranscriptions(prev => prev.map(msg => 
+                msg.id === assistantMsgId ? { ...msg, text: responseText } : msg
+            ));
+ 
             if (isConnected) {
                 await geminiServiceRef.current?.speak(responseText, handleAudioOutput);
             }
@@ -90,14 +115,17 @@ export const useInteractions = (
             // Distinguish user abort from real errors
             if (err?.name === 'AbortError') {
                 console.info("[ UX ]: Generation aborted by user.");
-                // Message is appended by AbortButton.onAbort — don't double-append
+                setTranscriptions(prev => prev.filter(msg => msg.id !== assistantMsgId));
             } else {
                 console.error(err);
-                setTranscriptions(prev => [...prev, { text: "[ ERROR ]: Communication manifold disrupted.", isUser: false, timestamp: new Date().toISOString() }]);
+                setTranscriptions(prev => prev.map(msg => 
+                    msg.id === assistantMsgId ? { ...msg, text: "[ ERROR ]: Communication manifold disrupted." } : msg
+                ));
             }
         } finally {
             setIsProcessing(false);
             refreshAuditLog();
+            submittingRef.current = false;
         }
     };
 
@@ -110,9 +138,26 @@ export const useInteractions = (
                 const processQueued = async () => {
                     setTranscriptions(prev => [...prev, { text: next.text, isUser: true, timestamp: new Date().toISOString() }]);
                     setIsProcessing(true);
+                    
+                    const assistantMsgId = `assistant-stream-${Date.now()}`;
+                    setTranscriptions(prev => [...prev, { 
+                        text: '', 
+                        isUser: false, 
+                        timestamp: new Date().toISOString(), 
+                        id: assistantMsgId 
+                    }]);
+
                     try {
-                        const responseText = await runInference(next.text, next.attachments);
-                        setTranscriptions(prev => [...prev, { text: responseText, isUser: false, timestamp: new Date().toISOString() }]);
+                        let cumulativeText = '';
+                        const responseText = await runInference(next.text, next.attachments, (token) => {
+                            cumulativeText += token;
+                            setTranscriptions(prev => prev.map(msg => 
+                                msg.id === assistantMsgId ? { ...msg, text: cumulativeText } : msg
+                            ));
+                        });
+                        setTranscriptions(prev => prev.map(msg => 
+                            msg.id === assistantMsgId ? { ...msg, text: responseText } : msg
+                        ));
                         if (isConnected) {
                             await geminiServiceRef.current?.speak(responseText, handleAudioOutput);
                         }
@@ -120,9 +165,12 @@ export const useInteractions = (
                     } catch (err: any) {
                         if (err?.name === 'AbortError') {
                             console.info("[ UX ]: Queued generation aborted.");
+                            setTranscriptions(prev => prev.filter(msg => msg.id !== assistantMsgId));
                         } else {
                             console.error(err);
-                            setTranscriptions(prev => [...prev, { text: "[ ERROR ]: Communication manifold disrupted.", isUser: false, timestamp: new Date().toISOString() }]);
+                            setTranscriptions(prev => prev.map(msg => 
+                                msg.id === assistantMsgId ? { ...msg, text: "[ ERROR ]: Communication manifold disrupted." } : msg
+                            ));
                         }
                     } finally {
                         setIsProcessing(false);

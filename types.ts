@@ -12,6 +12,8 @@ export interface Message {
   modelName?: string;
   /** Message type to separate chat from dispatch logs */
   type?: 'chat' | 'dispatch';
+  /** Optional unique ID to support dynamic streaming updates */
+  id?: string;
 }
 
 export interface PendingAttachment extends FilePart {

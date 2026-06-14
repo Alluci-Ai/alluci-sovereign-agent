@@ -338,8 +338,15 @@ class SoulPreferences(BaseModel):
     """Placeholder for user preferences related to the soul.
     Extend with actual fields as needed.
     """
+    tone: Optional[float] = 0.5
+    empathy: Optional[float] = 0.5
+    assertiveness: Optional[float] = 0.5
+    creativity: Optional[float] = 0.5
+    verbosity: Optional[float] = 0.5
+    humor: Optional[str] = "dry"
+    conciseness: Optional[Any] = "balanced"
     preferences: dict = {}
-    conciseness: Any = 5
+
     model_config = {"extra": "allow"}
 
 class SoulManifest(BaseModel):
@@ -349,6 +356,21 @@ class SoulManifest(BaseModel):
     manifest: dict = {}
     directives: list = []
     preferences: Optional[SoulPreferences] = None
+    identityCore: Optional[str] = None
+    reasoningStyle: Optional[str] = None
+    frameworks: Optional[list] = None
+    mindsets: Optional[list] = None
+    methodologies: Optional[list] = None
+    logic: Optional[list] = None
+    chainsOfThought: Optional[list] = None
+    bestPractices: Optional[list] = None
+    voiceProfile: Optional[str] = None
+    knowledgeGraph: Optional[list] = None
+    bootSequence: Optional[str] = None
+    heartbeat: Optional[str] = None
+    executionGraph: Optional[dict] = None
+
+    model_config = {"extra": "allow"}
 
 # --- Wallet Models (stub) ---
 

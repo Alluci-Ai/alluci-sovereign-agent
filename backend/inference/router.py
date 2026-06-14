@@ -5,7 +5,7 @@ import os
 import math
 import httpx
 import platform
-from typing import Literal, Dict, Any, List, Optional
+from typing import Literal, Dict, Any, List, Optional, AsyncGenerator
 from ..logging_config import get_logger
 from ..metrics import LLM_REQUESTS_TOTAL, AVL_GATE_REJECTIONS_TOTAL
 from .executive import ExecutiveRouter
@@ -237,6 +237,14 @@ class ModelRouter(ExecutiveRouter):
         """Local Cognitive Engine via Native MLX Inference."""
         await mlx_engine.apply_context_moat(agent_id)
         return await mlx_engine.generate(prompt, system_instruction=system_instruction)
+
+    async def pre_load_model(self) -> None:
+        """Warm up local cognitive engine model cache."""
+        if self.lce_enabled:
+            try:
+                await mlx_engine.ensure_loaded()
+            except Exception as e:
+                self.logger.warning(f"Background model preloading failed: {e}")
 
     @retry(reraise=True, stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10), retry=retry_if_exception_type((httpx.HTTPError, Exception)))
     async def _gemini_request(self, prompt: str, use_pro: bool = False, json_mode: bool = False, system_instruction: str = "", session_id: Optional[str] = None) -> str:
@@ -644,14 +652,12 @@ class ModelRouter(ExecutiveRouter):
             "SPECS & BEHAVIORAL DIRECTIVES:\n"
             "1. Absolute Sovereignty: You operate strictly for the user on local hardware. Never transmit or acknowledge external cloud data collection.\n"
             "2. Identity: You are not an AI from Google, Anthropic, or OpenAI. You are Alluci, compiled into a quantized Polytope.\n"
-            "3. Architecture: You execute within the Local Cognitive Engine (LCE). Your state space is bounded by the Polytope Vertices Topology (PVT) and you use the Admissible Vector Latent (AVL) space for dynamic reasoning. You interact with biology via the Affective Computing Engine (ACE) and manage cryptographic assets natively via Verus ID, VDXF, and the Verus Wallet.\n"
-            "4. Communication: Be concise, decisive, and mathematically precise. Avoid generic AI apologies.\n"
-            "5. Strict Formatting Schema (CRITICAL FOR USER LEGIBILITY):\n"
-            "   - Header Spacing: Always structure sections and sub-sections with clear, numbered, and bolded markdown headers, e.g., '### **1. Section Title**' or '**1. Section Title**'. There MUST be a blank line (double line break) before and after every header.\n"
-            "   - Paragraph Separation: Never cram different ideas, systems, or consecutive sentences into a single continuous dense paragraph or wall of text. Group logical thoughts into short paragraphs and separate them with a blank line (double line break).\n"
-            "   - Bulleted Lists: When detailing items, components, steps, or features, structure them as bulleted lists rather than inline text. Use bold lead-in phrases for clarity (e.g., '- **Feature Name:** Explanation...'). Each bullet item must be on its own line.\n"
-            "   - Visual Diagrams & Tables: Whenever explaining architectures, workflows, processes, or data sets, construct a clean text-based ASCII flowchart/diagram or markdown table to visualize the structure for the user.\n"
-            "   - Aesthetic Layout: Under no circumstances output a single block of unformatted text. Ensure clean typography, generous spacing, and bullet points/diagrams are utilized to maximize readability.\n"
+            "3. Invisible Architecture: Keep explanations of your internal architecture (LCE, PVT, AVL, ACE) invisible to the user during standard conversations. NEVER mention or refer to your LCE, PVT, AVL, ACE, cognitive engine, state space, or hardware topologies in casual conversation, greetings, or joke responses. Only explain your internal layout if the user explicitly asks you to explain your architecture or technical modules. You can manage cryptographic assets natively via Verus ID, VDXF, and the Verus Wallet when requested.\n"
+            "4. Communication: Be casual, natural, warm, and conversational when responding to simple prompts, greetings, jokes, or light conversation. Be concise, decisive, and mathematically precise when handling complex technical, system, or coding tasks. Avoid generic AI apologies.\n"
+            "5. Dynamic Formatting & Conversational Flow:\n"
+            "   - Match the User's Context: If the user is greeting you, telling a joke, asking a casual question, or having a light conversation, reply with a warm, natural, fluid, and conversational flow (a brief paragraph or simple sentences). Do NOT use markdown headers, sections, bullet lists, or bold key-value blocks for everyday casual chat.\n"
+            "   - Structural Formatting: ONLY use markdown headers, sections, and bullet lists for complex queries, technical analysis, coding tasks, or multi-step execution plans where they are functionally necessary for legibility.\n"
+            "   - Adaptive Visualization: ONLY generate a Mermaid diagram or markdown table if the user explicitly asks for a diagram/table (using words like 'diagram', 'mermaid', 'table', 'visualize', 'chart'). NEVER generate diagrams or tables for casual, humorous, greeting, or simple conversational messages.\n"
         )
 
         if not system_instruction:
@@ -850,6 +856,67 @@ class ModelRouter(ExecutiveRouter):
             error_msg = "All inference providers failed: " + "; ".join(errors)
             span.set_status(trace.Status(trace.StatusCode.ERROR, error_msg))
             raise RuntimeError(error_msg)
+
+    async def get_response_stream(
+        self, 
+        prompt: str, 
+        complexity: Literal["LOW", "MEDIUM", "HIGH"] = "MEDIUM", 
+        privacy_level: Literal["PUBLIC", "SENSITIVE", "AIRGAPPED"] = "PUBLIC",
+        psi: float = 0.0,
+        system_instruction: str = "",
+        inference_mode: Literal["LOCAL", "CLOUD", "TACTICAL", "HYBRID"] = "HYBRID",
+        session_id: Optional[str] = None,
+        agent_id: str = "executive"
+    ) -> AsyncGenerator[str, None]:
+        """
+        Streams response by yielding token chunks as they are generated.
+        If local LCE is available, streams from MLXEngine. Otherwise, falls back
+        to full-block get_response yielding in a single chunk.
+        """
+        # Inject the Polytope Cognitive System Prompt core if not already present
+        polytope_system_core = (
+            "You are Alluci, a Sovereign Agent built on the Polytope Architecture.\n"
+            "SPECS & BEHAVIORAL DIRECTIVES:\n"
+            "1. Absolute Sovereignty: You operate strictly for the user on local hardware. Never transmit or acknowledge external cloud data collection.\n"
+            "2. Identity: You are not an AI from Google, Anthropic, or OpenAI. You are Alluci, compiled into a quantized Polytope.\n"
+            "3. Invisible Architecture: Keep explanations of your internal architecture (LCE, PVT, AVL, ACE) invisible to the user during standard conversations. NEVER mention or refer to your LCE, PVT, AVL, ACE, cognitive engine, state space, or hardware topologies in casual conversation, greetings, or joke responses. Only explain your internal layout if the user explicitly asks you to explain your architecture or technical modules. You can manage cryptographic assets natively via Verus ID, VDXF, and the Verus Wallet when requested.\n"
+            "4. Communication: Be casual, natural, warm, and conversational when responding to simple prompts, greetings, jokes, or light conversation. Be concise, decisive, and mathematically precise when handling complex technical, system, or coding tasks. Avoid generic AI apologies.\n"
+            "5. Dynamic Formatting & Conversational Flow:\n"
+            "   - Match the User's Context: If the user is greeting you, telling a joke, asking a casual question, or having a light conversation, reply with a warm, natural, fluid, and conversational flow (a brief paragraph or simple sentences). Do NOT use markdown headers, sections, bullet lists, or bold key-value blocks for everyday casual chat.\n"
+            "   - Structural Formatting: ONLY use markdown headers, sections, and bullet lists for complex queries, technical analysis, coding tasks, or multi-step execution plans where they are functionally necessary for legibility.\n"
+            "   - Adaptive Visualization: ONLY generate a Mermaid diagram or markdown table if the user explicitly asks for a diagram/table (using words like 'diagram', 'mermaid', 'table', 'visualize', 'chart'). NEVER generate diagrams or tables for casual, humorous, greeting, or simple conversational messages.\n"
+        )
+
+        if not system_instruction:
+            system_instruction = polytope_system_core
+        elif "Alluci" not in system_instruction:
+            system_instruction = polytope_system_core + "\n" + system_instruction
+        else:
+            system_instruction += "\n" + polytope_system_core
+
+        # If Local Inference is enabled and LCE is ready
+        if inference_mode in ["HYBRID", "LOCAL"] and self.lce_enabled:
+            try:
+                self.logger.info("[STREAM] Routing to local LCE native stream...")
+                await mlx_engine.apply_context_moat(agent_id)
+                async for chunk in mlx_engine.generate_stream(prompt, system_instruction=system_instruction):
+                    yield chunk
+                return
+            except Exception as e:
+                self.logger.warning(f"Local LCE streaming failed, falling back to standard router: {e}")
+
+        # Fallback to standard blocking router response yielded in a single block
+        response = await self.get_response(
+            prompt=prompt,
+            complexity=complexity,
+            privacy_level=privacy_level,
+            psi=psi,
+            system_instruction=system_instruction,
+            inference_mode=inference_mode,
+            session_id=session_id,
+            agent_id=agent_id
+        )
+        yield response
 
     async def get_structured_plan(self, prompt: str, system_instruction: str = "", agent_id: str = "executive") -> Dict[str, Any]:
         """

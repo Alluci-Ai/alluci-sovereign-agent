@@ -104,6 +104,11 @@ async def lifespan(app: FastAPI):
         verus_auth._redis = services.redis_client
         logger.info("[ VERUSID ] Challenge store backed by Redis.")
         
+    if services.router:
+        logger.info("[ LIFESPAN ] Triggering background preloading of LCE model...")
+        import asyncio
+        asyncio.create_task(services.router.pre_load_model())
+
     yield
     
     # --- Graceful Shutdown ---
