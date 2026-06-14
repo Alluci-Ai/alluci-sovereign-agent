@@ -12,6 +12,158 @@ interface TerminalViewProps {
     copyText: (text: string) => void;
 }
 
+const renderMarkdown = (text: string) => {
+    const lines = text.split('\n');
+    const elements: React.ReactNode[] = [];
+    let inList = false;
+    let listItems: React.ReactNode[] = [];
+    let inTable = false;
+    let tableRows: string[][] = [];
+
+    const flushList = (key: string | number) => {
+        if (listItems.length > 0) {
+            elements.push(
+                <ul key={`list-${key}`} className="list-disc pl-6 my-2 space-y-1">
+                    {listItems}
+                </ul>
+            );
+            listItems = [];
+        }
+        inList = false;
+    };
+
+    const flushTable = (key: string | number) => {
+        if (tableRows.length > 0) {
+            let headers: string[] = [];
+            let rows: string[][] = [];
+            
+            if (tableRows.length > 1 && tableRows[1].every(cell => /^:?-+:?$/.test(cell.trim()))) {
+                headers = tableRows[0];
+                rows = tableRows.slice(2);
+            } else {
+                rows = tableRows;
+            }
+
+            elements.push(
+                <div key={`table-wrapper-${key}`} className="overflow-x-auto my-4 border border-[rgba(255,255,255,0.1)] rounded-lg w-full">
+                    <table className="min-w-full divide-y divide-[rgba(255,255,255,0.1)] bg-[rgba(255,255,255,0.02)]">
+                        {headers.length > 0 && (
+                            <thead className="bg-[rgba(255,255,255,0.05)]">
+                                <tr>
+                                    {headers.map((h, idx) => (
+                                        <th key={idx} className="px-4 py-2 text-left text-xs font-bold text-text-secondary uppercase tracking-wider">
+                                            {parseInlineMarkdown(h)}
+                                        </th>
+                                    ))}
+                                </tr>
+                            </thead>
+                        )}
+                        <tbody className="divide-y divide-[rgba(255,255,255,0.05)]">
+                            {rows.map((row, rIdx) => (
+                                <tr key={rIdx} className="hover:bg-[rgba(255,255,255,0.01)] transition-colors">
+                                    {row.map((cell, cIdx) => (
+                                        <td key={cIdx} className="px-4 py-2 text-sm text-text-primary">
+                                            {parseInlineMarkdown(cell)}
+                                        </td>
+                                    ))}
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            );
+            tableRows = [];
+        }
+        inTable = false;
+    };
+
+    const parseInlineMarkdown = (inlineText: string): React.ReactNode => {
+        const parts = inlineText.split(/(\*\*.*?\*\*|\*.*?\*)/);
+        return parts.map((part, index) => {
+            if (part.startsWith('**') && part.endsWith('**')) {
+                return <strong key={index} className="font-extrabold text-white">{part.slice(2, -2)}</strong>;
+            }
+            if (part.startsWith('*') && part.endsWith('*')) {
+                return <em key={index} className="italic text-text-secondary">{part.slice(1, -1)}</em>;
+            }
+            return part;
+        });
+    };
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const trimmed = line.trim();
+
+        // 1. Handle Table Rows
+        if (trimmed.startsWith('|') && trimmed.endsWith('|') && trimmed.length > 1) {
+            if (inList) flushList(i);
+            inTable = true;
+            const cells = trimmed.split('|').map(c => c.trim()).filter((_, idx, arr) => idx > 0 && idx < arr.length - 1);
+            tableRows.push(cells);
+            continue;
+        } else if (inTable) {
+            flushTable(i);
+        }
+
+        // 2. Handle List Items
+        if (trimmed.startsWith('- ') || trimmed.startsWith('* ') || trimmed.startsWith('o ')) {
+            if (inTable) flushTable(i);
+            inList = true;
+            const content = trimmed.replace(/^[-*o]\s+/, '');
+            listItems.push(
+                <li key={`li-${i}`} className="text-sm leading-relaxed text-text-primary">
+                    {parseInlineMarkdown(content)}
+                </li>
+            );
+            continue;
+        } else if (inList) {
+            flushList(i);
+        }
+
+        // 3. Handle Headers
+        if (trimmed.startsWith('#')) {
+            const match = trimmed.match(/^(#{1,6})\s*(.*)$/);
+            if (match) {
+                const level = match[1].length;
+                const headerText = match[2];
+                const headerClass = level === 1 
+                    ? "text-2xl font-black text-white mt-6 mb-3 tracking-wide" 
+                    : level === 2 
+                    ? "text-xl font-bold text-white mt-5 mb-2.5 tracking-wide" 
+                    : "text-lg font-semibold text-white mt-4 mb-2 tracking-wide";
+                
+                const HeaderTag = `h${level}` as any;
+                elements.push(
+                    <div key={`h-wrap-${i}`} className="py-2">
+                        <HeaderTag className={headerClass}>
+                            {parseInlineMarkdown(headerText)}
+                        </HeaderTag>
+                    </div>
+                );
+                continue;
+            }
+        }
+
+        // 4. Handle Blank Lines
+        if (trimmed === '') {
+            elements.push(<div key={`blank-${i}`} className="h-3 shrink-0" />);
+            continue;
+        }
+
+        // 5. Normal Paragraphs
+        elements.push(
+            <p key={`p-${i}`} className="text-sm leading-relaxed text-text-primary mb-2">
+                {parseInlineMarkdown(line)}
+            </p>
+        );
+    }
+
+    if (inList) flushList('final');
+    if (inTable) flushTable('final');
+
+    return <div className="flex flex-col w-full text-left">{elements}</div>;
+};
+
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const TerminalView: React.FC<TerminalViewProps> = ({ getFormattedTime, copyText }) => {
     const { transcriptions, isProcessing } = useStore();
@@ -80,7 +232,7 @@ const TerminalView: React.FC<TerminalViewProps> = ({ getFormattedTime, copyText 
                             <span className="text-[8px] font-mono text-text-tertiary">[{getFormattedTime(t.timestamp)}]</span>
                         </div>
                         <div className={`relative group max-w-[85%] md:max-w-[70%] px-5 py-3.5 text-[14px] leading-relaxed shadow-lg backdrop-blur-xl ${t.isUser ? 'bg-[rgba(0,113,227,0.18)] border border-[rgba(0,113,227,0.30)] text-text-primary rounded-[20px] rounded-br-[4px]' : 'bg-glass-2 border border-glass-edge text-text-primary rounded-[20px] rounded-bl-[4px]'}`}>
-                            {t.text}
+                            {renderMarkdown(t.text)}
                             <CopyMessageButton text={t.text} />
 
                             {!t.isUser && (
