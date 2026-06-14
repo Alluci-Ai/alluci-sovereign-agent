@@ -9,11 +9,12 @@ from .security.vault import VaultManager
 logger = get_logger("SkillManager")
 
 class SkillManager:
-    def __init__(self, vault: VaultManager, skills_dir: Optional[str] = None):
+    def __init__(self, vault: VaultManager, skills_dir: Optional[str] = None, workspace_skills_dir: Optional[str] = "alluci_vault/skills"):
         self.vault = vault
         self.skills_dir = skills_dir or os.path.expanduser("~/.polytope/skills")
         if not os.path.exists(self.skills_dir):
             os.makedirs(self.skills_dir, mode=0o700, exist_ok=True)
+        self.workspace_skills_dir = workspace_skills_dir
             
         self.registry_id = "cognitive_registry"
         self.review_queue_id = "skill_review_queue"
@@ -24,19 +25,41 @@ class SkillManager:
         data = await self.vault.retrieve_secret(self.registry_id)
         vault_skills = data.get("skills", [])
         
-        # 2. Load from Disk
+        # 2. Load from Disk (both user ~/.polytope/skills and workspace alluci_vault/skills)
         disk_skills = []
-        try:
-            for filename in os.listdir(self.skills_dir):
-                if filename.endswith((".yaml", ".yml")):
-                    with open(os.path.join(self.skills_dir, filename), "r") as f:
-                        skill_data = yaml.safe_load(f)
-                        if skill_data and "id" in skill_data:
+        dirs_to_scan = [self.skills_dir]
+        if self.workspace_skills_dir:
+            dirs_to_scan.append(self.workspace_skills_dir)
+        seen_ids = set()
+        
+        for s in vault_skills:
+            if "id" in s:
+                seen_ids.add(s["id"])
+                
+        for d in dirs_to_scan:
+            if not os.path.exists(d):
+                continue
+            try:
+                for filename in os.listdir(d):
+                    file_path = os.path.join(d, filename)
+                    skill_data = None
+                    if filename.endswith((".yaml", ".yml")):
+                        with open(file_path, "r") as f:
+                            skill_data = yaml.safe_load(f)
+                    elif filename.endswith(".json"):
+                        import json
+                        with open(file_path, "r") as f:
+                            skill_data = json.load(f)
+                            
+                    if skill_data and "id" in skill_data:
+                        if skill_data["id"] not in seen_ids:
                             skill_data["source"] = "disk"
-                            skill_data["verified"] = True
+                            if "verified" not in skill_data:
+                                skill_data["verified"] = True
                             disk_skills.append(skill_data)
-        except Exception as e:
-            logger.error(f"Failed to load skills from disk: {e}")
+                            seen_ids.add(skill_data["id"])
+            except Exception as e:
+                logger.error(f"Failed to load skills from disk dir {d}: {e}")
             
         return vault_skills + disk_skills
 

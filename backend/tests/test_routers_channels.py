@@ -2,6 +2,7 @@ import pytest
 pytestmark = pytest.mark.unit
 
 from unittest.mock import MagicMock, AsyncMock, patch
+from typing import Any
 import json
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -23,6 +24,12 @@ class MockAdapter:
     def __init__(self, **kwargs):
         for k, v in kwargs.items():
             setattr(self, k, v)
+
+    def __getattr__(self, name: str) -> Any:
+        raise AttributeError(f"'MockAdapter' object has no attribute '{name}'")
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        super().__setattr__(name, value)
 
 @pytest.fixture
 def mock_adapters():
@@ -462,3 +469,66 @@ class TestAgentSubscriptions:
         # Delete agent subscription missing
         res = app_client.delete("/api/v1/agents/a1/subscriptions/c1", headers=auth_headers)
         assert res.status_code == 404
+
+
+class TestBridgeSaveAndActivate:
+    @pytest.mark.asyncio
+    async def test_save_and_activate_bridge_endpoints(self, app_client, auth_headers):
+        # We need mock adapters for 'icloud' and 'telegram' (via 'tg')
+        mock_icloud = MockAdapter(
+            _save_credentials=AsyncMock(),
+            _load_credentials=AsyncMock(return_value={"apple_id": "test", "password": "pass"}),
+            connect=AsyncMock(return_value=True),
+            submit_2fa=AsyncMock(return_value={"status": "SUCCESS"}),
+            api=MagicMock(requires_2fa=False)
+        )
+        mock_telegram = MockAdapter(
+            _save_credentials=AsyncMock(),
+            _load_credentials=AsyncMock(return_value={"bot_token": "token"}),
+            connect=AsyncMock(return_value=True)
+        )
+        
+        services.channel_registry["icloud"] = mock_icloud
+        services.channel_registry["telegram"] = mock_telegram
+        
+        # Test save credentials for iCloud
+        res = app_client.post(
+            "/api/v1/auth/bridge/icloud/save",
+            json={"apple_id": "test", "password": "pass"},
+            headers=auth_headers
+        )
+        assert res.status_code == 200
+        assert res.json()["status"] == "SUCCESS"
+        mock_icloud._save_credentials.assert_called_once()
+        
+        # Test save credentials for Telegram using 'tg'
+        res = app_client.post(
+            "/api/v1/auth/bridge/tg/save",
+            json={"bot_token": "token"},
+            headers=auth_headers
+        )
+        assert res.status_code == 200
+        assert res.json()["status"] == "SUCCESS"
+        mock_telegram._save_credentials.assert_called_once()
+        
+        # Test activate bridge for iCloud
+        res = app_client.post("/api/v1/bridge/icloud/activate", headers=auth_headers)
+        assert res.status_code == 200
+        assert res.json()["connected"] is True
+        mock_icloud.connect.assert_called_once()
+        
+        # Test activate bridge with 2FA required first
+        mock_icloud.connect.reset_mock()
+        mock_icloud.api.requires_2fa = True
+        res = app_client.post("/api/v1/bridge/icloud/activate", headers=auth_headers)
+        assert res.status_code == 200
+        assert res.json()["requires_2fa"] is True
+        
+        # Test activate bridge with 2FA submission (two_factor_code in loaded creds)
+        mock_icloud.api.requires_2fa = False
+        mock_icloud._load_credentials = AsyncMock(return_value={"apple_id": "test", "password": "pass", "two_factor_code": "123456"})
+        res = app_client.post("/api/v1/bridge/icloud/activate", headers=auth_headers)
+        assert res.status_code == 200
+        assert res.json()["connected"] is True
+        mock_icloud.submit_2fa.assert_called_once_with("123456")
+

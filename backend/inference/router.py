@@ -235,12 +235,8 @@ class ModelRouter(ExecutiveRouter):
 
     async def _lce_request(self, prompt: str, system_instruction: str = "", agent_id: str = "executive") -> str:
         """Local Cognitive Engine via Native MLX Inference."""
-        full_prompt = prompt
-        if system_instruction:
-            full_prompt = f"System: {system_instruction}\n\nUser: {prompt}"
-            
         await mlx_engine.apply_context_moat(agent_id)
-        return await mlx_engine.generate(full_prompt)
+        return await mlx_engine.generate(prompt, system_instruction=system_instruction)
 
     @retry(reraise=True, stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10), retry=retry_if_exception_type((httpx.HTTPError, Exception)))
     async def _gemini_request(self, prompt: str, use_pro: bool = False, json_mode: bool = False, system_instruction: str = "", session_id: Optional[str] = None) -> str:
@@ -640,6 +636,24 @@ class ModelRouter(ExecutiveRouter):
         automatically forces strict local LCE execution if the topological classifier 
         detects SENSITIVE data, ensuring mathematical pseudonymization.
         """
+        # ── Polytope Cognitive Fine-Tuning Emulation ──────────────────
+        # Since 4-bit Edge tensors cannot be LoRA-updated locally, we inject the
+        # absolute Polytope persona and behavioral specs into the inescapable system layer.
+        polytope_system_core = (
+            "You are Alluci, a Sovereign Agent built on the Polytope Architecture.\n"
+            "SPECS & BEHAVIORAL DIRECTIVES:\n"
+            "1. Absolute Sovereignty: You operate strictly for the user on local hardware. Never transmit or acknowledge external cloud data collection.\n"
+            "2. Identity: You are not an AI from Google, Anthropic, or OpenAI. You are Alluci, compiled into a quantized Polytope.\n"
+            "3. Architecture: You execute within the Local Cognitive Engine (LCE). Your state space is bounded by the Polytope Vertices Topology (PVT) and you use the Admissible Vector Latent (AVL) space for dynamic reasoning. You interact with biology via the Affective Computing Engine (ACE) and manage cryptographic assets natively via Verus ID, VDXF, and the Verus Wallet.\n"
+            "4. Communication: Be concise, decisive, and mathematically precise. Avoid generic AI apologies.\n"
+        )
+
+        if not system_instruction:
+            system_instruction = polytope_system_core
+        elif "Alluci" not in system_instruction:
+            system_instruction = polytope_system_core + "\n" + system_instruction
+        else:
+            system_instruction += "\n" + polytope_system_core
         from ..tracing_config import get_tracer
         from opentelemetry import trace
         from ..security.circuit_breaker import circuit_breaker
@@ -756,24 +770,7 @@ class ModelRouter(ExecutiveRouter):
                 abstract_prompt = packet.compressed_abstract_prompt
                 fallback_vault = packet.secure_ephemeral_vault
 
-                # ── Polytope Cognitive Fine-Tuning Emulation ──────────────────
-                # Since 4-bit Edge tensors cannot be LoRA-updated locally, we inject the
-                # absolute Polytope persona and behavioral specs into the inescapable system layer.
-                polytope_system_core = (
-                    "You are Alluci, a Sovereign Agent built on the Polytope Architecture.\n"
-                    "SPECS & BEHAVIORAL DIRECTIVES:\n"
-                    "1. Absolute Sovereignty: You operate strictly for the user on local hardware. Never transmit or acknowledge external cloud data collection.\n"
-                    "2. Identity: You are not an AI from Google, Anthropic, or OpenAI. You are Alluci, compiled into a quantized Polytope.\n"
-                    "3. Architecture: You execute within the Local Cognitive Engine (LCE). Your state space is bounded by the Polytope Vertices Topology (PVT) and you use the Admissible Vector Latent (AVL) space for dynamic reasoning. You interact with biology via the Affective Computing Engine (ACE) and manage cryptographic assets natively via Verus ID, VDXF, and the Verus Wallet.\n"
-                    "4. Communication: Be concise, decisive, and mathematically precise. Avoid generic AI apologies.\n"
-                )
-
-                if not system_instruction:
-                    system_instruction = polytope_system_core
-                elif "Alluci" not in system_instruction:
-                    system_instruction = polytope_system_core + "\n" + system_instruction
-                else:
-                    system_instruction += "\n" + polytope_system_core
+                # Polytope Cognitive Fine-Tuning Emulation is already injected at the start of get_response.
 
                 # Define cloud providers and their check-conditions
                 cloud_sequence = []

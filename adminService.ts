@@ -12,7 +12,7 @@ export interface AdminCallbacks {
 
 export class AlluciAdminService {
     private socket: WebSocket | null = null;
-    private DAEMON_URL = import.meta.env.VITE_DAEMON_URL;
+    private DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
     private WS_URL = (this.DAEMON_URL || window.location.origin).replace('http', 'ws') + '/ws/admin';
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     private reconnectTimer: any = null;

@@ -15,6 +15,13 @@ SKILLS_DIR = "alluci_vault/skills"
 @router.get("/skills")
 async def get_all_skills():
     """Retrieve all dynamically loaded skills from the vault."""
+    from .. import services
+    if services.skill_manager:
+        try:
+            return await services.skill_manager.list_skills()
+        except Exception as e:
+            logger.error(f"Failed to list skills via SkillManager: {e}")
+            
     skill_map = {}
     # Load core skills first
     CORE_DIR = "core_skills"
@@ -60,6 +67,12 @@ async def save_skill(skill_id: str, payload: Dict[str, Any] = Body(...)):
         with open(file_path, "w") as f:
             json.dump(payload, f, indent=2)
         logger.info(f"Skill {safe_id} saved to vault.")
+        
+        # Sync to SkillManager if available
+        from .. import services
+        if services.skill_manager:
+            await services.skill_manager.save_skill(payload)
+            
         return {"status": "SUCCESS", "skill_id": safe_id}
     except Exception as e:
         logger.error(f"Failed to save skill {safe_id}: {e}")
@@ -70,8 +83,19 @@ async def delete_skill(skill_id: str):
     """Deletes a skill from the local vault."""
     safe_id = "".join(c for c in skill_id if c.isalnum() or c in ("-", "_"))
     file_path = os.path.join(SKILLS_DIR, f"{safe_id}.json")
+    
+    deleted = False
     if os.path.exists(file_path):
         os.remove(file_path)
-        logger.info(f"Skill {safe_id} deleted from vault.")
+        deleted = True
+        logger.info(f"Skill {safe_id} deleted from disk.")
+        
+    # Sync to SkillManager if available
+    from .. import services
+    if services.skill_manager:
+        manager_deleted = await services.skill_manager.delete_skill(safe_id)
+        deleted = deleted or manager_deleted
+        
+    if deleted:
         return {"status": "SUCCESS"}
     raise HTTPException(status_code=404, detail="Skill not found")

@@ -32,7 +32,7 @@ def temp_skills_dir(tmp_path):
 
 @pytest.fixture
 def skill_manager(mock_vault, temp_skills_dir):
-    return SkillManager(vault=mock_vault, skills_dir=temp_skills_dir)
+    return SkillManager(vault=mock_vault, skills_dir=temp_skills_dir, workspace_skills_dir=None)
 
 class TestSkillManager:
     @pytest.mark.asyncio
@@ -194,14 +194,14 @@ class TestSkillManager:
     @pytest.mark.asyncio
     async def test_install_remote_package_http_error(self, skill_manager):
         import httpx
-        class MockRequest: pass
-        class MockResponse:
-            status_code = 404
+        req = httpx.Request("GET", "http://example.com")
+        resp = httpx.Response(404, request=req)
+        status_error = httpx.HTTPStatusError("404", request=req, response=resp)
             
         class AsyncContextManager:
             async def __aenter__(self):
                 mock_client = MagicMock()
-                mock_client.get = AsyncMock(side_effect=httpx.HTTPStatusError("404", request=MockRequest(), response=MockResponse()))
+                mock_client.get = AsyncMock(side_effect=status_error)
                 return mock_client
             async def __aexit__(self, exc_type, exc, tb): pass
 

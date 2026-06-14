@@ -22,6 +22,12 @@ from cryptography.fernet import Fernet
 from starlette.requests import Request
 from starlette.responses import Response
 
+# Globally mock keyring for all tests to prevent polluting the user's macOS Keychain
+import keyring
+keyring.get_password = MagicMock(return_value=None)
+keyring.set_password = MagicMock()
+keyring.delete_password = MagicMock()
+
 # CRITICAL: Set environment variables BEFORE any backend modules are imported
 # so that module-level Pydantic settings evaluation captures the test values.
 os.environ["APP_ENV"] = "testing"

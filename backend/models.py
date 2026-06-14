@@ -117,7 +117,7 @@ class AgentChannelSubscription(SQLModel, table=True):
 class HLSMEpisodicEntry(SQLModel, table=True):
     __tablename__ = "hlsm_episodic"  # type: ignore
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
-    content: str = Field(sa_column=Column(JSON))
+    content: str = Field()
     source: str = Field(default="task_result")
     session_key: str = Field(default="")
     objective_hash: str = Field(default="")

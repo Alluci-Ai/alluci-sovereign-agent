@@ -1,13 +1,17 @@
 import pytest
 pytestmark = pytest.mark.unit
 
-from unittest.mock import MagicMock, AsyncMock, ANY
+from unittest.mock import MagicMock, AsyncMock, ANY, patch
 from backend.inference.router import ModelRouter
 
 from backend.config import Settings
 
 @pytest.mark.asyncio
-async def test_psi_routing_logic():
+@patch("backend.inference.router.prompt_cache")
+async def test_psi_routing_logic(mock_prompt_cache):
+    mock_prompt_cache.get = AsyncMock(return_value=None)
+    mock_prompt_cache.set = AsyncMock()
+    
     settings = Settings(  # type: ignore
         GEMINI_API_KEY="test",
         SOVEREIGN_MODE=False,
@@ -19,7 +23,6 @@ async def test_psi_routing_logic():
         AWS_SECRET_ACCESS_KEY="",
         AWS_REGION="us-east-1"
     )
-    from unittest.mock import patch
     with patch("backend.inference.router.genai", MagicMock(), create=True), \
          patch("backend.inference.router.GEMINI_AVAILABLE", True):
         router = ModelRouter(settings)

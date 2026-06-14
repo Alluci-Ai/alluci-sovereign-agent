@@ -18,6 +18,7 @@ import {
   KNOWLEDGE_FRAMEWORKS,
   SKILL_DATABASE
 } from './knowledge';
+import { getCsrfToken } from './csrfStore';
 
 export const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
 export const clamp01 = (n: number) => clamp(n, 0, 1);
@@ -269,7 +270,7 @@ export class AuditLedger {
   private daemonUrl: string;
 
   // Standardized daemon URL — uses Vite's proxy-ready VITE_DAEMON_URL
-  constructor(daemonUrl: string = import.meta.env.VITE_DAEMON_URL) {
+  constructor(daemonUrl: string = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000') {
     this.daemonUrl = daemonUrl;
     this.addEntry("INITIALIZE_SOVEREIGN_NODE", { build: "GATEWAY_V4.3_EXECUTIVE" });
   }
@@ -279,10 +280,17 @@ export class AuditLedger {
 
   private async syncToServer(entry: AuditEntry) {
     try {
+      const csrfToken = await getCsrfToken(this.daemonUrl, null);
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json'
+      };
+      if (csrfToken) {
+        headers['X-CSRF-Token'] = csrfToken;
+      }
       // Pass credentials to ensure the daemon's JWT HttpOnly cookie is sent
       await fetch(`${this.daemonUrl}/api/v1/audit/entry`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: headers,
         credentials: 'include',
         body: JSON.stringify(entry)
       });

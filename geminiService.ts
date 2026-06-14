@@ -60,7 +60,7 @@ export class AlluciGeminiService {
   private currentPersonality: SoulManifest | PersonalityTraits = { satireLevel: 0.5, analyticalDepth: 0.8, protectiveBias: 0.9, verbosity: 0.4 };
   private currentConnections: Connection[] = [];
   private currentSkills: SkillManifest[] = [];
-  private DAEMON_URL = import.meta.env.VITE_DAEMON_URL;
+  private DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
 
   setPersonality(traits: SoulManifest | PersonalityTraits) { this.currentPersonality = traits; }
   setConnections(connections: Connection[]) { this.currentConnections = connections; }

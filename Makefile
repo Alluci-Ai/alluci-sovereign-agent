@@ -3,6 +3,8 @@
 VENV = .venv
 PYTHON = $(VENV)/bin/python3
 UVICORN = $(VENV)/bin/uvicorn
+NPM := $(shell which npm 2>/dev/null || echo npm)
+NPX := $(shell which npx 2>/dev/null || echo npx)
 
 .PHONY: start stop restart status init doctor logs clean quality docs
 
@@ -31,7 +33,7 @@ stop:
 start: stop
 	@echo "Starting Alluci Sovereign Agent..."
 	@nohup $(PYTHON) -m uvicorn backend.app:app --port 8000 --host 0.0.0.0 > backend.log 2>&1 &
-	@nohup npm run dev -- --port 3000 --host 0.0.0.0 > frontend.log 2>&1 &
+	@nohup $(NPM) run dev -- --port 3000 --host 0.0.0.0 > frontend.log 2>&1 &
 	@echo "Backend starting on http://localhost:8000"
 	@echo "Frontend starting on http://localhost:3000"
 	@echo "Use 'make logs' to watch progress."
@@ -62,5 +64,5 @@ docs:
 	@echo "Extracting OpenAPI schema..."
 	@$(PYTHON) scripts/export_openapi.py
 	@echo "Generating Markdown API Reference..."
-	@npx widdershins --search false --language_tabs "python:Python" "javascript:JavaScript" --summary Documentation/openapi.json -o Documentation/API_Reference.md
+	@$(NPX) widdershins --search false --language_tabs "python:Python" "javascript:JavaScript" --summary Documentation/openapi.json -o Documentation/API_Reference.md
 	@echo "API Reference generated at Documentation/API_Reference.md"

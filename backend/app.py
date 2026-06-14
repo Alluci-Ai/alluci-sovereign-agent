@@ -1,6 +1,7 @@
 
 import logging
 import contextlib
+from typing import Optional
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, Response, Depends
 import structlog
 from structlog.contextvars import bind_contextvars, clear_contextvars
@@ -26,14 +27,30 @@ from .security.auth import verify_authenticated
 from .security import csrf # Initialize CSRF config
 from .engine.errors import AdapterError
 
+try:
+    from fastapi_csrf_protect import CsrfProtect
+    from fastapi_csrf_protect.exceptions import CsrfProtectError
+except ImportError:
+    class FallbackCsrfProtect:
+        async def validate_csrf(self, request):
+            return None
+    class FallbackCsrfProtectError(Exception):
+        def __init__(self, message="CSRF validation failed"):
+            self.message = message
+            super().__init__(self.message)
+    CsrfProtect = FallbackCsrfProtect  # type: ignore
+    CsrfProtectError = FallbackCsrfProtectError  # type: ignore
 
 
 
-async def global_rate_limit(request: Request, response: Response):
+
+async def global_rate_limit(request: Request = None, response: Response = None):  # type: ignore
     """
     Global rate limit. Always enforced — falls back to in-memory
     sliding window if Redis is unavailable.
     """
+    if request is None or response is None:
+        return
     try:
         return await RateLimiter(times=settings.RATE_LIMIT_PER_MINUTE, seconds=60)(request, response)
     except HTTPException:
@@ -339,22 +356,8 @@ async def csrf_protect_middleware(request: Request, call_next):
             "/api/v1/gemini/proxy", 
         ]
         
-        # [ LOCAL_FIX ]: Allow CSRF bypass during testing/dev if specified, 
-        # but enforce it strictly in production.
         is_testing = settings.APP_ENV == "testing"
         if path.startswith("/api/v1") and path not in skip_paths and not is_testing:
-            try:
-                from fastapi_csrf_protect import CsrfProtect
-                from fastapi_csrf_protect.exceptions import CsrfProtectError
-            except ImportError:
-                class CsrfProtect:
-                    async def validate_csrf(self, request):
-                        return None
-                class CsrfProtectError(Exception):
-                    def __init__(self, message="CSRF validation failed"):
-                        self.message = message
-                        super().__init__(self.message)
-            
             csrf = CsrfProtect()
             try:
                 await csrf.validate_csrf(request)

@@ -3,6 +3,7 @@ import secrets
 import os
 import asyncio
 from typing import Dict, Any
+from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Depends, Body, Query, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse
 from ..security.auth import verify_authenticated
@@ -10,9 +11,10 @@ from .. import services
 try:
     from fastapi_csrf_protect import CsrfProtect
 except ImportError:
-    class CsrfProtect:
+    class FallbackCsrfProtect:
         async def validate_csrf(self, request):
             return None
+    CsrfProtect = FallbackCsrfProtect  # type: ignore
 from sqlmodel import select
 from ..database import get_session
 from ..models import TelemetryData, AgentChannelSubscription
@@ -768,3 +770,93 @@ async def delete_agent_subscription(agent_id: str, channel_id: str, request: Req
         session.commit()
         return {"status": "SUCCESS"}
     raise HTTPException(status_code=404, detail="Subscription not found")
+
+
+BRIDGE_ID_MAP = {
+    "tg": "telegram",
+    "sg": "signal",
+    "wa": "whatsapp",
+    "dc": "discord",
+    "ig": "instagram",
+    "fb": "facebook",
+    "sl": "slack",
+    "mt": "msteams",
+    "gm": "gmail",
+    "gd": "gdrive",
+    "verus": "verus_wallet",
+}
+
+def normalize_bridge_id(bridge_id: str) -> str:
+    return BRIDGE_ID_MAP.get(bridge_id, bridge_id)
+
+@router.post("/auth/bridge/{bridge_id}/save", dependencies=[Depends(verify_authenticated)])
+async def save_bridge_credentials(
+    bridge_id: str,
+    request: Request,
+    csrf_protect: CsrfProtect = Depends(),
+    credentials: Dict[str, Any] = Body(...)
+):
+    await csrf_protect.validate_csrf(request)
+    normalized_id = normalize_bridge_id(bridge_id)
+    adapter = services.channel_registry.get(normalized_id)
+    if not adapter:
+        raise HTTPException(status_code=404, detail=f"Bridge '{bridge_id}' not found.")
+    
+    account_id = "default"
+    try:
+        await adapter._save_credentials(credentials, account_id)
+        if services.vault:
+            await services.vault.store_secret(f"channel_{normalized_id}_enabled", {"enabled": True})
+        return {"status": "SUCCESS", "message": f"Credentials saved for {bridge_id}"}
+    except Exception as e:
+        logger.error(f"Failed to save credentials for {bridge_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/bridge/{bridge_id}/activate", dependencies=[Depends(verify_authenticated)])
+async def activate_bridge_route(
+    bridge_id: str,
+    request: Request,
+    csrf_protect: CsrfProtect = Depends()
+):
+    await csrf_protect.validate_csrf(request)
+    normalized_id = normalize_bridge_id(bridge_id)
+    adapter = services.channel_registry.get(normalized_id)
+    if not adapter:
+        raise HTTPException(status_code=404, detail=f"Bridge '{bridge_id}' not found.")
+        
+    account_id = "default"
+    try:
+        creds = await adapter._load_credentials(account_id)
+        if not creds:
+            raise HTTPException(status_code=400, detail="No credentials found. Save credentials first.")
+            
+        if normalized_id == "icloud" and "two_factor_code" in creds:
+            code = creds["two_factor_code"]
+            # Clean up two_factor_code from stored credentials to avoid re-using it
+            clean_creds = {k: v for k, v in creds.items() if k != "two_factor_code"}
+            await adapter._save_credentials(clean_creds, account_id)
+            
+            # Submit 2FA code
+            res = await adapter.submit_2fa(code)
+            if res.get("status") == "SUCCESS":
+                return {"connected": True}
+            else:
+                return {"connected": False, "requires_2fa": True, "error": res.get("error", "Invalid 2FA code")}
+                
+        # Normal activation/connect
+        success = await adapter.connect(creds)
+        
+        # Check if iCloud requires 2FA
+        if normalized_id == "icloud" and hasattr(adapter, "api") and adapter.api and adapter.api.requires_2fa:
+            return {"connected": False, "requires_2fa": True}
+            
+        if success:
+            return {"connected": True}
+        else:
+            if normalized_id == "icloud" and getattr(adapter, "api", None) and getattr(adapter.api, "requires_2fa", False):
+                return {"connected": False, "requires_2fa": True}
+            return {"connected": False, "error": getattr(adapter, "last_error", "Activation failed")}
+    except Exception as e:
+        logger.error(f"Failed to activate bridge {bridge_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+

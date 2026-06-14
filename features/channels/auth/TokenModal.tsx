@@ -79,9 +79,16 @@ export const TokenModal: React.FC<{
             if (!saved) throw new Error("Failed to save credentials");
 
             const activated = await activateBridge(bridgeId, accessToken || "");
-            if (!activated?.connected) throw new Error(`Bridge activation failed.`);
-
-            onComplete(JSON.stringify(creds), "");
+            if (activated?.requires_2fa) {
+                setRequires2FA(true);
+                if (activated.error) {
+                    throw new Error(activated.error);
+                }
+            } else if (!activated?.connected) {
+                throw new Error(activated?.error || `Bridge activation failed.`);
+            } else {
+                onComplete(JSON.stringify(creds), "");
+            }
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (e: any) {
             setError(e.message || "Activation Failed");

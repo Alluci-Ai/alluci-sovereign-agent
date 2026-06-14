@@ -316,12 +316,27 @@ class ExecutiveOrchestrator:
         active Soul Manifest (Identity, Cognition) and Verified Skills.
         """
         context_parts = []
+        manifest = None
         
         # 1. Identity & Cognition Layer (Fast Retrieval)
         try:
             # Check for a memory-cached manifest first to avoid vault overhead
             if hasattr(self, "_cached_soul") and self._cached_soul:  # type: ignore
                 manifest = self._cached_soul  # type: ignore
+            elif self.agent_id and self.agent_id not in ["executive", "alluci"]:
+                from .models import AgentRecord
+                import json
+                try:
+                    with Session(db_engine) as session:
+                        agent_record = session.get(AgentRecord, self.agent_id)
+                        if agent_record and agent_record.soul_manifest_override:
+                            manifest = json.loads(agent_record.soul_manifest_override)
+                        else:
+                            manifest = await self.vault.retrieve_secret("soul_manifest")
+                except Exception as db_err:
+                    self.logger.error(f"[ SOUL ] Failed to load AgentRecord override for {self.agent_id}: {db_err}")
+                    manifest = await self.vault.retrieve_secret("soul_manifest")
+                self._cached_soul = manifest
             else:
                 manifest = await self.vault.retrieve_secret("soul_manifest")
                 self._cached_soul = manifest
@@ -371,7 +386,14 @@ class ExecutiveOrchestrator:
         if self.skill_manager:
             try:
                 skills = await self.skill_manager.list_skills()
-                active_skills = [s for s in skills if s.get("verified", False)]
+                active_ids = manifest.get("active_skill_ids") if manifest else None
+                
+                # Filter skills if active_skill_ids is specified, otherwise default to all verified skills
+                if active_ids is not None:
+                    active_skills = [s for s in skills if s.get("id") in active_ids and s.get("verified", False)]
+                else:
+                    active_skills = [s for s in skills if s.get("verified", False)]
+                    
                 if active_skills:
                     context_parts.append("AVAILABLE COGNITIVE MODULES (SKILLS):")
                     for s in active_skills:
