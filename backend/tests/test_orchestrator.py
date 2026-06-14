@@ -159,16 +159,25 @@ async def test_execute_research(orchestrator):
 
 @pytest.mark.asyncio
 async def test_handle_inbound_message(orchestrator):
-    orchestrator.execute_objective = AsyncMock(return_value={"status": "success"})
-    msg = {"body": "hello", "from": "user1", "protocol": "NOSTR"}
-    await orchestrator.handle_inbound_message(msg)
+    orchestrator.execute_objective = AsyncMock(return_value={"status": "success", "response": "Hi there!"})
+    msg = {"body": "Alluci hello", "from": "user1", "protocol": "NOSTR"}
+    with patch("backend.services.channel_registry", {"nostr": AsyncMock(is_connected=True, send=AsyncMock(return_value={"status": "success"}))}):
+        await orchestrator.handle_inbound_message(msg)
     orchestrator.execute_objective.assert_awaited_once()
+
+@pytest.mark.asyncio
+async def test_handle_inbound_message_not_addressed_to_alluci(orchestrator):
+    """Messages not addressed to Alluci are stored to H-LSM but do not trigger execution."""
+    orchestrator.execute_objective = AsyncMock()
+    msg = {"body": "hey whats up", "from": "user1", "protocol": "NOSTR"}
+    await orchestrator.handle_inbound_message(msg)
+    orchestrator.execute_objective.assert_not_called()
 
 @pytest.mark.asyncio
 async def test_handle_inbound_message_flow_mode_filtered(orchestrator):
     orchestrator.execute_objective = AsyncMock()
     orchestrator.ace.current_state = {"flow_mode": "DEEP_WORK"}
-    msg = {"body": "hello", "from": "user1", "protocol": "NOSTR"}
+    msg = {"body": "Alluci hello", "from": "user1", "protocol": "NOSTR"}
     await orchestrator.handle_inbound_message(msg)
     # Should be ignored due to DEEP_WORK
     orchestrator.execute_objective.assert_not_called()

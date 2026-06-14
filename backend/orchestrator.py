@@ -218,7 +218,8 @@ class ExecutiveOrchestrator:
     async def handle_inbound_message(self, message: Dict[str, Any]):
         """
         Process a message received from a connected channel adapter.
-        Turns the message body into an autonomous objective.
+        Messages addressed to Alluci trigger autonomous execution + reply.
+        All other messages are passively stored to H-LSM working memory.
         """
         from opentelemetry import trace
         from .tracing_config import get_tracer
@@ -255,6 +256,22 @@ class ExecutiveOrchestrator:
                     self.logger.debug(f"[Orchestrator] H-LSM message encode skipped: {e}")
 
                 self.logger.info(f"[Orchestrator] Inbound {protocol} message from {sender} (Account: {account_id}): {body[:50]}...")
+
+            # ── Alluci Keyword Gate ──────────────────────────────────────────
+            # Only messages explicitly addressed to Alluci trigger AI execution.
+            # All other messages are stored to H-LSM (above) but do NOT generate a response.
+            body_lower = body.lower().strip()
+            is_addressed_to_alluci = (
+                body_lower.startswith("alluci")
+                or body_lower.startswith("hello alluci")
+            )
+
+            if not is_addressed_to_alluci:
+                self.logger.info(
+                    f"[Orchestrator] Inbound {protocol} from {sender} — not addressed to Alluci. "
+                    "Stored to H-LSM only (no response triggered)."
+                )
+                return
             
             # Flow Mode Gate (DEEP_WORK / RECOVERY_MODE filtering)
             if self.ace:
@@ -290,12 +307,45 @@ class ExecutiveOrchestrator:
                         autonomy="autonomous"
                     )
 
+                    # ── Extract response text from the execution result ──────
+                    response_text = ""
+                    if isinstance(result, dict):
+                        # Prefer the 'response' or 'output' key from the execution result
+                        response_text = (
+                            result.get("response")
+                            or result.get("output")
+                            or result.get("result")
+                            or str(result)
+                        )
+                    else:
+                        response_text = str(result)
+
+                    # ── Send the response back to the sender via the bridge ──
+                    if response_text and sender and sender != "unknown":
+                        try:
+                            from . import services
+                            bridge = services.channel_registry.get(protocol.lower())
+                            if bridge and bridge.is_connected:
+                                send_result = await bridge.send(sender, response_text)
+                                self.logger.info(
+                                    f"[Orchestrator] Reply sent to {sender} via {protocol}: "
+                                    f"{send_result.get('status', 'unknown')}"
+                                )
+                            else:
+                                self.logger.warning(
+                                    f"[Orchestrator] Cannot reply — {protocol} bridge not connected."
+                                )
+                        except Exception as send_err:
+                            self.logger.error(
+                                f"[Orchestrator] Failed to send reply via {protocol}: {send_err}"
+                            )
+
                     # 2. Record Assistant Response to Log
                     if self.analytics:
                         self.analytics.record_message(
                             session_key=session_key,
                             role="assistant",
-                            content=str(result),
+                            content=response_text,
                             account_id=account_id
                         )
 

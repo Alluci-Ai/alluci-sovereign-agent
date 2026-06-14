@@ -1,3 +1,4 @@
+import { getCsrfToken } from './csrfStore';
 
 export interface SovereignCallbacks {
     onAudioOutput: (base64Audio: string) => void;
@@ -86,14 +87,23 @@ export class AlluciSovereignService {
 
     private async _fetch(path: string, options: RequestInit = {}) {
         const token = localStorage.getItem('alluci_access_token');
-        const headers: HeadersInit = {
+        const headers: Record<string, string> = {
             'Content-Type': 'application/json',
-            ...(options.headers || {}),
+            ...(options.headers as Record<string, string> || {}),
         };
         if (token) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (headers as any)['Authorization'] = `Bearer ${token}`;
+            headers['Authorization'] = `Bearer ${token}`;
         }
+
+        // Attach CSRF token for mutating requests (POST, PUT, PATCH, DELETE)
+        const method = (options.method || 'GET').toUpperCase();
+        if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+            const csrfToken = await getCsrfToken(this.DAEMON_URL, token);
+            if (csrfToken) {
+                headers['X-CSRF-Token'] = csrfToken;
+            }
+        }
+
         const resp = await fetch(`${this.DAEMON_URL}/api/v1${path}`, { 
             ...options, 
             headers,
