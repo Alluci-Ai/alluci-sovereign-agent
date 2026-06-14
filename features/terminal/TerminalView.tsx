@@ -15,8 +15,15 @@ if (typeof window !== 'undefined') {
         startOnLoad: false,
         theme: 'dark',
         securityLevel: 'loose',
-        suppressErrorAlerts: true
+        suppressErrorAlerts: true,
+        suppressErrorRendering: true
     } as any);
+
+    // Safeguard to prevent Mermaid from appending default syntax error overlays/bombs to body
+    (mermaid as any).parseError = (err: any) => {
+        // Just throw the error so our try-catch block handles it without DOM pollution
+        throw new Error(err);
+    };
 }
 
 interface TerminalViewProps {
@@ -39,8 +46,24 @@ const Mermaid: React.FC<MermaidProps> = ({ chart }) => {
         const renderDiagram = async () => {
             if (!chart) return;
             const uniqueId = `mermaid-${Math.random().toString(36).substring(2, 9)}`;
+            
+            // Clean common comment syntax issues (e.g. LLM outputting '//' comments instead of '%%')
+            const cleanedChart = chart
+                .split('\n')
+                .map(line => {
+                    const commentIndex = line.indexOf('//');
+                    if (commentIndex !== -1) {
+                        const isUrl = /https?:\/\//.test(line);
+                        if (!isUrl) {
+                            return line.substring(0, commentIndex) + '%%' + line.substring(commentIndex + 2);
+                        }
+                    }
+                    return line;
+                })
+                .join('\n');
+
             try {
-                const { svg: renderedSvg } = await mermaid.render(uniqueId, chart);
+                const { svg: renderedSvg } = await mermaid.render(uniqueId, cleanedChart);
                 if (isMounted) {
                     setSvg(renderedSvg);
                     setError(null);

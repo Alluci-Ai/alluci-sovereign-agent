@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeAll } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import TerminalView from './TerminalView';
 import { useStore } from '../../store/useStore';
+import mermaid from 'mermaid';
 
 // Mock the store
 vi.mock('../../store/useStore', () => ({
@@ -207,5 +208,33 @@ describe('TerminalView', () => {
 
         // Modal backdrop should be removed
         expect(screen.queryByTestId('mermaid-modal-backdrop')).not.toBeInTheDocument();
+    });
+
+    it('sanitizes double slash comments to double percent comments in mermaid charts', async () => {
+        const mockTranscriptions = [
+            {
+                isUser: false,
+                text: '```mermaid\ngraph TD\nA --> B // some comment\n```',
+                timestamp: '2026-03-22T23:00:00Z',
+                isCompaction: false
+            }
+        ];
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (useStore as any).mockReturnValue({
+            transcriptions: mockTranscriptions,
+            isProcessing: false
+        });
+
+        render(<TerminalView {...mockProps} />);
+        
+        // Wait for rendering
+        await screen.findByTestId('mock-mermaid-svg');
+        
+        // Check what it was rendered with
+        expect(mermaid.render).toHaveBeenCalledWith(
+            expect.any(String),
+            expect.stringContaining('A --> B %% some comment')
+        );
     });
 });
