@@ -7,6 +7,7 @@ import { ReadingIndicator } from '../chat/ReadingIndicator';
 import { CopyMessageButton } from '../chat/CopyMessageButton';
 import { SourceAttribution } from '../chat/SourceAttribution';
 import mermaid from 'mermaid';
+import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 
 // Initialize mermaid configurations
 if (typeof window !== 'undefined') {
@@ -112,13 +113,60 @@ const Mermaid: React.FC<MermaidProps> = ({ chart }) => {
                                 Expanded Diagram View
                             </h3>
                             <p className="text-[10px] text-text-tertiary mt-1">
-                                Scroll or drag to view details • Click outside or tap ✕ to close
+                                Drag to pan • Scroll or Pinch to zoom • Tap ✕ or click outside to close
                             </p>
                         </div>
-                        <div 
-                            className="flex-1 w-full overflow-auto flex justify-center items-center mermaid-expanded-diagram p-4 bg-black/20 rounded-lg border border-white/5"
-                            dangerouslySetInnerHTML={{ __html: svg }}
-                        />
+
+                        <TransformWrapper
+                            initialScale={1}
+                            minScale={0.1}
+                            maxScale={8}
+                            centerOnInit={true}
+                        >
+                            {({ zoomIn, zoomOut, resetTransform }) => (
+                                <>
+                                    {/* Glassmorphic zoom controls */}
+                                    <div className="absolute bottom-6 left-6 z-[10001] flex gap-2">
+                                        <button
+                                            onClick={() => zoomIn()}
+                                            className="text-xs bg-black/60 hover:bg-black/80 text-text-primary px-3 py-2 rounded-lg border border-white/10 flex items-center justify-center font-mono font-bold transition-all shadow-lg hover:border-white/20 active:scale-95 cursor-pointer"
+                                            title="Zoom In"
+                                            data-testid="mermaid-zoom-in"
+                                        >
+                                            ＋ Zoom In
+                                        </button>
+                                        <button
+                                            onClick={() => zoomOut()}
+                                            className="text-xs bg-black/60 hover:bg-black/80 text-text-primary px-3 py-2 rounded-lg border border-white/10 flex items-center justify-center font-mono font-bold transition-all shadow-lg hover:border-white/20 active:scale-95 cursor-pointer"
+                                            title="Zoom Out"
+                                            data-testid="mermaid-zoom-out"
+                                        >
+                                            － Zoom Out
+                                        </button>
+                                        <button
+                                            onClick={() => resetTransform()}
+                                            className="text-xs bg-black/60 hover:bg-black/80 text-text-primary px-3 py-2 rounded-lg border border-white/10 flex items-center justify-center font-mono font-bold transition-all shadow-lg hover:border-white/20 active:scale-95 cursor-pointer"
+                                            title="Reset View"
+                                            data-testid="mermaid-zoom-reset"
+                                        >
+                                            ⟲ Reset
+                                        </button>
+                                    </div>
+                                    
+                                    <div className="flex-1 w-full overflow-hidden flex justify-center items-center bg-black/20 rounded-lg border border-white/5 relative">
+                                        <TransformComponent
+                                            wrapperStyle={{ width: '100%', height: '100%' }}
+                                            contentStyle={{ width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
+                                        >
+                                            <div 
+                                                className="mermaid-expanded-diagram p-8 cursor-grab active:cursor-grabbing select-none flex items-center justify-center"
+                                                dangerouslySetInnerHTML={{ __html: svg }}
+                                            />
+                                        </TransformComponent>
+                                    </div>
+                                </>
+                            )}
+                        </TransformWrapper>
                     </div>
                 </div>
             )}

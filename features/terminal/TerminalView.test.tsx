@@ -43,6 +43,14 @@ describe('TerminalView', () => {
     beforeAll(() => {
         // Mock scrollIntoView for jsdom
         window.HTMLElement.prototype.scrollIntoView = vi.fn();
+
+        // Mock ResizeObserver for JSDOM
+        class MockResizeObserver {
+            observe = vi.fn();
+            unobserve = vi.fn();
+            disconnect = vi.fn();
+        }
+        window.ResizeObserver = MockResizeObserver as any;
     });
 
     it('renders idle state when transcriptions are empty', () => {
@@ -180,6 +188,19 @@ describe('TerminalView', () => {
         const closeBtn = screen.getByTestId('mermaid-modal-close');
         expect(backdrop).toBeInTheDocument();
         expect(closeBtn).toBeInTheDocument();
+
+        // Check zoom controls
+        const zoomIn = screen.getByTestId('mermaid-zoom-in');
+        const zoomOut = screen.getByTestId('mermaid-zoom-out');
+        const zoomReset = screen.getByTestId('mermaid-zoom-reset');
+        expect(zoomIn).toBeInTheDocument();
+        expect(zoomOut).toBeInTheDocument();
+        expect(zoomReset).toBeInTheDocument();
+
+        // Click controls to verify they handle actions gracefully
+        fireEvent.click(zoomIn);
+        fireEvent.click(zoomOut);
+        fireEvent.click(zoomReset);
 
         // Click the close button to dismiss the modal
         fireEvent.click(closeBtn);
