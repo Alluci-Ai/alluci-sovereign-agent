@@ -81,3 +81,10 @@
   height: auto !important;
   background: transparent !important;
 }
+
+/* === Mermaid Diagram Expanded View === */
+.mermaid-expanded-diagram svg {
+  max-width: none !important;
+  height: auto !important;
+  background: transparent !important;
+}

@@ -31,6 +31,7 @@ const Mermaid: React.FC<MermaidProps> = ({ chart }) => {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const [svg, setSvg] = React.useState<string>('');
     const [error, setError] = React.useState<string | null>(null);
+    const [isExpanded, setIsExpanded] = React.useState<boolean>(false);
 
     useEffect(() => {
         let isMounted = true;
@@ -77,11 +78,51 @@ const Mermaid: React.FC<MermaidProps> = ({ chart }) => {
     }
 
     return (
-        <div 
-            ref={containerRef}
-            className="my-4 p-4 border border-white/10 bg-black/30 rounded-lg overflow-x-auto flex justify-center w-full mermaid-diagram"
-            dangerouslySetInnerHTML={{ __html: svg }}
-        />
+        <>
+            <div 
+                ref={containerRef}
+                onClick={() => setIsExpanded(true)}
+                className="my-4 p-4 border border-white/10 bg-black/30 rounded-lg overflow-x-auto flex justify-center w-full mermaid-diagram cursor-pointer hover:border-white/20 transition-all hover:bg-black/40"
+                dangerouslySetInnerHTML={{ __html: svg }}
+                title="Click to expand diagram view"
+                data-testid="mermaid-clickable-diagram"
+            />
+            {isExpanded && (
+                <div 
+                    className="glass-sheet-backdrop animate-fade-in"
+                    onClick={() => setIsExpanded(false)}
+                    data-testid="mermaid-modal-backdrop"
+                >
+                    <div 
+                        className="glass-sheet max-w-7xl w-[92vw] h-[85vh] p-6 flex flex-col relative"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="absolute top-4 right-4 z-[10001]">
+                            <button
+                                onClick={() => setIsExpanded(false)}
+                                className="text-gray-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 p-2 rounded-full cursor-pointer flex items-center justify-center w-8 h-8 font-bold font-mono border-0"
+                                title="Close"
+                                data-testid="mermaid-modal-close"
+                            >
+                                ✕
+                            </button>
+                        </div>
+                        <div className="w-full text-center pb-4 mb-4 border-b border-white/10 flex-shrink-0">
+                            <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider font-mono">
+                                Expanded Diagram View
+                            </h3>
+                            <p className="text-[10px] text-text-tertiary mt-1">
+                                Scroll or drag to view details • Click outside or tap ✕ to close
+                            </p>
+                        </div>
+                        <div 
+                            className="flex-1 w-full overflow-auto flex justify-center items-center mermaid-expanded-diagram p-4 bg-black/20 rounded-lg border border-white/5"
+                            dangerouslySetInnerHTML={{ __html: svg }}
+                        />
+                    </div>
+                </div>
+            )}
+        </>
     );
 };
 

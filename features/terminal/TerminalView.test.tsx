@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeAll } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import TerminalView from './TerminalView';
@@ -145,5 +145,46 @@ describe('TerminalView', () => {
         // Wait for async rendering of SVG
         const svg = await screen.findByTestId('mock-mermaid-svg');
         expect(svg).toBeInTheDocument();
+    });
+
+    it('supports click-to-expand and close on mermaid diagrams', async () => {
+        const mockTranscriptions = [
+            {
+                isUser: false,
+                text: '```mermaid\ngraph TD\nA --> B\n```',
+                timestamp: '2026-03-22T23:00:00Z',
+                isCompaction: false
+            }
+        ];
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (useStore as any).mockReturnValue({
+            transcriptions: mockTranscriptions,
+            isProcessing: false
+        });
+
+        render(<TerminalView {...mockProps} />);
+
+        // Wait for diagram SVG to render
+        const diagram = await screen.findByTestId('mermaid-clickable-diagram');
+        expect(diagram).toBeInTheDocument();
+
+        // Modal should not be visible initially
+        expect(screen.queryByTestId('mermaid-modal-backdrop')).not.toBeInTheDocument();
+
+        // Click the diagram to expand
+        fireEvent.click(diagram);
+
+        // Modal backdrop and close button should now be in the document
+        const backdrop = screen.getByTestId('mermaid-modal-backdrop');
+        const closeBtn = screen.getByTestId('mermaid-modal-close');
+        expect(backdrop).toBeInTheDocument();
+        expect(closeBtn).toBeInTheDocument();
+
+        // Click the close button to dismiss the modal
+        fireEvent.click(closeBtn);
+
+        // Modal backdrop should be removed
+        expect(screen.queryByTestId('mermaid-modal-backdrop')).not.toBeInTheDocument();
     });
 });
