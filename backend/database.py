@@ -115,6 +115,9 @@ def create_db_and_tables():
 
     _enable_wal_mode()
     
+    # Auto-create any new SQLModel tables (dev/test only)
+    SQLModel.metadata.create_all(engine)
+
     # FTS5 is required even if table already exists (CREATE VIRTUAL TABLE IF NOT EXISTS)
     apply_sqlite_migrations()
     logger.info("Database initialization complete.")

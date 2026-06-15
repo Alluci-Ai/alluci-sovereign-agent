@@ -390,3 +390,18 @@ class WalletDashboard(BaseModel):
     blockchain: Optional[Dict[str, Any]] = None
     pbaas_chains: List[str] = []
     timestamp: str
+
+# --- Message Log for Analytics Session Tracking ---
+
+class MessageLog(SQLModel, table=True):
+    __tablename__ = "message_log"  # type: ignore
+    id: int = Field(default=None, primary_key=True)
+    session_key: str = Field(index=True)
+    role: str = Field()  # "user", "assistant", "system"
+    content: Optional[str] = Field(default=None)
+    account_id: Optional[str] = Field(default=None, index=True)
+    tool_name: Optional[str] = Field(default=None)
+    tool_args: Optional[str] = Field(default=None)
+    tool_id: Optional[str] = Field(default=None)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
