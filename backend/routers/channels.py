@@ -116,20 +116,45 @@ async def get_channel_availability():
 
 @router.get("/channels/{channel_id}/config", dependencies=[Depends(verify_authenticated)])
 async def get_channel_config(channel_id: str):
-    adapter = services.channel_registry.get(channel_id)
+    from .channels import normalize_bridge_id
+    normalized = normalize_bridge_id(channel_id)
+    adapter = services.channel_registry.get(channel_id) or services.channel_registry.get(normalized)
     if not adapter:
         raise HTTPException(status_code=404, detail="Channel not found")
-    return getattr(adapter, "config", {})
+    
+    config = getattr(adapter, "config", {}).copy()
+    if services.vault:
+        try:
+            state_data = await services.vault.retrieve_secret(f"channel_{normalized}_enabled")
+            if state_data and "enabled" in state_data:
+                config["enabled"] = state_data["enabled"]
+        except Exception:
+            pass
+            
+    return config
 
 @router.put("/channels/{channel_id}/config", dependencies=[Depends(verify_authenticated)])
 async def update_channel_config(channel_id: str, request: Request, csrf_protect: CsrfProtect = Depends(), config: Dict[str, Any] = Body(...)):
     await csrf_protect.validate_csrf(request)
-    adapter = services.channel_registry.get(channel_id)
+    from .channels import normalize_bridge_id
+    normalized = normalize_bridge_id(channel_id)
+    adapter = services.channel_registry.get(channel_id) or services.channel_registry.get(normalized)
     if not adapter:
         raise HTTPException(status_code=404, detail="Channel not found")
+        
     if hasattr(adapter, "update_config"):
         return await adapter.update_config(config)
-    raise HTTPException(status_code=501, detail="Config update not supported for this channel")
+        
+    # Generic save if adapter doesn't implement custom logic
+    if not hasattr(adapter, "config"):
+        adapter.config = {}
+    adapter.config.update(config)
+    
+    # Store enabled state if present
+    if "enabled" in config and services.vault:
+        await services.vault.store_secret(f"channel_{normalized}_enabled", {"enabled": config["enabled"]})
+        
+    return {"status": "SUCCESS", "message": "Configuration saved."}
 
 @router.post("/channels/{channel_id}/connect", dependencies=[Depends(verify_authenticated)])
 async def connect_channel(channel_id: str, request: Request, csrf_protect: CsrfProtect = Depends()):
@@ -142,26 +167,56 @@ async def connect_channel(channel_id: str, request: Request, csrf_protect: CsrfP
     raise HTTPException(status_code=501, detail="Direct connect not supported")
 
 @router.put("/channels/{channel_id}/toggle", dependencies=[Depends(verify_authenticated)])
-async def toggle_channel(channel_id: str, request: Request, csrf_protect: CsrfProtect = Depends()):
+async def toggle_channel(channel_id: str, request: Request, csrf_protect: CsrfProtect = Depends(), payload: Dict[str, Any] = Body(None)):
     await csrf_protect.validate_csrf(request)
     """
     Connect or disconnect a bridge channel.
     Called by App.tsx [disconnectBridge]
     """
-    adapter = services.channel_registry.get(channel_id)
+    from .channels import normalize_bridge_id
+    normalized = normalize_bridge_id(channel_id)
+    adapter = services.channel_registry.get(channel_id) or services.channel_registry.get(normalized)
     if not adapter:
         raise HTTPException(status_code=404, detail="Channel not found")
-    
+
+    if payload is not None and "enabled" in payload:
+        next_state = payload["enabled"]
+        if not hasattr(adapter, "config"):
+            adapter.config = {}
+        adapter.config["enabled"] = next_state
+        if services.vault:
+            await services.vault.store_secret(f"channel_{normalized}_enabled", {"enabled": next_state})
+        
+        # Optionally perform connect/disconnect based on toggle
+        if next_state and not getattr(adapter, "is_connected", False) and hasattr(adapter, "connect"):
+            # Reconnect all vault accounts if available
+            try:
+                accounts = await services.vault.list_connections(normalized)
+                if accounts:
+                    for acc_id in accounts:
+                        creds = await services.vault.retrieve_connection_secret(normalized, acc_id)
+                        if creds:
+                            await adapter.connect(creds)
+                else:
+                    await adapter.connect({})
+            except Exception:
+                pass
+        elif not next_state and getattr(adapter, "is_connected", False) and hasattr(adapter, "disconnect"):
+            await adapter.disconnect()
+            return {"status": "SUCCESS", "message": f"Channel set to DORMANT and disconnected."}
+            
+        return {"status": "SUCCESS", "message": f"Channel {'ACTIVE' if next_state else 'DORMANT'}"}
+
+    # Fallback to older logic if no payload
     if getattr(adapter, "is_connected", False):
         if hasattr(adapter, "disconnect"):
             await adapter.disconnect()
             return {"status": "SUCCESS", "message": f"Disconnected {channel_id}"}
         else:
-            # V5: Reject simulated disconnects. If the bridge cannot disconnect, fail strictly.
             raise HTTPException(status_code=501, detail=f"Disconnect not supported by adapter '{channel_id}'")
     else:
         if hasattr(adapter, "connect"):
-            await adapter.connect()
+            await adapter.connect({})
             return {"status": "SUCCESS", "message": f"Connected {channel_id}"}
         else:
             raise HTTPException(status_code=501, detail="Connect not supported")
