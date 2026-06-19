@@ -65,6 +65,16 @@ export const TokenModal: React.FC<{
                     creds = { apple_id: appleId, app_specific_password: appPassword };
                     // Real connection logic will trigger 2FA event if needed
                 }
+            } else if (bridgeId === 'email') {
+                if (!appleId || !appPassword) throw new Error("Email and App-Specific Password required.");
+                creds = {
+                    email: appleId,
+                    password: appPassword,
+                    smtp_server: "smtp.mail.me.com",
+                    imap_server: "imap.mail.me.com",
+                    smtp_port: 587,
+                    imap_port: 993
+                };
             } else if (bridgeId === 'sg') {
                 if (signalTab === 'REGISTER') {
                     if (!signalPhone) throw new Error("Phone number required.");
@@ -125,7 +135,9 @@ export const TokenModal: React.FC<{
                         <div className="flex flex-col gap-1">
                             <label className="text-[10px] text-text-tertiary font-mono">Apple ID Email</label>
                             <input
-                                type="text"
+                                type="email"
+                                name="username"
+                                autoComplete="username"
                                 value={appleId}
                                 disabled={requires2FA}
                                 onChange={e => setAppleId(e.target.value)}
@@ -134,16 +146,18 @@ export const TokenModal: React.FC<{
                             />
                         </div>
                         <div className="flex flex-col gap-1">
-                            <label className="text-[10px] text-text-tertiary font-mono">App-Specific Password</label>
+                            <label className="text-[10px] text-text-tertiary font-mono">Apple ID Password</label>
                             <input
                                 type="password"
+                                name="password"
+                                autoComplete="current-password"
                                 value={appPassword}
                                 disabled={requires2FA}
                                 onChange={e => setAppPassword(e.target.value)}
-                                placeholder="xxxx-xxxx-xxxx-xxxx"
+                                placeholder="Your real Apple ID Password"
                                 className="w-full bg-layer-divider border border-layer-3 rounded px-3 py-2 text-sm text-text-primary outline-none disabled:opacity-50 font-mono"
                             />
-                            <a href="https://appleid.apple.com" target="_blank" rel="noreferrer" className="text-[10px] text-blue-400 hover:underline">Generate at appleid.apple.com → Security</a>
+                            <p className="text-[10px] text-orange-400/80 leading-tight mt-1">App-Specific passwords will NOT work for Drive/Reminders sync. Real password required.</p>
                         </div>
 
                         {requires2FA && (
@@ -151,6 +165,10 @@ export const TokenModal: React.FC<{
                                 <label className="text-xs text-blue-400 font-medium font-mono">Apple 2FA Code</label>
                                 <input
                                     type="text"
+                                    name="one-time-code"
+                                    autoComplete="one-time-code"
+                                    inputMode="numeric"
+                                    pattern="[0-9]*"
                                     value={twoFaCode}
                                     onChange={e => setTwoFaCode(e.target.value)}
                                     placeholder="Enter 6-digit code"
@@ -158,6 +176,32 @@ export const TokenModal: React.FC<{
                                 />
                             </div>
                         )}
+                    </div>
+                )}
+
+                {bridgeId === 'email' && (
+                    <div className="w-full max-w-[280px] flex flex-col gap-3">
+                        <div className="flex flex-col gap-1">
+                            <label className="text-[10px] text-text-tertiary font-mono">Email Address</label>
+                            <input
+                                type="text"
+                                value={appleId}
+                                onChange={e => setAppleId(e.target.value)}
+                                placeholder="name@icloud.com"
+                                className="w-full bg-layer-divider border border-layer-3 rounded px-3 py-2 text-sm text-text-primary outline-none font-mono"
+                            />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                            <label className="text-[10px] text-text-tertiary font-mono">App-Specific Password</label>
+                            <input
+                                type="password"
+                                value={appPassword}
+                                onChange={e => setAppPassword(e.target.value)}
+                                placeholder="xxxx-xxxx-xxxx-xxxx"
+                                className="w-full bg-layer-divider border border-layer-3 rounded px-3 py-2 text-sm text-text-primary outline-none font-mono"
+                            />
+                            <a href="https://appleid.apple.com" target="_blank" rel="noreferrer" className="text-[10px] text-blue-400 hover:underline">Generate at appleid.apple.com → Security</a>
+                        </div>
                     </div>
                 )}
 

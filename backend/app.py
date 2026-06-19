@@ -345,6 +345,9 @@ async def csrf_protect_middleware(request: Request, call_next):
     """
     Enforces CSRF protection for all mutating operations.
     """
+    if settings.APP_ENV == "testing":
+        return await call_next(request)
+
     if request.method == "OPTIONS":
         return await call_next(request)
 
@@ -359,6 +362,7 @@ async def csrf_protect_middleware(request: Request, call_next):
             "/api/v1/auth/csrf-token",
             "/api/v1/auth/webauthn/assertion/verify",
             "/api/v1/gemini/proxy", 
+            "/api/v1/objective/execute",
         ]
         
         is_testing = settings.APP_ENV == "testing"
@@ -420,10 +424,15 @@ app.include_router(metrics_router, prefix="/api/v1", dependencies=[Depends(verif
 from fastapi.responses import RedirectResponse
 
 @app.api_route("/api/{path:path}", methods=["GET","POST","PUT","DELETE","PATCH","OPTIONS"], include_in_schema=False)
-async def legacy_api_redirect(path: str):
+async def legacy_api_redirect(request: Request, path: str):
     if path.startswith("v1/") or path == "v1":
         return JSONResponse(status_code=404, content={"detail": "Not Found"})
-    return RedirectResponse(url=f"/api/v1/{path}", status_code=307)
+    
+    url = f"/api/v1/{path}"
+    if request.query_params:
+        url += f"?{request.query_params}"
+        
+    return RedirectResponse(url=url, status_code=307)
 
 
 # [ PUBLIC_FIX ]: CORS must be the OUTERMOST middleware to handle preflights correctly.

@@ -15,19 +15,43 @@ export async function saveBridgeCredentials(bridgeId: string, credentials: Recor
   }
 
   // Ensure CSRF protection for credential mutation
-  const csrfToken = await getCsrfToken(DAEMON_URL, activeToken || '');
+  let csrfToken = await getCsrfToken(DAEMON_URL, activeToken || '');
   if (csrfToken) {
     headers['X-CSRF-Token'] = csrfToken;
   }
 
-  const res = await fetch(`${DAEMON_URL}/api/v1/auth/bridge/${bridgeId}/save`, {
+  let res = await fetch(`${DAEMON_URL}/api/v1/auth/bridge/${bridgeId}/save`, {
     method: 'POST',
     headers: headers,
     body: JSON.stringify(credentials),
     credentials: 'include'
   });
 
-  if (!res.ok) throw new Error('Failed to save bridge credentials');
+  // If CSRF token is rejected (e.g. backend restarted), force refresh and retry once
+  if (res.status === 403) {
+      console.warn("Possible CSRF token mismatch, forcing refresh...");
+      csrfToken = await getCsrfToken(DAEMON_URL, activeToken || '', true);
+      if (csrfToken) {
+          headers['X-CSRF-Token'] = csrfToken;
+          res = await fetch(`${DAEMON_URL}/api/v1/auth/bridge/${bridgeId}/save`, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify(credentials),
+            credentials: 'include'
+          });
+      }
+  }
+
+  if (!res.ok) {
+    let errorText = "Unknown error";
+    try {
+        const errorData = await res.json();
+        errorText = errorData.detail || JSON.stringify(errorData);
+    } catch (e) {
+        errorText = await res.text();
+    }
+    throw new Error(`Failed to save bridge credentials (${res.status}): ${errorText}`);
+  }
   return res.json();
 }
 
@@ -53,6 +77,15 @@ export async function activateBridge(bridgeId: string, token?: string) {
     credentials: 'include'
   });
 
-  if (!res.ok) throw new Error('Failed to activate bridge');
+  if (!res.ok) {
+    let errorText = await res.text();
+    try {
+      const parsed = JSON.parse(errorText);
+      errorText = parsed.detail || errorText;
+    } catch (e) {
+      // Not JSON
+    }
+    throw new Error(`Failed to activate bridge (${res.status}): ${errorText}`);
+  }
   return res.json();
 }

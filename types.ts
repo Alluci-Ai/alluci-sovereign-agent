@@ -194,6 +194,7 @@ export interface Connection {
   lastSynced?: string;
   isEncrypted: boolean;
   vaultId?: string;
+  accounts?: any[];
 }
 
 export interface ApiManifoldKeys {

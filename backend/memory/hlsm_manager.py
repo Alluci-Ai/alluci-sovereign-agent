@@ -745,6 +745,49 @@ class HLSMManager:
         logger.info(f"[HLSM] Encoded {stored} task results from run {run_id} to L1 episodic")
         return stored
 
+    async def encode_self_healing_delta(
+        self,
+        objective: str,
+        failed_plan: List[Dict[str, Any]],
+        successful_plan: List[Dict[str, Any]],
+        error_reason: str,
+        session_key: str = ""
+    ) -> str:
+        """
+        Extracts and stores the Delta between a hallucinated/failed plan and a successful self-healed plan.
+        This provides crucial training data for the Nightly Dreaming Cycle and LoRA Forge.
+        """
+        content = (
+            f"[SELF-HEALING RESOLUTION] Objective: {objective[:150]}\n"
+            f"Error Caught: {error_reason}\n"
+            f"Failed Topology Nodes: {len(failed_plan)}\n"
+            f"Healed Topology Nodes: {len(successful_plan)}\n"
+            f"Delta applied to achieve mathematical soundness."
+        )
+        
+        # We store the raw JSON delta in extra_metadata for the LoRA Forge
+        extra_metadata = {
+            "type": "self_healing_delta",
+            "failed_plan": failed_plan,
+            "successful_plan": successful_plan,
+            "error": error_reason
+        }
+
+        # Store with very high topological importance so it definitely promotes to L2 Semantic Memory
+        entry_id = await self.l1_store(
+            content=content,
+            source="self_healing_forge",
+            session_key=session_key,
+            objective=objective,
+            psi=0.8, # Represents high cognitive effort
+            valence=0.5,
+            topological_importance=2.0, # Massive boost to ensure preservation
+            extra_metadata=extra_metadata
+        )
+        
+        logger.info(f"[HLSM] Encoded self-healing delta for LoRA Forge. Entry ID: {entry_id}")
+        return entry_id
+
     async def encode_message(
         self,
         content: str,

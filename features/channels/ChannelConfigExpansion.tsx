@@ -14,10 +14,14 @@ interface ConfigExpansionProps {
     channelId: string;
     isOpen: boolean;
     onClose: () => void;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    conn?: any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    startAuthFlow?: (conn: any) => void;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-export const ChannelConfigExpansion: React.FC<ConfigExpansionProps> = ({ channelId, isOpen, onClose }) => {
+export const ChannelConfigExpansion: React.FC<ConfigExpansionProps> = ({ channelId, isOpen, onClose, conn, startAuthFlow }) => {
     const { accessToken } = useStore();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [config, setConfig] = useState<any>({});
@@ -108,6 +112,14 @@ export const ChannelConfigExpansion: React.FC<ConfigExpansionProps> = ({ channel
 
                     {/* Per-Account Management Lists */}
                     <PerAccountList channelId={channelId} />
+                    
+                    {['gm', 'sl', 'x', 'fb', 'ig', 'dc'].includes(channelId) && startAuthFlow && conn && (
+                        <div className="flex justify-start pt-1">
+                            <button onClick={() => startAuthFlow(conn)} className="glass-btn px-3 py-1.5 text-[11px] flex items-center gap-2 border-glass-edge">
+                                + Add Another Account
+                            </button>
+                        </div>
+                    )}
 
                     <div className="flex justify-end pt-2">
                         <button onClick={handleSave} disabled={saving} className="glass-btn gap-2" style={{ fontSize: 11, padding: '4px 12px' }}>

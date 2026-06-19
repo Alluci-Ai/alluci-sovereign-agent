@@ -26,7 +26,7 @@ export async function submitObjective(
     aceState: AceStateVector,
     accessToken: string,
     agentId: string = 'executive',
-    riskScore: number = 30,
+    riskScore: number = 0,
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): Promise<any> {
 

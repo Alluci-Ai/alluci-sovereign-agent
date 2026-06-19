@@ -1,6 +1,7 @@
 import React from 'react';
 import { useVoice } from '../../hooks/useVoice';
 import { useStore } from '../../store/useStore';
+import { AutonomyLevel } from '../../kernel/types';
 
 interface CommandBarProps {
     textInput: string;
@@ -44,22 +45,33 @@ const CommandBar: React.FC<CommandBarProps> = ({
             const token = useStore.getState().accessToken;
             useStore.getState().setIsProcessing(true);
             try {
-                const res = await fetch(`${import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000'}/api/v1/objective/execute`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify({ objective: currentText, autonomy_level: 'SOVEREIGN' }),
-                    credentials: 'include'
-                });
-                if (res.ok) {
-                    useStore.getState().setTranscriptions(prev => [...prev, { text: "Objective dispatched successfully. Tracking in DAG Manifold.", isUser: false, timestamp: new Date().toISOString(), type: 'dispatch' }]);
-                } else {
-                    useStore.getState().setTranscriptions(prev => [...prev, { text: "[ ERROR ]: Failed to dispatch objective.", isUser: false, timestamp: new Date().toISOString(), type: 'dispatch' }]);
+                // Determine current biometrics for ACE evaluation
+                const state = useStore.getState();
+                const token = state.accessToken || '';
+                
+                const aceState = {
+                    physicalEnergy: state.biometrics?.physical || 0.5,
+                    emotionalValence: state.biometrics?.emotional || 0.5,
+                    cognitiveLoad: state.biometrics?.cognitive || 0.5,
+                };
+                
+                const { submitObjective } = await import('../../lib/objectiveService');
+                const res = await submitObjective(
+                    currentText,
+                    AutonomyLevel.SOVEREIGN,
+                    [], // vaultScope
+                    [], // capabilityScope
+                    aceState,
+                    token
+                );
+                
+                if (res.status === 'halted' || res.status === 'failed') {
+                    throw new Error(res.reason || `Objective ${res.status}`);
                 }
-            } catch (err) {
-                 useStore.getState().setTranscriptions(prev => [...prev, { text: "[ ERROR ]: Network error during dispatch.", isUser: false, timestamp: new Date().toISOString(), type: 'dispatch' }]);
+                
+                useStore.getState().setTranscriptions(prev => [...prev, { text: "Objective dispatched successfully. Tracking in DAG Manifold.", isUser: false, timestamp: new Date().toISOString(), type: 'dispatch' }]);
+            } catch (err: any) {
+                 useStore.getState().setTranscriptions(prev => [...prev, { text: `[ ERROR ]: ${err.message || 'Failed to dispatch objective.'}`, isUser: false, timestamp: new Date().toISOString(), type: 'dispatch' }]);
             } finally {
                  useStore.getState().setIsProcessing(false);
             }

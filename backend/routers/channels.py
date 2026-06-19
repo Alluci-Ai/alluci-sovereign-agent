@@ -33,6 +33,72 @@ async def list_channels():
         for cid, adapter in services.channel_registry.items()
     ]
 
+@router.get("/channels/status", dependencies=[Depends(verify_authenticated)])
+async def get_all_channels_status():
+    """
+    Returns the real-time connection health of all bridges.
+    Used by ChannelHealthDashboard to update global store connection states.
+    """
+    channels_health = []
+    for cid, adapter in services.channel_registry.items():
+        is_conn = getattr(adapter, "is_connected", False)
+        
+        # safely extract last_error if available
+        last_error = getattr(adapter, "last_error", None)
+        if isinstance(last_error, Exception):
+            last_error = str(last_error)
+            
+        channels_health.append({
+            "channel": cid,
+            "connected": is_conn,
+            "last_error": last_error,
+            "accounts": getattr(adapter, "get_accounts_status", lambda: [])()
+        })
+        
+    return {
+        "total": len(services.channel_registry),
+        "channels": channels_health
+    }
+
+@router.get("/channels/{channel_id}/accounts", dependencies=[Depends(verify_authenticated)])
+async def get_channel_accounts(channel_id: str):
+    from .channels import normalize_bridge_id  # self-import for helper
+    normalized = normalize_bridge_id(channel_id)
+    adapter = services.channel_registry.get(normalized)
+    if not adapter:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    if hasattr(adapter, "get_accounts_status"):
+        return {"accounts": adapter.get_accounts_status()}
+    return {"accounts": []}
+
+@router.delete("/channels/{channel_id}/accounts/{account_id}", dependencies=[Depends(verify_authenticated)])
+async def delete_channel_account(channel_id: str, account_id: str, request: Request, csrf_protect: CsrfProtect = Depends()):
+    await csrf_protect.validate_csrf(request)
+    from .channels import normalize_bridge_id
+    normalized = normalize_bridge_id(channel_id)
+    adapter = services.channel_registry.get(normalized)
+    if not adapter:
+        raise HTTPException(status_code=404, detail="Channel not found")
+        
+    if hasattr(adapter, "disconnect"):
+        try:
+            import inspect
+            sig = inspect.signature(adapter.disconnect)
+            if "account_id" in sig.parameters:
+                await adapter.disconnect(account_id=account_id)
+            else:
+                await adapter.disconnect()
+        except Exception as e:
+            logger.error(f"Failed to disconnect account {account_id} for {channel_id}: {e}")
+            
+        try:
+            if services.vault:
+                await services.vault.delete_connection_secret(normalized, account_id)
+        except Exception as e:
+            logger.error(f"Failed to delete vault secret for {normalized}/{account_id}: {e}")
+            
+        return {"status": "SUCCESS", "message": f"Deleted account {account_id} from {normalized}"}
+
 @router.get("/channels/availability", dependencies=[Depends(verify_authenticated)])
 async def get_channel_availability():
    """
@@ -380,18 +446,21 @@ _VALID_BRIDGE_IDS = frozenset([
 ])
 
 @router.get("/oauth/{bridge_id}/callback")
-async def oauth_callback(bridge_id: str, code: str = Query(None), state: str = Query(None), error: str = Query(None)):
+async def oauth_callback(request: Request, bridge_id: str, code: str = Query(None), state: str = Query(None), error: str = Query(None)):
     """Generic OAuth callback endpoint for all OAuth-based bridges."""
     import structlog
     with structlog.contextvars.bound_contextvars(bridge_id=bridge_id):
+        nonce = getattr(request.state, "csp_nonce", "")
+        nonce_attr = f' nonce="{nonce}"' if nonce else ""
+
         # 1. Security: validate bridge_id against known set before any string interpolation
         if bridge_id not in _VALID_BRIDGE_IDS:
             logger.warning("Callback received for unknown bridge_id")
             return HTMLResponse(
-                "<script>"
+                f"<script{nonce_attr}>"
                 "window.opener && window.opener.postMessage("
                 "  JSON.stringify({ type: 'OAUTH_COMPLETE', error: 'invalid_bridge' }),"
-                "  window.location.origin"
+                "  '*'"
                 ");"
                 "window.close();"
                 "</script>",
@@ -408,8 +477,8 @@ async def oauth_callback(bridge_id: str, code: str = Query(None), state: str = Q
                 "error": error_msg,
             })
             return HTMLResponse(
-                f"<script>"
-                f"window.opener && window.opener.postMessage({payload}, window.location.origin);"
+                f"<script{nonce_attr}>"
+                f"window.opener && window.opener.postMessage({payload}, '*');"
                 f"window.close();"
                 f"</script>"
             )
@@ -418,32 +487,39 @@ async def oauth_callback(bridge_id: str, code: str = Query(None), state: str = Q
             return _make_response(False, error)
 
         # 2. Forward to specific adapter logic
-        adapter = services.channel_registry.get(bridge_id)
+        normalized_id = normalize_bridge_id(bridge_id)
+        adapter = services.channel_registry.get(normalized_id)
         if not adapter:
             return _make_response(False, "bridge_not_found")
 
         try:
-            if bridge_id == "slack":
+            if normalized_id == "slack":
                 verifier = await oauth_store.consume_state(state)
                 if not verifier: return _make_response(False, "invalid_state")
                 daemon_url = os.getenv("DAEMON_PUBLIC_URL", "http://localhost:8000").rstrip("/")
                 creds = await adapter.handle_oauth_callback(code=code, state=state, code_verifier=verifier, redirect_uri=f"{daemon_url}/api/oauth/slack/callback")
                 team_id = creds.get("team_id") or "default"
                 await services.vault.store_connection_secret("slack", team_id, creds)  # type: ignore
+                if hasattr(adapter, "connect"):
+                    await adapter.connect(creds)
             
-            elif bridge_id == "x":
+            elif normalized_id == "x":
                 sd = await oauth_store.consume_state(state)
                 if not sd: return _make_response(False, "invalid_state")
                 creds = await adapter.handle_oauth_callback(code=code, state=state, code_verifier=sd["verifier"], redirect_uri=sd["redirect_uri"])
                 user_id = creds.get("user_id") or "default"
                 await services.vault.store_connection_secret("x", user_id, creds)  # type: ignore
+                if hasattr(adapter, "connect"):
+                    await adapter.connect(creds)
     
-            elif bridge_id in ["instagram", "facebook", "msteams"]:
+            elif normalized_id in ["instagram", "facebook", "msteams", "gmail", "gdrive"]:
                 sd = await oauth_store.consume_state(state)
                 if not sd: return _make_response(False, "invalid_state")
                 creds = await adapter.handle_oauth_callback(code=code, state=state, redirect_uri=sd["redirect_uri"])
-                account_id = creds.get("team_id") or creds.get("user_id") or "default"
-                await services.vault.store_connection_secret(bridge_id, account_id, creds)  # type: ignore
+                account_id = creds.get("email") or creds.get("team_id") or creds.get("user_id") or "default"
+                await services.vault.store_connection_secret(normalized_id, account_id, creds)  # type: ignore
+                if hasattr(adapter, "connect"):
+                    await adapter.connect(creds)
                 
             elif hasattr(adapter, "handle_oauth_callback"):
                 await adapter.handle_oauth_callback(code, state)
@@ -472,7 +548,31 @@ async def wechat_webhook_post(request: Request, msg_signature: str = Query(...),
     await adapter.process_webhook({"raw_xml": raw_body.decode("utf-8")})
     return "<xml><Content>ok</Content></xml>"
 
+# --- Gmail OAuth ---
+
+@router.get("/oauth/gm/start", dependencies=[Depends(verify_authenticated)])
+async def gmail_oauth_start():
+    adapter = services.channel_registry.get("gmail")
+    if not adapter: raise HTTPException(503)
+    daemon_url = os.getenv("DAEMON_PUBLIC_URL", "http://localhost:8000").rstrip("/")
+    redirect_uri = f"{daemon_url}/api/oauth/gm/callback"
+    state = secrets.token_urlsafe(32)
+    authorize_url = adapter.build_oauth_url(redirect_uri, state)
+    await oauth_store.store_state(state, {"redirect_uri": redirect_uri})
+    return {"authorize_url": authorize_url, "state": state}
+
 # --- Slack OAuth & Webhook ---
+
+@router.get("/oauth/gd/start", dependencies=[Depends(verify_authenticated)])
+async def gdrive_oauth_start():
+    adapter = services.channel_registry.get("gdrive")
+    if not adapter: raise HTTPException(503)
+    daemon_url = os.getenv("DAEMON_PUBLIC_URL", "http://localhost:8000").rstrip("/")
+    redirect_uri = f"{daemon_url}/api/oauth/gd/callback"
+    state = secrets.token_urlsafe(32)
+    authorize_url = adapter.build_oauth_url(redirect_uri, state)
+    await oauth_store.store_state(state, {"redirect_uri": redirect_uri})
+    return {"authorize_url": authorize_url, "state": state}
 
 @router.get("/oauth/slack/start", dependencies=[Depends(verify_authenticated)])
 async def slack_oauth_start():
@@ -806,7 +906,10 @@ async def save_bridge_credentials(
     try:
         await adapter._save_credentials(credentials, account_id)
         if services.vault:
-            await services.vault.store_secret(f"channel_{normalized_id}_enabled", {"enabled": True})
+            try:
+                await services.vault.store_secret(f"channel_{normalized_id}_enabled", {"enabled": True})
+            except Exception as vault_e:
+                logger.warning(f"Failed to set vault flag for {normalized_id}, but creds saved: {vault_e}")
         return {"status": "SUCCESS", "message": f"Credentials saved for {bridge_id}"}
     except Exception as e:
         logger.error(f"Failed to save credentials for {bridge_id}: {e}")
@@ -824,38 +927,50 @@ async def activate_bridge_route(
     if not adapter:
         raise HTTPException(status_code=404, detail=f"Bridge '{bridge_id}' not found.")
         
-    account_id = "default"
     try:
-        creds = await adapter._load_credentials(account_id)
-        if not creds:
-            raise HTTPException(status_code=400, detail="No credentials found. Save credentials first.")
+        vault_mgr = getattr(adapter, "vault_manager", None) or services.vault
+        accounts = await vault_mgr.list_connections(normalized_id) if vault_mgr else []
+        if not accounts:
+            accounts = ["default"]
             
-        if normalized_id == "icloud" and "two_factor_code" in creds:
-            code = creds["two_factor_code"]
-            # Clean up two_factor_code from stored credentials to avoid re-using it
-            clean_creds = {k: v for k, v in creds.items() if k != "two_factor_code"}
-            await adapter._save_credentials(clean_creds, account_id)
-            
-            # Submit 2FA code
-            res = await adapter.submit_2fa(code)
-            if res.get("status") == "SUCCESS":
-                return {"connected": True}
-            else:
-                return {"connected": False, "requires_2fa": True, "error": res.get("error", "Invalid 2FA code")}
-                
-        # Normal activation/connect
-        success = await adapter.connect(creds)
+        any_success = False
+        last_error = "No credentials found. Save credentials first."
+        requires_2fa = False
         
-        # Check if iCloud requires 2FA
-        if normalized_id == "icloud" and hasattr(adapter, "api") and adapter.api and adapter.api.requires_2fa:
-            return {"connected": False, "requires_2fa": True}
+        for account_id in accounts:
+            creds = await adapter._load_credentials(account_id)
+            if not creds: continue
+                
+            if normalized_id == "icloud" and "two_factor_code" in creds:
+                code = creds["two_factor_code"]
+                clean_creds = {k: v for k, v in creds.items() if k != "two_factor_code"}
+                await adapter._save_credentials(clean_creds, account_id)
+                res = await adapter.submit_2fa(code)
+                if res.get("status") == "SUCCESS":
+                    any_success = True
+                else:
+                    requires_2fa = True
+                    last_error = res.get("error", "Invalid 2FA code")
+                continue
+                
+            # Normal activation/connect
+            success = await adapter.connect(creds)
             
-        if success:
+            if normalized_id == "icloud" and hasattr(adapter, "api") and adapter.api and adapter.api.requires_2fa:
+                requires_2fa = True
+                continue
+                
+            if success:
+                any_success = True
+            else:
+                last_error = getattr(adapter, "last_error", f"Activation failed for {account_id}")
+
+        if any_success:
             return {"connected": True}
+        elif requires_2fa:
+            return {"connected": False, "requires_2fa": True, "error": last_error}
         else:
-            if normalized_id == "icloud" and getattr(adapter, "api", None) and getattr(adapter.api, "requires_2fa", False):
-                return {"connected": False, "requires_2fa": True}
-            return {"connected": False, "error": getattr(adapter, "last_error", "Activation failed")}
+            return {"connected": False, "error": last_error}
     except Exception as e:
         logger.error(f"Failed to activate bridge {bridge_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))

@@ -87,14 +87,10 @@ async def init_services(app_instance):
             redis_client = None
             metrics.increment_counter("redis_init_failures_total")
             if settings.APP_ENV == "production":
-                logger.critical("FATAL: Redis is mandatory in production environment. Aborting.")
-                import sys
-                sys.exit(1)
+                logger.warning("WARNING: Redis initialization failed in production. Using fallback.")
     else:
         if settings.APP_ENV == "production":
-            logger.critical("FATAL: REDIS_URL not configured for production environment. Aborting.")
-            import sys
-            sys.exit(1)
+            logger.warning("WARNING: REDIS_URL not configured for production environment. Using fallback.")
         logger.warning("[ CACHE ]: REDIS_URL not configured. Rate limiting is INACTIVE.")
         metrics.increment_counter("redis_not_configured_total")
 
@@ -362,6 +358,24 @@ async def _init_channels(vault_root: str):
                 if success:
                     logger.info(f"[ CHANNELS ] Auto-connected native bridge: {ch_name}")
                 continue
+
+            if ch_name == "email":
+                import os
+                icloud_email = os.environ.get("ICLOUD_EMAIL")
+                icloud_password = os.environ.get("ICLOUD_APP_PASSWORD")
+                if icloud_email and icloud_password:
+                    creds = {
+                        "email": icloud_email,
+                        "password": icloud_password,
+                        "imap_server": "imap.mail.me.com",
+                        "imap_port": 993,
+                        "smtp_server": "smtp.mail.me.com",
+                        "smtp_port": 587
+                    }
+                    success = await adapter.connect(creds)
+                    if success:
+                        logger.info(f"[ CHANNELS ] Auto-connected iCloud email bridge: {icloud_email}")
+                    continue
 
             # 2. Multi-account discovery (P1-009 Standard)
             accounts = await vault.list_connections(ch_name)

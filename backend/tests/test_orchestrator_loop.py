@@ -112,11 +112,13 @@ async def test_execute_objective_avl_rejection(mock_orchestrator):
         
         mock_orchestrator.critic.evaluate.return_value = (False, 0.5, "needs work")
         mock_orchestrator.avl.verify.return_value = (False, "Violation!")
+        mock_orchestrator.approval_manager.request_approval.return_value = {"approved": False}
+        mock_orchestrator.ace.btm.psi_from_state.return_value = 0.5
         
         with patch("backend.orchestrator.sync_audit_entry", new_callable=AsyncMock):
             res = await mock_orchestrator.execute_objective("test obj", "auto")
             assert res["status"] == "failed"
-            assert res["reason"] == "Violation!"
+            assert "Max retries exceeded or autonomy gated" in res["reason"]
 
 @pytest.mark.asyncio
 async def test_execute_objective_high_tension_gate(mock_orchestrator):

@@ -13,10 +13,24 @@ export const SecureTunnelModal: React.FC<{
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const bridgeId = connection.id;
-    const accessToken = useStore(state => state.accessToken);
+    const storeToken = useStore(state => state.accessToken);
+    const accessToken = storeToken || localStorage.getItem('alluci_access_token') || "";
 
     // iWatch
     const [pairingCode, setPairingCode] = useState("");
+    const [deviceId, setDeviceId] = useState<string | null>(null);
+
+    React.useEffect(() => {
+        if (bridgeId === 'iwatch') {
+            fetch(`${DAEMON_URL}/api/v1/channels/iwatch/pairing-qr`, {
+                headers: { 'Authorization': `Bearer ${accessToken}` },
+                credentials: 'include'
+            })
+            .then(res => res.json())
+            .then(data => setDeviceId(data.device_id))
+            .catch(console.error);
+        }
+    }, [bridgeId, accessToken]);
 
     // iPhone
     const [discoveryMode, setDiscoveryMode] = useState<'MDNS' | 'MANUAL'>('MDNS');
@@ -58,7 +72,20 @@ export const SecureTunnelModal: React.FC<{
                 creds = { permissions_verified: true };
             } else if (bridgeId === 'iwatch') {
                 if (!pairingCode) throw new Error("Watch pairing code required.");
-                creds = { pairing_code: pairingCode };
+                if (!deviceId) throw new Error("Pairing session not initialized. Please try again.");
+                
+                // Native POST for iWatch pairing
+                const res = await fetch(`${DAEMON_URL}/api/v1/channels/iwatch/pair`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code: pairingCode, device_id: deviceId }),
+                    credentials: 'include'
+                });
+                const data = await res.json();
+                if (data.status !== "SUCCESS") throw new Error(data.error || "Pairing failed.");
+                
+                onComplete(JSON.stringify({ paired: true, deviceId }), "");
+                return; // Early return since iWatch doesn't use standard generic save/activate below
             } else if (bridgeId === 'iphone') {
                 if (discoveryMode === 'MANUAL' && !iphoneIp) throw new Error("IP Address required.");
                 creds = { discovery: discoveryMode, ip: iphoneIp };

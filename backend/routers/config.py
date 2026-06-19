@@ -14,7 +14,7 @@ router = APIRouter(tags=["System Configuration"])
 async def get_config():
     if not services.config_editor:
         raise HTTPException(status_code=503, detail="Config editor not ready")
-    return services.config_editor.read_config()  # type: ignore
+    return services.config_editor.get_config()  # type: ignore
 
 
 @router.put("/config", dependencies=[Depends(verify_authenticated)])

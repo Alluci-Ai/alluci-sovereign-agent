@@ -24,12 +24,16 @@ export const ChannelHealthDashboard: React.FC = () => {
                     if (data.channels) {
                         const { setConnections } = useStore.getState();
                         setConnections(prev => prev.map(conn => {
+                            const REVERSE_MAP: Record<string, string> = {
+                                'gmail': 'gm', 'slack': 'sl', 'whatsapp': 'wa', 'telegram': 'tg', 'discord': 'dc', 'facebook': 'fb', 'instagram': 'ig'
+                            };
                             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                            const health = data.channels.find((c: any) => c.channel === conn.id);
+                            const health = data.channels.find((c: any) => c.channel === conn.id || REVERSE_MAP[c.channel] === conn.id);
                             if (health) {
                                 return {
                                     ...conn,
-                                    status: health.connected ? 'CONNECTED' : 'DISCONNECTED'
+                                    status: health.connected ? 'CONNECTED' : 'DISCONNECTED',
+                                    accounts: health.accounts || []
                                 };
                             }
                             return conn;

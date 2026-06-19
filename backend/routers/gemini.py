@@ -32,6 +32,12 @@ async def gemini_proxy(
         if services.orchestrator:
             system_instruction = await services.orchestrator._build_system_context()
 
+        # Attempt Chat Auto-Dispatch first
+        if services.orchestrator:
+            dispatch_msg = await services.orchestrator.attempt_auto_dispatch(prompt)
+            if dispatch_msg:
+                return {"result": dispatch_msg}
+
         # Route to the local Gemma 4 model (or failover)
         response = await services.router.get_response(
             prompt=prompt,
@@ -68,6 +74,14 @@ async def gemini_proxy_stream(
 
         async def event_generator():
             import json
+            
+            # Attempt Chat Auto-Dispatch first
+            if services.orchestrator:
+                dispatch_msg = await services.orchestrator.attempt_auto_dispatch(prompt)
+                if dispatch_msg:
+                    yield f"data: {json.dumps({'text': dispatch_msg})}\n\n"
+                    return
+                    
             try:
                 async for chunk in services.router.get_response_stream(
                     prompt=prompt,

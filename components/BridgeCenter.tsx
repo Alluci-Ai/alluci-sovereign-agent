@@ -87,50 +87,54 @@ export const BridgeCard: React.FC<{
 
             {/* Connected user info */}
             {isConnected ? (
-                <div style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    padding: '8px 10px', borderRadius: 10,
-                    background: 'var(--fill-quaternary)',
-                    border: '1px solid var(--separator)',
-                }}>
-                    <div style={{ position: 'relative', flexShrink: 0 }}>
-                        <img
-                            src={conn.profileImg || `https://api.dicebear.com/7.x/identicon/svg?seed=${conn.id}`}
-                            style={{ width: 28, height: 28, borderRadius: '50%', border: '1px solid var(--separator)', objectFit: 'cover' }}
-                            alt=""
-                        />
-                        <div style={{
-                            position: 'absolute', bottom: -1, right: -1,
-                            width: 8, height: 8, borderRadius: '50%',
-                            background: 'rgba(48, 209, 88, 0.65)', border: '2px solid var(--bg-elevated)',
-                            boxShadow: '0 0 4px rgba(48, 209, 88, 0.2)',
-                        }} />
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-mono)', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {conn.accountAlias}
-                        </p>
-                        <p style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-quaternary)' }}>
-                            ID: {conn.id.substring(0, 8)}
-                        </p>
-                    </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {(conn.accounts && conn.accounts.length > 0 ? conn.accounts : [{ id: 'default', alias: conn.accountAlias, avatar_url: conn.profileImg }]).map((acc: any, i: number) => (
+                        <div key={acc.id || i} style={{
+                            display: 'flex', alignItems: 'center', gap: 10,
+                            padding: '8px 10px', borderRadius: 10,
+                            background: 'var(--fill-quaternary)',
+                            border: '1px solid var(--separator)',
+                        }}>
+                            <div style={{ position: 'relative', flexShrink: 0 }}>
+                                <img
+                                    src={acc.avatar_url || conn.profileImg || `https://api.dicebear.com/7.x/identicon/svg?seed=${conn.id}`}
+                                    style={{ width: 28, height: 28, borderRadius: '50%', border: '1px solid var(--separator)', objectFit: 'cover' }}
+                                    alt=""
+                                />
+                                <div style={{
+                                    position: 'absolute', bottom: -1, right: -1,
+                                    width: 8, height: 8, borderRadius: '50%',
+                                    background: 'rgba(48, 209, 88, 0.65)', border: '2px solid var(--bg-elevated)',
+                                    boxShadow: '0 0 4px rgba(48, 209, 88, 0.2)',
+                                }} />
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                                <p style={{ fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-mono)', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {acc.alias || conn.accountAlias}
+                                </p>
+                                <p style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-quaternary)' }}>
+                                    ID: {conn.id.substring(0, 8)}
+                                </p>
+                            </div>
 
-                    {/* Contextual actions — compact */}
-                    {conn.id === 'imessage' && (
-                        <button onClick={() => handleActionWrapper(() => onPulse(conn.id))} className="glass-btn" style={{ fontSize: 10, padding: '3px 8px', flexShrink: 0 }}>
-                            Pulse
-                        </button>
-                    )}
-                    {['tg', 'sg', 'wa', 'dc', 'x', 'fb', 'ig'].includes(conn.id) && (
-                        <button onClick={() => handleActionWrapper(() => onSocialAction(conn.id, 'SYNC_FEED', {}))} className="glass-btn" style={{ fontSize: 10, padding: '3px 8px', flexShrink: 0 }}>
-                            Sync
-                        </button>
-                    )}
-                    {['sl', 'mt', 'gm', 'gd', 'wechat', 'webchat'].includes(conn.id) && (
-                        <button onClick={() => handleActionWrapper(() => onEnterpriseAction(conn.id, 'SEARCH_FILES', {}))} className="glass-btn" style={{ fontSize: 10, padding: '3px 8px', flexShrink: 0 }}>
-                            Search
-                        </button>
-                    )}
+                            {/* Contextual actions — compact */}
+                            {conn.id === 'imessage' && (
+                                <button onClick={() => handleActionWrapper(() => onPulse(conn.id))} className="glass-btn" style={{ fontSize: 10, padding: '3px 8px', flexShrink: 0 }}>
+                                    Pulse
+                                </button>
+                            )}
+                            {['tg', 'sg', 'wa', 'dc', 'x', 'fb', 'ig'].includes(conn.id) && (
+                                <button onClick={() => handleActionWrapper(() => onSocialAction(conn.id, 'SYNC_FEED', {}))} className="glass-btn" style={{ fontSize: 10, padding: '3px 8px', flexShrink: 0 }}>
+                                    Sync
+                                </button>
+                            )}
+                            {['sl', 'mt', 'gm', 'gd', 'wechat', 'webchat'].includes(conn.id) && (
+                                <button onClick={() => handleActionWrapper(() => onEnterpriseAction(conn.id, 'SEARCH_FILES', {}))} className="glass-btn" style={{ fontSize: 10, padding: '3px 8px', flexShrink: 0 }}>
+                                    Search
+                                </button>
+                            )}
+                        </div>
+                    ))}
                 </div>
             ) : (
                 <div style={{
@@ -171,6 +175,8 @@ export const BridgeCard: React.FC<{
                 channelId={conn.id}
                 isOpen={configOpen}
                 onClose={() => setConfigOpen(false)}
+                conn={conn}
+                startAuthFlow={startAuthFlow}
             />
         </div>
     );
@@ -193,7 +199,7 @@ const BridgeCenter: React.FC<BridgeCenterProps> = ({
         });
     };
 
-    const appleIds = ['icloud', 'imessage', 'iwatch', 'iphone'];
+    const appleIds = ['icloud', 'email', 'imessage', 'iwatch', 'iphone'];
     const socialIds = ['wa', 'tg', 'dc', 'sg', 'ig', 'fb', 'x'];
     const enterpriseIds = ['sl', 'mt', 'gm', 'gd', 'webchat', 'wechat'];
     const verusIds = ['verus'];

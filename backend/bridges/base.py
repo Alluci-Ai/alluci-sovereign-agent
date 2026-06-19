@@ -82,24 +82,31 @@ class BridgeAdapter(ABC):
     async def _save_credentials(self, credentials: Dict[str, Any], account_id: str = "default"):
         """Securely persists credentials to the encrypted vault."""
         if self.vault_manager:
-            await self.vault_manager.store_connection_secret(self.bridge_id, account_id, credentials)
-        else:
-            # Fallback for unmanaged environments (testing)
-            vault_file = os.path.join(self.vault_path, f"{account_id}_credentials.json")
-            with open(vault_file, "w") as f:
-                json.dump(credentials, f)
-            os.chmod(vault_file, 0o600)
+            try:
+                await self.vault_manager.store_connection_secret(self.bridge_id, account_id, credentials)
+                return
+            except Exception as e:
+                self.logger.warning(f"Vault error saving credentials, falling back to local file: {e}")
+                
+        # Fallback for unmanaged environments (testing) or if vault fails
+        vault_file = os.path.join(self.vault_path, f"{account_id}_credentials.json")
+        with open(vault_file, "w") as f:
+            json.dump(credentials, f)
+        os.chmod(vault_file, 0o600)
 
     async def _load_credentials(self, account_id: str = "default") -> Dict[str, Any]:
         """Retrieves credentials from the encrypted vault."""
         if self.vault_manager:
-            return await self.vault_manager.retrieve_connection_secret(self.bridge_id, account_id)
-        else:
-            vault_file = os.path.join(self.vault_path, f"{account_id}_credentials.json")
-            if os.path.exists(vault_file):
-                with open(vault_file, "r") as f:
-                    return json.load(f)
-            return {}
+            try:
+                return await self.vault_manager.retrieve_connection_secret(self.bridge_id, account_id)
+            except Exception as e:
+                self.logger.warning(f"Vault error loading credentials, falling back to local file: {e}")
+                
+        vault_file = os.path.join(self.vault_path, f"{account_id}_credentials.json")
+        if os.path.exists(vault_file):
+            with open(vault_file, "r") as f:
+                return json.load(f)
+        return {}
 
     @staticmethod
     def resilient_request(func: Callable):

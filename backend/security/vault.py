@@ -408,8 +408,9 @@ class VaultManager:
         os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
         
         if not self.public_key:
-            logger.error(f"Cannot store secret at {rel_path}: RSA Public Key unavailable.")
-            return
+            msg = f"Cannot store secret at {rel_path}: RSA Public Key unavailable."
+            logger.error(msg)
+            raise RuntimeError(msg)
 
         # 1. Generate a random 256-bit key for this specific secret
         session_key = os.urandom(32)

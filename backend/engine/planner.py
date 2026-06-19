@@ -61,6 +61,7 @@ class Planner:
                 id=t_id,
                 action=step.get('tool', 'unknown'),
                 args={
+                    **step,
                     "description": step.get('description', ''), 
                     "context": objective
                 },

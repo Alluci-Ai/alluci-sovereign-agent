@@ -14,7 +14,8 @@ export const useDaemonStatus = () => {
                 const timeoutId = setTimeout(() => controller.abort(), 2000);
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const headers: any = {};
-                if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
+                const currentToken = useStore.getState().accessToken || localStorage.getItem('alluci_access_token');
+                if (currentToken) headers['Authorization'] = `Bearer ${currentToken}`;
 
                 const res = await fetch(`${DAEMON_URL}/api/v1/status`, {
                     signal: controller.signal,
@@ -36,8 +37,12 @@ export const useDaemonStatus = () => {
                             setNeedsOnboarding(obData.needs_onboarding);
                         }
                     } else if (res.status === 401) {
-                        // Keep online but maybe restricted? Or just set ONLINE if we can talk to it.
-                        // Usually 401 means the server is UP, but we are just not authorized.
+                        // If the backend rejects the token, the session has expired or the cryptographic keys rotated.
+                        // Clear the invalid token from storage to force the user back to the login screen.
+                        localStorage.removeItem('alluci_access_token');
+                        localStorage.removeItem('AUTH_TOKEN');
+                        useStore.getState().setAccessToken(null);
+                        useStore.getState().setActiveView('api');
                         setDaemonStatus('ONLINE');
                     } else {
                         setDaemonStatus('OFFLINE');

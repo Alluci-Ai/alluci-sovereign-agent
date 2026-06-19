@@ -132,3 +132,4 @@ test_out.txt
 compile_commands.json
 *.bak
 
+logs/

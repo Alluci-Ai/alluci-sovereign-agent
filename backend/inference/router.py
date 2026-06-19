@@ -64,6 +64,7 @@ class ModelRouter(ExecutiveRouter):
         self._inference_semaphore = asyncio.Semaphore(int(os.getenv("MAX_CONCURRENCY", "5")))
         self.vault = vault
         self.analytics = analytics
+        self.ws_gateway: Optional[Any] = None
         if self.lce_enabled:
             self.logger.info("Local Cognitive Engine (LCE) via MLX initialized.")
             try:
@@ -922,24 +923,61 @@ class ModelRouter(ExecutiveRouter):
         """
         Utility to get a JSON-formatted execution plan from the LLM.
         Forces JSON mode and handles parsing failovers.
-        
-        **Security Guarantee:** Planning workflows are isolated. Sensitive multi-step 
-        context remains on the host machine unless explicitly flagged for cloud proxying.
         """
-        # Ensure the prompt asks for JSON if it doesn't already
         if "json" not in prompt.lower():
-            prompt += "\n\nIMPORTANT: Return only a valid JSON object with a 'steps' key."
+            prompt += """
 
-        res = await self.get_response(prompt, system_instruction=system_instruction, agent_id=agent_id)
+IMPORTANT: You MUST return ONLY a valid JSON object with a 'steps' array. Do not include any conversational text, greetings, or markdown formatting outside the JSON block.
+Schema:
+{
+  "steps": [
+    {
+      "id": "step_1",
+      "tool": "bridge_actualization", 
+      "bridge": "gmail", 
+      "action": "send_message", 
+      "params": {"recipient": "user@example.com", "content": "Hello"},
+      "description": "Action description",
+      "dependencies": []
+    }
+  ]
+}
+"""
+
         try:
+            res = await self.get_response(prompt, system_instruction=system_instruction, agent_id=agent_id)
             import re
             # Extract JSON from potential markdown blocks or extra text
-            json_match = re.search(r'\{.*\}', res, re.DOTALL)
-            if json_match:
-                return json.loads(json_match.group(0))
-            return json.loads(res)
+            res_clean = res.strip()
+            if res_clean.startswith("```json"):
+                res_clean = res_clean.replace("```json", "", 1)
+            if res_clean.endswith("```"):
+                res_clean = res_clean[::-1].replace("```", "", 1)[::-1]
+            res_clean = res_clean.strip()
+            
+            try:
+                parsed = json.loads(res_clean)
+                if isinstance(parsed, list):
+                    return {"steps": parsed}
+                return parsed
+            except json.JSONDecodeError:
+                # Fallback regex if there is extra text
+                json_match = re.search(r'(\{.*\}|\[.*\])', res_clean, re.DOTALL)
+                if json_match:
+                    parsed = json.loads(json_match.group(0))
+                    if isinstance(parsed, list):
+                        return {"steps": parsed}
+                    return parsed
+                raise
         except Exception as e:
-            self.logger.error(f"Failed to parse structured plan: {e} | Raw: {res[:200]}")
+            import traceback
+            res_str = res if 'res' in locals() else "No response generated"
+            with open("/Users/alluci/Downloads/alluci-sovereign-agent-main/logs/planner_debug.txt", "w") as f:
+                f.write(f"Exception: {str(e)}\n")
+                f.write(f"Traceback: {traceback.format_exc()}\n")
+                f.write(f"Raw Output: {res_str}\n")
+                f.write(f"Prompt: {prompt}\n")
+            self.logger.error(f"Failed to parse structured plan: {e} | Raw: {res_str[:200]}")
             return {"steps": []}
 
     async def refine_plan(self, objective: str, original_plan: List[Dict], results: str, feedback: str, failed_tasks: List[str], agent_id: str = "executive") -> Dict[str, Any]:
@@ -956,6 +994,21 @@ class ModelRouter(ExecutiveRouter):
             "Generate a REVISED valid JSON plan to overcome these failures."
         )
         return await self.get_structured_plan(prompt, agent_id=agent_id)
+
+    async def critique_result(self, objective: str, results: str, agent_id: str = "executive") -> Dict[str, Any]:
+        """Evaluates objective execution results and returns a score and feedback."""
+        prompt = f"""
+Evaluate the execution results against the original objective.
+OBJECTIVE: {objective}
+RESULTS: {results}
+
+You must return a valid JSON object with the following schema:
+{{
+  "score": <float between 0.0 and 1.0>,
+  "feedback": "<detailed feedback>"
+}}
+"""
+        return await self.get_structured_plan(prompt, system_instruction="You are a strict objective critic.", agent_id=agent_id)
 
     @retry(reraise=True, stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10), retry=retry_if_exception_type((httpx.HTTPError, Exception)))
     async def get_fast_tactical_response(self, prompt: str, system_instruction: str = "", agent_id: str = "executive") -> str:

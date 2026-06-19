@@ -47,6 +47,10 @@ class EmailBridge(BridgeAdapter):
             
             self.is_connected = True
             self.logger.info(f"Email Bridge Connected: {self.username}")
+            
+            # Start polling loop automatically upon connection
+            self._poll_task = asyncio.create_task(self._poll_loop())
+            
             return True
         except Exception as e:
             self.logger.error(f"Email Connection Failed: {e}")
@@ -123,7 +127,7 @@ class EmailBridge(BridgeAdapter):
         mail.select('inbox')
         
         status, messages = mail.search(None, '(UNSEEN)')
-        if status != "OK":
+        if status != "OK" or not messages or not messages[0]:
             mail.close()
             mail.logout()
             return []
@@ -133,7 +137,7 @@ class EmailBridge(BridgeAdapter):
         
         # Fetch latest 'limit' messages
         for e_id in email_ids[-limit:]:
-            _, msg_data = mail.fetch(e_id, '(RFC822)')
+            _, msg_data = mail.fetch(e_id, '(BODY[])')
             for response_part in msg_data:
                 if isinstance(response_part, tuple):
                     msg = email.message_from_bytes(response_part[1])
@@ -155,7 +159,7 @@ class EmailBridge(BridgeAdapter):
                         "subject": subject,
                         "body": body,
                         "timestamp": datetime.now().isoformat(),
-                        "protocol": "IMAP"
+                        "protocol": "EMAIL"
                     }
                     results.append(data)
                     
@@ -165,6 +169,24 @@ class EmailBridge(BridgeAdapter):
         mail.close()
         mail.logout()
         return results
+
+    async def _poll_loop(self):
+        """Autonomous polling loop for new emails."""
+        self.logger.info("[ EMAIL ] Background polling loop started.")
+        while self.is_connected:
+            try:
+                unread = await self.fetch_unread(limit=5)
+                self.logger.info(f"[ EMAIL ] poll loop fetched {len(unread)} unread emails.")
+                for msg in unread:
+                    await self._dispatch_inbound(msg)
+                
+                # Poll every 60 seconds
+                await asyncio.sleep(60)
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                self.logger.error(f"[ EMAIL ] Poll loop error: {e}")
+                await asyncio.sleep(60)
 
     def _persist_to_vault(self, box: str, data: Dict[str, Any]):
         """

@@ -40,6 +40,7 @@ class IMessageBridge(BridgeAdapter):
         self._poll_task: Optional[asyncio.Task] = None
         self._last_rowid: int = 0
         self._seen_guids: set = set()
+        self._contact_cache: Dict[str, Optional[str]] = {}  # phone/email → display name
 
         if not self.is_macos:
             self.logger.warning(
@@ -52,6 +53,60 @@ class IMessageBridge(BridgeAdapter):
         """Run a blocking function in the default thread pool executor."""
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, func, *args)
+
+    # ── Contact Name Resolution ─────────────────────────────────────────────
+
+    def _resolve_contact_name_sync(self, identifier: str) -> Optional[str]:
+        """
+        Look up a contact name from a phone number or email via macOS Contacts.app.
+        Uses AppleScript to query the Contacts database. Results are cached.
+        """
+        if not identifier or not self.is_macos:
+            return None
+
+        # Check cache first
+        if identifier in self._contact_cache:
+            return self._contact_cache[identifier]
+
+        # Sanitize identifier for AppleScript (prevent injection)
+        safe_id = identifier.replace('\\', '\\\\').replace('"', '\\"')
+
+        # Try Messages app lookup first (it maps handles directly to contact names)
+        script = f'''
+        tell application "Messages"
+            try
+                set theName to full name of (first buddy whose handle is "{safe_id}")
+                if theName is missing value then return ""
+                return theName
+            on error
+                return ""
+            end try
+        end tell
+        '''
+
+        try:
+            r = subprocess.run(
+                ["osascript", "-e", script],
+                capture_output=True, text=True, timeout=5,
+            )
+            if r.returncode == 0:
+                name = r.stdout.strip()
+                if name and name != " ":  # Filter out empty "first last" with no data
+                    self._contact_cache[identifier] = name
+                    self.logger.info(f"[IMESSAGE] Resolved {identifier} → {name}")
+                    return name
+        except subprocess.TimeoutExpired:
+            self.logger.debug(f"[IMESSAGE] Contacts lookup timed out for {identifier}")
+        except Exception as e:
+            self.logger.debug(f"[IMESSAGE] Contacts lookup failed for {identifier}: {e}")
+
+        # Cache the miss too (avoid repeated lookups for unknown numbers)
+        self._contact_cache[identifier] = None
+        return None
+
+    async def resolve_contact_name(self, identifier: str) -> Optional[str]:
+        """Non-blocking contact name resolution."""
+        return await self._run(self._resolve_contact_name_sync, identifier)
 
     def _load_cursor(self) -> int:
         """Load the persisted rowid cursor from the vault."""
@@ -176,6 +231,13 @@ class IMessageBridge(BridgeAdapter):
                             if len(self._seen_guids) > self.DEDUP_MAXSIZE:
                                 self._seen_guids.pop()
 
+                        # Resolve sender phone/email to contact name
+                        sender_id = msg.get("from", "")
+                        if sender_id:
+                            contact_name = await self.resolve_contact_name(sender_id)
+                            if contact_name:
+                                msg["sender_name"] = contact_name
+
                         await self._dispatch_inbound(msg)
 
                     if new_msgs:
@@ -215,6 +277,7 @@ class IMessageBridge(BridgeAdapter):
             COALESCE(chat.display_name, chat.chat_identifier, '')    AS chat_name,
             chat.chat_identifier                                     AS chat_id,
             message.text,
+            message.destination_caller_id                            AS destination_account,
             message.date / 1000000000 + {APPLE_EPOCH_OFFSET}       AS ts,
             message.is_from_me,
             GROUP_CONCAT(attachment.filename, '|||')                 AS attachments
@@ -256,6 +319,7 @@ class IMessageBridge(BridgeAdapter):
                     "body":        row.get("text") or "",
                     "chat_name":   row.get("chat_name"),
                     "chat_id":     row.get("chat_id"),
+                    "destination_account": row.get("destination_account") or "",
                     "attachments": atts,
                     "protocol":    "IMESSAGE",
                     "timestamp":   datetime.fromtimestamp(

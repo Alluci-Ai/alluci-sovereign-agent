@@ -48,9 +48,6 @@ class RateLimiter:
             else:
                 raise
         except Exception as e:
-            if settings.APP_ENV == "production":
-                logger.error(f"Redis rate limiter failed in PRODUCTION: {e}")
-                raise HTTPException(status_code=500, detail="Distributed rate limiter failure")
             logger.warning(f"Redis rate limiter unavailable, falling back: {e}")
         
         # Fallback to in-memory limiter

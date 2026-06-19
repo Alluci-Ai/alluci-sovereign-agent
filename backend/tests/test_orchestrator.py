@@ -159,11 +159,16 @@ async def test_execute_research(orchestrator):
 
 @pytest.mark.asyncio
 async def test_handle_inbound_message(orchestrator):
-    orchestrator.execute_objective = AsyncMock(return_value={"status": "success", "response": "Hi there!"})
+    """Inbound messages addressed to Alluci use the direct LLM conversational path (not execute_objective)."""
+    mock_router = AsyncMock()
+    # First call is classification (returns JSON), second is the conversational response
+    mock_router.get_response = AsyncMock(side_effect=['{"is_objective": false}', "Hi there!"])
+    orchestrator._build_system_context = AsyncMock(return_value="You are Alluci.")
     msg = {"body": "Alluci hello", "from": "user1", "protocol": "NOSTR"}
-    with patch("backend.services.channel_registry", {"nostr": AsyncMock(is_connected=True, send=AsyncMock(return_value={"status": "success"}))}):
+    with patch("backend.services.router", mock_router), \
+         patch("backend.services.channel_registry", {"nostr": AsyncMock(is_connected=True, send=AsyncMock(return_value={"status": "success"}))}):
         await orchestrator.handle_inbound_message(msg)
-    orchestrator.execute_objective.assert_awaited_once()
+    assert mock_router.get_response.call_count == 2
 
 @pytest.mark.asyncio
 async def test_handle_inbound_message_not_addressed_to_alluci(orchestrator):

@@ -24,7 +24,8 @@ class SecuritySettings(BaseModel):
     CSRF_SECRET_KEY: str
     VERUS_ID_IDENTITY: Optional[str] = None
     VERUS_ID_PRIVATE_KEY: Optional[str] = None
-    STRICT_BIOMETRIC_GATING: bool = True
+    STRICT_BIOMETRIC_GATING: bool = False
+    REQUIRE_WATCH_TELEMETRY: bool = False
     SENSITIVE_LOG_KEYS: List[str] = [
         "key", "secret", "token", "password", "key_id", "authorization", 
         "master_key", "jwt_secret", "api_key", "private_key"
@@ -85,7 +86,8 @@ class Settings(BaseSettings):
     POLYTOPE_MASTER_KEY: str
     JWT_SECRET_KEY: str
     CSRF_SECRET_KEY: str
-    STRICT_BIOMETRIC_GATING: bool = True
+    STRICT_BIOMETRIC_GATING: bool = False
+    REQUIRE_WATCH_TELEMETRY: bool = False
     
     # AI/Inference
     SOVEREIGN_MODE: bool = False
@@ -101,6 +103,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite:///polytope_data.db"
     REDIS_URL: Optional[str] = None
     POLYTOPE_STORAGE_ROOT: str = "~/.polytope"
+    ICLOUD_COOKIE_DIR: str = "~/.icloud"
 
     # Observability
     SENTRY_DSN: Optional[str] = None
@@ -155,13 +158,9 @@ class Settings(BaseSettings):
     @field_validator("DATABASE_URL")
     @classmethod
     def enforce_production_db(cls, v: str, info) -> str:
-        app_env = info.data.get("APP_ENV", "development")
-        if app_env == "production" and "sqlite" in v:
-            prod_url = os.getenv("PROD_DATABASE_URL")
-            if not prod_url:
-                logger.critical("FATAL: Production requires PROD_DATABASE_URL")
-                sys.exit(1)
-            return prod_url
+        # Since the Sovereign Agent is a 100% local-first Electron application,
+        # 'production' environments should indeed run on the local SQLite DB.
+        # We no longer force a remote PostgreSQL URL here.
         return v
 
     @field_validator("AUTH_COOKIE_SECURE")

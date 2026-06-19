@@ -20,6 +20,7 @@ export const AuthPortal: React.FC<{
         case 'QR_SYNC':
             return <QRSyncModal {...props} />;
         case 'SECURE_TUNNEL':
+        case 'MACOS_PERMS':
             return <SecureTunnelModal {...props} />;
         case 'WEB_SESSION':
             return <WebSessionModal {...props} />;

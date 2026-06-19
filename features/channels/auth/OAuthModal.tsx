@@ -28,7 +28,7 @@ export const OAuthModal: React.FC<{
         setError(null);
         try {
             // Get proper auth URL from backend
-            const res = await fetch(`/api/oauth/${bridgeId}/authorize`);
+            const res = await fetch(`/api/oauth/${bridgeId}/start`);
             if (!res.ok) throw new Error("Failed to initialize OAuth flow");
             const data = await res.json();
 
@@ -45,9 +45,6 @@ export const OAuthModal: React.FC<{
 
             // Monitor for callback via postMessage
             const handleMessage = (event: MessageEvent) => {
-                // Ensure same origin
-                if (event.origin !== window.location.origin) return;
-
                 if (event.data?.type === 'OAUTH_COMPLETE' && event.data?.bridgeId === bridgeId) {
                     window.removeEventListener('message', handleMessage);
 

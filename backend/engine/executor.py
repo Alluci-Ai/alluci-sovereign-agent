@@ -12,6 +12,7 @@ from ..logging_config import get_logger
 from opentelemetry import trace
 from .supervisor import SupervisorAgent
 from ..ace.watch_auth import AppleWatchAuth
+from ..config import Settings
 
 logger = get_logger("Engine.Executor")
 
@@ -34,7 +35,8 @@ class Executor:
         self.supervisor = SupervisorAgent()
         
         # [ PPN-017 ] Sovereign Kill Switch Daemon
-        self.watch_auth = AppleWatchAuth()
+        settings = Settings()
+        self.watch_auth = AppleWatchAuth(require_telemetry=settings.REQUIRE_WATCH_TELEMETRY)
         self.ace = ace
 
     @property
