@@ -730,7 +730,7 @@ class ModelRouter(ExecutiveRouter):
             # ── Step 1: Local Inference (Highest Priority) ───────────────────
             # Try LCE (Native MLX Gemma 4), then LM Studio.
             local_providers = []
-            if inference_mode in ["HYBRID", "LOCAL"]:
+            if inference_mode in ["HYBRID", "LOCAL", "FAST"]:
                 if self.lce_enabled:
                     local_providers.append(("Native LCE (MLX)", lambda p: self._lce_request(p, system_instruction=system_instruction, agent_id=agent_id)))
                 if self.lm_studio_client:
