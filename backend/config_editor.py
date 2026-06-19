@@ -40,7 +40,7 @@ class ConfigEditor:
         "CRITIC_THRESHOLD",
         "MAX_CONCURRENT_TASKS",
         "RATE_LIMIT_PER_MINUTE",
-        "OLLAMA_URL",
+        "LOCAL_LCE_URL",
         "PIPER_PATH",
         "PIPER_MODEL",
         "WHISPER_CPP_PATH",

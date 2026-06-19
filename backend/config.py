@@ -48,11 +48,11 @@ class BridgeSettings(BaseModel):
     VERUS_LITE_MODE: bool = False
 
 class InferenceSettings(BaseModel):
-    OLLAMA_URL: str = "http://localhost:11434"
-    OLLAMA_MODEL_STRONG: str = "gemma2:27b"
-    OLLAMA_MODEL_MEDIUM: str = "gemma2:9b"
-    OLLAMA_MODEL_LIGHT: str = "gemma2:2b"
-    OLLAMA_MODEL_LITE: str = "gemma2:2b"
+    LOCAL_LCE_URL: str = "http://localhost:8000"
+    LOCAL_MODEL_STRONG: str = "gemma-4-31b-it-4bit"
+    LOCAL_MODEL_MEDIUM: str = "gemma-4-26B-A4B-it-OptiQ-4bit"
+    LOCAL_MODEL_LIGHT: str = "gemma-4-12B-it-OptiQ-4bit"
+    LOCAL_MODEL_LITE: str = "gemma-4-e2b-it-4bit"
     SOVEREIGN_MODE: bool = False
     GEMINI_API_KEY: Optional[str] = None
     OPENAI_API_KEY: Optional[str] = None
@@ -94,10 +94,10 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: Optional[str] = None
     OPENAI_API_KEY: Optional[str] = None
     ANTHROPIC_API_KEY: Optional[str] = None
-    OLLAMA_URL: str = "http://localhost:11434"
-    OLLAMA_MODEL_STRONG: str = "gemma2:27b"
-    OLLAMA_MODEL_MEDIUM: str = "gemma2:9b"
-    OLLAMA_MODEL_LIGHT: str = "gemma2:2b"
+    LOCAL_LCE_URL: str = "http://localhost:8000"
+    LOCAL_MODEL_STRONG: str = "gemma-4-31b-it-4bit"
+    LOCAL_MODEL_MEDIUM: str = "gemma-4-26B-A4B-it-OptiQ-4bit"
+    LOCAL_MODEL_LIGHT: str = "gemma-4-12B-it-OptiQ-4bit"
     
     # Storage
     DATABASE_URL: str = "sqlite:///polytope_data.db"
