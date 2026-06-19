@@ -123,6 +123,7 @@ async def get_channel_config(channel_id: str):
         raise HTTPException(status_code=404, detail="Channel not found")
     
     config = getattr(adapter, "config", {}).copy()
+    config["enabled"] = getattr(adapter, "is_connected", False)
     if services.vault:
         try:
             state_data = await services.vault.retrieve_secret(f"channel_{normalized}_enabled")

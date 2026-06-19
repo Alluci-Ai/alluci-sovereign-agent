@@ -46,7 +46,7 @@ export const ChannelToggle: React.FC<ChannelToggleProps> = ({ channelId, initial
             <button
                 onClick={toggle}
                 disabled={updating}
-                className={`relative w-8 h-4 rounded-full transition-colors duration-300 ease-in-out cursor-pointer ${enabled ? 'bg-status-good' : 'bg-glass-edge'}`}
+                className={`relative w-8 h-4 rounded-full transition-colors duration-300 ease-in-out cursor-pointer ${enabled ? 'bg-status-good' : 'bg-white/20'}`}
             >
                 <div
                     className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full shadow-sm transition-transform duration-300 ease-in-out ${enabled ? 'transform translate-x-4' : ''}`}
