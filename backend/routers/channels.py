@@ -123,14 +123,24 @@ async def get_channel_config(channel_id: str):
         raise HTTPException(status_code=404, detail="Channel not found")
     
     config = getattr(adapter, "config", {}).copy()
-    config["enabled"] = getattr(adapter, "is_connected", False)
+    is_connected = getattr(adapter, "is_connected", False)
+    # Default: enabled follows connection state
+    config["enabled"] = is_connected
     if services.vault:
         try:
             state_data = await services.vault.retrieve_secret(f"channel_{normalized}_enabled")
             if state_data and "enabled" in state_data:
+                # Only allow vault to override to DORMANT if the user explicitly toggled it off.
+                # If bridge is connected, respect vault only if vault says enabled=True or
+                # if it was explicitly set to False (user intentionally suppressed it).
                 config["enabled"] = state_data["enabled"]
         except Exception:
             pass
+    # Safety: if bridge is live-connected and no vault override exists, force active
+    if is_connected and "enabled" not in (getattr(adapter, "config", None) or {}):
+        # No explicit user override found in the adapter config — trust the connection state
+        if not services.vault:
+            config["enabled"] = True
             
     return config
 

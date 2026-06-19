@@ -52,11 +52,14 @@ export const ChannelConfigExpansion: React.FC<ConfigExpansionProps> = ({ channel
     const handleSave = async () => {
         setSaving(true);
         try {
+            const { getCsrfToken } = await import('../../csrfStore');
+            const csrfToken = await getCsrfToken(DAEMON_URL, accessToken);
             await fetch(`${DAEMON_URL}/api/v1/channels/${channelId}/config`, {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
                 },
                 body: JSON.stringify(config),
                 credentials: 'include'
