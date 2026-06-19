@@ -113,7 +113,7 @@ export const ChannelConfigExpansion: React.FC<ConfigExpansionProps> = ({ channel
                     {/* Per-Account Management Lists */}
                     <PerAccountList channelId={channelId} />
                     
-                    {['gm', 'sl', 'x', 'fb', 'ig', 'dc'].includes(channelId) && startAuthFlow && conn && (
+                    {['gm', 'sl', 'x', 'fb', 'ig', 'dc', 'gd'].includes(channelId) && startAuthFlow && conn && (
                         <div className="flex justify-start pt-1">
                             <button onClick={() => startAuthFlow(conn)} className="glass-btn px-3 py-1.5 text-[11px] flex items-center gap-2 border-glass-edge">
                                 + Add Another Account
