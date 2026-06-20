@@ -7,7 +7,7 @@ import { AutonomyLevel, AceStateVector } from '../kernel/types';
 import { getCsrfToken } from '../csrfStore';
 import { useStore } from '../store/useStore';
 
-const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
+const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || '';
 
 // Singleton instances — initialised once per app session
 const identity = new IdentityManager();

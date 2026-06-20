@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Pickaxe, TrendingUp, Cpu, Server, AlertTriangle, Layers, Zap } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 
-const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
+const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || '';
 
 interface WalletMiningProps {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

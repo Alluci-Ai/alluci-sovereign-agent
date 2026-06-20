@@ -8,7 +8,7 @@ import { useStore } from '../../store/useStore';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { LayoutDashboard, Server, History, Shield } from 'lucide-react';
 
-const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
+const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || '';
 
 interface DashboardData {
     connected: boolean;

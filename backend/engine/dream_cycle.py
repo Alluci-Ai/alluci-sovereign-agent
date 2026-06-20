@@ -100,10 +100,13 @@ class DreamingCycleDaemon:
             mx.set_default_device(mx.gpu)  # type: ignore
             if os.path.exists(core_model_path):
                 try:
-                    self.model, self.tokenizer = load_model(core_model_path)
+                    from pathlib import Path
+                    self.model, self.tokenizer = load_model(Path(core_model_path))
                     logger.info("[DREAM ENGINE] Native Alluci Core Model parameters verified.")
-                except Exception as e:
+                except BaseException as e:
                     logger.error(f"[DREAM ENGINE] Failed to load model: {e}")
+                    # Allow daemon to boot even if mlx_lm raises SystemExit
+                    self.model = None
             else:
                 logger.warning(f"[CRITICAL] Base core models not found at {core_model_path}.")
         else:
@@ -275,9 +278,25 @@ class SleepStateOrchestrator:
         self.settings = settings
         self.distiller = CognitiveDistiller(hlsm_manager, router)
         self.trainer = MLXDPOTrainer(settings)
-        # Using a default path for the model
+        # Resolve the local model path using HardwareProfiler and local mapping logic
+        from backend.inference.profiler import HardwareProfiler
+        import os
+        
+        hardware_profile = HardwareProfiler.get_system_profile()
+        tier = hardware_profile.get("tier", "TIER_4_EDGE")
+        local_mapping = {
+            "TIER_1_MAX": "mirror_cache/gemma-4-31b-it-4bit",
+            "TIER_2_PRO": "mirror_cache/gemma-4-26B-A4B-it-OptiQ-4bit",
+            "TIER_3_BASE": "mirror_cache/gemma-4-12B-it-OptiQ-4bit",
+            "TIER_4_EDGE": "mirror_cache/gemma-4-e2b-it-4bit"
+        }
+        base_dir = os.getcwd()
+        resolved_path = os.path.join(base_dir, local_mapping.get(tier, ""))
+        if not os.path.exists(resolved_path):
+            resolved_path = hardware_profile.get("recommended_model", "alluci-polytope-gemma-4")
+
         self.teacher_distiller = DreamingCycleDaemon(
-            core_model_path="/usr/local/bin/alluci/core/models/alluci-gemma4-polytope"
+            core_model_path=resolved_path
         )
         self.is_dreaming = False
 

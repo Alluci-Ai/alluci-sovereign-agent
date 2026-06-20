@@ -6,7 +6,7 @@ import { useStore } from '../store/useStore';
 import { getCsrfToken } from '../csrfStore';
 import { HeartbeatOrderEditor } from '../features/heartbeat/HeartbeatOrderEditor';
 
-const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
+const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || '';
 
 interface StepProps {
   data: Partial<SkillManifest>;

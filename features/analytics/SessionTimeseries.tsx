@@ -3,7 +3,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { useStore } from '../../store/useStore';
 import { Activity } from 'lucide-react';
 
-const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
+const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || '';
 
 interface SessionTimeseriesProps {
     sessionKey: string;

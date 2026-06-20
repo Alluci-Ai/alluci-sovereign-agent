@@ -3,6 +3,7 @@ from ..models import TelemetryData
 from typing import Dict, Any
 from .affect_kernel import AffectKernel, AffectiveState
 from .btm_mapper import BTMMapper
+from ..security.calibration import CalibrationManager
 import datetime  # type: ignore
 import psutil  # type: ignore
 
@@ -14,6 +15,7 @@ class AffectiveEngine:
     def __init__(self):
         self.kernel = AffectKernel()
         self.btm = BTMMapper()
+        self.calibration_manager = CalibrationManager()
         self._affective_state = AffectiveState()
         self._deadline_override_turns = 0
         self._deadline_override_tension = 1024.0
@@ -40,6 +42,9 @@ class AffectiveEngine:
         stress = (self._affective_state.tension / 1024.0) * 100.0
         self.current_state["stress_score"] = stress
         self.current_state["physical_vitality"] = max(0.0, 1.0 - (stress / 100.0))
+        
+        # Log continuous biometric tension for dynamic baseline
+        self.calibration_manager.log_ace_telemetry(stress)
         
         # Map valence/arousal for legacy modes
         v = self._affective_state.valence / 1024.0
@@ -156,25 +161,38 @@ class AffectiveEngine:
         """Evaluates combined markers to determine the overarching Flow mode."""
         stress = self.current_state["stress_score"]
         load = self.current_state["mental_load"]
+        
+        # Continuous Biometric Normalization
+        baseline = self.calibration_manager.get_ace_baseline()
+        mean_stress = baseline["mean"]
+        std_stress = baseline["std"]
+        
+        # Dynamic threshold computation
+        # Fatigue / Overload: > 2.5 sigma above mean
+        is_overload = stress > (mean_stress + 2.5 * std_stress)
+        is_critical_overload = stress > (mean_stress + 3.5 * std_stress)
+        
+        # Deep flow: < 1 sigma below mean
+        is_deep_flow = stress < (mean_stress - 1.0 * std_stress)
 
         # Determine ACE_STATE_X (Biometric Profile)
-        if stress > 75 or load == "fatigued":  # type: ignore
-            self.current_state["ace_state"] = "<ACE_STATE_5>" if stress > 85 else "<ACE_STATE_4>"  # type: ignore
+        if is_overload or load == "fatigued":  # type: ignore
+            self.current_state["ace_state"] = "<ACE_STATE_5>" if is_critical_overload else "<ACE_STATE_4>"
             self.current_state["is_throttled"] = True
             self.current_state["flow_mode"] = "RECOVERY_MODE"
-            return {"mode": "RECOVERY_MODE", "action": "SILENCE_NON_URGENT", "reason": "High Strain Detected", "ace_state": self.current_state["ace_state"]}
+            return {"mode": "RECOVERY_MODE", "action": "DELEGATION_MODE", "reason": "High Strain/Fatigue Detected", "ace_state": self.current_state["ace_state"]}
         
-        if load == "deep_work" and stress < 60:  # type: ignore
-            self.current_state["ace_state"] = "<ACE_STATE_3>" if stress > 40 else "<ACE_STATE_2>"  # type: ignore
+        if load == "deep_work" and is_deep_flow:  # type: ignore
+            self.current_state["ace_state"] = "<ACE_STATE_3>" if stress > mean_stress else "<ACE_STATE_2>"
             self.current_state["is_throttled"] = True
             self.current_state["flow_mode"] = "DEEP_WORK"
-            return {"mode": "DEEP_WORK", "action": "SILENCE_ALL_BUT_EMERGENCY", "reason": "Deep Cognitive Focus", "ace_state": self.current_state["ace_state"]}
+            return {"mode": "DEEP_WORK", "action": "INVISIBLE_WINGMAN", "reason": "Deep Cognitive Focus (Flow State)", "ace_state": self.current_state["ace_state"]}
         
         if self.current_state["physical_vitality"] > 0.8 and load == "nominal":  # type: ignore
             self.current_state["ace_state"] = "<ACE_STATE_1>"
             self.current_state["is_throttled"] = False
             self.current_state["flow_mode"] = "PEAK_PERFORMANCE"
-            return {"mode": "PEAK_PERFORMANCE", "action": "SUGGEST_HIGH_LOGIC_EPICS", "reason": "High Vitality", "ace_state": self.current_state["ace_state"]}
+            return {"mode": "PEAK_PERFORMANCE", "action": "EXECUTIVE_ASSISTANT", "reason": "High Vitality", "ace_state": self.current_state["ace_state"]}
 
         self.current_state["ace_state"] = "<ACE_STATE_0>"
         self.current_state["is_throttled"] = False

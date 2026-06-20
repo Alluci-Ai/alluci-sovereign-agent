@@ -4,7 +4,7 @@ import { Bot, UserPlus, Settings, Activity, Network } from 'lucide-react';
 import AgentDetailTabs from './AgentDetailTabs';
 import AgentDirtyIndicator from './AgentDirtyIndicator';
 
-const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
+const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || '';
 
 export const AgentsPanel: React.FC = () => {
     const { accessToken } = useStore();

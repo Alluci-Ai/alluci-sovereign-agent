@@ -6,7 +6,7 @@ import { submitObjective } from './lib/objectiveService';
 import { useStore } from './store/useStore';
 import { AutonomyLevel, AceStateVector } from './kernel/types';
 
-export const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
+export const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || '';
 
 export const usePolytopeAPI = () => {
   const [isBusy, setIsBusy] = useState(false);

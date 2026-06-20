@@ -471,7 +471,7 @@ export const useStore = create<AppState>((set) => ({
         attachments: typeof val === 'function' ? val(state.attachments) : val
     })),
     hydrate: async () => {
-        const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
+        const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || '';
         // Only attempt hydration if the session signal cookie exists
         if (!document.cookie.includes('alluci_session=1')) return;
         

@@ -92,7 +92,7 @@ class BridgeActualizationAdapter(Adapter):
             raise AdapterError("Missing 'bridge' or 'action' in actualization request.")
 
         # Resolve Account ID
-        account_id = params.get("account_id") or args.get("account_id") or "default"
+        account_id = params.get("account_id") or params.get("sender") or args.get("account_id") or "default"
 
         # Special Action: handle_auth (AuthPortal routing)
         if action == "handle_auth":
@@ -107,15 +107,30 @@ class BridgeActualizationAdapter(Adapter):
 
         # 2. Execute Action
         try:
-            if action == "send_message":
+            if action in ("send", "send_message"):
                 recipient = params.get("recipient")
                 content = params.get("content")
                 if not recipient or not content:
                     raise AdapterError("Missing 'recipient' or 'content' for send_message.")
-                return await bridge.send_message(recipient, content)
+                kwargs = params.copy()
+                kwargs.pop("recipient", None)
+                kwargs.pop("content", None)
+                if "account_id" not in kwargs:
+                    kwargs["account_id"] = account_id
+                return await bridge.send(recipient, content, **kwargs)
 
             elif action == "fetch_unread":
                 limit = params.get("limit", 10)
+                kwargs = params.copy()
+                if bridge_type in ("gmail", "email") and "email" not in kwargs:
+                    kwargs["email"] = account_id
+                
+                # Check if fetch_unread accepts kwargs
+                import inspect
+                sig = inspect.signature(bridge.fetch_unread)
+                if any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()) or "email" in sig.parameters:
+                     # pass kwargs if it accepts them or specifically 'email'
+                     return await bridge.fetch_unread(**{k: v for k, v in kwargs.items() if k in sig.parameters or any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values())})
                 return await bridge.fetch_unread(limit=limit)
 
             elif action == "upload_file":

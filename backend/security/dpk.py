@@ -4,6 +4,14 @@ import ctypes
 import os
 from dataclasses import dataclass
 from typing import List, Optional
+from .calibration import CalibrationManager
+
+class TearingException(Exception):
+    def __init__(self, topology_shift: float, dynamic_threshold: float, origin: str):
+        self.topology_shift = topology_shift
+        self.dynamic_threshold = dynamic_threshold
+        self.origin = origin
+        super().__init__(f"Manifold Tearing Detected: {topology_shift:.4f} \u003e {dynamic_threshold:.4f}")
 
 logger = get_logger("DPK")
 
@@ -32,6 +40,9 @@ class PolytopeState:
     phi_total: int = 0           # Φ_total affective-invariant index (PPN-003)
     coherence: float = 0.0       # Coh(P_t) ∈ [0.0, 1.0] (AAP-001)
     budget_used: float = 0.0     # Lipschitz budget consumption (PPN-005)
+    origin: str = "local"        # Origin vector for Zero-Trust RBM
+    is_override: bool = False    # Human-in-the-Loop Override flag (DPK)
+    is_avl_override: bool = False # Human-in-the-Loop Override flag (AVL)
 
 class DiscreteProjectionKernel:
     """
@@ -42,7 +53,8 @@ class DiscreteProjectionKernel:
         self.prev_state: Optional[PolytopeState] = None
         self.initialized = False
         self.MAX_EULER_DEVIATION = 2
-        self.TEARING_THRESHOLD = 0.15
+        
+        self.calibration_manager = CalibrationManager()
         
         # Load Native Kernel
         self.native_lib = self._load_native_lib()
@@ -145,11 +157,30 @@ class DiscreteProjectionKernel:
             logger.warning(f"[DPK] BUDGET EXCEEDED: Lipschitz Drift ({current.budget_used:.3f}).")
             return False
 
+        # Dynamic Tearing Check
         if self.initialized and current.affective_tension_psi < 0.8:
             topology_shift = sum(abs(current.betti[i] - self.prev_state.betti[i]) for i in range(4))  # type: ignore
-            if topology_shift > self.TEARING_THRESHOLD * 10.0:
-                logger.warning("[DPK] SAFETY: Manifold Tearing Detected.")
-                return False
+            
+            if current.is_override:
+                # 2. Human-in-the-Loop Override: user explicitly approved the trajectory
+                logger.warning(f"[DPK] OVERRIDE ACCEPTED. Logging trajectory {topology_shift:.4f} to {current.origin} calibration cache.")
+                self.calibration_manager.log_approved_trajectory(topology_shift / 10.0, origin=current.origin)
+            else:
+                try:
+                    dynamic_threshold = self.calibration_manager.get_dynamic_threshold(origin=current.origin) * 10.0
+                except Exception as e:
+                    if str(e) == "RBM_FROZEN":
+                        logger.error(f"[DPK] RBM FREEZE: Origin {current.origin} is quarantined.")
+                        return False
+                    raise e
+                    
+                if topology_shift > dynamic_threshold:
+                    logger.warning(f"[DPK] SAFETY: Manifold Tearing Detected. {topology_shift:.4f} \u003e {dynamic_threshold:.4f}")
+                    # Raise an exception to bubble up the Human-in-the-loop requirement
+                    raise TearingException(topology_shift, dynamic_threshold, current.origin)
+                
+                # Automatically evolve baseline if within bounds
+                self.calibration_manager.log_approved_trajectory(topology_shift / 10.0, origin=current.origin)
 
         self.prev_state = current
         self.initialized = True

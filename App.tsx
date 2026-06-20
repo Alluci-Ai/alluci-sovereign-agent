@@ -47,7 +47,7 @@ import { RpcConsole } from './features/system/RpcConsole';
 import ViewManifold from './components/ViewManifold';
 import './styles/dag.css';
 
-const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
+const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || '';
 
 const App: React.FC = () => {
   const {

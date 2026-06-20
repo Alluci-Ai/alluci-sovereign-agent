@@ -10,7 +10,7 @@ test.describe('Critical User Paths', () => {
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   test('health check API responds correctly', async ({ page, request }) => {
-    const response = await request.get(`${process.env.DAEMON_URL || 'http://localhost:8000'}/health`);
+    const response = await request.get(`${process.env.DAEMON_URL || ''}/health`);
     expect(response.status()).toBe(200);
     const body = await response.json();
     expect(body.status).toBe('healthy');

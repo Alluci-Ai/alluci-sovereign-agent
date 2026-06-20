@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useStore } from '../../../store/useStore';
 import type { DAGRun } from '../types';
 
-const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
+const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || '';
 const POLL_INTERVAL_MS = 5000;
 
 interface UseDAGRunsOptions {

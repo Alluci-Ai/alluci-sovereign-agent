@@ -270,7 +270,7 @@ export class AuditLedger {
   private daemonUrl: string;
 
   // Standardized daemon URL — uses Vite's proxy-ready VITE_DAEMON_URL
-  constructor(daemonUrl: string = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000') {
+  constructor(daemonUrl: string = import.meta.env.VITE_DAEMON_URL || '') {
     this.daemonUrl = daemonUrl;
     this.addEntry("INITIALIZE_SOVEREIGN_NODE", { build: "GATEWAY_V4.3_EXECUTIVE" });
   }

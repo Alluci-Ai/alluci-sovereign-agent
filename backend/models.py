@@ -194,6 +194,16 @@ class PCLOpportunity(SQLModel, table=True):
 class PCLWorldModelSnapshot(SQLModel, table=True):
     __tablename__ = "pcl_world_model_snapshot"  # type: ignore
     id: int = Field(default=None, primary_key=True)
+    cycle_number: int = Field(default=0)
+    built_at: float = Field(default_factory=lambda: time.time())
+    active_goals_count: int = Field(default=0)
+    goals_at_risk_count: int = Field(default=0)
+    current_psi: float = Field(default=0.0)
+    current_flow_mode: str = Field(default="STANDARD")
+    pending_bridge_messages: int = Field(default=0)
+    opportunities_detected: int = Field(default=0)
+    opportunities_actioned: int = Field(default=0)
+    cycle_duration_ms: float = Field(default=0.0)
     snapshot_data: dict = Field(sa_column=Column(JSON), default_factory=dict)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 

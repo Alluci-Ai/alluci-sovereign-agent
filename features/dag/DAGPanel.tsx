@@ -15,7 +15,7 @@ import { submitObjective } from '../../lib/objectiveService';
 import { AutonomyLevel, AceStateVector } from '../../kernel/types';
 import type { TaskRecord, DAGRun } from './types';
 
-const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
+const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || '';
 
 export const DAGPanel: React.FC = () => {
   const { accessToken, activeAgentId } = useStore();

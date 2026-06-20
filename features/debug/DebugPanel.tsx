@@ -45,7 +45,7 @@ export const DebugPanel: React.FC = () => {
         if (activeTab === 'security') {
             const fetchStatus = async () => {
                 try {
-                    const res = await fetch(`${import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000'}/status`, {
+                    const res = await fetch(`${import.meta.env.VITE_DAEMON_URL || ''}/status`, {
                         headers: { 'Authorization': `Bearer ${accessToken}` },
                         credentials: 'include'
                     });

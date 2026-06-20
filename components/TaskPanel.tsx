@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { TaskItem } from '../types';
 import { useStore } from '../store/useStore';
 
-const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
+const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || '';
 
 export const ConfirmationModal: React.FC<{
     isOpen: boolean;

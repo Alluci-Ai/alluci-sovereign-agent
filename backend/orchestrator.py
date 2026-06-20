@@ -632,7 +632,7 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
 
         return "\n".join(context_parts)
 
-    def _perform_ppn_check(self, objective: str, autonomy: str) -> Tuple[bool, Optional[PolytopeState]]:
+    def _perform_ppn_check(self, objective: str, autonomy: str, origin: str = "local", override_tearing: bool = False, override_avl: bool = False) -> Tuple[bool, Optional[PolytopeState]]:
         """
         Runs the Polytope Projection Network and Discrete Projection Kernel
         to verify manifold integrity before planning.
@@ -673,11 +673,19 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
                 phi_total=phi_total,
                 coherence=coherence,
                 budget_used=budget,
-                hardware_status=affect_state.hardware_status
+                hardware_status=affect_state.hardware_status,
+                origin=origin,
+                is_override=override_tearing,
+                is_avl_override=override_avl
             )
             
             # 6. DPK Authorization
-            is_valid = self.dpk.authorize_execution(state)
+            from .security.dpk import TearingException
+            try:
+                is_valid = self.dpk.authorize_execution(state)
+            except TearingException as e:
+                state.tearing_exception = e
+                return False, state
             
             # 7. Entropy Spike Detection (PPN-007)
             # Find graph entropy from h_norm (Normalized Graph Entropy)
@@ -690,7 +698,7 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
             # Fail closed if security check errors out
             return False, None
 
-    async def execute_objective(self, objective: str, autonomy: str, mode: str = "standard") -> Dict[str, Any]:
+    async def execute_objective(self, objective: str, autonomy: str, mode: str = "standard", origin: str = "local", override_tearing: bool = False, override_avl: bool = False) -> Dict[str, Any]:
         from .tracing_config import get_tracer
         tracer = get_tracer("Orchestrator")
         
@@ -717,13 +725,25 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
             self.ace.process_semantic_fallback(objective, preferences=prefs)  # type: ignore
 
         # 1. PPN / DPK Manifold Check
-        is_manifold_stable, polytope_state = self._perform_ppn_check(objective, autonomy)
+        is_manifold_stable, polytope_state = self._perform_ppn_check(objective, autonomy, origin, override_tearing, override_avl)
         
         # Bypass for development/testing
         if getattr(self.settings, 'APP_ENV', 'development') in ['development', 'testing']:
             is_manifold_stable = True
             
         if not is_manifold_stable:
+            if hasattr(polytope_state, 'tearing_exception'):
+                e = polytope_state.tearing_exception
+                self.logger.critical(f"🛑 HUMAN-IN-THE-LOOP REQUIRED: Manifold Tearing Detected. Shift: {e.topology_shift:.4f} > {e.dynamic_threshold:.4f}")
+                return {
+                    "status": "human_override_required",
+                    "reason": "Manifold Tearing Detected",
+                    "diagnostics": getattr(polytope_state, '__dict__', {}),
+                    "topology_shift": e.topology_shift,
+                    "dynamic_threshold": e.dynamic_threshold,
+                    "origin": e.origin
+                }
+                
             self.logger.critical(f"🛑 MANIFOLD TEARING DETECTED via PPN/DPK. Execution Halted. Mode={mode.upper()}")
             return {
                 "status": "halted",
@@ -1015,34 +1035,13 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
             attempt += 1
             
             if attempt >= total_retries_allowed:
-                # Progressive approval logic
-                if self.approval_manager:
-                    next_tier = 5 if current_retry_tier == 3 else current_retry_tier * 2
-                    self.logger.info(f"⏸️ Self-healing limit reached ({total_retries_allowed}). Requesting user approval for {next_tier} more cycles.")
-                    
-                    if hasattr(self, 'ws_gateway') and self.ws_gateway:
-                        await self.ws_gateway.broadcast_event('chat.message', {
-                            "text": f"⚠️ I encountered a manifold rupture I couldn't self-heal in {total_retries_allowed} cycles. May I attempt {next_tier} deeper reflection cycles to resolve this safely?",
-                            "sender": "System"
-                        })
-                    
-                    approval = await self.approval_manager.request_approval(
-                        command=f"Allow {next_tier} additional self-healing cycles to repair manifold rupture?",
-                        tool_name="system_healing"
-                    )
-                    
-                    if approval.get("approved"):
-                        self.logger.info(f"✅ User approved {next_tier} additional self-healing cycles.")
-                        current_retry_tier = next_tier
-                        total_retries_allowed += next_tier
-                        if hasattr(self, 'ws_gateway') and self.ws_gateway:
-                            await self.ws_gateway.broadcast_event('chat.message', {"text": "Thank you. Engaging deeper reflection cycles now...", "sender": "System"})
-                    else:
-                        self.logger.critical("🛑 User denied deeper reflection cycles. Halting.")
-                        break
-                else:
-                    self.logger.warning("No approval manager configured. Halting self-healing loop.")
-                    break
+                self.logger.critical(f"🛑 HUMAN-IN-THE-LOOP REQUIRED: AVL Self-Healing exhausted. Reason: {avl_reason}")
+                return {
+                    "status": "human_override_required",
+                    "reason": "AVL Self-Healing Exhausted",
+                    "diagnostics": getattr(polytope_state, '__dict__', {}),
+                    "avl_reason": avl_reason
+                }
 
             # AAP-007: ψ-Gated Continuous Autonomy.
             if psi > 0.9:

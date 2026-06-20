@@ -219,7 +219,7 @@ class BridgeAdapter(ABC):
         """
         import time
         expires_at = creds.get("expires_at", 0)
-        if not expires_at or time.time() < expires_at - 60:
+        if expires_at and time.time() < expires_at - 60:
             return creds
 
         refresh_token = creds.get("refresh_token")

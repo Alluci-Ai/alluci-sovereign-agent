@@ -12,7 +12,7 @@ import SkillBuilderWizard from './SkillBuilderWizard';
 import { SKILL_DATABASE } from '../knowledge';
 import { HeartbeatOrderEditor } from '../features/heartbeat/HeartbeatOrderEditor';
 
-const DAEMON_URL = 'http://localhost:8000';
+const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || '';
 
 // Compact Radar Chart — SVG
 const RadarChart: React.FC<{ preferences: SoulPreferences }> = ({ preferences }) => {
@@ -22,7 +22,7 @@ const RadarChart: React.FC<{ preferences: SoulPreferences }> = ({ preferences })
 
     const keys: (keyof SoulPreferences)[] = ['tone', 'assertiveness', 'empathy', 'creativity'];
     const labels = ['Tone', 'Assert', 'Empathy', 'Create'];
-    const values = keys.map(k => preferences[k] as number);
+    const values = keys.map(k => (preferences?.[k] as number) ?? 0.5);
     const angleSlice = (Math.PI * 2) / keys.length;
 
     const points = values.map((val, i) => {
@@ -128,6 +128,16 @@ const IdentityForge: React.FC<{ onClose: () => void; onManifestUpdate?: (manifes
     const [isSkillPickerOpen, setIsSkillPickerOpen] = useState(false);
     const [selectedSkillsForIngest, setSelectedSkillsForIngest] = useState<string[]>([]);
 
+    const mergePreferences = (prefs: any) => ({
+        tone: prefs?.tone ?? 0.5,
+        humor: prefs?.humor ?? SoulHumor.DRY,
+        empathy: prefs?.empathy ?? 0.5,
+        assertiveness: prefs?.assertiveness ?? 0.5,
+        creativity: prefs?.creativity ?? 0.5,
+        verbosity: prefs?.verbosity ?? 0.5,
+        conciseness: prefs?.conciseness ?? SoulConciseness.BALANCED
+    });
+
     const fetchManifest = async () => {
         const token = localStorage.getItem('alluci_daemon_token');
         try {
@@ -138,15 +148,29 @@ const IdentityForge: React.FC<{ onClose: () => void; onManifestUpdate?: (manifes
                 signal: controller.signal
             });
             clearTimeout(id);
-            if (res.ok) { setManifest(await res.json()); setLoading(false); return; }
+            if (res.ok) { 
+                const data = await res.json();
+                data.preferences = mergePreferences(data.preferences);
+                setManifest(data); 
+                setLoading(false); 
+                return; 
+            }
             throw new Error("Failed to load from Daemon");
         } catch (e) {
             console.warn("Daemon unreachable, checking local cache.");
             const cached = localStorage.getItem('alluci_soul_manifest');
             // eslint-disable-next-line no-empty
-            if (cached) { try { setManifest(JSON.parse(cached)); setLoading(false); return; } catch (err) { } }
+            if (cached) { 
+                try { 
+                    const data = JSON.parse(cached);
+                    data.preferences = mergePreferences(data.preferences);
+                    setManifest(data); 
+                    setLoading(false); 
+                    return; 
+                } catch (err) { } 
+            }
             setManifest({
-                preferences: { tone: 0.5, humor: SoulHumor.DRY, empathy: 0.5, assertiveness: 0.5, creativity: 0.5, verbosity: 0.5, conciseness: SoulConciseness.BALANCED },
+                preferences: mergePreferences(null),
                 identityCore: "OFFLINE_MODE: You are Alluci, a Sovereign Executive Assistant.",
                 directives: ["Sovereignty", "Polytopic Reasoning", "Deterministic Execution"],
                 voiceProfile: "Professional, crisp, slightly futuristic, yet warm.",
@@ -178,7 +202,7 @@ const IdentityForge: React.FC<{ onClose: () => void; onManifestUpdate?: (manifes
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const updatePrefs = (key: keyof SoulPreferences, val: any) => {
         if (!manifest) return;
-        setManifest({ ...manifest, preferences: { ...manifest.preferences, [key]: val } });
+        setManifest({ ...manifest, preferences: { ...(manifest.preferences || {}), [key]: val } as SoulPreferences });
         setIsDirty(true);
     };
 
@@ -286,7 +310,7 @@ const IdentityForge: React.FC<{ onClose: () => void; onManifestUpdate?: (manifes
                         <RadarChart preferences={manifest.preferences} />
                         <div style={{ textAlign: 'center' }}>
                             <p style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>Soul Signature</p>
-                            <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-quaternary)', wordBreak: 'break-all' }}>{manifest.preferences.tone * 999123 | 0}_X9</p>
+                            <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-quaternary)', wordBreak: 'break-all' }}>{((manifest.preferences?.tone ?? 0.5) * 999123) | 0}_X9</p>
                         </div>
                     </div>
 
@@ -298,10 +322,10 @@ const IdentityForge: React.FC<{ onClose: () => void; onManifestUpdate?: (manifes
                                 Core Parameters
                             </h3>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                                <PersonalityField label="Tone" type="slider" value={manifest.preferences.tone} onChange={v => updatePrefs('tone', v)} description="Casual ↔ Formal" />
-                                <PersonalityField label="Empathy" type="slider" value={manifest.preferences.empathy} onChange={v => updatePrefs('empathy', v)} description="Validation weight" />
-                                <PersonalityField label="Assertiveness" type="slider" value={manifest.preferences.assertiveness} onChange={v => updatePrefs('assertiveness', v)} description="Directive strength" />
-                                <PersonalityField label="Creativity" type="slider" value={manifest.preferences.creativity} onChange={v => updatePrefs('creativity', v)} description="Divergence" />
+                                <PersonalityField label="Tone" type="slider" value={manifest.preferences?.tone ?? 0.5} onChange={v => updatePrefs('tone', v)} description="Casual ↔ Formal" />
+                                <PersonalityField label="Empathy" type="slider" value={manifest.preferences?.empathy ?? 0.5} onChange={v => updatePrefs('empathy', v)} description="Validation weight" />
+                                <PersonalityField label="Assertiveness" type="slider" value={manifest.preferences?.assertiveness ?? 0.5} onChange={v => updatePrefs('assertiveness', v)} description="Directive strength" />
+                                <PersonalityField label="Creativity" type="slider" value={manifest.preferences?.creativity ?? 0.5} onChange={v => updatePrefs('creativity', v)} description="Divergence" />
                             </div>
                         </section>
 

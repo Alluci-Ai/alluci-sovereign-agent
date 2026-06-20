@@ -8,7 +8,7 @@ import NostrProfileForm from './NostrProfileForm';
 import PerAccountList from './PerAccountList';
 import WhatsAppQRPairer from './WhatsAppQRPairer';
 
-const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
+const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || '';
 
 interface ConfigExpansionProps {
     channelId: string;

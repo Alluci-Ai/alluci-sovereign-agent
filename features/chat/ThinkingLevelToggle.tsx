@@ -3,7 +3,7 @@ import { useStore } from '../../store/useStore';
 import { BrainCircuit } from 'lucide-react';
 import { adminService } from '../../adminService';
 
-const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
+const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || '';
 
 /**
  * ThinkingLevelToggle — Top bar header action injecting an explicit thinking boundary

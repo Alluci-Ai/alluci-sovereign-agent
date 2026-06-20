@@ -48,7 +48,7 @@ test.describe('O-4: Sovereign Authentication Flows', () => {
 
   test('CSRF double-submit integrity blocks cross-site attacks', async ({ request }) => {
     // Making a POST request without the CSRF header should fail with 403 Forbidden
-    const response = await request.post(`${process.env.DAEMON_URL || 'http://localhost:8000'}/api/v1/auth/protected`, {
+    const response = await request.post(`${process.env.DAEMON_URL || ''}/api/v1/auth/protected`, {
       data: { sensitive_action: true }
     });
     expect(response.status()).toBe(403);

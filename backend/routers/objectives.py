@@ -21,13 +21,15 @@ policy_engine = AutonomyPolicyEngine()
 class ObjectiveRequest(BaseModel):
     objective: str
     autonomy_level: str = "SEMI_AUTONOMOUS"
+    override_tearing: bool = False
+    override_avl: bool = False
 
 # ── Manifest Validation Helpers ───────────────────────────────────────────────
 
 def _canonicalize(obj: Any) -> str:
     """Python mirror of ExecutionManifestFactory.canonicalize() in TypeScript."""
     if obj is None or not isinstance(obj, (dict, list)):
-        return json.dumps(obj, separators=(',', ':'))
+        return json.dumps(obj, separators=(',', ':'), ensure_ascii=False)
     if isinstance(obj, list):
         return f"[{','.join(_canonicalize(x) for x in obj)}]"
     sorted_keys = sorted(obj.keys())
@@ -59,6 +61,7 @@ async def execute_objective(
     request: ObjectiveRequest,
     agent_id: str = "executive",
     manifest_header: Optional[str] = Header(None, alias="X-Execution-Manifest"),
+    external_origin: Optional[str] = Header(None, alias="X-External-Origin"),
     current_user: Any = None
 ):
     try:
@@ -135,12 +138,20 @@ async def execute_objective(
             
         result = await services.orchestrator.execute_objective(
             request.objective,
-            autonomy=manifest.autonomy_level  # type: ignore
+            autonomy=manifest.autonomy_level,  # type: ignore
+            origin=external_origin if external_origin else "local",
+            override_tearing=request.override_tearing,
+            override_avl=request.override_avl
         )
         
-        # If the orchestrator returned a dictionary instead of an int, it halted/failed
-        if isinstance(result, dict) and result.get("status") in ["halted", "failed"]:
-            raise HTTPException(status_code=500, detail=result.get("reason", "Objective execution failed"))
+        # If the orchestrator returned a dictionary instead of an int, it halted/failed/override
+        if isinstance(result, dict):
+            status = result.get("status")
+            if status == "human_override_required":
+                # 409 Conflict is used here to prompt the UI for an override
+                raise HTTPException(status_code=409, detail=result)
+            if status in ["halted", "failed"]:
+                raise HTTPException(status_code=500, detail=result.get("reason", "Objective execution failed"))
             
         return {"status": "accepted", "run_id": result}
     except HTTPException:

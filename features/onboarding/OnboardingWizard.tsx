@@ -42,7 +42,7 @@ export const OnboardingWizard: React.FC = () => {
     const handleFinish = async () => {
         setIsCompleting(true);
         try {
-            const DAEMON_URL = (import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
+            const DAEMON_URL = (import.meta.env.VITE_DAEMON_URL || '').replace(/\/$/, '');
 
             const payload = {
                 identity_name: identityName,

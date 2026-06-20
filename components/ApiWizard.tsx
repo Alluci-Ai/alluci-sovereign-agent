@@ -19,7 +19,7 @@ import { ApiManifoldKeys } from '../types';
 import { useStore } from '../store/useStore';
 import { NetworkEgressStep } from './NetworkEgressStep';
 
-const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
+const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || '';
 
 interface ApiWizardProps {
     isOpen: boolean;

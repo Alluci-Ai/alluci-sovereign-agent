@@ -109,7 +109,8 @@ async def init_services(app_instance):
         try:
             from alembic import command
             from alembic.config import Config
-            alembic_cfg = Config("alembic.ini")
+            alembic_ini_path = os.path.join(os.path.dirname(__file__), "alembic.ini")
+            alembic_cfg = Config(alembic_ini_path)
             command.upgrade(alembic_cfg, "head")
             logger.info("[ MIGRATION ]: Alembic successfully synced database schema to head.")
         except Exception as e:

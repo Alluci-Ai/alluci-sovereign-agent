@@ -14,7 +14,7 @@ export const SecurityInterventionModal: React.FC = () => {
         try {
             // Note: In a real app we might use a dedicated securityService
             // Here we use fetch directly to our new endpoint
-            const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
+            const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || '';
             const response = await fetch(`${DAEMON_URL}/api/v1/security/resolve`, {
                 method: 'POST',
                 headers: {

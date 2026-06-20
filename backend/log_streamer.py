@@ -36,7 +36,7 @@ class LogBuffer:
         if self._handler:
             return
         self._handler = _BufferHandler(self)
-        root = get_logger()
+        root = logging.getLogger()
         root.addHandler(self._handler)
         logger.info("[LogStreamer] Handler installed on root logger")
 

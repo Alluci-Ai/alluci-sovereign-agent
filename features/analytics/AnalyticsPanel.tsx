@@ -7,7 +7,7 @@ import { SessionsTable } from './SessionsTable';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { SessionTimeseries } from './SessionTimeseries';
 
-const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
+const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || '';
 
 interface SummaryStats {
     total_input: number;

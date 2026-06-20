@@ -165,8 +165,7 @@ class JsonRpcGateway:
         if not already_accepted:
             await websocket.accept()
 
-        # ── Step 1: Hello Handshake (auth required within 5 s) ────────────
-        client = await self._authenticate(websocket)
+        client, auth_msg_id = await self._authenticate(websocket)
         if client is None:
             return  # connection closed by _authenticate
 
@@ -174,17 +173,22 @@ class JsonRpcGateway:
         logger.info(f"[WS] Client connected: {client.client_id} ({client.subject})")
 
         try:
-            # Push hello event
-            await websocket.send_text(json.dumps({
+            # Push hello response or event
+            payload = {
                 "jsonrpc": "2.0",
-                "method": "hello",
-                "params": {
+                "result" if auth_msg_id else "params": {
                     "client_id": client.client_id,
                     "server_uptime_ms": int((time.monotonic() - self._boot_time) * 1000),
                     "protocol": "json-rpc-2.0",
                     "available_methods": list(self._methods.keys()),
                 },
-            }))
+            }
+            if auth_msg_id:
+                payload["id"] = auth_msg_id
+            else:
+                payload["method"] = "hello"
+                
+            await websocket.send_text(json.dumps(payload))
 
             # ── Step 2: Message Loop ──────────────────────────────────────
             async for raw in websocket.iter_text():
@@ -199,11 +203,12 @@ class JsonRpcGateway:
 
     # ── Authentication ────────────────────────────────────────────────────
 
-    async def _authenticate(self, websocket: WebSocket) -> Optional[ConnectedClient]:
+    async def _authenticate(self, websocket: WebSocket) -> tuple[Optional[ConnectedClient], Optional[Any]]:
         """Wait for a hello message with a JWT token."""
         try:
             raw = await asyncio.wait_for(websocket.receive_text(), timeout=5.0)
             msg = json.loads(raw)
+            auth_msg_id = msg.get("id")
 
             token = msg.get("params", {}).get("token") or msg.get("token")
             if not token:
@@ -211,10 +216,10 @@ class JsonRpcGateway:
                 
             if not token:
                 await websocket.send_text(
-                    _rpc_error(msg.get("id"), AUTH_REQUIRED, "Missing auth token")
+                    _rpc_error(auth_msg_id, AUTH_REQUIRED, "Missing auth token")
                 )
                 await websocket.close(code=4001, reason="Auth required")
-                return None
+                return None, None
 
             from .security.auth import verify_token
             payload = verify_token(token)
@@ -222,18 +227,18 @@ class JsonRpcGateway:
 
             import uuid
             client_id = str(uuid.uuid4())[:8]
-            return ConnectedClient(websocket, client_id, subject)
+            return ConnectedClient(websocket, client_id, subject), auth_msg_id
 
         except asyncio.TimeoutError:
             await websocket.close(code=4002, reason="Auth timeout")
-            return None
+            return None, None
         except JWTError:
             await websocket.close(code=4003, reason="Invalid token")
-            return None
+            return None, None
         except Exception as e:
             logger.warning(f"[WS] Auth error: {e}")
             await websocket.close(code=4000, reason="Auth failed")
-            return None
+            return None, None
 
     # ── Dispatch ──────────────────────────────────────────────────────────
 

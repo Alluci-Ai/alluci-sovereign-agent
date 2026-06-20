@@ -2,7 +2,7 @@
 
 import { getCsrfToken } from '../csrfStore';
 
-const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
+const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || '';
 
 export async function saveBridgeCredentials(bridgeId: string, credentials: Record<string, string>, token?: string) {
   const activeToken = token || localStorage.getItem('alluci_access_token');

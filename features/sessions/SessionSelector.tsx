@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { useStore } from '../../store/useStore';
 import { MessageSquare, Plus } from 'lucide-react';
 
-const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
+const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || '';
 
 /**
  * SessionSelector — Dropdown in chat header showing current session key

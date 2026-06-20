@@ -10,7 +10,7 @@ import BulkSkillActions from '../skills/BulkSkillActions';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import NodeBindingEditor from '../devices/NodeBindingEditor';
 
-const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
+const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || '';
 
 interface AgentDetailProps {
     agentId: string;

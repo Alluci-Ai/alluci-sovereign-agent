@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useStore } from '../store/useStore';
 
-const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://localhost:8000';
+const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || '';
 
 export const useDaemonStatus = () => {
     const { setDaemonStatus, setHarmonicStatus, setUpdateAvailable, setLatestVersion, setNeedsOnboarding, accessToken } = useStore();

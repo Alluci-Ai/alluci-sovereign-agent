@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useStore } from '../../../store/useStore';
 import type { LiveTaskState, StreamStatus } from '../types';
 
-const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
+const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || '';
 
 export function useTaskStream(runId: number | null) {
   const { accessToken } = useStore();

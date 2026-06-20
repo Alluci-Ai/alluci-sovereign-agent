@@ -25,9 +25,8 @@ init:
 
 stop:
 	@echo "Stopping all processes gracefully..."
-	@pkill -15 -f uvicorn || true
-	@pkill -15 -f vite || true
-	@pkill -15 -f node || true
+	@lsof -ti :8000 | xargs kill -15 2>/dev/null || true
+	@lsof -ti :3000 | xargs kill -15 2>/dev/null || true
 	@sleep 1
 
 start: stop

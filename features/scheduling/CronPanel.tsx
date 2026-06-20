@@ -11,7 +11,7 @@ import {
 import { CronJobForm } from './CronJobForm';
 import { CronRunHistory } from './CronRunHistory';
 
-const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
+const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || '';
 
 export interface CronJob {
     id: number;

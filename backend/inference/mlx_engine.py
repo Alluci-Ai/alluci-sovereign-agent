@@ -24,6 +24,7 @@ class MLXEngine:
     is_loading: bool = False
     hardware_profile: Optional[Dict[str, Any]] = None
     _instance = None
+    _lock: Optional[asyncio.Lock] = None
 
     def __new__(cls, *args, **kwargs):
         if not cls._instance:
@@ -34,6 +35,7 @@ class MLXEngine:
             cls._instance.current_lora = None
             cls._instance.is_loading = False
             cls._instance.hardware_profile = HardwareProfiler.get_system_profile()
+            cls._instance._lock = asyncio.Lock()
         return cls._instance
 
     def load_model_sync(self):
@@ -530,7 +532,8 @@ class MLXEngine:
         sampler = make_sampler(temp=temperature)
         def _sync_gen():
             return generate(model, tokenizer, prompt=formatted_prompt, max_tokens=max_tokens, sampler=sampler)
-        return await asyncio.to_thread(_sync_gen)
+        async with self._lock:
+            return await asyncio.to_thread(_sync_gen)
 
     async def generate_stream(self, prompt: str, system_instruction: str = "", max_tokens: int = 1024, temperature: float = 0.7) -> AsyncGenerator[str, None]:
         """Streams response token-by-token natively using mlx_lm.stream_generate."""
@@ -570,18 +573,20 @@ class MLXEngine:
                 logger.error(f"stream_generate error: {e}")
                 loop.call_soon_threadsafe(q.put_nowait, e)
 
-        gen_task = asyncio.create_task(asyncio.to_thread(_run_generator))
-
-        try:
-            while True:
-                item = await q.get()
-                if item is None:
-                    break
-                if isinstance(item, Exception):
-                    raise item
-                yield item
-        finally:
-            await gen_task
+        gen_task = None
+        async with self._lock:
+            gen_task = asyncio.create_task(asyncio.to_thread(_run_generator))
+            try:
+                while True:
+                    item = await q.get()
+                    if item is None:
+                        break
+                    if isinstance(item, Exception):
+                        raise item
+                    yield item
+            finally:
+                if gen_task:
+                    await gen_task
 
     async def apply_context_moat(self, agent_id: str):
         """Loads LoRA adapters if present. Currently a no-op for pure MLX models."""
