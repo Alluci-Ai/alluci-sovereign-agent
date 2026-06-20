@@ -38,4 +38,10 @@ async def list_dag_runs(
                     for t in tasks
                 ],
             })
-        return result
+        # Get total count for pagination
+        count_stmt = select(Run).where(Run.agent_id == agent_id)
+        if status:
+            count_stmt = count_stmt.where(Run.status == status)
+        total = len(session.exec(count_stmt).all())
+
+        return {"runs": result, "total": total}

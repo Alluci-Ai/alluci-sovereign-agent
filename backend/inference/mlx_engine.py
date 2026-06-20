@@ -512,6 +512,13 @@ class MLXEngine:
         if model is None or tokenizer is None:
             raise RuntimeError("Model or tokenizer not loaded.")
         prompt, system_instruction, temperature = self._apply_ace_logic(prompt, system_instruction, temperature)
+        
+        # [ PPN-022 ] Enforce memory limits to prevent macOS Metal Segfaults on massive DAG context
+        MAX_CHARS = 32000
+        if len(prompt) > MAX_CHARS:
+            logger.warning(f"Prompt exceeded {MAX_CHARS} chars. Truncating to prevent MLX memory crash.")
+            prompt = "...[Truncated DAG Context]...\n" + prompt[-MAX_CHARS:]
+
         # Prepare input using tokenizer's chat template
         messages = []
         if system_instruction:
@@ -534,6 +541,12 @@ class MLXEngine:
             raise RuntimeError("Model or tokenizer not loaded.")
         prompt, system_instruction, temperature = self._apply_ace_logic(prompt, system_instruction, temperature)
         
+        # [ PPN-022 ] Enforce memory limits to prevent macOS Metal Segfaults on massive DAG context
+        MAX_CHARS = 32000
+        if len(prompt) > MAX_CHARS:
+            logger.warning(f"Prompt exceeded {MAX_CHARS} chars. Truncating to prevent MLX memory crash.")
+            prompt = "...[Truncated DAG Context]...\n" + prompt[-MAX_CHARS:]
+            
         # Prepare input using tokenizer's chat template
         messages = []
         if system_instruction:
