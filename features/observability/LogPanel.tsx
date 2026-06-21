@@ -43,6 +43,8 @@ export const LogPanel: React.FC = () => {
             ? import.meta.env.VITE_DAEMON_URL.replace(/^http/, 'ws')
             : `${proto}//${window.location.host}`;
 
+        let reconnectTimeout: ReturnType<typeof setTimeout>;
+
         const connect = () => {
             const ws = new WebSocket(`${host}/api/logs/stream`);
             ws.onopen = () => {
@@ -62,13 +64,23 @@ export const LogPanel: React.FC = () => {
                     console.error('Failed to parse log stream payload', err);
                 }
             };
+            ws.onclose = () => {
+                // Auto-reconnect after 3 seconds
+                reconnectTimeout = setTimeout(() => {
+                    connect();
+                }, 3000);
+            };
             wsRef.current = ws;
         };
 
         connect();
 
         return () => {
-            if (wsRef.current) wsRef.current.close();
+            clearTimeout(reconnectTimeout);
+            if (wsRef.current) {
+                wsRef.current.onclose = null; // Prevent reconnect on unmount
+                wsRef.current.close();
+            }
         };
     }, [accessToken]);
 

@@ -39,8 +39,14 @@ export class AlluciAdminService {
     }
 
     connect(token: string, callbacks: AdminCallbacks) {
+        console.warn("[ ADMIN ]: connect() called! token length: ", token ? token.length : 0);
+        if (this.socket) {
+            console.warn("[ ADMIN ]: Socket already exists, skipping connect.");
+            return;
+        }
         this.token = token;
         this.callbacks = callbacks;
+        console.warn("[ ADMIN ]: Starting connect to WS_URL:", this.WS_URL);
         this._establishConnection();
     }
 
@@ -49,11 +55,11 @@ export class AlluciAdminService {
             this.socket.close();
         }
 
-        console.log("[ ADMIN ]: Connecting to gateway...");
+        console.warn("[ ADMIN ]: Connecting to gateway at", this.WS_URL);
         this.socket = new WebSocket(this.WS_URL);
 
         this.socket.onopen = () => {
-            console.log("[ ADMIN ]: WebSocket Opened. Authenticating...");
+            console.warn("[ ADMIN ]: WebSocket Opened. Authenticating...");
             // Step 1: Send hello with token
             this.socket?.send(JSON.stringify({
                 jsonrpc: "2.0",
@@ -66,6 +72,7 @@ export class AlluciAdminService {
         this.socket.onmessage = (event) => {
             try {
                 const msg = JSON.parse(event.data);
+                console.warn("[ ADMIN ]: Received msg:", msg);
 
                 // Handle Hello response
                 if (msg.id === "auth_1") {
@@ -74,7 +81,7 @@ export class AlluciAdminService {
                         this.socket?.close();
                         return;
                     }
-                    console.info("[ ADMIN ]: Authenticated.");
+                    console.warn("[ ADMIN ]: Authenticated.");
                     this.callbacks?.onOpen?.();
 
                     // Subscribe to all events by default (empty list in gateway means all)
@@ -82,19 +89,16 @@ export class AlluciAdminService {
                     return;
                 }
 
-                // Handle server notifications (events)
+                // Handle Events
                 if (msg.method) {
                     if (msg.method === "exec.approval") {
                         this.callbacks?.onApprovalRequest?.(msg.params);
-                    } else if (msg.method === "hello") {
-                        // Welcome message from server
-                    } else {
-                        this.callbacks?.onSystemEvent?.(msg.method, msg.params);
                     }
+                    this.callbacks?.onSystemEvent?.(msg.method, msg.params);
                     this._notifyListeners(msg.method, msg.params);
                 }
 
-                // Handle RPC results
+                // Handle RPC Responses
                 if (msg.result !== undefined) {
                     this.callbacks?.onSystemEvent?.('rpc.response', { id: msg.id, result: msg.result });
                     this._notifyListeners('rpc.response', { id: msg.id, result: msg.result });
@@ -105,18 +109,22 @@ export class AlluciAdminService {
                     this._notifyListeners('rpc.error', { id: msg.id, error: msg.error });
                 }
             } catch (e) {
-                console.error("[ ADMIN ]: Parse error", e);
+                console.error("[ ADMIN ]: WS parse error", e);
             }
         };
 
-        this.socket.onclose = () => {
+        this.socket.onerror = (e) => {
+            console.warn("[ ADMIN ]: Socket error", e);
+        };
+
+        this.socket.onclose = (event) => {
+            // Prevent old sockets from triggering reconnects if disconnected
+            if (this.socket && this.socket !== event.target) {
+                return;
+            }
             console.warn("[ ADMIN ]: Disconnected. Retrying in 5s...");
             this.callbacks?.onClose?.();
             this.reconnectTimer = setTimeout(() => this._establishConnection(), 5000);
-        };
-
-        this.socket.onerror = (err) => {
-            console.error("[ ADMIN ]: Socket error", err);
         };
     }
 
@@ -136,9 +144,15 @@ export class AlluciAdminService {
     }
 
     disconnect() {
-        if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
-        this.socket?.close();
-        this.socket = null;
+        if (this.reconnectTimer) {
+            clearTimeout(this.reconnectTimer);
+            this.reconnectTimer = null;
+        }
+        if (this.socket) {
+            this.socket.onclose = null; // PREVENT RECONNECT LOOP
+            this.socket.close();
+            this.socket = null;
+        }
     }
 }
 

@@ -29,10 +29,11 @@ class SignalBridge(BridgeAdapter):
     """
 
     def __init__(self, bridge_id: str, vault_root: str, vault_manager: Optional[Any] = None):
+        from ..config import settings
         super().__init__(bridge_id, vault_root, vault_manager)
         self.phone_number: Optional[str] = None
-        self._cli_path: str = "signal-cli"
-        self._socket_path: str = "/tmp/signal-cli.sock"
+        self._cli_path: str = settings.SIGNAL_CLI_PATH
+        self._socket_path: str = settings.SIGNAL_SOCKET_PATH
 
         # Daemon state
         self._daemon_process: Optional[asyncio.subprocess.Process] = None
@@ -59,6 +60,25 @@ class SignalBridge(BridgeAdapter):
         self.phone_number = credentials.get("phone_number")
         self._cli_path    = credentials.get("cli_path") or settings.SIGNAL_CLI_PATH  # type: ignore
         self._socket_path = credentials.get("socket_path") or settings.SIGNAL_SOCKET_PATH  # type: ignore
+
+        if self._cli_path == "signal-cli":
+            import os
+            wrapper_path = os.path.join(os.getcwd(), "bin", "signal-wrapper")
+            if os.path.exists(wrapper_path):
+                self._cli_path = wrapper_path
+
+        if not self.phone_number:
+            import os, json
+            from pathlib import Path
+            accounts_path = Path("~/.local/share/signal-cli/data/accounts.json").expanduser()
+            if accounts_path.exists():
+                try:
+                    with open(accounts_path, "r") as f:
+                        data = json.load(f)
+                        if "accounts" in data and len(data["accounts"]) > 0:
+                            self.phone_number = data["accounts"][0].get("number")
+                except Exception as e:
+                    self.logger.error(f"[SIGNAL] Failed to read accounts.json: {e}")
 
         if not self.phone_number:
             self.last_error = "phone_number required for Signal bridge."
@@ -107,8 +127,8 @@ class SignalBridge(BridgeAdapter):
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-        except (FileNotFoundError, PermissionError) as e:
-            self.logger.warning(f"[SIGNAL] Cannot start daemon ({e}). Falling back to polling.")
+        except FileNotFoundError:
+            self.logger.error(f"[SIGNAL] {self._cli_path} not found.")
             return False
 
         # Wait up to 10 seconds for the socket to appear
@@ -122,7 +142,10 @@ class SignalBridge(BridgeAdapter):
 
         self.logger.warning("[SIGNAL] Daemon socket did not appear within 10s.")
         if self._daemon_process:
-            self._daemon_process.terminate()
+            try:
+                self._daemon_process.terminate()
+            except ProcessLookupError:
+                pass
             self._daemon_process = None
         return False
 
@@ -288,6 +311,10 @@ class SignalBridge(BridgeAdapter):
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                 )
+            except FileNotFoundError:
+                self.logger.error(f"[SIGNAL] {self._cli_path} not found during polling.")
+                await asyncio.sleep(30)
+                continue
                 stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=20.0)
 
                 if proc.returncode == 0:
@@ -391,22 +418,42 @@ class SignalBridge(BridgeAdapter):
 
     async def get_link_qr(self) -> str:
         """Generate a tsdevice:// URI for device linking."""
+        import pty
+        import os
         try:
+            master, slave = pty.openpty()
             proc = await asyncio.create_subprocess_exec(
                 self._cli_path, "link", "-n", "Alluci Agent",
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
+                stdout=slave,
+                stderr=slave,
             )
-            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=30.0)
-            return stdout.decode().strip()
+            os.close(slave)
+            
+            reader = asyncio.StreamReader()
+            protocol = asyncio.StreamReaderProtocol(reader)
+            loop = asyncio.get_running_loop()
+            await loop.connect_read_pipe(lambda: protocol, os.fdopen(master, 'rb', buffering=0))
+            
+            while True:
+                line = await reader.readline()
+                if not line:
+                    break
+                text = line.decode(errors='replace').strip()
+                if text.startswith("sgnl://"):
+                    return text
+            return ""
         except Exception as e:
-            self.logger.error(f"[SIGNAL] link command failed: {e}")
+            import traceback
+            err_trace = traceback.format_exc()
+            self.logger.error(f"[SIGNAL] link command failed: {e}\nTraceback:\n{err_trace}")
             return ""
 
     async def init_qr(self) -> Dict[str, Any]:
         """Generate a tsdevice:// URI for device linking and broadcast QR_READY."""
         qr_url = await self.get_link_qr()
-        if qr_url and self.on_event:
+        if not qr_url:
+            return {"status": "error", "message": "Failed to generate QR code. Is signal-cli installed?"}
+        if self.on_event:
             asyncio.create_task(self.on_event("bridge.status", {
                 "bridge_id": self.bridge_id,
                 "status":    "QR_READY",

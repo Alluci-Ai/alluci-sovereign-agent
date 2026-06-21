@@ -33,12 +33,19 @@ export default defineConfig(({ mode }) => {
           target: 'http://127.0.0.1:8000',
           ws: true,
           changeOrigin: true,
+          configure: (proxy) => {
+            proxy.on('error', (err) => console.log('proxy error', err));
+            proxy.on('proxyReq', () => console.log('proxyReq'));
+            proxy.on('proxyReqWs', () => console.log('proxyReqWs', new Date().toISOString()));
+            proxy.on('proxyRes', () => console.log('proxyRes'));
+          }
         }
       },
     },
     plugins: [
       react(),
       VitePWA({
+        selfDestroying: true,
         registerType: 'autoUpdate',
         manifest: {
           name: 'Alluci Sovereign Agent',

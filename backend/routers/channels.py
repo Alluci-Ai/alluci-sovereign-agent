@@ -1038,6 +1038,6 @@ async def activate_bridge_route(
         else:
             return {"connected": False, "error": last_error}
     except Exception as e:
-        logger.error(f"Failed to activate bridge {bridge_id}: {e}")
+        logger.error(f"Failed to activate bridge {bridge_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 

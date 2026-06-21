@@ -133,3 +133,13 @@ compile_commands.json
 *.bak
 
 logs/
+
+# Local Test Scripts & DBs
+*.sqlite3
+bin/
+activate_signal.py
+read_*.py
+test_*.py
+ws_test.*
+polytope_sdk/
+test_signal.txt

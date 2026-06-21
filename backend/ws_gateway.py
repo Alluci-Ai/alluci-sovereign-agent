@@ -162,11 +162,11 @@ class JsonRpcGateway:
 
     # ── WebSocket Lifecycle ───────────────────────────────────────────────
 
-    async def handle_connection(self, websocket: WebSocket, already_accepted: bool = False):
-        """Full lifecycle for a single WebSocket connection."""
-        if not already_accepted:
-            await websocket.accept()
-
+    async def handle_connection(self, websocket: WebSocket):
+        """Main entry point for a new WebSocket connection."""
+        logger.error(f"!!! WS CONNECTION ARRIVED !!! headers: {websocket.headers}")
+        await websocket.accept()
+        
         client, auth_msg_id = await self._authenticate(websocket)
         if client is None:
             return  # connection closed by _authenticate
@@ -311,11 +311,16 @@ class JsonRpcGateway:
             if rpc_id is not None:
                 await client.websocket.send_text(_rpc_success(rpc_id, result))
         except Exception as e:
-            logger.error(f"[WS] RPC error in '{method}': {e}")
+            import traceback
+            err_trace = traceback.format_exc()
+            logger.error(f"[WS] RPC error in '{method}': {e}\nTraceback:\n{err_trace}")
             if rpc_id is not None:
-                await client.websocket.send_text(
-                    _rpc_error(rpc_id, INTERNAL_ERROR, str(e))
-                )
+                try:
+                    await client.websocket.send_text(
+                        _rpc_error(rpc_id, INTERNAL_ERROR, str(e))
+                    )
+                except Exception:
+                    pass
 
     # ── Event Push ────────────────────────────────────────────────────────
 

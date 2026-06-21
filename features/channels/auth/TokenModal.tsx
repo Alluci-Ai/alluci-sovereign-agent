@@ -4,6 +4,7 @@ import { SharedModalShell } from './SharedModalShell';
 import { activateBridge, saveBridgeCredentials } from '../../../lib/bridgeAuth';
 import { useStore } from '../../../store/useStore';
 import { adminService } from '../../../adminService';
+import { QRCodeSVG } from 'qrcode.react';
 
 export const TokenModal: React.FC<{
     connection: Connection;
@@ -32,7 +33,8 @@ export const TokenModal: React.FC<{
     useEffect(() => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const handleEvent = (method: string, params: any) => {
-            if (method === 'bridge.status' && params.bridge_id === bridgeId) {
+            const eventBridgeId = params.bridge_id === 'signal' ? 'sg' : params.bridge_id;
+            if (method === 'bridge.status' && eventBridgeId === bridgeId) {
                 if (params.status === 'CONNECTED') {
                     onComplete(JSON.stringify({ status: 'connected_via_ws' }), "");
                 } else if (params.status === '2FA_REQUIRED' && bridgeId === 'icloud') {
@@ -40,12 +42,20 @@ export const TokenModal: React.FC<{
                 } else if (params.status === 'QR_READY' && bridgeId === 'sg') {
                     setSignalQr(params.qr_url);
                 }
+            } else if (method === 'rpc.response' && params.result?.status === 'error') {
+                setError(params.result.message || "Failed to generate QR code");
             }
         };
         adminService.addListener(handleEvent);
 
         if (bridgeId === 'sg') {
-            adminService.sendRPC('signal.init_qr', {});
+            const tryInitQr = () => {
+                const id = adminService.sendRPC('signal.init_qr', {});
+                if (!id) {
+                    setTimeout(tryInitQr, 500);
+                }
+            };
+            tryInitQr();
         }
 
         return () => adminService.removeListener(handleEvent);
@@ -226,9 +236,11 @@ export const TokenModal: React.FC<{
                         {signalTab === 'LINK' && (
                             <div className="flex flex-col justify-center items-center bg-white p-4 rounded aspect-square w-full">
                                 {signalQr ? (
-                                    <div className="text-black text-center text-xs">
-                                        [ QR Code generated from ]<br /><br />
-                                        <span className="font-mono text-[10px] break-all">{signalQr}</span>
+                                    <div className="flex flex-col items-center">
+                                        <QRCodeSVG value={signalQr} size={200} />
+                                        <div className="text-gray-500 text-[10px] mt-4 break-all max-w-[200px] text-center">
+                                            {signalQr}
+                                        </div>
                                     </div>
                                 ) : (
                                     <div className="text-gray-500 text-sm">Generating QR...</div>

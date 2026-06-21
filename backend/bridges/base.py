@@ -27,6 +27,7 @@ def get_platform_requirements_met(requirements: Set[PlatformRequirement]) -> dic
    Called at bridge init to populate the status API.
    """
    import shutil
+   from ..config import settings
    results: Dict[PlatformRequirement, bool] = {}
    for req in requirements:
        if req == PlatformRequirement.MACOS:
@@ -34,7 +35,7 @@ def get_platform_requirements_met(requirements: Set[PlatformRequirement]) -> dic
        elif req == PlatformRequirement.LINUX:
            results[req] = platform.system() == "Linux"  # type: ignore
        elif req == PlatformRequirement.SIGNAL_CLI:
-           results[req] = shutil.which("signal-cli") is not None  # type: ignore
+           results[req] = shutil.which(settings.SIGNAL_CLI_PATH) is not None  # type: ignore
        elif req == PlatformRequirement.DOCKER:
            results[req] = shutil.which("docker") is not None  # type: ignore
        elif req == PlatformRequirement.ENTERPRISE_API:
