@@ -91,24 +91,13 @@ class DreamingCycleDaemon:
     [ PPN-014 ] Native MLX LoRA Forge Daemon.
     Processes anonymized cloud logs natively on Apple Silicon to distill teacher knowledge.
     """
-    def __init__(self, core_model_path: str):
-        self.model_path = core_model_path
+    def __init__(self, router: ModelRouter):
+        self.router = router
         self.model = None
         self.tokenizer = None
         
         if MLX_AVAILABLE:
             mx.set_default_device(mx.gpu)  # type: ignore
-            if os.path.exists(core_model_path):
-                try:
-                    from pathlib import Path
-                    self.model, self.tokenizer = load_model(Path(core_model_path))
-                    logger.info("[DREAM ENGINE] Native Alluci Core Model parameters verified.")
-                except BaseException as e:
-                    logger.error(f"[DREAM ENGINE] Failed to load model: {e}")
-                    # Allow daemon to boot even if mlx_lm raises SystemExit
-                    self.model = None
-            else:
-                logger.warning(f"[CRITICAL] Base core models not found at {core_model_path}.")
         else:
             logger.warning("[DREAM ENGINE] MLX not available. Dreaming cycle will be simulated.")
 
@@ -122,11 +111,33 @@ class DreamingCycleDaemon:
 
         logger.info(f"[DREAM ENGINE] Initializing background optimization loop for agent: {agent_id}...")
         
+        from backend.inference.mlx_engine import engine as mlx_engine
+        await mlx_engine.ensure_loaded()
+        self.model = mlx_engine.model
+        self.tokenizer = mlx_engine.tokenizer
+
         if not MLX_AVAILABLE or not self.model:
             logger.warning("[DREAM ENGINE] Missing MLX/Model. Skipping optimization.")
             return
 
         training_batches = self.compile_log_vectors(log_path)
+        
+        # Check CalibrationManager
+        from backend.security.calibration import CalibrationManager
+        cal_mgr = CalibrationManager()
+        
+        # Dual-Signal LoRA Integration (AVL Coupling)
+        avl_history = cal_mgr.avl_history
+        if avl_history:
+            logger.info("[DREAM ENGINE] Injecting Dual-Signal AVL Overrides into optimization.")
+            for override in avl_history[-5:]:
+                if override.get("origin") == "local":
+                    # Simulated mock tensors representing the override correction
+                    mock_input = mx.ones((2, 128), mx.int32) * int(override.get("budget", 1) * 10)
+                    mock_target = mx.ones((2, 128), mx.int32)
+                    for _ in range(3): # higher mathematical weight
+                        training_batches.append((mock_input, mock_target))
+                        
         if not training_batches:
             logger.info(f"[DREAM ENGINE] Processing queue clear for {agent_id}. Core resting.")
             return
@@ -139,7 +150,17 @@ class DreamingCycleDaemon:
                 if hasattr(layer.attention, 'wq'): layer.attention.wq.unfreeze()
                 if hasattr(layer.attention, 'wv'): layer.attention.wv.unfreeze()
 
-        optimizer = optim.AdamW(learning_rate=2e-5)
+        # Adaptive Plasticity & Calibration Alignment
+        if len(cal_mgr.history) < 5:
+            lr = 2e-5
+            logger.info(f"[DREAM ENGINE] Discovery Mode Active. Learning Rate: {lr}")
+        else:
+            import statistics
+            std_shift = statistics.stdev(cal_mgr.history) if len(cal_mgr.history) > 1 else 0.05
+            lr = max(1e-6, 1e-6 * (std_shift / 0.05))
+            logger.info(f"[DREAM ENGINE] Continuous Normalization Active. Learning Rate: {lr}")
+
+        optimizer = optim.AdamW(learning_rate=lr)
 
         # Execute training loops to align local weights with external solution models
         def _train_loop():
@@ -166,7 +187,7 @@ class DreamingCycleDaemon:
                 from mlx.utils import tree_flatten
                 import mlx.core as mx
                 trainable_params = {k: v for k, v in tree_flatten(self.model.trainable_parameters())}  # type: ignore
-                mx.save_safetensors(lora_path, trainable_params)
+                mx.save_safetensors(lora_path, trainable_params)  # type: ignore
                 logger.info(f"[LORA FORGE] New skill configurations successfully serialized to {lora_path}")
             except Exception as e:
                 logger.error(f"[LORA FORGE] Failed to save LoRA: {e}")
@@ -179,12 +200,38 @@ class DreamingCycleDaemon:
         if not os.path.exists(log_path) or os.path.getsize(log_path) == 0:
             return []
             
+        from backend.security.calibration import CalibrationManager
+        cal_mgr = CalibrationManager()
+        ace_baseline = cal_mgr.get_ace_baseline()
+        mean_stress = ace_baseline.get("mean", 50.0)
+        std_stress = ace_baseline.get("std", 10.0)
+        max_acceptable_stress = mean_stress + (2 * std_stress)
+
+        valid_batches = []
         if MLX_AVAILABLE:
-            # Simulating token construction formats matching Gemma 4 input shapes
-            mock_input_tensors = mx.ones((2, 128), mx.int32)
-            mock_target_tensors = mx.ones((2, 128), mx.int32)
-            return [(mock_input_tensors, mock_target_tensors)]
-        return []
+            try:
+                with open(log_path, 'r') as f:
+                    lines = f.readlines()
+                    
+                for line in lines:
+                    import re
+                    match = re.search(r'\[ AFFECTIVE COMPUTING GATE: .*?tension=([\d\.]+).*?\]', line)
+                    if match:
+                        tension = float(match.group(1))
+                        if tension > max_acceptable_stress:
+                            logger.info(f"[DREAM ENGINE] Filtering log due to anomalous affective tension ({tension} > {max_acceptable_stress}).")
+                            continue
+                            
+                    mock_input_tensors = mx.ones((2, 128), mx.int32)
+                    mock_target_tensors = mx.ones((2, 128), mx.int32)
+                    valid_batches.append((mock_input_tensors, mock_target_tensors))
+                    
+                if not valid_batches and lines:
+                    valid_batches.append((mx.ones((2, 128), mx.int32), mx.ones((2, 128), mx.int32)))
+            except Exception as e:
+                logger.error(f"[DREAM ENGINE] Error compiling log vectors: {e}")
+
+        return valid_batches
 
     def clear_processed_logs(self, log_path: str):
         if os.path.exists(log_path):
@@ -198,6 +245,11 @@ class DreamingCycleDaemon:
         acoustic nuances (speaking pace, accents, vocabulary) using Direct
         Preference Optimization against collected voice-to-text fragment pairs.
         """
+        from backend.inference.mlx_engine import engine as mlx_engine
+        await mlx_engine.ensure_loaded()
+        self.model = mlx_engine.model
+        self.tokenizer = mlx_engine.tokenizer
+
         if not MLX_AVAILABLE or not self.model:
             logger.warning("[MICRO-TUNE] MLX/Model unavailable. Skipping voice alignment.")
             return
@@ -278,25 +330,8 @@ class SleepStateOrchestrator:
         self.settings = settings
         self.distiller = CognitiveDistiller(hlsm_manager, router)
         self.trainer = MLXDPOTrainer(settings)
-        # Resolve the local model path using HardwareProfiler and local mapping logic
-        from backend.inference.profiler import HardwareProfiler
-        import os
-        
-        hardware_profile = HardwareProfiler.get_system_profile()
-        tier = hardware_profile.get("tier", "TIER_4_EDGE")
-        local_mapping = {
-            "TIER_1_MAX": "mirror_cache/gemma-4-31b-it-4bit",
-            "TIER_2_PRO": "mirror_cache/gemma-4-26B-A4B-it-OptiQ-4bit",
-            "TIER_3_BASE": "mirror_cache/gemma-4-12B-it-OptiQ-4bit",
-            "TIER_4_EDGE": "mirror_cache/gemma-4-e2b-it-4bit"
-        }
-        base_dir = os.getcwd()
-        resolved_path = os.path.join(base_dir, local_mapping.get(tier, ""))
-        if not os.path.exists(resolved_path):
-            resolved_path = hardware_profile.get("recommended_model", "alluci-polytope-gemma-4")
-
         self.teacher_distiller = DreamingCycleDaemon(
-            core_model_path=resolved_path
+            router=router
         )
         self.is_dreaming = False
 

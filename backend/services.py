@@ -348,10 +348,13 @@ async def _init_channels(vault_root: str):
     # Auto-connect channels
     for ch_name, adapter in channel_registry.items():
         try:
+            logger.info(f"[ DEBUG ] Initializing bridge: {ch_name}")
             # 1. Check if enabled (default True)
             enabled_state = await vault.retrieve_secret(f"channel_{ch_name}_enabled")
             adapter.enabled = enabled_state.get("enabled", True) if enabled_state else True
-            if not adapter.enabled: continue
+            if not adapter.enabled:
+                logger.info(f"[ DEBUG ] Bridge {ch_name} is disabled, skipping")
+                continue
 
             # 1.5 Auto-connect native/local bridges that don't need OAuth
             if ch_name in ["imessage"]:
@@ -377,6 +380,22 @@ async def _init_channels(vault_root: str):
                     if success:
                         logger.info(f"[ CHANNELS ] Auto-connected iCloud email bridge: {icloud_email}")
                     continue
+
+            if ch_name == "slack":
+                import os
+                bot_token = os.environ.get("SLACK_BOT_TOKEN")
+                app_token = os.environ.get("SLACK_APP_TOKEN")
+                if bot_token and app_token:
+                    creds = {
+                        "bot_token": bot_token,
+                        "app_token": app_token,
+                        "signing_secret": os.environ.get("SLACK_SIGNING_SECRET", "")
+                    }
+                    success = await adapter.connect(creds)
+                    if success:
+                        logger.info(f"[ CHANNELS ] Auto-connected Slack bridge via environment variables")
+                    continue
+
 
             # 2. Multi-account discovery (P1-009 Standard)
             accounts = await vault.list_connections(ch_name)

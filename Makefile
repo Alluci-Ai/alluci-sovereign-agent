@@ -31,8 +31,8 @@ stop:
 
 start: stop
 	@echo "Starting Alluci Sovereign Agent..."
-	@nohup $(PYTHON) -m uvicorn backend.app:app --port 8000 --host 0.0.0.0 > backend.log 2>&1 &
-	@nohup $(NPM) run dev -- --port 3000 --host 0.0.0.0 > frontend.log 2>&1 &
+	@nohup bash -c "set -a; source .env; set +a; $(PYTHON) -m uvicorn backend.app:app --port 8000 --host 0.0.0.0" > backend.log 2>&1 &
+	@nohup bash -c "set -a; source .env; set +a; $(NPM) run dev -- --port 3000 --host 0.0.0.0" > frontend.log 2>&1 &
 	@echo "Backend starting on http://localhost:8000"
 	@echo "Frontend starting on http://localhost:3000"
 	@echo "Use 'make logs' to watch progress."

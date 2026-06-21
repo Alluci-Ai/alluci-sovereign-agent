@@ -110,7 +110,18 @@ class SignalBridge(BridgeAdapter):
         Start `signal-cli daemon --socket <path>` as a persistent background process.
         Returns True if the daemon started and the socket became available within 10s.
         """
-        # Remove stale socket
+        # 1. Kill any orphaned signal-cli processes for this number (prevents stale DB locks)
+        try:
+            import subprocess
+            subprocess.run(
+                ["pkill", "-9", "-f", f"signal-cli.*{self.phone_number}"],
+                capture_output=True
+            )
+            await asyncio.sleep(0.5)  # Wait for process to fully terminate and release locks
+        except Exception as e:
+            self.logger.debug(f"[SIGNAL] Orphan cleanup error: {e}")
+
+        # 2. Remove stale socket
         if os.path.exists(self._socket_path):
             try:
                 os.remove(self._socket_path)

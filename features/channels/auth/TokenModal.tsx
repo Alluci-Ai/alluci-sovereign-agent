@@ -27,8 +27,12 @@ export const TokenModal: React.FC<{
 
     // Signal
     const [signalTab, setSignalTab] = useState<'LINK' | 'REGISTER'>('LINK');
-    const [signalQr, setSignalQr] = useState<string | null>(null);
     const [signalPhone, setSignalPhone] = useState("");
+    const [signalQr, setSignalQr] = useState("");
+    
+    // Slack state
+    const [slackAppToken, setSlackAppToken] = useState("");
+    const [slackBotToken, setSlackBotToken] = useState("");
 
     useEffect(() => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -98,6 +102,9 @@ export const TokenModal: React.FC<{
                     // Link flow - usually backend polls, but we'll simulate success
                     creds = { link_type: 'secondary', linked_at: new Date().toISOString() };
                 }
+            } else if (bridgeId === 'sl') {
+                if (!slackAppToken || !slackBotToken) throw new Error("App Token and Bot Token are required.");
+                creds = { app_token: slackAppToken, bot_token: slackBotToken };
             }
 
             const saved = await saveBridgeCredentials(bridgeId, creds, accessToken || "");
@@ -260,6 +267,35 @@ export const TokenModal: React.FC<{
                                 />
                             </div>
                         )}
+                    </div>
+                )}
+
+                {bridgeId === 'sl' && (
+                    <div className="w-full max-w-[280px] flex flex-col gap-3">
+                        <div className="flex flex-col gap-1">
+                            <label className="text-[10px] text-text-tertiary font-mono">App-Level Token (xapp-)</label>
+                            <input
+                                type="password"
+                                value={slackAppToken}
+                                onChange={e => setSlackAppToken(e.target.value)}
+                                placeholder="xapp-1-..."
+                                className="w-full bg-layer-divider border border-layer-3 rounded px-3 py-2 text-sm text-text-primary outline-none focus:border-layer-4 transition-colors font-mono"
+                            />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                            <label className="text-[10px] text-text-tertiary font-mono">Bot User Token (xoxb-)</label>
+                            <input
+                                type="password"
+                                value={slackBotToken}
+                                onChange={e => setSlackBotToken(e.target.value)}
+                                placeholder="xoxb-..."
+                                className="w-full bg-layer-divider border border-layer-3 rounded px-3 py-2 text-sm text-text-primary outline-none focus:border-layer-4 transition-colors font-mono"
+                            />
+                        </div>
+                        <p className="text-[10px] text-text-tertiary text-center leading-tight">
+                            Generate these tokens at <a href="https://api.slack.com/apps" target="_blank" rel="noreferrer" className="text-blue-400 hover:underline">api.slack.com</a>.<br/>
+                            Ensure your App Token has the <strong>connections:write</strong> scope.
+                        </p>
                     </div>
                 )}
 
