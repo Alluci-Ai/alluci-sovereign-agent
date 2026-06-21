@@ -130,6 +130,10 @@ class Settings(BaseSettings):
     VERUS_PBAAS_CHAINS: List[str] = ["VRSC", "vETH"]
     UNOFFICIAL_BRIDGES_ENABLED: bool = False
     
+    # Signal
+    SIGNAL_CLI_PATH: str = "/opt/homebrew/bin/signal-cli"
+    SIGNAL_SOCKET_PATH: str = "/tmp/signal-cli.sock"
+    
     # Auth & Cookies
     AUTH_COOKIE_NAME: str = "alluci_daemon_token"
     AUTH_COOKIE_SECURE: bool = False  # Auto-enforced to True in production

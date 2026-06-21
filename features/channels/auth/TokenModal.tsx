@@ -43,6 +43,11 @@ export const TokenModal: React.FC<{
             }
         };
         adminService.addListener(handleEvent);
+
+        if (bridgeId === 'sg') {
+            adminService.sendRPC('signal.init_qr', {});
+        }
+
         return () => adminService.removeListener(handleEvent);
     }, [bridgeId, onComplete]);
 

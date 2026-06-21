@@ -403,6 +403,17 @@ class SignalBridge(BridgeAdapter):
             self.logger.error(f"[SIGNAL] link command failed: {e}")
             return ""
 
+    async def init_qr(self) -> Dict[str, Any]:
+        """Generate a tsdevice:// URI for device linking and broadcast QR_READY."""
+        qr_url = await self.get_link_qr()
+        if qr_url and self.on_event:
+            asyncio.create_task(self.on_event("bridge.status", {
+                "bridge_id": self.bridge_id,
+                "status":    "QR_READY",
+                "qr_url":    qr_url,
+            }))
+        return {"status": "ok", "qr_url": qr_url}
+
     # ── Teardown ─────────────────────────────────────────────────────────────
 
     async def disconnect(self) -> None:

@@ -148,6 +148,8 @@ class JsonRpcGateway:
                             schema={"params": {"phone_number": "str", "use_voice": "bool"}, "description": "Initiate Signal account registration."})
         self.register_method("signal.verify", self._rpc_signal_verify,
                             schema={"params": {"phone_number": "str", "code": "str"}, "description": "Finalize Signal anchoring with SMS/Voice code."})
+        self.register_method("signal.init_qr", self._rpc_signal_init_qr,
+                            schema={"description": "Generate Signal linking URI and broadcast QR_READY event."})
         self.register_method("manifold.pvt", self._rpc_manifold_pvt,
                             schema={"description": "Query the current PVT (Pressure/Volume/Temperature) manifold health state."})
 
@@ -551,6 +553,13 @@ class JsonRpcGateway:
              return {"status": "error", "message": "Phone and code required."}
              
         return await channel_registry["signal"].verify(phone, code)
+
+    async def _rpc_signal_init_qr(self, params: dict, client: ConnectedClient) -> dict:
+        channel_registry = self._service_refs.get("channel_registry")
+        if not channel_registry or "signal" not in channel_registry:
+            return {"status": "error", "message": "Signal adapter not active."}
+            
+        return await channel_registry["signal"].init_qr()
 
     async def _record_presence(self, client: ConnectedClient):
         """Record persistent client beacon in SQLite."""
