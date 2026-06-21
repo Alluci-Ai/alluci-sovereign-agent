@@ -358,7 +358,11 @@ async def _init_channels(vault_root: str):
 
             # 1.5 Auto-connect native/local bridges that don't need OAuth
             if ch_name in ["imessage"]:
-                success = await adapter.connect({})
+                try:
+                    success = await asyncio.wait_for(adapter.connect({}), timeout=15)
+                except asyncio.TimeoutError:
+                    logger.error(f"[ CHANNELS ] Timeout connecting to {ch_name}")
+                    success = False
                 if success:
                     logger.info(f"[ CHANNELS ] Auto-connected native bridge: {ch_name}")
                 continue
@@ -376,7 +380,11 @@ async def _init_channels(vault_root: str):
                         "smtp_server": "smtp.mail.me.com",
                         "smtp_port": 587
                     }
-                    success = await adapter.connect(creds)
+                    try:
+                        success = await asyncio.wait_for(adapter.connect(creds), timeout=15)
+                    except asyncio.TimeoutError:
+                        logger.error(f"[ CHANNELS ] Timeout connecting to {ch_name}")
+                        success = False
                     if success:
                         logger.info(f"[ CHANNELS ] Auto-connected iCloud email bridge: {icloud_email}")
                     continue
@@ -391,10 +399,14 @@ async def _init_channels(vault_root: str):
                         "app_token": app_token,
                         "signing_secret": os.environ.get("SLACK_SIGNING_SECRET", "")
                     }
-                    success = await adapter.connect(creds)
+                    try:
+                        success = await asyncio.wait_for(adapter.connect(creds), timeout=15)
+                    except asyncio.TimeoutError:
+                        logger.error(f"[ CHANNELS ] Timeout connecting to {ch_name}")
+                        success = False
                     if success:
                         logger.info(f"[ CHANNELS ] Auto-connected Slack bridge via environment variables")
-                    continue
+                        continue
 
 
             # 2. Multi-account discovery (P1-009 Standard)
@@ -404,14 +416,22 @@ async def _init_channels(vault_root: str):
                 for account_id in accounts:
                     creds = await vault.retrieve_connection_secret(ch_name, account_id)
                     if creds:
-                        success = await adapter.connect(creds)
+                        try:
+                            success = await asyncio.wait_for(adapter.connect(creds), timeout=15)
+                        except asyncio.TimeoutError:
+                            logger.error(f"[ CHANNELS ] Timeout connecting to {ch_name}")
+                            success = False
                         if success:
                             logger.info(f"[ CHANNELS ] Connected {ch_name} (Account: {account_id})")
             else:
                 # 3. Legacy Fallback (Migration path)
                 creds = await vault.retrieve_secret(f"channel_{ch_name}")
                 if creds:
-                    success = await adapter.connect(creds)
+                    try:
+                        success = await asyncio.wait_for(adapter.connect(creds), timeout=15)
+                    except asyncio.TimeoutError:
+                        logger.error(f"[ CHANNELS ] Timeout connecting to {ch_name}")
+                        success = False
                     if success:
                         logger.info(f"[ CHANNELS ] Connected legacy {ch_name}")
                         # Auto-migrate if we have an account ID now
