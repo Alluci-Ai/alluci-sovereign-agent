@@ -732,7 +732,7 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
             is_manifold_stable = True
             
         if not is_manifold_stable:
-            if hasattr(polytope_state, 'tearing_exception'):
+            if polytope_state and polytope_state.tearing_exception is not None:
                 e = polytope_state.tearing_exception
                 self.logger.critical(f"🛑 HUMAN-IN-THE-LOOP REQUIRED: Manifold Tearing Detected. Shift: {e.topology_shift:.4f} > {e.dynamic_threshold:.4f}")
                 return {
