@@ -88,7 +88,7 @@ const ApiWizard: React.FC<ApiWizardProps> = ({ isOpen, onClose, apiKeys, onSave 
     const handleDaemonLogin = async () => {
         setIsAuthenticating(true); setAuthError("");
         try {
-            const csrfToken = await getCsrfToken();
+            const csrfToken = await getCsrfToken(DAEMON_URL, null);
             const res = await fetch(`${DAEMON_URL}/api/v1/auth/login`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
                 body: JSON.stringify({ key: masterKey }), credentials: 'include'
