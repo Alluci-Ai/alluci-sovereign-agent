@@ -690,7 +690,8 @@ class InterventionJudge:
         return True, "confidence_passed"
 
     def _check_deduplication(self, opp: Opportunity) -> Tuple[bool, str]:
-        cutoff_24h = time.time() - 86400
+        from datetime import datetime, timezone, timedelta
+        cutoff_24h = datetime.now(timezone.utc) - timedelta(hours=24)
         with Session(self.db_engine) as session:
             recent = session.exec(
                 select(PCLOpportunity)
