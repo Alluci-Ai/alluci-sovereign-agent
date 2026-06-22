@@ -18,6 +18,7 @@ import {
 import { ApiManifoldKeys } from '../types';
 import { useStore } from '../store/useStore';
 import { NetworkEgressStep } from './NetworkEgressStep';
+import { getCsrfToken } from '../csrfStore';
 
 const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || '';
 
@@ -87,8 +88,9 @@ const ApiWizard: React.FC<ApiWizardProps> = ({ isOpen, onClose, apiKeys, onSave 
     const handleDaemonLogin = async () => {
         setIsAuthenticating(true); setAuthError("");
         try {
+            const csrfToken = await getCsrfToken();
             const res = await fetch(`${DAEMON_URL}/api/v1/auth/login`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
                 body: JSON.stringify({ key: masterKey }), credentials: 'include'
             });
             if (res.ok) {
@@ -98,7 +100,14 @@ const ApiWizard: React.FC<ApiWizardProps> = ({ isOpen, onClose, apiKeys, onSave 
                 setAccessToken(token);
                 handleNext();
             } else {
-                setAuthError("Invalid key.");
+                if (res.status === 502) {
+                    setAuthError("Backend starting up, please try again in a few seconds (502).");
+                } else if (res.status === 401 || res.status === 403) {
+                    setAuthError("Invalid master key.");
+                } else {
+                    const err = await res.json().catch(() => ({}));
+                    setAuthError(err.message || err.detail || `Server error: ${res.status}`);
+                }
             }
         } catch (e) { 
             setAuthError("Daemon unreachable."); 

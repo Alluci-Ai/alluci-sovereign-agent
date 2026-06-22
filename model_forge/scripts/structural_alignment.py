@@ -124,7 +124,7 @@ def run_alignment_protocol():
                 modified_any = True
                 
         if modified_any:
-            print(f"  [↑] Committing structural alignment to Hugging Face...")
+            print("  [↑] Committing structural alignment to Hugging Face...")
             api.upload_folder(
                 folder_path=local_dir,
                 repo_id=repo_id,

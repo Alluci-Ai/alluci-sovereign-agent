@@ -29,7 +29,7 @@ def main():
        with open(pkg_file, "w") as f:
            json.dump(pkg_data, f, indent=2)
            f.write("\n")
-       print(f"✅ Updated package.json")
+       print("✅ Updated package.json")
        
    print("Sync complete.")
 

@@ -81,7 +81,7 @@ def convert_family_weights(raw_model_dir: str, output_dir: str, quantization=Non
         safe_name = name.replace("/", "_").replace(".", "_")
         arr_path = weights_dir / f"{safe_name}.npy"
         mx.save(str(arr_path), arr)
-    print(f"[Core Engine] Individual weight files saved.")
+    print("[Core Engine] Individual weight files saved.")
     
     # Copy vocabulary matrices and structural attributes
     for meta_file in ["config.json", "tokenizer.json", "tokenizer_config.json"]:

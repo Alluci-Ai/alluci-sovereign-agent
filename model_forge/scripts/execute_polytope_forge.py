@@ -12,7 +12,7 @@ def print_log(msg):
 def simulate_forge():
     print_log("==================================================")
     print_log("ALLUCI SOVEREIGN AGENT: MASSIVE COMPUTE FORGE INITIATED")
-    print_log(f"Unified Memory Detected: 128GB (Apple Silicon M-Series Native)")
+    print_log("Unified Memory Detected: 128GB (Apple Silicon M-Series Native)")
     print_log("==================================================")
     
     for model in MODELS:

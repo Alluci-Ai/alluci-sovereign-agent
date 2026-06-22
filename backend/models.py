@@ -184,7 +184,7 @@ class GoalRecord(SQLModel, table=True):
 
 class PCLOpportunity(SQLModel, table=True):
     __tablename__ = "pcl_opportunity"  # type: ignore
-    id: int = Field(default=None, primary_key=True)
+    id: str = Field(primary_key=True)
     detected_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     actioned: bool = Field(default=False)
     actioned_at: Optional[datetime] = Field(default=None)

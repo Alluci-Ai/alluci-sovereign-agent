@@ -39,7 +39,7 @@ def run_gguf_conversion(model_name: str, fused_folder: str):
     try:
         subprocess.run(convert_cmd, check=True)
     except Exception as e:
-        print(f"⚠️ Simulation: F16 Conversion bypassed due to missing llama.cpp binaries.")
+        print("⚠️ Simulation: F16 Conversion bypassed due to missing llama.cpp binaries.")
         # Create dummy file to represent the F16 output
         with open(f16_output_path, "w") as f:
             f.write("F16 TENSOR DATA")
@@ -56,7 +56,7 @@ def run_gguf_conversion(model_name: str, fused_folder: str):
     try:
         subprocess.run(quantize_cmd, check=True)
     except Exception as e:
-        print(f"⚠️ Simulation: Q4 Quantization bypassed due to missing llama.cpp binaries.")
+        print("⚠️ Simulation: Q4 Quantization bypassed due to missing llama.cpp binaries.")
         with open(q4_output_path, "w") as f:
             f.write("Q4_K_M TENSOR DATA")
             

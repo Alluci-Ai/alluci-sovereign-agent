@@ -20,14 +20,14 @@ async def main():
         print("Error: New master key must be at least 16 characters long.")
         sys.exit(1)
 
-    print(f"[*] Initializing Vault with current master key...")
+    print("[*] Initializing Vault with current master key...")
     try:
         vm = VaultManager(settings.POLYTOPE_MASTER_KEY)
     except Exception as e:
         print(f"[!] Failed to initialize Vault: {e}")
         sys.exit(1)
 
-    print(f"[*] Starting deep key rotation...")
+    print("[*] Starting deep key rotation...")
     success = await vm.rotate_keys(new_key)
     
     if success:

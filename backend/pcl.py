@@ -1220,6 +1220,9 @@ class ProactiveCognitionLoop:
 
     def _persist_opportunity(self, opp: Opportunity, cycle_number: int) -> PCLOpportunity:
         """Persist an opportunity to the DB before acting on it."""
+        from datetime import datetime, timezone
+        now_dt = datetime.now(timezone.utc)
+        
         db_opp = PCLOpportunity(
             id=opp.id,
             detector_name=opp.detector_name,
@@ -1235,8 +1238,8 @@ class ProactiveCognitionLoop:
             cooldown_minutes=opp.cooldown_minutes,
             affects_goal_id=opp.affects_goal_id,
             actioned=True,
-            actioned_at=time.time(),
-            detected_at=time.time(),
+            actioned_at=now_dt,
+            detected_at=now_dt,
             cycle_number=cycle_number,
         )
         with Session(self.db_engine) as session:
