@@ -676,7 +676,8 @@ class InterventionJudge:
                 )
             ).first()
         if recent and recent.actioned_at:
-            elapsed = (datetime.now(timezone.utc) - recent.actioned_at).total_seconds() / 60
+            actioned_dt = recent.actioned_at.replace(tzinfo=timezone.utc) if recent.actioned_at.tzinfo is None else recent.actioned_at
+            elapsed = (datetime.now(timezone.utc) - actioned_dt).total_seconds() / 60
             return False, f"Cooldown: actioned {elapsed:.0f}m ago (cooldown={opp.cooldown_minutes}m)"
         return True, "cooldown_passed"
 
