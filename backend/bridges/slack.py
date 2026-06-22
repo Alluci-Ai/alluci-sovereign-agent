@@ -35,6 +35,10 @@ class SlackBridge(BridgeAdapter):
             self.logger.error("[SLACK] slack_bolt package is not installed. Run: pip install slack_bolt")
             return False
 
+        # Type narrowing: after the guard above, these are guaranteed to be the real classes
+        assert AsyncApp is not None
+        assert AsyncSocketModeHandler is not None
+
         if not credentials:
             return False
             
