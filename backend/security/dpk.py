@@ -43,6 +43,7 @@ class PolytopeState:
     origin: str = "local"        # Origin vector for Zero-Trust RBM
     is_override: bool = False    # Human-in-the-Loop Override flag (DPK)
     is_avl_override: bool = False # Human-in-the-Loop Override flag (AVL)
+    tearing_exception: Optional[Exception] = None # Holds the exception if tearing occurs
 
 class DiscreteProjectionKernel:
     """
