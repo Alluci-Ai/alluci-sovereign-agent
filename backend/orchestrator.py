@@ -291,7 +291,7 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
             if self.hlsm and body:
                 try:
                     psi_val = 0.0
-                    if self.ace:
+                    if self.ace is not None:
                         s = self.ace.get_affective_state()
                         psi_val = min(1.0, s.tension / 1024.0)
                     await self.hlsm.encode_message(
@@ -326,7 +326,7 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
                 return
             
             # Flow Mode Gate (DEEP_WORK / RECOVERY_MODE filtering)
-            if self.ace:
+            if self.ace is not None:
                 current_mode = self.ace.current_state.get("flow_mode", "STANDARD")
                 if current_mode in ["DEEP_WORK", "RECOVERY_MODE"]:
                     self.logger.info(f"[{current_mode}] Silencing inbound message from {sender} on {protocol}")
@@ -609,7 +609,7 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
                 # Get current affective state for modulated retrieval
                 psi = 0.0
                 valence = 0.5
-                if self.ace:
+                if self.ace is not None:
                     affective = self.ace.get_affective_state()
                     psi = min(1.0, affective.tension / 1024.0)
                     valence = min(1.0, affective.valence / 1024.0)
@@ -944,7 +944,7 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
                 try:
                     final_psi = 0.0
                     final_valence = 0.5
-                    if self.ace:
+                    if self.ace is not None:
                         final_state = self.ace.get_affective_state()
                         final_psi = min(1.0, final_state.tension / 1024.0)
                         final_valence = min(1.0, final_state.valence / 1024.0)
