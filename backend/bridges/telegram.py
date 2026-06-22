@@ -11,7 +11,6 @@ Provides:
 Reference: Sovereign Spec Section 2.2
 """
 
-import httpx
 import os
 import json
 import asyncio

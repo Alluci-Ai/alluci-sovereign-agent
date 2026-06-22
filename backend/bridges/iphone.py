@@ -1,6 +1,5 @@
 import os
 import json
-import socket
 import ssl
 import asyncio
 from typing import Dict, Any, List, Optional

@@ -214,7 +214,7 @@ async def toggle_channel(channel_id: str, request: Request, csrf_protect: CsrfPr
                 pass
         elif not next_state and getattr(adapter, "is_connected", False) and hasattr(adapter, "disconnect"):
             await adapter.disconnect()
-            return {"status": "SUCCESS", "message": f"Channel set to DORMANT and disconnected."}
+            return {"status": "SUCCESS", "message": "Channel set to DORMANT and disconnected."}
             
         return {"status": "SUCCESS", "message": f"Channel {'ACTIVE' if next_state else 'DORMANT'}"}
 

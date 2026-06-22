@@ -1,6 +1,5 @@
 import os
 import json
-import logging
 from ..logging_config import get_logger
 import asyncio
 import httpx
@@ -9,7 +8,6 @@ from abc import ABC, abstractmethod
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 import platform
-import sys
 from enum import Enum
 from typing import Set
 

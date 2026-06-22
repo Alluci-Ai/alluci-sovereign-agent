@@ -1,10 +1,8 @@
 import pytest
-import pytest_asyncio
 from fastapi.testclient import TestClient
 from backend.app import app
 from backend.security.auth import create_access_token
 from backend.config import settings
-import httpx
 
 from unittest.mock import patch
 

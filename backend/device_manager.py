@@ -4,10 +4,9 @@ import base64
 import hashlib
 import platform
 import psutil
-import logging
 from .logging_config import get_logger
 from datetime import datetime, timezone, timedelta
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 from cryptography.hazmat.primitives.asymmetric import ed25519
 from cryptography.hazmat.primitives import serialization
 from sqlmodel import Session, select

@@ -1,10 +1,10 @@
 # Modified TaskStatus enum and added QueuedTask model
 
 from datetime import datetime, timezone
-from typing import List, Dict, Any, Optional, ClassVar
+from typing import List, Dict, Any, Optional
 from enum import Enum
 from pydantic import BaseModel
-from sqlmodel import SQLModel, Field, Relationship, Column, JSON
+from sqlmodel import SQLModel, Field, Column, JSON
 import uuid
 from sqlalchemy import Enum as SAEnum
 import time

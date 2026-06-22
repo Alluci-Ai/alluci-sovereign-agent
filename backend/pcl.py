@@ -29,8 +29,6 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-import json
-import logging
 import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
@@ -39,7 +37,7 @@ from sqlmodel import Session, select, col
 
 from .logging_config import get_logger
 from .models import (
-    GoalRecord, PCLOpportunity, PCLWorldModelSnapshot, TaskRecord
+    PCLOpportunity, PCLWorldModelSnapshot, TaskRecord
 )
 
 logger = get_logger("PCL")
@@ -647,7 +645,7 @@ class InterventionJudge:
 
     def _check_flow_gate(self, opp: Opportunity, flow_mode: str) -> Tuple[bool, str]:
         if flow_mode == "RECOVERY_MODE":
-            return False, f"ACE: RECOVERY_MODE — all PCL actions suppressed"
+            return False, "ACE: RECOVERY_MODE — all PCL actions suppressed"
         if flow_mode == "DEEP_WORK" and opp.priority > 1:
             return False, f"ACE: DEEP_WORK — only P1 opportunities allowed (this is P{opp.priority})"
         return True, "flow_gate_passed"
@@ -702,7 +700,7 @@ class InterventionJudge:
                 )
             ).first()
         if recent:
-            return False, f"Deduplicated: same opportunity actioned/ignored within 24h"
+            return False, "Deduplicated: same opportunity actioned/ignored within 24h"
         return True, "deduplication_passed"
 
 
@@ -1019,7 +1017,6 @@ class ProactiveCognitionLoop:
         try:
             cutoff_24h = time.time() - 86400
             with Session(self.db_engine) as session:
-                from datetime import datetime, timezone
                 # Get failed tasks in last 24h
                 failed_records = session.exec(
                     select(TaskRecord)

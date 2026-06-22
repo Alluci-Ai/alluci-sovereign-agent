@@ -1,19 +1,16 @@
 import json
-import logging
 import asyncio
 import os
 import math
 import httpx
-import platform
 from typing import Literal, Dict, Any, List, Optional, AsyncGenerator
 from ..logging_config import get_logger
-from ..metrics import LLM_REQUESTS_TOTAL, AVL_GATE_REJECTIONS_TOTAL
+from ..metrics import LLM_REQUESTS_TOTAL
 from .executive import ExecutiveRouter
 from .mlx_engine import engine as mlx_engine
 from .cache import prompt_cache
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from ..security.proxy_stub import NoOpSecureProxy
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 logger = get_logger("ModelRouter")
 
 # Conditional imports for failover providers
@@ -57,7 +54,6 @@ class ModelRouter(ExecutiveRouter):
     Implements the ExecutiveRouter interface for LCE Decoupling.
     """
     def __init__(self, settings, vault=None, analytics=None):
-        import os
         self.logger = logger
         self.settings = settings
         self.lce_enabled = getattr(settings, "LOCAL_LCE_ENABLED", True)

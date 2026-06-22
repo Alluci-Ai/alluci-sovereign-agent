@@ -1,9 +1,7 @@
-import os
 import hashlib
 import base64
 from typing import Optional
 from mnemonic import Mnemonic
-from ..config import settings
 from ..logging_config import get_logger
 
 logger = get_logger("KeyRecovery")

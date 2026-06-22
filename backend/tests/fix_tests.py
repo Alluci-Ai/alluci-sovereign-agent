@@ -1,4 +1,3 @@
-import re
 
 with open('backend/tests/test_routers_channels.py', 'r') as f:
     content = f.read()

@@ -1,6 +1,5 @@
-import logging
 from ..logging_config import get_logger
-from typing import List, Dict, Any
+from typing import List, Dict
 import numpy as np
 
 logger = get_logger("HoloidConsensus")

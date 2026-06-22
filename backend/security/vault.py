@@ -8,7 +8,6 @@ import hashlib
 import platform
 import struct
 import tempfile
-import logging
 from typing import Dict, Any, Set, Optional, List
 from datetime import datetime, timezone
 # ── Logger MUST be initialized before any conditional imports ─────────────────
@@ -154,7 +153,7 @@ class VaultManager:
                     f.write(pem)
                 os.chmod(key_path, stat.S_IRUSR | stat.S_IWUSR)
                 return private_key, private_key.public_key()
-            except Exception as e:
+            except Exception:
                 return None, None
 
     def _get_or_create_salt(self) -> bytes:

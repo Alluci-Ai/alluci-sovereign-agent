@@ -10,7 +10,6 @@ Reference: Sovereign Spec Section 5.6
 """
 
 import asyncio
-import logging
 from .logging_config import get_logger
 import uuid
 from datetime import datetime, timezone

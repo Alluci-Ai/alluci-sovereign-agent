@@ -2,7 +2,6 @@ import secrets
 import hashlib
 import base64
 import httpx
-import logging
 from ..logging_config import get_logger
 from typing import Dict, Any, Optional
 from backend.security.vault import VaultManager

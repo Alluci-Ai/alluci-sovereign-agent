@@ -1,5 +1,4 @@
 
-import logging
 from .base import BridgeAdapter
 from ..verus_wallet import wallet_service
 from typing import Any, Dict, List, Optional

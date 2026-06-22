@@ -1,11 +1,8 @@
 import os
 import json
-import uuid
-from typing import List, Dict, Any
-from fastapi import APIRouter, HTTPException, Depends, Body, Request
-from ..security.auth import verify_authenticated
+from typing import Dict, Any
+from fastapi import APIRouter, HTTPException, Body
 from ..logging_config import get_logger
-from ..config import settings
 
 logger = get_logger("SkillsRouter")
 router = APIRouter(tags=["Skills Vault"])

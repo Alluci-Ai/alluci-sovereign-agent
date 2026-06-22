@@ -9,7 +9,6 @@ except ImportError:
         async def __call__(self, request: Request, response: Response):
             return response
 from .rate_limiter import get_fallback_limiter
-from ..config import settings
 import logging
 
 logger = logging.getLogger("RateLimitAdapter")

@@ -1,10 +1,8 @@
 
-import logging
 from ..logging_config import get_logger
 import uuid
 from datetime import datetime, timezone
 from fastapi import HTTPException
-from ..config import settings
 from ..models import AuditEntry
 
 logger = get_logger("PolytopeSecurityUtils")

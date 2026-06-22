@@ -12,9 +12,7 @@ Prerequisites:
 
 import asyncio
 import json
-import logging
 import os
-import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -68,7 +66,8 @@ class SignalBridge(BridgeAdapter):
                 self._cli_path = wrapper_path
 
         if not self.phone_number:
-            import os, json
+            import os
+            import json
             from pathlib import Path
             accounts_path = Path("~/.local/share/signal-cli/data/accounts.json").expanduser()
             if accounts_path.exists():

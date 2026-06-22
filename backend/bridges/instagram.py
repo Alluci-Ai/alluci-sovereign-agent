@@ -15,18 +15,14 @@ Outbound:
   - Image replies via attachment_upload flow
 """
 
-import base64
 import hashlib
 import hmac
-import json
 import os
-import secrets
 import time
 import urllib.parse
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
-import httpx
 
 from .base import BridgeAdapter, UnofficialBridgeMixin
 

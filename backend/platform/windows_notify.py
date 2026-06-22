@@ -1,4 +1,3 @@
-import logging
 from ..logging_config import get_logger
 import platform
 

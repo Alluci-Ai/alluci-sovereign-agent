@@ -7,7 +7,6 @@ except ImportError:
 
 import logging
 import asyncio
-from typing import Optional
 
 logger = logging.getLogger("SpeculativeDecoder")
 

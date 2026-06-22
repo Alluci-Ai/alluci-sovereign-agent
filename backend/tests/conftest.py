@@ -11,12 +11,9 @@ Provides:
 import os
 import sys
 import json
-import asyncio
 import tempfile
 import pytest
-import pytest_asyncio
 from datetime import datetime, timezone
-from typing import Generator, AsyncGenerator
 from unittest.mock import AsyncMock, MagicMock, patch
 from cryptography.fernet import Fernet
 from starlette.requests import Request
@@ -118,7 +115,6 @@ def temp_db():
     This ensures complete test isolation — no shared state.
     """
     from sqlmodel import create_engine, SQLModel
-    import backend.models  # Register all models with metadata
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
         db_path = f.name
 
@@ -449,7 +445,7 @@ def auth_headers(app_client, mock_settings):
 @pytest.fixture
 def seed_run(db_session):
     """Creates a single completed Run record and returns its ID."""
-    from backend.models import Run, RunStatus
+    from backend.models import Run
     run = Run(
         objective="Test objective: summarize quarterly earnings",
         status="completed",

@@ -1,10 +1,8 @@
 # backend/config.py — MODULARIZED PRODUCTION SETTINGS
-import os
 import sys
-import logging
 from typing import List, Optional, Literal
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, field_validator
 from .logging_config import get_logger
 
 logger = get_logger("PolytopeConfig")

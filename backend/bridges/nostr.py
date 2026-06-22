@@ -1,7 +1,6 @@
 import asyncio
 import json
 import os
-import logging
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from .base import BridgeAdapter

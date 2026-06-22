@@ -1,9 +1,8 @@
 
 import hashlib
-import logging
 from ..logging_config import get_logger
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 from cachetools import TTLCache
 from backend.security.verus_rpc import verus_rpc
 from backend.config import settings

@@ -12,7 +12,6 @@ Reference: Sovereign Spec Section 5.1
 import asyncio
 import json
 import time
-import logging
 from .logging_config import get_logger
 import psutil
 from datetime import datetime, timezone
@@ -21,7 +20,6 @@ from pydantic import ValidationError
 from .schemas.ws_gateway import ChannelsListModel, ExecAllowParams, ExecDenyParams, SessionsPatchParams
 from fastapi import WebSocket, WebSocketDisconnect
 from jose import JWTError
-from .config import settings
 
 logger = get_logger("WSGateway")
 

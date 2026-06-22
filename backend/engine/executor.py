@@ -1,8 +1,7 @@
 import asyncio
-import logging
 from datetime import datetime, timezone
 from typing import Dict, Any, Set
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import stop_after_attempt, wait_exponential
 from sqlmodel import Session, select
 
 from ..models import DAGTask, TaskStatus, TaskRecord
@@ -226,7 +225,7 @@ class Executor:
             logger.error(f"Failed to persist task update: {e}")
 
     async def _execute_adapter(self, action: str, args: Dict[str, Any], task_id: str = "") -> Any:
-        from tenacity import AsyncRetrying, stop_after_attempt, wait_exponential
+        from tenacity import AsyncRetrying
         
         async for attempt in AsyncRetrying(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), reraise=True):
             with attempt:

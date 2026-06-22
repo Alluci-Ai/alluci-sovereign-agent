@@ -1,12 +1,8 @@
 import hashlib
 import hmac as _hmac
-import os
 import time
-import json
-import logging
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
-import httpx
 from .base import BridgeAdapter
 
 class WhatsAppBridge(BridgeAdapter):
@@ -118,7 +114,7 @@ class WhatsAppBridge(BridgeAdapter):
             self.logger.info("[WHATSAPP] Hub challenge verified successfully.")
             return challenge
 
-        self.logger.warning(f"[WHATSAPP] Hub verification failed — token mismatch.")
+        self.logger.warning("[WHATSAPP] Hub verification failed — token mismatch.")
         return None
 
     def verify_signature(self, body: bytes, signature_header: str) -> bool:

@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 from prometheus_client import generate_latest, REGISTRY
-from ..metrics import metrics_router  # ensure metrics are registered
 from ..security.auth import verify_authenticated
 
 router = APIRouter()

@@ -8,7 +8,6 @@ from ..logging_config import get_logger
 from ..database import engine as db_engine
 from ..models import AuditLog
 from ..config import settings
-from .vdxf_store import VDXFStore
 
 logger = get_logger("AuditVerifier")
 

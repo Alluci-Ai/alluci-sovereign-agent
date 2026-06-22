@@ -23,14 +23,12 @@ OAuth for Web:
 
 import asyncio
 import hashlib
-import json
 import os
 import time
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-import httpx
 
 from .base import BridgeAdapter, UnofficialBridgeMixin, PlatformRequirement
 
@@ -166,7 +164,6 @@ class WeChatBridge(BridgeAdapter, UnofficialBridgeMixin):
         if not (self._corp_id and self._agent_id):
             return {"status": "error", "error": "Corp credentials not configured."}
 
-        from ..config import settings
         daemon_url  = os.getenv("DAEMON_PUBLIC_URL", "http://localhost:8000").rstrip("/")
         redirect_uri = urllib.parse.quote(f"{daemon_url}/api/oauth/wechat/callback")  # type: ignore
 

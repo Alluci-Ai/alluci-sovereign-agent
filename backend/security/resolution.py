@@ -1,5 +1,4 @@
 import asyncio
-import logging
 from typing import Dict, Any
 from .exceptions import SecurityException
 from ..logging_config import get_logger

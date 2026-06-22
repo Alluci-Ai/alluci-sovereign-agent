@@ -4,9 +4,7 @@ Copyright © 2026 Alluci-Ai. All Rights Reserved.
 Sovereign Agentic Registration Kernel - auth.md Spec Protocol Enforcement Engine.
 """
 
-import os
 import httpx
-import jwt
 import importlib
 
 def _get_vault():
@@ -53,7 +51,7 @@ class AlluciAutonomousDiscoverer:
                     # Fallback to reading raw Markdown file definitions
                     auth_md_res = await client.get(f"{clean_domain}/auth.md")
                     if auth_md_res.status_code != 200:
-                        raise FileNotFoundError(f"Service does not expose a compatible auth.md interface.")
+                        raise FileNotFoundError("Service does not expose a compatible auth.md interface.")
                     return await self.execute_user_claimed_fallback(clean_domain)
 
                 metadata = prm_response.json()

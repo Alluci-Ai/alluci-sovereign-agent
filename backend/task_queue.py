@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
-from sqlmodel import Session, select
+from sqlmodel import Session
 
 from .models import QueuedTask, TaskStatus
 from .database import engine

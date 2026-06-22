@@ -2,8 +2,6 @@
 WebAuthn Credential Store — persists registered passkey public keys.
 Backed by the database (CredentialRecord model) with in-memory cache.
 """
-import json
-import logging
 from typing import Optional, Dict, Any
 from ..logging_config import get_logger
 

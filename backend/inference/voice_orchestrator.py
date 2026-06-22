@@ -11,7 +11,6 @@ requesting device's hardware tier.
 import os
 import logging
 import asyncio
-import struct
 import numpy as np
 from typing import Optional, Dict, Any
 from enum import Enum

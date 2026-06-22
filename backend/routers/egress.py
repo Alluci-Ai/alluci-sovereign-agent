@@ -4,9 +4,10 @@ Provides admin endpoints to view and update allowed LLM hosts and rotation sched
 All endpoints are protected by admin authentication (verify_admin dependency).
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel, Field
-import yaml, json, os
+import yaml
+import json
 from typing import Optional
 from pathlib import Path
 

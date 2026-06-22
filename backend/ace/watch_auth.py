@@ -59,6 +59,6 @@ class AppleWatchAuth:
         Immediately locks the agent execution and encrypts current working memory.
         """
         self.locked = True
-        logger.critical(f"🚨 SOVEREIGN KILL SWITCH ACTIVATED 🚨")
+        logger.critical("🚨 SOVEREIGN KILL SWITCH ACTIVATED 🚨")
         logger.critical(f"Unauthorized/Unverified attempt to execute: {action_type}.")
         logger.critical("No biological pulse detected and REQUIRE_WATCH_TELEMETRY is True. Locking agent.")

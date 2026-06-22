@@ -13,7 +13,6 @@ Reference: Sovereign Spec Sections 3.1–3.8
 """
 
 import asyncio
-import logging
 from .logging_config import get_logger
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Optional, List

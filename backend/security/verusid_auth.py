@@ -1,12 +1,10 @@
 import secrets
 import time
-import logging
 from ..logging_config import get_logger
 import os
 import json
 import asyncio
 from typing import Dict, Tuple, Any, Optional
-from backend.security.verus_rpc import verus_rpc
 from backend.config import settings
 
 logger = get_logger("VerusIDAuth")
@@ -84,7 +82,7 @@ class VerusIDAuth:
                 err_msg = stderr.decode()
                 logger.error(f"Bridge error: {err_msg}")
                 if "Request must be signed" in err_msg or "WIF" in err_msg:
-                    raise Exception(f"VerusID Login Error: Identity private key (WIF) is invalid in .env")
+                    raise Exception("VerusID Login Error: Identity private key (WIF) is invalid in .env")
                 raise Exception(f"Bridge failed: {err_msg}")
                 
             res = json.loads(stdout.decode())

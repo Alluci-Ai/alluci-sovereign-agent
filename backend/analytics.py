@@ -9,7 +9,6 @@ Reference: Sovereign Spec Sections 4.1–4.9
 
 import csv
 import io
-import logging
 from .logging_config import get_logger
 from datetime import datetime, timezone, date, timedelta
 from typing import Dict, Any, List, Optional

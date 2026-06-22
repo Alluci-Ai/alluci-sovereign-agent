@@ -11,11 +11,8 @@ import win32serviceutil
 import win32service
 import win32event
 import servicemanager
-import socket
-import logging
 import asyncio
 import uvicorn
-from multiprocessing import Process
 
 # Ensure we can import the app
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

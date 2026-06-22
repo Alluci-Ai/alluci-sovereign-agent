@@ -1,6 +1,5 @@
 
 import json
-import logging
 from ..logging_config import get_logger
 from typing import Optional, Any
 

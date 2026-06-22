@@ -1,6 +1,5 @@
 
 import httpx
-import logging
 from ..logging_config import get_logger
 from typing import Dict, Any
 from .base import Adapter

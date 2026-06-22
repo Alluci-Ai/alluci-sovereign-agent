@@ -1,7 +1,6 @@
 import ctypes
 import os
 import platform
-import logging
 import numpy as np
 from datetime import datetime, timezone
 from typing import List, Any, Tuple

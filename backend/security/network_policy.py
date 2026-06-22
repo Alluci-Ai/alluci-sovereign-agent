@@ -1,6 +1,5 @@
 import httpx
 from typing import Set
-from urllib.parse import urlparse
 from ..logging_config import get_logger
 
 logger = get_logger("NetworkPolicy")

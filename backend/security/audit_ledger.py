@@ -1,19 +1,16 @@
-import anyio
 from anyio import to_thread
 
 
-import logging
 from ..logging_config import get_logger
 import hashlib
 import json
 from datetime import datetime, timezone
-from typing import List, Dict, Any, Optional
+from typing import Dict, Any, Optional
 from sqlmodel import Session, select, desc
 from ..database import engine as db_engine
 from ..models import AuditLog, AuditEntry
 from ..config import settings
 from .circuit_breaker import verus_circuit_breaker
-import asyncio
 
 import threading
 

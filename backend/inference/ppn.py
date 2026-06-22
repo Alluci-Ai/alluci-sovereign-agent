@@ -3,8 +3,6 @@ import numpy as np
 from typing import Tuple, Optional, List
 from ..ace.affect_kernel import AffectiveState
 from ..engine.hardware_scanner import HardwareScanner
-import os
-import platform
 import logging
 
 logger = logging.getLogger("PPN")

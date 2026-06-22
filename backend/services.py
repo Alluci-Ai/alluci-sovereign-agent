@@ -1,6 +1,5 @@
 
 import os
-import logging
 import asyncio
 from typing import Dict, Any, Optional
 import redis.asyncio as redis
@@ -12,7 +11,6 @@ from backend.inference.router import ModelRouter
 from backend.security.guardrail import GuardrailScanner
 from backend.ace.engine import AffectiveEngine
 from backend.skill_manager import SkillManager
-from backend.memory.manager import MemoryManager
 from backend.memory.hlsm_manager import HLSMManager
 from backend.analytics import UsageTracker
 pass  # Orchestrator import deferred
@@ -405,7 +403,7 @@ async def _init_channels(vault_root: str):
                         logger.error(f"[ CHANNELS ] Timeout connecting to {ch_name}")
                         success = False
                     if success:
-                        logger.info(f"[ CHANNELS ] Auto-connected Slack bridge via environment variables")
+                        logger.info("[ CHANNELS ] Auto-connected Slack bridge via environment variables")
                         continue
 
 

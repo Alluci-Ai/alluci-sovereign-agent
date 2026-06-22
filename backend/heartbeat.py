@@ -43,16 +43,14 @@ import json
 import os
 import re
 import time
-import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import httpx
 from sqlmodel import Session, select, col
 
 from .logging_config import get_logger
 from .models import AgentRecord, HeartbeatOrderRecord
-from .ace.affect_kernel import AffectiveState
 from .engine.dream_cycle import SleepStateOrchestrator
 
 logger = get_logger("Heartbeat")

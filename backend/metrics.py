@@ -1,11 +1,9 @@
 from prometheus_client import (
-    Counter, Gauge, Histogram, Info,
-    generate_latest, CONTENT_TYPE_LATEST, REGISTRY
+    Counter, Gauge, Histogram, generate_latest, CONTENT_TYPE_LATEST, REGISTRY
 )
 from fastapi import APIRouter, Request
 from fastapi.responses import PlainTextResponse
 import time
-import os
 
 # ── Metric Definitions ────────────────────────────────────────────────────────
 

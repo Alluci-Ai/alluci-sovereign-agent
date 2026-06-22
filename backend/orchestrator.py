@@ -1,9 +1,8 @@
 import asyncio
 import json
-import logging
 import time
 from datetime import datetime, timezone
-from typing import Dict, Any, List, Set, Tuple, Optional
+from typing import Dict, Any, Tuple, Optional
 import structlog
 from sqlmodel import Session
 
@@ -39,10 +38,8 @@ from .security.audit_ledger import sync_audit_entry
 from .models import AuditEntry
 from .ace.memory_decay import MemoryTopologyDecay
 from .inference.ppn import PPNEmbeddingModule
-from .inference.holoid import HoloidConsensus
 
 from .logging_config import get_logger
-from .memory.hlsm_manager import HLSMManager, HLSMContext
 
 class ExecutiveOrchestrator:
     def __init__(self, router: ModelRouter, vault: VaultManager, ace: AffectiveEngine, 

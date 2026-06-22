@@ -1,4 +1,3 @@
-import logging
 import time
 from typing import Dict
 from ..logging_config import get_logger

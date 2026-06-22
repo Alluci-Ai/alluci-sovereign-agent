@@ -1,6 +1,5 @@
 
 import httpx
-import logging
 import ssl
 from ..logging_config import get_logger
 from .circuit_breaker import verus_circuit_breaker

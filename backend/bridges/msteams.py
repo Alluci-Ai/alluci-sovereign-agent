@@ -28,7 +28,6 @@ import urllib.parse
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
-import httpx
 
 from .base import BridgeAdapter
 
@@ -255,7 +254,7 @@ class MSTeamsBridge(BridgeAdapter):
             return False
 
         try:
-            from jose import jwt as jose_jwt, JWTError
+            from jose import jwt as jose_jwt
             payload = jose_jwt.decode(
                 token,
                 jwks,

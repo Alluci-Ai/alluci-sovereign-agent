@@ -1,8 +1,6 @@
-import logging
 from ..logging_config import get_logger
-import json
 import re
-from typing import Tuple, List, Optional
+from typing import Tuple, List
 from ..inference.router import ModelRouter
 from ..inference.ppn import PPNEmbeddingModule
 import hashlib
@@ -67,7 +65,7 @@ class GuardrailScanner:
         text_lower = text.lower()
         for pattern in PROMPT_INJECTION_PATTERNS:
             if pattern in text_lower:
-                msg = f"Prompt injection pattern detected."
+                msg = "Prompt injection pattern detected."
                 self.logger.warning(f"Guardrail block: {msg}")
                 return False, msg
                 

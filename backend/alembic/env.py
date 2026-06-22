@@ -1,4 +1,3 @@
-import logging
 from logging.config import fileConfig
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
@@ -11,8 +10,6 @@ from sqlmodel import SQLModel
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-import backend.database
-import backend.models
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

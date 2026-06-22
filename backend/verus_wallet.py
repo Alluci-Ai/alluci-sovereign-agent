@@ -5,7 +5,6 @@ Wraps VerusRPCClient with business logic, error handling, and response formattin
 The agent's VerusID (from config) is used as the primary signing authority.
 """
 
-import logging
 from .logging_config import get_logger
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional

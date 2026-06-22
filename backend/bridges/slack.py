@@ -1,13 +1,16 @@
-import os
-import json
 import asyncio
-import httpx
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 from .base import BridgeAdapter
 
-from slack_bolt.async_app import AsyncApp
-from slack_bolt.adapter.socket_mode.async_handler import AsyncSocketModeHandler
+try:
+    from slack_bolt.async_app import AsyncApp
+    from slack_bolt.adapter.socket_mode.async_handler import AsyncSocketModeHandler
+    _HAS_SLACK_BOLT = True
+except ImportError:
+    AsyncApp = None  # type: ignore[assignment,misc]
+    AsyncSocketModeHandler = None  # type: ignore[assignment,misc]
+    _HAS_SLACK_BOLT = False
 
 class SlackBridge(BridgeAdapter):
     """
@@ -28,6 +31,10 @@ class SlackBridge(BridgeAdapter):
         self._listener_task: Optional[asyncio.Task] = None
 
     async def connect(self, credentials: Dict[str, Any]) -> bool:
+        if not _HAS_SLACK_BOLT:
+            self.logger.error("[SLACK] slack_bolt package is not installed. Run: pip install slack_bolt")
+            return False
+
         if not credentials:
             return False
             

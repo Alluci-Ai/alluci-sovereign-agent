@@ -1,6 +1,5 @@
-import logging
 from ..logging_config import get_logger
-from ..metrics import metrics as metrics_facade, AVL_GATE_REJECTIONS_TOTAL
+from ..metrics import AVL_GATE_REJECTIONS_TOTAL
 from typing import Tuple, Optional
 from .dpk import PolytopeState
 from .calibration import CalibrationManager

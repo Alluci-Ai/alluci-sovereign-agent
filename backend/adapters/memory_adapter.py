@@ -10,9 +10,8 @@ Actions exposed to the planner:
   - memory_recall   : Get recent working memory for current session
   - memory_working  : Get current session L0 working window
 """
-import logging
 from ..logging_config import get_logger
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 
 from .base import Adapter
 

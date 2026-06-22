@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import sys
 import os
 from typing import AsyncGenerator, Optional, Dict, Any
 
@@ -210,7 +209,8 @@ class MLXEngine:
         await self.ensure_loaded()
         # Placeholder: MLX models can load adapters via tokenizer or model method if supported.
         # For now, simply log if an adapter path exists.
-        import re, os
+        import re
+        import os
         safe_agent_id = re.sub(r'[^a-zA-Z0-9_-]', '_', agent_id)
         lora_path = os.path.abspath(os.path.join("models", "loras", f"agent_{safe_agent_id}_lora.safetensors"))
         if os.path.exists(lora_path) and self.current_lora != lora_path:

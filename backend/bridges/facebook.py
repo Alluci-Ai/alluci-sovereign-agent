@@ -7,14 +7,12 @@ Adds App Secret Proof on all API calls (required for system user tokens).
 
 import hashlib
 import hmac
-import json
 import os
 import time
 import urllib.parse
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
-import httpx
 
 from .base import BridgeAdapter, UnofficialBridgeMixin
 

@@ -1,9 +1,6 @@
 
-import logging
 import contextlib
-from typing import Optional
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, Response, Depends
-import structlog
+from fastapi import FastAPI, Request, Response, Depends
 from structlog.contextvars import bind_contextvars, clear_contextvars
 import uuid
 from opentelemetry import trace
@@ -12,7 +9,6 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
 from .logging_config import get_logger, configure_logging
-from .tracing_config import configure_tracing
 from . import services
 from .security.rate_limit import RateLimiter
 import os
@@ -24,7 +20,6 @@ logger = get_logger("PolytopeApp")
 
 from .routers import auth, objectives, telemetry, system, vault, channels, voice, crons, wallet, sessions, config, soul, exec_approval, tasks, dag, websockets, memory, goals, sop, gemini, security, skills, egress
 from .security.auth import verify_authenticated
-from .security import csrf # Initialize CSRF config
 from .engine.errors import AdapterError
 
 try:
@@ -87,12 +82,12 @@ async def lifespan(app: FastAPI):
     # SEC-001: Redis Store Initializations
     if services.redis_client:
         # [ LOCAL_FIX ]: Ensure absolute imports work correctly in local dev environment
-        from .security.webauthn_store import webauthn_store, WebAuthnChallengeStore
+        from .security.webauthn_store import WebAuthnChallengeStore
         import backend.security.webauthn_store as _wa_store_module
         _wa_store_module.webauthn_store = WebAuthnChallengeStore(services.redis_client)
         logger.info("[ WEBAUTHN ] Challenge store backed by Redis.")
         
-        from .security.oauth_store import oauth_store, OAuthStateStore
+        from .security.oauth_store import OAuthStateStore
         import backend.security.oauth_store as _oauth_store_module
         _oauth_store_module.oauth_store = OAuthStateStore(services.redis_client)
         logger.info("[ OAUTH ] State store backed by Redis.")

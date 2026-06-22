@@ -5,14 +5,13 @@ import json
 import uuid
 import logging
 from typing import Dict, Any, Optional
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, HTTPException, Header
 from pydantic import BaseModel
 from cryptography.hazmat.primitives.asymmetric import ed25519
 
 from .. import services
 from ..config import settings
 from ..security.policyEngine import AutonomyPolicyEngine
-from ..security.auth import get_current_user
 
 router = APIRouter()
 logger = logging.getLogger("ObjectiveManager")

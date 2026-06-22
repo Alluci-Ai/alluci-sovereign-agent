@@ -1,7 +1,6 @@
 
 import base64
 import secrets
-import logging
 from ..logging_config import get_logger
 from typing import Optional
 

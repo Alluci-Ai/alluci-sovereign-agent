@@ -2,7 +2,7 @@ import asyncio
 import json
 import os
 from typing import Optional
-from fastapi import APIRouter, WebSocket, Query, HTTPException, status
+from fastapi import APIRouter, WebSocket, status
 from .. import services
 from ..security.auth import verify_token
 from jose import JWTError

@@ -33,8 +33,6 @@ class AlluciSubagentRuntime:
             logger.warning(f"[SUBAGENT {self.subagent_id}] Autonomous onboarding paused. User confirmation required.")
 
 async def test_boot_sequence():
-    import sys
-    import os
     # For testing, ensure vault is mock-initialized if necessary, 
     # but actual production will have the main orchestrator initialized.
     agent = AlluciSubagentRuntime(subagent_id="ScraperAgent-09", secure_manifest="./backend/config/skill_manifest.json")

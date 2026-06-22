@@ -1,7 +1,6 @@
 import ctypes
 import os
 import platform
-import logging
 import numpy as np
 from collections import deque
 from ..logging_config import get_logger
