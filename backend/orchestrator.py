@@ -118,7 +118,7 @@ class ExecutiveOrchestrator:
     @ws_gateway.setter
     def ws_gateway(self, val):
         self._ws_gateway = val
-        if self.heartbeat:
+        if self.heartbeat is not None:
             self.heartbeat.ws_gateway = val
 
     async def broadcast_artifact(self, title: str, content: str, language: str = "markdown"):
@@ -210,9 +210,9 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
             classification_resp = await services.router.get_response(
                 prompt=intent_prompt,
                 system_instruction="You are a strict JSON classifier.",
-                complexity="LIGHT",
+                complexity="LOW",
                 privacy_level="PUBLIC",
-                inference_mode="FAST"
+                inference_mode="TACTICAL"
             )
             
             is_objective = False
