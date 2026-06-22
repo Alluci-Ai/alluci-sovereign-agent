@@ -1035,7 +1035,7 @@ class ProactiveCognitionLoop:
                 if record.end_time:
                     age_seconds = (time.time() - record.end_time.timestamp())
                     if age_seconds <= 86400:
-                        recent_failures.append(record.action)
+                        recent_failures.append(record.action or "unknown_action")
 
             world.recent_failures = recent_failures
 
@@ -1384,9 +1384,6 @@ class ProactiveCognitionLoop:
             "recent_opportunities": [
                 {
                     "id": o.id,
-                    "title": o.title,
-                    "detector": o.detector_name,
-                    "priority": o.priority,
                     "outcome": o.outcome,
                     "detected_at": o.detected_at,
                 }
