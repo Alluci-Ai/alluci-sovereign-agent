@@ -88,7 +88,7 @@ class VaultManager:
         
         # Tier 1 & 3: VDXF Store (Integrity Anchoring)
         self.vdxf = None
-        if settings.VERUS_AUTH_ENABLED and settings.VERUS_ID_IDENTITY:
+        if settings.VERUS_INTEGRATION_MODE != "off" and settings.VERUS_ID_IDENTITY:
             self.vdxf = VDXFStore(settings.VERUS_ID_IDENTITY)
 
 

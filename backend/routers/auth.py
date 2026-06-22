@@ -106,7 +106,7 @@ async def logout(response: Response, request: Request, csrf_protect: CsrfProtect
 @router.get("/auth/verusid/login-request")
 async def get_verusid_login_request(request: Request):
     """Generates a full LoginConsentRequest with QR deeplink."""
-    if not settings.VERUS_AUTH_ENABLED:
+    if settings.VERUS_INTEGRATION_MODE == "off":
         raise HTTPException(status_code=501, detail="VerusID Authentication not enabled")
         
     daemon_url = os.getenv("DAEMON_PUBLIC_URL", str(request.base_url).rstrip("/api/v1"))

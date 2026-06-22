@@ -18,7 +18,7 @@ async def get_soul_manifest():
     from ..verus_wallet import wallet_service
     
     # Try VDXF first (Decentralized/Sovereign source)
-    if settings.VERUS_AUTH_ENABLED:
+    if settings.VERUS_INTEGRATION_MODE != "off":
         manifest = await wallet_service.get_manifest()
         if manifest:
             return manifest
@@ -42,7 +42,7 @@ async def update_soul_manifest(request: Request, manifest: SoulManifest, csrf_pr
         await services.vault.store_secret("soul_manifest", manifest.dict())
     
     # Update sovereign VDXF (if enabled)
-    if settings.VERUS_AUTH_ENABLED and settings.VERUS_ID_IDENTITY:
+    if settings.VERUS_INTEGRATION_MODE != "off" and settings.VERUS_ID_IDENTITY:
         await wallet_service.update_manifest(manifest.dict())
         
     # Invalidate cached soul manifest memory in orchestrator

@@ -57,7 +57,7 @@ class ConfigEditor:
         "VERUS_RPC_PORT",
         "VERUS_RPC_USER",
         "VERUS_RPC_PASSWORD",
-        "VERUS_AUTH_ENABLED",
+        "VERUS_INTEGRATION_MODE",
         "VERUS_ID_IDENTITY",
         "VERUS_ID_PRIVATE_KEY",
         "AUTH_COOKIE_NAME",

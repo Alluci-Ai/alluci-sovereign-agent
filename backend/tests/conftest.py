@@ -50,7 +50,7 @@ os.environ.update({
     "DATABASE_URL":          "sqlite:///:memory:",
     "OTEL_SDK_DISABLED":     "true",
     "RATE_LIMIT_PER_MINUTE": "9999",    # Disable rate limits in tests
-    "VERUS_AUTH_ENABLED":    "false",
+    "VERUS_INTEGRATION_MODE": "off",
 })
 
 # Configure structured logging for tests so they use standard logging handlers
@@ -178,7 +178,7 @@ def mock_settings():
     settings.ANTHROPIC_API_KEY = None
     settings.GROQ_API_KEY = None
     settings.DEEPSEEK_API_KEY = None
-    settings.VERUS_AUTH_ENABLED = False
+    settings.VERUS_INTEGRATION_MODE = "off"
     settings.VERUS_ID_IDENTITY = None
     settings.VERUS_ID_PRIVATE_KEY = None
     settings.HOST = "0.0.0.0"
@@ -303,7 +303,7 @@ def temp_vault():
     key = Fernet.generate_key().decode()
     with tempfile.TemporaryDirectory() as tmpdir:
         with patch("backend.security.vault.settings") as mock_s:
-            mock_s.VERUS_AUTH_ENABLED = False
+            mock_s.VERUS_INTEGRATION_MODE = "off"
             from backend.security.vault import VaultManager
             yield VaultManager(key, vault_root=tmpdir)
 

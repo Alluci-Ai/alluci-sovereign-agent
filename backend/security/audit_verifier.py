@@ -62,8 +62,8 @@ class AuditVerifier:
         3. Fetches the on-chain hash using the TXID/VDXF key.
         4. Compares them. Raises Tamper Alert if they differ.
         """
-        if not settings.VERUS_AUTH_ENABLED or not settings.VERUS_ID_IDENTITY:
-            logger.debug("[AUDITOR] Verus auth disabled. Skipping verification.")
+        if settings.VERUS_INTEGRATION_MODE != "full" or not settings.VERUS_ID_IDENTITY:
+            logger.debug("[AUDITOR] Verus full integration disabled. Skipping verification.")
             return
 
         # Find the most recent anchored batch (group by verus_txid)
