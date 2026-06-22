@@ -115,4 +115,54 @@ class FinancialCircuitBreaker:
     def record_llm_spend(self, cost: float):
         self.llm_cost_today += cost
 
+class VerusCircuitBreaker:
+    """Circuit breaker for Verus RPC calls to prevent blocking and allow graceful degradation."""
+    _instance = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(VerusCircuitBreaker, cls).__new__(cls)
+            cls._instance._init()
+        return cls._instance
+
+    def _init(self):
+        self.failure_count = 0
+        self.state = "CLOSED"  # CLOSED, OPEN, HALF-OPEN
+        self.last_failure_time = 0.0
+        self.open_duration = 300  # 5 minutes
+
+    def record_failure(self):
+        self.failure_count += 1
+        if self.state == "CLOSED" and self.failure_count >= 3:
+            self.state = "OPEN"
+            self.last_failure_time = time.time()
+            logger.error("[SECURITY] Verus Circuit Breaker OPENED. Network calls degraded.")
+        elif self.state == "HALF-OPEN":
+            # If we fail while testing recovery, immediately open again
+            self.state = "OPEN"
+            self.last_failure_time = time.time()
+            self.failure_count = 3
+
+    def record_success(self):
+        self.failure_count = 0
+        if self.state != "CLOSED":
+            self.state = "CLOSED"
+            logger.info("[SECURITY] Verus Circuit Breaker CLOSED. Network calls restored.")
+
+    def is_open(self) -> bool:
+        if self.state == "CLOSED":
+            return False
+        
+        if self.state == "OPEN":
+            if time.time() - self.last_failure_time > self.open_duration:
+                self.state = "HALF-OPEN"
+                return False  # Allow one request through to test
+            return True
+            
+        if self.state == "HALF-OPEN":
+            return False
+
+        return False
+
 circuit_breaker = FinancialCircuitBreaker()
+verus_circuit_breaker = VerusCircuitBreaker()

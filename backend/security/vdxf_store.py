@@ -4,6 +4,7 @@ import logging
 from ..logging_config import get_logger
 import time
 from typing import Any, Dict, Optional
+from cachetools import TTLCache
 from backend.security.verus_rpc import verus_rpc
 from backend.config import settings
 
@@ -18,9 +19,8 @@ class VDXFStore:
     """
     def __init__(self, identity: str):
         self.identity = identity
-        self.memory_cache: Dict[str, Any] = {}
-        self.cache_ttl = 300  # 5 minutes
-        self.cache_expiry: Dict[str, float] = {}
+        self.memory_cache = TTLCache(maxsize=1000, ttl=300)  # Tier 3 Hot Cache
+        self.on_chain_cache = TTLCache(maxsize=10, ttl=900)  # 15 minute cache for blockchain reads
         self.vdxf_manifest_key = "alluci.vault.manifest@"
 
     def _get_hash(self, data: str) -> str:
@@ -32,7 +32,7 @@ class VDXFStore:
         This anchors the integrity of the local vault to the blockchain.
         Returns TXID if successful, None otherwise.
         """
-        if not settings.VERUS_AUTH_ENABLED:
+        if settings.VERUS_INTEGRATION_MODE != "full":
             return None
 
         try:
@@ -54,6 +54,8 @@ class VDXFStore:
             
             txid = await verus_rpc.update_identity(identity_data["identity"])
             logger.info(f"Vault hash anchored on-chain. TXID: {txid}")
+            # Update cache to prevent false alarms on next read
+            self.on_chain_cache[self.vdxf_manifest_key] = vault_hash
             return txid
         except Exception as e:
             logger.error(f"Failed to anchor vault hash: {str(e)}")
@@ -64,7 +66,7 @@ class VDXFStore:
         Anchors a batch of audit logs to the Verus blockchain.
         Returns TXID if successful, None otherwise.
         """
-        if not settings.VERUS_AUTH_ENABLED:
+        if settings.VERUS_INTEGRATION_MODE != "full":
             return None
 
         try:
@@ -94,17 +96,22 @@ class VDXFStore:
         """
         Compares the local vault hash against the on-chain anchor.
         """
-        if not settings.VERUS_AUTH_ENABLED:
+        if settings.VERUS_INTEGRATION_MODE == "off":
             return True
 
         try:
-            on_chain_data = await verus_rpc.get_content_multimap(self.identity, self.vdxf_manifest_key)
-            if not on_chain_data:
-                logger.warning("No on-chain manifest found. Integrity check skipped.")
-                return True
-            
-            on_chain_hash = on_chain_data[0].get("keys_hash", "").replace("sha256:", "")  # type: ignore
             local_hash = self._get_hash(local_vault_data)
+
+            # Check robust TTL Cache first (prevents boot spam)
+            if self.vdxf_manifest_key in self.on_chain_cache:
+                on_chain_hash = self.on_chain_cache[self.vdxf_manifest_key]
+            else:
+                on_chain_data = await verus_rpc.get_content_multimap(self.identity, self.vdxf_manifest_key)
+                if not on_chain_data:
+                    logger.warning("No on-chain manifest found. Integrity check skipped.")
+                    return True
+                on_chain_hash = on_chain_data[0].get("keys_hash", "").replace("sha256:", "")  # type: ignore
+                self.on_chain_cache[self.vdxf_manifest_key] = on_chain_hash
             
             if on_chain_hash == local_hash:
                 logger.info("Vault integrity verified against blockchain.")
@@ -118,14 +125,8 @@ class VDXFStore:
 
     def get_from_memory(self, key: str) -> Optional[Any]:
         """Tier 3: Hot Cache read."""
-        if key in self.memory_cache:
-            if time.time() < self.cache_expiry.get(key, 0):
-                return self.memory_cache[key]
-            else:
-                del self.memory_cache[key]
-        return None
+        return self.memory_cache.get(key)
 
     def set_memory(self, key: str, value: Any):
         """Tier 3: Hot Cache write."""
         self.memory_cache[key] = value
-        self.cache_expiry[key] = time.time() + self.cache_ttl

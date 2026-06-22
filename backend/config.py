@@ -45,7 +45,7 @@ class BridgeSettings(BaseModel):
     VERUS_RPC_USER: Optional[str] = None
     VERUS_RPC_PASSWORD: Optional[str] = None
     VERUS_PUBLIC_RPC_URL: str = "https://api.verus.services"
-    VERUS_LITE_MODE: bool = False
+    VERUS_INTEGRATION_MODE: Literal["off", "lite", "full"] = "off"
 
 class InferenceSettings(BaseModel):
     LOCAL_LCE_URL: str = "http://localhost:8000"
@@ -123,7 +123,7 @@ class Settings(BaseSettings):
     VERUS_RPC_USER: Optional[str] = None
     VERUS_RPC_PASSWORD: Optional[str] = None
     VERUS_PUBLIC_RPC_URL: str = "https://api.verus.services"
-    VERUS_LITE_MODE: bool = False
+    VERUS_INTEGRATION_MODE: Literal["off", "lite", "full"] = "off"
     VERUS_ID_IDENTITY: Optional[str] = None
     VERUS_ID_PRIVATE_KEY: Optional[str] = None
     VERUS_SYSTEM_ID: str = "i5w5MuNik5NtLcYmNzcvaoixooEebB6MGV"  # VRSC
@@ -138,7 +138,6 @@ class Settings(BaseSettings):
     AUTH_COOKIE_NAME: str = "alluci_daemon_token"
     AUTH_COOKIE_SECURE: bool = False  # Auto-enforced to True in production
     AUTH_COOKIE_SAMESITE: Literal["lax", "none", "strict"] = "lax"
-    VERUS_AUTH_ENABLED: bool = False
     
     # WebAuthn
     WEBAUTHN_RP_ID: Optional[str] = None

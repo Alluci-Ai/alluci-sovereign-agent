@@ -12,6 +12,7 @@ from sqlmodel import Session, select, desc
 from ..database import engine as db_engine
 from ..models import AuditLog, AuditEntry
 from ..config import settings
+from .circuit_breaker import verus_circuit_breaker
 import asyncio
 
 import threading
@@ -89,8 +90,11 @@ async def anchor_audit_batch(limit: int = 100):
     Finds up to `limit` unanchored audit log entries, serializes them, anchors them via VDXF,
     and updates their verus_txid in the SQLite DB.
     """
-    if not settings.VERUS_AUTH_ENABLED or not settings.VERUS_ID_IDENTITY:
-        return {"status": "SKIPPED", "message": "Verus auth disabled"}
+    if settings.VERUS_INTEGRATION_MODE != "full" or not settings.VERUS_ID_IDENTITY:
+        return {"status": "SKIPPED", "message": "Verus integration is not fully enabled"}
+    
+    if verus_circuit_breaker.is_open():
+        return {"status": "SKIPPED", "message": "Circuit breaker is open. Audits will queue locally."}
 
     from .vdxf_store import VDXFStore
 

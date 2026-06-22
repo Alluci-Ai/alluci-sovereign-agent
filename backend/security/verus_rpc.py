@@ -1,7 +1,9 @@
 
 import httpx
 import logging
+import ssl
 from ..logging_config import get_logger
+from .circuit_breaker import verus_circuit_breaker
 from typing import Any, Dict, List, Optional, Union
 from backend.config import settings
 
@@ -24,13 +26,24 @@ class VerusRPCClient:
     @property
     def client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
-            self._client = httpx.AsyncClient(timeout=30.0)
+            # Create a permissive SSL context for api.verus.services which can be strict about SNI/Ciphers
+            ctx = ssl.create_default_context()
+            ctx.options |= ssl.OP_NO_SSLv2 | ssl.OP_NO_SSLv3
+            self._client = httpx.AsyncClient(timeout=30.0, verify=ctx)
         return self._client
 
     async def _call(self, method: str, params: List[Any] = [], use_public: bool = False) -> Any:
+        if settings.VERUS_INTEGRATION_MODE == "off":
+            raise Exception("Verus Integration Mode is OFF. Network calls are disabled.")
+
+        if verus_circuit_breaker.is_open():
+            logger.warning(f"Circuit Breaker is OPEN. Aborting Verus RPC call: {method}")
+            raise Exception(f"Circuit Breaker OPEN. Cannot execute {method}.")
+
+        is_lite = (settings.VERUS_INTEGRATION_MODE == "lite")
         # Determine URL and Auth
-        target_url = self.public_url if (use_public or settings.VERUS_LITE_MODE) else self.local_url
-        auth = None if (use_public or settings.VERUS_LITE_MODE) else self.auth
+        target_url = self.public_url if (use_public or is_lite) else self.local_url
+        auth = None if (use_public or is_lite) else self.auth
 
         payload = {
             "jsonrpc": "1.0",
@@ -51,22 +64,27 @@ class VerusRPCClient:
             result = response.json()
             if result.get("error"):
                 # If local fails and we aren't already forcing public, try public fallback for read-only methods
-                if not use_public and not settings.VERUS_LITE_MODE and method in ["getinfo", "getcurrency", "getidentity", "getaddressbalance"]:
+                if not use_public and not is_lite and method in ["getinfo", "getcurrency", "getidentity", "getaddressbalance"]:
                     logger.warning(f"Local RPC failed for {method}, falling back to public.")
                     return await self._call(method, params, use_public=True)
                 
                 logger.error(f"Verus RPC Error [{method}]: {result['error']}")
+                verus_circuit_breaker.record_failure()
                 raise Exception(f"Verus RPC Error: {result['error']}")
+            
+            verus_circuit_breaker.record_success()
             return result.get("result")
         except (httpx.HTTPStatusError, httpx.ConnectError) as e:
             # Automatic fallback to public for specific safe methods if local is down
-            if not use_public and not settings.VERUS_LITE_MODE and method in ["getinfo", "getcurrency", "getidentity", "getaddressbalance"]:
+            if not use_public and not is_lite and method in ["getinfo", "getcurrency", "getidentity", "getaddressbalance"]:
                 logger.warning(f"Local RPC unreachable for {method}, falling back to public.")
                 return await self._call(method, params, use_public=True)
             logger.error(f"Verus RPC Connection Error [{method}]: {str(e)}")
+            verus_circuit_breaker.record_failure()
             raise
         except Exception as e:
             logger.error(f"Verus RPC Unexpected Error [{method}]: {str(e)}")
+            verus_circuit_breaker.record_failure()
             raise
 
     # ── Identity Methods ──────────────────────────────────────────────────

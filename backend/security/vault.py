@@ -50,6 +50,7 @@ from cryptography.hazmat.backends import default_backend
 
 from ..config import settings
 from .vdxf_store import VDXFStore
+from .assurance_daemon import assurance_daemon
 
 class VaultManager:
     fernet_key: Optional[bytes]
@@ -236,9 +237,9 @@ class VaultManager:
         # Tier 3: Warm memory cache
         if self.vdxf:
             self.vdxf.set_memory(bridge_id, data)
-            # Tier 1: Anchor the NEW aggregate state hash on-chain
+            # Tier 1: Anchor the NEW aggregate state hash on-chain (Asynchronous)
             vault_aggregate = await self._get_full_vault_state()
-            await self.vdxf.anchor_vault_hash(vault_aggregate)
+            assurance_daemon.enqueue_anchor(self.vdxf, vault_aggregate)
 
         # Audit Logging
         from .audit_ledger import sync_audit_entry
@@ -290,16 +291,10 @@ class VaultManager:
 
         data = await asyncio.to_thread(self._retrieve_secret_sync, bridge_id)
         
-        # Optional Integrity Check?
+        # Optional Integrity Check? (Asynchronous via Background Worker)
         if self.vdxf and data:
             vault_aggregate = await self._get_full_vault_state()
-            if not await self.vdxf.verify_integrity(vault_aggregate):
-                # Integrity mismatch — vault may have been tampered with externally
-                logger.error(
-                    f"[SECURITY] VDXF integrity verification FAILED for bridge '{bridge_id}'. "
-                    f"Vault data may have been tampered with. ACCESS DENIED."
-                )
-                return {} # Return empty for security
+            assurance_daemon.enqueue_verification(bridge_id, self.vdxf, vault_aggregate)
 
         # Populate cache
         if self.vdxf and data:
