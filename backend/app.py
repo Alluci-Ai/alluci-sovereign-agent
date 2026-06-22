@@ -25,6 +25,7 @@ from .engine.errors import AdapterError
 try:
     from fastapi_csrf_protect import CsrfProtect
     from fastapi_csrf_protect.exceptions import CsrfProtectError
+    import backend.security.csrf  # Load CSRF configuration
 except ImportError:
     class FallbackCsrfProtect:
         async def validate_csrf(self, request):

@@ -664,7 +664,8 @@ class InterventionJudge:
         return True, "quiet_hours_passed"
 
     def _check_cooldown(self, opp: Opportunity) -> Tuple[bool, str]:
-        cutoff = time.time() - (opp.cooldown_minutes * 60)
+        from datetime import datetime, timezone, timedelta
+        cutoff = datetime.now(timezone.utc) - timedelta(minutes=opp.cooldown_minutes)
         with Session(self.db_engine) as session:
             recent = session.exec(
                 select(PCLOpportunity)
@@ -674,8 +675,8 @@ class InterventionJudge:
                     PCLOpportunity.actioned_at > cutoff,  # type: ignore
                 )
             ).first()
-        if recent:
-            elapsed = (time.time() - (recent.actioned_at or 0)) / 60
+        if recent and recent.actioned_at:
+            elapsed = (datetime.now(timezone.utc) - recent.actioned_at).total_seconds() / 60
             return False, f"Cooldown: actioned {elapsed:.0f}m ago (cooldown={opp.cooldown_minutes}m)"
         return True, "cooldown_passed"
 
