@@ -341,6 +341,8 @@ def app_client(mock_settings, temp_db):
         services.vault.rotate_keys = AsyncMock(return_value=True)
         services.vault.flush_cache = AsyncMock()
         services.vault.update_vault_status = AsyncMock()
+        services.vault.list_connections = AsyncMock(return_value=[])
+        services.vault.retrieve_connection_secret = AsyncMock(return_value={})
 
         services.router = MagicMock()
         services.router.router = MagicMock()

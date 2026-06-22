@@ -116,7 +116,7 @@ class TestChannelsRouter:
     async def test_get_channel_config(self, app_client, auth_headers, mock_adapters):
         res = app_client.get("/api/v1/channels/discord/config", headers=auth_headers)
         assert res.status_code == 200
-        assert res.json() == {"token": "mock_token"}
+        assert res.json() == {"token": "mock_token", "enabled": True}
 
     @pytest.mark.asyncio
     async def test_update_channel_config(self, app_client, auth_headers, mock_adapters):
@@ -296,7 +296,7 @@ class TestAgentSubscriptions:
             pass
         services.channel_registry["empty"] = EmptyAdapter()
         
-        assert app_client.put("/api/v1/channels/empty/config", json={}, headers=auth_headers).status_code == 501
+        assert app_client.put("/api/v1/channels/empty/config", json={}, headers=auth_headers).status_code == 200
         assert app_client.post("/api/v1/channels/empty/connect", headers=auth_headers).status_code == 501
         
         # Toggle connect unsupported

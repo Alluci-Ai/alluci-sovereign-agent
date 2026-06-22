@@ -47,27 +47,41 @@ class SlackBridge(BridgeAdapter):
             self.bot_user_id = auth_test.get("user_id")
             self.workspace_id = auth_test.get("team_id")
             
-            # Register message listener
-            @self.app.message(".*")
-            async def handle_messages(message, say, logger):
-                if message.get("user") == self.bot_user_id:
+            async def process_event(event_payload):
+                if event_payload.get("user") == self.bot_user_id:
                     return # Ignore self
 
                 # Ignore edits/deletions for now to prevent duplicate triggers
-                if message.get("subtype"):
+                if event_payload.get("subtype"):
                     return
                     
+                is_direct = event_payload.get("channel", "").startswith("D")
+                is_mention = self.bot_user_id and f"<@{self.bot_user_id}>" in event_payload.get("text", "")
+                    
                 normalized = {
-                    "id": message.get("ts"),
-                    "from": message.get("user"),
-                    "body": message.get("text", ""),
-                    "channel_id": message.get("channel"),
+                    "id": event_payload.get("ts"),
+                    "from": event_payload.get("user"),
+                    "body": event_payload.get("text", ""),
+                    "channel_id": event_payload.get("channel"),
                     "protocol": "SLACK",
                     "account_id": self.workspace_id,
-                    "timestamp": datetime.fromtimestamp(float(message.get("ts", "0")), timezone.utc).isoformat(),
+                    "timestamp": datetime.fromtimestamp(float(event_payload.get("ts", "0")), timezone.utc).isoformat(),
+                    "is_direct": is_direct,
+                    "is_mention": is_mention,
+                    "is_mention_event": event_payload.get("is_mention_event", False)
                 }
                 if hasattr(self, "_dispatch_inbound"):
                     await self._dispatch_inbound(normalized)
+
+            # Register message listener
+            @self.app.message(".*")
+            async def handle_messages(message, say, logger):
+                await process_event(message)
+                
+            @self.app.event("app_mention")
+            async def handle_app_mentions(event, say, logger):
+                event["is_mention_event"] = True
+                await process_event(event)
 
             # Start Socket Mode
             self.handler = AsyncSocketModeHandler(self.app, self.app_token)

@@ -316,6 +316,9 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
                 or body_lower.startswith("hello alluci")
                 or body_lower.startswith("hi alluci")
                 or "alluci.ai@icloud.com" in dest_account
+                or message.get("is_direct", False)
+                or message.get("is_mention", False)
+                or message.get("is_mention_event", False)
             )
 
             if not is_addressed_to_alluci:
