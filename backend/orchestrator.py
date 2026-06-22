@@ -865,7 +865,7 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
             # Log the ranking for observability
             self.logger.info(f"Harmonic Ranking Applied: {[t.id for t in ranked_list]}")
             
-            current_plan = [t.dict() for t in ranked_list]
+            current_plan = [t.model_dump() for t in ranked_list]
             self._update_run_status(run_id, RunStatus.ACTIVE)
         except Exception as e:
             import traceback

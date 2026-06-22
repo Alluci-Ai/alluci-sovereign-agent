@@ -39,11 +39,11 @@ async def update_soul_manifest(request: Request, manifest: SoulManifest, csrf_pr
     
     # Update local vault
     if services.vault:
-        await services.vault.store_secret("soul_manifest", manifest.dict())
+        await services.vault.store_secret("soul_manifest", manifest.model_dump())
     
     # Update sovereign VDXF (if enabled)
     if settings.VERUS_INTEGRATION_MODE != "off" and settings.VERUS_ID_IDENTITY:
-        await wallet_service.update_manifest(manifest.dict())
+        await wallet_service.update_manifest(manifest.model_dump())
         
     # Invalidate cached soul manifest memory in orchestrator
     if services.orchestrator:

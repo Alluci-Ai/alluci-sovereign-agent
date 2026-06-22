@@ -290,7 +290,7 @@ class JsonRpcGateway:
         if schema is not None and hasattr(schema, "model_validate"):
             try:
                 validated = schema.model_validate(params)
-                params_to_pass = validated.dict()
+                params_to_pass = validated.model_dump()
             except ValidationError as ve:
                 logger.error(f"[WS] Validation error for method '{method}': {ve}")
                 if rpc_id is not None:

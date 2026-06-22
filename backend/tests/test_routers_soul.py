@@ -55,7 +55,7 @@ def test_update_soul_manifest(mock_wallet, mock_csrf):
         with patch("backend.routers.soul.settings.VERUS_ID_IDENTITY", "ID"):
             services.vault = AsyncMock()
             mock_wallet.update_manifest = AsyncMock()
-            manifest_payload = SoulManifest().dict()
+            manifest_payload = SoulManifest().model_dump()
             res = client.put("/soul/manifest", json=manifest_payload)
             assert res.status_code == 200
             assert res.json() == {"status": "SUCCESS"}
