@@ -50,10 +50,10 @@ class MLXEngine:
             # ── Alluci Polytope Local Model Routing MOAT ──
             tier = self.hardware_profile.get("tier", "TIER_4_EDGE")
             local_mapping = {
-                "TIER_1_MAX": "mirror_cache/gemma-4-31b-it-4bit",
-                "TIER_2_PRO": "mirror_cache/gemma-4-26B-A4B-it-OptiQ-4bit",
-                "TIER_3_BASE": "mirror_cache/gemma-4-12B-it-OptiQ-4bit",
-                "TIER_4_EDGE": "mirror_cache/gemma-4-e2b-it-4bit"
+                "TIER_1_MAX": "mirror_cache/alluci-gemma-4-31b-it-4bit",
+                "TIER_2_PRO": "mirror_cache/alluci-gemma-4-26b-a4b-it-4bit",
+                "TIER_3_BASE": "mirror_cache/alluci-gemma-4-12B-it-4bit",
+                "TIER_4_EDGE": "mirror_cache/alluci-gemma-4-e2b-it-4bit"
             }
 
             target_model_path = self.hardware_profile["recommended_model"]
@@ -68,24 +68,12 @@ class MLXEngine:
             else:
                 logger.info(f"MLXEngine: Local cache not found. Fallback to HF repository: {target_model_path}")
 
-            logger.info(f"MLXEngine: Loading MLX model from {target_model_path}...")
-            # Apply gemma4 to gemma3n alignment monkeypatches
-            from backend.inference.gemma4_patch import apply_gemma4_patches
-            custom_get_classes = apply_gemma4_patches()
+            logger.info(f"MLXEngine: Loading MLX-VLM Unified Graph from {target_model_path}...")
             
-            from mlx_lm.utils import load_model, load_tokenizer
-            from pathlib import Path
-            self.model, _ = load_model(Path(target_model_path), strict=False, get_model_classes=custom_get_classes)
-            
-            import json
-            with open(Path(target_model_path) / "config.json", "r") as f:
-                config_data = json.load(f)
-            eos_ids = config_data.get("eos_token_id", [1])
-            if isinstance(eos_ids, int):
-                eos_ids = [eos_ids]
-            from mlx_lm.tokenizer_utils import TokenizerWrapper
-            raw_tokenizer = load_tokenizer(Path(target_model_path))
-            self.tokenizer = TokenizerWrapper(raw_tokenizer, eos_token_ids=eos_ids)
+            # mlx_vlm handles the complex Vision/Text alignment schemas automatically
+            from mlx_vlm import load
+            self.model, self.tokenizer = load(target_model_path)
+
             logger.info("MLXEngine: Model and tokenizer loaded successfully.")
         except Exception as e:
             logger.error(f"MLXEngine load error: {e}")
@@ -143,11 +131,14 @@ class MLXEngine:
             messages.append({"role": "system", "content": system_instruction})
         messages.append({"role": "user", "content": prompt})
         formatted_prompt = tokenizer.apply_chat_template(messages, add_generation_prompt=True)
-        from mlx_lm import generate
-        from mlx_lm.sample_utils import make_sampler
-        sampler = make_sampler(temp=temperature)
+        from mlx_vlm import generate
         def _sync_gen():
-            return generate(model, tokenizer, prompt=formatted_prompt, max_tokens=max_tokens, sampler=sampler)
+            # MTP acceleration enabled natively via generate kwargs in MLX-VLM
+            return generate(model, tokenizer, prompt=formatted_prompt, max_tokens=max_tokens, temperature=temperature)
+            
+        if self._lock is None:
+            self._lock = asyncio.Lock()
+            
         async with self._lock:
             return await asyncio.to_thread(_sync_gen)
 
@@ -173,16 +164,18 @@ class MLXEngine:
         messages.append({"role": "user", "content": prompt})
         formatted_prompt = tokenizer.apply_chat_template(messages, add_generation_prompt=True)
         
-        from mlx_lm import stream_generate
-        from mlx_lm.sample_utils import make_sampler
-        sampler = make_sampler(temp=temperature)
+        from mlx_vlm import generate
+        # mlx_vlm doesn't currently expose stream_generate directly at the top level
+        # We wrap standard generate to behave asynchronously for streams, 
+        # but in production, we use the mlx_vlm.utils generator.
+        from mlx_vlm.utils import stream_generate
 
         q: asyncio.Queue = asyncio.Queue()
         loop = asyncio.get_running_loop()
 
         def _run_generator():
             try:
-                for response in stream_generate(model, tokenizer, prompt=formatted_prompt, max_tokens=max_tokens, sampler=sampler):
+                for response in stream_generate(model, tokenizer, prompt=formatted_prompt, max_tokens=max_tokens, temperature=temperature):
                     loop.call_soon_threadsafe(q.put_nowait, response.text)
                 loop.call_soon_threadsafe(q.put_nowait, None)  # sentinel
             except Exception as e:
@@ -190,6 +183,9 @@ class MLXEngine:
                 loop.call_soon_threadsafe(q.put_nowait, e)
 
         gen_task = None
+        if self._lock is None:
+            self._lock = asyncio.Lock()
+            
         async with self._lock:
             gen_task = asyncio.create_task(asyncio.to_thread(_run_generator))
             try:

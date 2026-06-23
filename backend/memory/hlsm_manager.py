@@ -112,7 +112,7 @@ class HLSMManager:
     affective modulation aligned with the ACE engine's ψ (psi) state.
 
     Usage:
-        manager = HLSMManager(db_engine, redis_client, chroma_collection, settings)
+        manager = HLSMManager(db_engine, redis_client, settings.GRAPH_DB_PATH, settings)
         await manager.start_consolidation_loop()
 
         # During planning:
@@ -127,13 +127,32 @@ class HLSMManager:
         self,
         db_engine,
         redis_client: Optional[Any],
-        chroma_collection: Optional[Any],
+        kuzu_db_path: Optional[str],
         settings: Optional[Any] = None,
     ):
         self.db_engine = db_engine
         self.redis = redis_client
-        self.chroma = chroma_collection
+        self.kuzu_db_path = kuzu_db_path
         self.settings = settings
+        
+        # Initialize KùzuDB connection
+        self.kuzu_db = None
+        self.kuzu_conn = None
+        if kuzu_db_path:
+            try:
+                import kuzu
+                self.kuzu_db = kuzu.Database(kuzu_db_path)
+                self.kuzu_conn = kuzu.Connection(self.kuzu_db)
+                
+                # Ensure the SemanticMemory table exists in Kùzu
+                self.kuzu_conn.execute(
+                    "CREATE NODE TABLE IF NOT EXISTS SemanticMemory (id STRING, content STRING, source STRING, session_key STRING, psi_at_encoding DOUBLE, topological_importance DOUBLE, betti_1_support DOUBLE, betti_signature STRING, access_count INT64, created_at DOUBLE, l1_id STRING, PRIMARY KEY (id))"
+                )
+            except ImportError:
+                logger.warning("[HLSM] kuzu library not installed. L2 Semantic Memory disabled.")
+            except Exception as e:
+                logger.error(f"[HLSM] Failed to initialize KùzuDB at {kuzu_db_path}: {e}")
+
         self.decay = MemoryTopologyDecay(half_life=L1_HALF_LIFE_SECONDS)
         self._consolidation_task: Optional[asyncio.Task] = None
         self._embed_model: Optional[Any] = None  # Lazy-loaded sentence-transformer
@@ -145,7 +164,7 @@ class HLSMManager:
             "[HLSM] Initialized. "
             f"L0={'Redis' if redis_client else 'SQL-fallback'}, "
             f"L1=SQL, "
-            f"L2={'ChromaDB' if chroma_collection else 'disabled'}"
+            f"L2={'KùzuDB' if self.kuzu_conn else 'disabled'}"
         )
 
     def _get_token_count(self, text: str) -> int:
@@ -305,9 +324,9 @@ class HLSMManager:
             source=source,
             session_key=session_key,
             objective_hash=objective_hash,
-            psi_at_encoding=max(0.0, min(1.0, float(psi))),
-            valence_at_encoding=max(0.0, min(1.0, float(valence))),
-            topological_importance=max(0.1, float(topological_importance)),
+            psi_at_encoding=max(0.0, min(1.0, psi)),
+            valence_at_encoding=max(0.0, min(1.0, valence)),
+            topological_importance=max(0.1, topological_importance),
             betti_1_support=0.0,
             access_count=0,
             last_accessed=now,
@@ -462,80 +481,84 @@ class HLSMManager:
 
     async def l2_store(self, entry: HLSMEpisodicEntry) -> Optional[str]:
         """
-        Promote an L1 entry to L2 ChromaDB semantic storage.
-        Returns ChromaDB document ID on success, None if L2 unavailable.
+        Promote an L1 entry to L2 KùzuDB semantic storage.
+        Returns KùzuDB node ID on success, None if L2 unavailable.
         """
-        if not self.chroma:
-            logger.debug("[HLSM L2] ChromaDB not available — skipping L2 promotion")
+        if not self.kuzu_conn:
+            logger.debug("[HLSM L2] KùzuDB not available — skipping L2 promotion")
             return None
 
         # [ PPN-008 ] Generate Topological Barcode (Simplicial Projection)
         betti_signature = self.dpk.get_betti_signature(self.dpk.project_state(entry.content))
 
-        meta = {
-            "source": entry.source,
-            "session_key": entry.session_key,
-            "objective_hash": entry.objective_hash,
-            "psi_at_encoding": entry.psi_at_encoding,
-            "valence_at_encoding": entry.valence_at_encoding,
-            "topological_importance": entry.topological_importance,
-            "betti_1_support": entry.betti_1_support,
-            "betti_signature": str(betti_signature),  # Topological Barcode
-            "access_count": entry.access_count,
-            "created_at": entry.created_at,
-            "l1_id": entry.id,
-        }
-
         try:
-            chroma_id = f"l2_{entry.id}"
-            await asyncio.to_thread(
-                self.chroma.add,
-                documents=[entry.content],
-                metadatas=[meta],
-                ids=[chroma_id],
+            kuzu_id = f"l2_{entry.id}"
+            
+            # Cypher parameterized MERGE to insert the promoted memory
+            query = (
+                "MERGE (m:SemanticMemory {id: $id}) "
+                "SET m.content = $content, m.source = $source, m.session_key = $session_key, "
+                "m.psi_at_encoding = $psi_at_encoding, m.topological_importance = $topological_importance, "
+                "m.betti_1_support = $betti_1_support, m.betti_signature = $betti_signature, "
+                "m.access_count = $access_count, m.created_at = $created_at, m.l1_id = $l1_id"
             )
-            logger.info(f"[HLSM L2] Promoted L1→L2: {entry.id[:8]} → {chroma_id}")
-            return chroma_id
+            
+            params = {
+                "id": kuzu_id,
+                "content": entry.content,
+                "source": entry.source or "",
+                "session_key": entry.session_key or "",
+                "psi_at_encoding": entry.psi_at_encoding or 0.0,
+                "topological_importance": entry.topological_importance or 1.0,
+                "betti_1_support": entry.betti_1_support or 0.0,
+                "betti_signature": betti_signature,
+                "access_count": entry.access_count or 0,
+                "created_at": entry.created_at or time.time(),
+                "l1_id": entry.id
+            }
+            
+            await asyncio.to_thread(self.kuzu_conn.execute, query, params)
+            logger.info(f"[HLSM L2] Promoted L1→L2: {entry.id[:8]} → {kuzu_id} (Barcode: {betti_signature[:8]}...)")
+            return kuzu_id
         except Exception as e:
-            logger.error(f"[HLSM L2] ChromaDB store failed for {entry.id}: {e}", exc_info=True)
+            logger.error(f"[HLSM L2] KùzuDB store failed for {entry.id}: {e}", exc_info=True)
             return None
 
     async def l2_search(self, query: str, limit: int = 10) -> List[HLSMRetrievalResult]:
-        """Semantic similarity search against L2 ChromaDB collection."""
-        if not self.chroma:
+        """
+        O(1) Topological Barcode search against L2 KùzuDB collection.
+        Replaces slow cosine-similarity vector searches with instantaneous graph lookups.
+        """
+        if not self.kuzu_conn:
             return []
 
         try:
-            raw = await asyncio.to_thread(
-                self.chroma.query,
-                query_texts=[query],
-                n_results=min(limit, max(1, self.chroma.count() if hasattr(self.chroma, 'count') else limit)),
+            # 1. Dynamically compute the topological barcode of the incoming query
+            query_betti = str(self.dpk.get_betti_signature(self.dpk.project_state(query)))
+            
+            # 2. Execute an O(1) graph match in KùzuDB based on the barcode
+            cypher_query = (
+                "MATCH (m:SemanticMemory {betti_signature: $sig}) "
+                "RETURN m.id, m.content, m.source, m.session_key, m.psi_at_encoding, "
+                "m.topological_importance, m.betti_1_support, m.access_count, m.created_at "
+                "LIMIT $limit"
             )
-
+            
+            raw_results = await asyncio.to_thread(
+                self.kuzu_conn.execute, 
+                cypher_query, 
+                {"sig": query_betti, "limit": limit}
+            )
+            
             results = []
-            docs = raw.get("documents", [[]])[0]
-            ids = raw.get("ids", [[]])[0]
-            metas = raw.get("metadatas", [[]])[0]
-            dists = raw.get("distances", [[None] * len(docs)])[0]
-
-            for doc, chroma_id, meta, dist in zip(docs, ids, metas, dists):
-                # Convert ChromaDB cosine distance [0,2] to similarity [1,0]
-                similarity = 1.0 - (float(dist) / 2.0) if dist is not None else 0.5
-
-                # Apply Betti-1 boost from metadata
-                betti_support = float(meta.get("betti_1_support", 0.0)) if meta else 0.0
-                topo_imp = float(meta.get("topological_importance", 1.0)) if meta else 1.0
-                created_at = float(meta.get("created_at", time.time())) if meta else time.time()
+            
+            while raw_results.has_next():
+                row = raw_results.get_next()
+                kuzu_id, content, source, session_key, psi_enc, topo_imp, betti_support, access_count, created_at = row
                 
-                # [ PPN-009 ] Structural Homeomorphism Check
-                stored_betti = meta.get("betti_signature", "") if meta else ""
-                query_betti = str(self.dpk.get_betti_signature(self.dpk.project_state(query)))
+                # Because it's an exact topological match, similarity is 1.0
+                similarity = 1.0
                 
-                # If the query and memory share the same topological shape, strongly boost relevance
-                if stored_betti and stored_betti == query_betti:
-                    similarity = min(1.0, similarity + 0.5)
-                    topo_imp += 0.5
-
                 # Compute retention from creation time
                 retention = self.decay.calculate_retention(
                     last_accessed=created_at,
@@ -549,34 +572,35 @@ class HLSMManager:
                 combined = similarity * retention
 
                 results.append(HLSMRetrievalResult(
-                    id=chroma_id,
-                    content=doc,
+                    id=kuzu_id,
+                    content=content,
                     tier=2,
-                    source=meta.get("source", "") if meta else "",
+                    source=source,
                     relevance_score=combined,
                     retention_score=retention,
-                    psi_at_encoding=float(meta.get("psi_at_encoding", 0.0)) if meta else 0.0,
-                    session_key=meta.get("session_key", "") if meta else "",
-                    access_count=int(meta.get("access_count", 0)) if meta else 0,
+                    psi_at_encoding=float(psi_enc),
+                    session_key=session_key,
+                    access_count=int(access_count),
                 ))
 
             results.sort(key=lambda r: r.relevance_score, reverse=True)
             return results[:limit]
 
         except Exception as e:
-            logger.error(f"[HLSM L2] ChromaDB search failed: {e}", exc_info=True)
+            logger.error(f"[HLSM L2] KùzuDB search failed: {e}", exc_info=True)
             return []
 
-    async def l2_delete(self, chroma_id: str) -> bool:
-        """Remove a pruned entry from ChromaDB."""
-        if not self.chroma:
+    async def l2_delete(self, kuzu_id: str) -> bool:
+        """Remove a pruned entry from KùzuDB."""
+        if not self.kuzu_conn:
             return False
         try:
-            await asyncio.to_thread(self.chroma.delete, ids=[chroma_id])
-            logger.info(f"[HLSM L2] Pruned decayed entry: {chroma_id}")
+            query = "MATCH (m:SemanticMemory {id: $id}) DELETE m"
+            await asyncio.to_thread(self.kuzu_conn.execute, query, {"id": kuzu_id})
+            logger.info(f"[HLSM L2] Pruned decayed entry: {kuzu_id}")
             return True
         except Exception as e:
-            logger.error(f"[HLSM L2] Delete failed for {chroma_id}: {e}")
+            logger.error(f"[HLSM L2] Delete failed for {kuzu_id}: {e}")
             return False
 
     # ─── Unified Retrieval ────────────────────────────────────────────────────
@@ -873,27 +897,31 @@ class HLSMManager:
             await asyncio.to_thread(self._prune_l1_entries, prune_ids)
             summary["pruned_l1"] = len(prune_ids)
 
-        # ── L2 Pruning (ChromaDB) ─────────────────────────────────────────────
-        if self.chroma:
+        # ── L2 Pruning (KùzuDB) ─────────────────────────────────────────────
+        if self.kuzu_conn:
             try:
-                all_l2 = await asyncio.to_thread(self.chroma.get, limit=10000)
-                l2_ids = all_l2.get("ids", [])
-                l2_metas = all_l2.get("metadatas", [])
-
-                for chroma_id, meta in zip(l2_ids, l2_metas):
-                    if not meta:
-                        continue
-                    created_at = float(meta.get("created_at", now))
-                    topo_imp = float(meta.get("topological_importance", 1.0))
-                    betti_1 = float(meta.get("betti_1_support", 0.0))
+                cypher_query = (
+                    "MATCH (m:SemanticMemory) "
+                    "RETURN m.id, m.created_at, m.topological_importance, m.betti_1_support"
+                )
+                
+                raw_results = await asyncio.to_thread(
+                    self.kuzu_conn.execute, 
+                    cypher_query
+                )
+                
+                while raw_results.has_next():
+                    row = raw_results.get_next()
+                    kuzu_id, created_at, topo_imp, betti_1 = row
 
                     retention = self.decay.calculate_retention(
                         last_accessed=created_at,
                         topological_importance=topo_imp,
                         betti_1_support=betti_1,
                     )
+                    
                     if self.decay.should_prune(retention, L2_PRUNE_THRESHOLD):
-                        await self.l2_delete(chroma_id)  # type: ignore
+                        await self.l2_delete(kuzu_id)
                         summary["pruned_l2"] += 1
             except Exception as e:
                 logger.error(f"[HLSM] L2 consolidation error: {e}", exc_info=True)
@@ -987,9 +1015,11 @@ class HLSMManager:
         l0_count_sql = await asyncio.to_thread(self._count_l0_sql)
         l2_count = 0
 
-        if self.chroma:
+        if self.kuzu_conn:
             try:
-                l2_count = await asyncio.to_thread(self.chroma.count)
+                raw_results = await asyncio.to_thread(self.kuzu_conn.execute, "MATCH (n:SemanticMemory) RETURN COUNT(n)")
+                if raw_results.has_next():
+                    l2_count = raw_results.get_next()[0]
             except Exception:
                 l2_count = -1
 
@@ -1009,7 +1039,7 @@ class HLSMManager:
                     "promotion_threshold": PROMOTION_ACCESS_COUNT,
                 },
                 "L2_semantic": {
-                    "backend": "ChromaDB" if self.chroma else "disabled",
+                    "backend": "KùzuDB" if self.kuzu_conn else "disabled",
                     "entries": l2_count,
                     "prune_threshold": L2_PRUNE_THRESHOLD,
                 },

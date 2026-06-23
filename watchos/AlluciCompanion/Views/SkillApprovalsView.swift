@@ -48,7 +48,7 @@ struct SkillApprovalsView: View {
                                     .font(.subheadline)
                                     .fontWeight(.bold)
                             }
-                            Text("Agent requested access to modify root configuration files in `polytope_data.db`.")
+                            Text("Agent requested access to modify root configuration files in `polytope_data.kuzu` (Cognitive Plane).")
                                 .font(.caption)
                             
                             HStack {

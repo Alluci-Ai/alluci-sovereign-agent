@@ -40,4 +40,4 @@ location /api {
 
 ## 5. Maintenance
 - **Key Rotation**: Use the `VaultManager.rotate_keys()` API via CLI (coming soon).
-- **Backups**: Periodically backup the `.polytope/vaults/` directory and `polytope_data.db`.
+- **Backups**: Periodically backup the `.polytope/vaults/` directory, `db.sqlite3` (Control Plane), and the `polytope_data.kuzu/` directory (Cognitive Plane).

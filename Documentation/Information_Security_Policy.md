@@ -14,7 +14,8 @@ In a decentralized, local-first environment, the definition of an "asset" shifts
 | Asset Name | Classification | Storage Location | Protection Mechanism |
 | :--- | :--- | :--- | :--- |
 | **Verus Vault** | Critical / Highly Restricted | Local File System (`~/.polytope/`) | AES-256-GCM encryption via Polytope Master Key. |
-| **polytope_data.db** | Confidential | Local File System (SQLite) | Host OS-level File Permissions. |
+| **db.sqlite3 (Control Plane)** | Confidential | Local File System (SQLite) | Host OS-level File Permissions. |
+| **polytope_data.kuzu/ (Cognitive Plane)** | Critical / Confidential | Local File System (KùzuDB Directory) | Host OS-level File Permissions. |
 | **Dream Pool Telemetry** | Confidential | Local File System | Isolated from external egress; utilized only by local LoRA Forge. |
 | **AlluciSecureProxy Cache** | Volatile Confidential | Local RAM | Ephemeral; destroyed instantly upon response deanonymization. |
 

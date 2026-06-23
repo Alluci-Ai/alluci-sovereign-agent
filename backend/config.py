@@ -98,7 +98,8 @@ class Settings(BaseSettings):
     LOCAL_MODEL_LIGHT: str = "gemma-4-12B-it-OptiQ-4bit"
     
     # Storage
-    DATABASE_URL: str = "sqlite:///polytope_data.db"
+    DATABASE_URL: str = "sqlite:///db.sqlite3"
+    GRAPH_DB_PATH: str = "./polytope_data.kuzu"
     REDIS_URL: Optional[str] = None
     POLYTOPE_STORAGE_ROOT: str = "~/.polytope"
     ICLOUD_COOKIE_DIR: str = "~/.icloud"
