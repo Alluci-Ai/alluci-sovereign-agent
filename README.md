@@ -40,8 +40,8 @@ flowchart TD
 
     %% ZONE 2: SOVEREIGN ORCHESTRATOR
     subgraph Zone2 [2. Sovereign Orchestrator Zone]
-        PCL[PCL: Personal Cognitive Loop]
-        ACE[ACE: Agent Cognitive Engine]
+        PCL[PCL: Proactive Cognitive Loop]
+        ACE[ACE: Affective Computing Engine]
         Planner[Planner]
         DAG[DAG Engine]
         Tasks[Task Execution]
@@ -60,8 +60,8 @@ flowchart TD
         SecureProxy[SecureProxy: PII Pseudonymization]
         Topology[Topology Classifier]
         LCE[(LCE: Local Cognitive Engine)]
-        Cloud((Cloud: OpenAI/Gemini))
-        DPK[DPK: Data Proof Key]
+        Cloud((Cloud: OpenAI/Anthropic/Gemini/Groq/Perplexity))
+        DPK[DPK: Discrete Projection Kernal]
         AVL[AVL Gate: Axiomatic Value Logic]
     end
 
