@@ -45,6 +45,7 @@ flowchart TD
         Planner[Planner]
         DAG[DAG Engine]
         Tasks[Task Execution]
+        Crons
     end
 
     %% ZONE 3: SECURITY & MEMORY
