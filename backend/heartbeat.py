@@ -51,7 +51,7 @@ from sqlmodel import Session, select, col
 
 from .logging_config import get_logger
 from .models import AgentRecord, HeartbeatOrderRecord
-from .engine.dream_cycle import SleepStateOrchestrator
+
 
 logger = get_logger("Heartbeat")
 
@@ -611,12 +611,11 @@ class HeartbeatDaemon:
         self._running = False
         self._task: Optional[asyncio.Task] = None
         self.logger = get_logger("Heartbeat")
-        self._dream_orchestrator: Optional[SleepStateOrchestrator] = None
+        self._dream_orchestrator = None
 
     def inject_hlsm(self, hlsm, router=None, settings=None) -> None:
         """Called by services.py after HLSMManager is initialised."""
         self._hlsm = hlsm
-        self._dream_orchestrator = SleepStateOrchestrator(hlsm, router, settings)  # type: ignore
 
     def _get_db(self):
         if self.db_engine:
@@ -645,17 +644,8 @@ class HeartbeatDaemon:
     async def _tick_loop(self) -> None:
         while self._running:
             try:
-                # [ PPN-011 ] Sleep State Evaluation (Dream Cycle)
-                from . import services
-                if getattr(services, "ace_engine", None):
-                    current_affect = services.ace_engine.get_affective_state()  # type: ignore
-                    
-                    if self._dream_orchestrator and await self._dream_orchestrator.evaluate_sleep_trigger(current_affect):
-                        # Trigger the dream cycle, which suspends normal polling
-                        await self._dream_orchestrator.trigger_dream_cycle()
-                
-                if not (self._dream_orchestrator and self._dream_orchestrator.is_dreaming):
-                    await self._evaluate_all_orders()
+                # Dream Cycle has been migrated to LoRA Forge in Phase B
+                await self._evaluate_all_orders()
             except asyncio.CancelledError:
                 break
             except Exception as exc:

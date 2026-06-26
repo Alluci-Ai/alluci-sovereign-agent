@@ -83,29 +83,307 @@ class CronEngine:
     async def _check_overnight_dreaming_cycle(self):
         """
         Executes the overnight Self-Instruct and LoRA Forge sequence.
-        Uses the massive 31B Dense Teacher model to synthesize knowledge, 
-        and permanently forges it into the 12B Student via the LoRA Forge.
+
+        Production Pipeline (4 Steps):
+          1. EXTRACT  — Pull episodic memories (H-LSM), world model (PCL),
+                        and affective baseline (ACE) from the live system.
+          2. SYNTHESIZE — Use the 31B Dense Teacher model to transform raw
+                          memories into high-quality instruction pairs.
+          3. VERIFY   — Pass each synthesized pair through PPN → DPK → AVL
+                         to cryptographically sign and topologically verify
+                         the knowledge before it enters the weights.
+          4. FORGE    — Feed verified pairs into LoRAForge with Experience
+                         Replay and Elastic Weight Consolidation to permanently
+                         bake the day's learnings into the 12B Student model.
         """
         now = datetime.now(timezone.utc)
-        # Trigger natively at 2:00 AM
-        if now.hour == 2 and now.minute == 0:
-            logger.info("[CronEngine] 2:00 AM Trigger: Initiating Overnight Dreaming Cycle (31B Dense Self-Instruct).")
+        # Trigger natively at 2:00 AM UTC
+        if now.hour != 2 or now.minute != 0:
+            return
+
+        logger.info("[ DREAMING CYCLE ] 2:00 AM UTC — Initiating Overnight Dreaming Cycle.")
+
+        from . import services
+
+        # ─── Gate: Ensure all subsystems are online ───────────────────────
+        hlsm = getattr(services, "hlsm_manager", None)
+        pcl = getattr(services, "pcl", None)
+        ace = getattr(services, "ace_engine", None)
+        router = getattr(services, "router", None)
+        orch = getattr(services, "orchestrator", None)
+
+        if not hlsm:
+            logger.warning("[ DREAMING CYCLE ] H-LSM not available. Aborting.")
+            return
+        if not router:
+            logger.warning("[ DREAMING CYCLE ] Inference Router not available. Aborting.")
+            return
+
+        try:
+            from .engine.lora_forge import LoRAForge, VRAMHypervisor
+
+            # ═══════════════════════════════════════════════════════════════
+            # STEP 1: EXTRACTION  (H-LSM + PCL + ACE)
+            # ═══════════════════════════════════════════════════════════════
+            logger.info("[ DREAMING CYCLE ] Step 1/4: Extracting memories, world model, and affective state...")
+
+            # 1a. H-LSM: Fetch recent episodic memories (the day's interactions)
+            recent_memories = await hlsm.l1_get_recent(limit=50)
+            episodic_contents = [
+                {"content": m.content, "source": m.source, "relevance": m.relevance_score}
+                for m in recent_memories if len(m.content) >= 40
+            ]
+
+            # 1b. H-LSM: Fetch self-healing deltas (failed → healed plan pairs)
+            self_healing_entries = await hlsm.l1_search("SELF-HEALING RESOLUTION", limit=20)
+            healing_contents = [
+                {"content": m.content, "source": m.source}
+                for m in self_healing_entries
+            ]
+
+            # 1c. PCL: Build the current World Model snapshot
+            world_model_summary = ""
+            if pcl:
+                try:
+                    world = await pcl.build_world_model()
+                    world_parts = []
+                    if world.active_goals:
+                        world_parts.append(f"Active Goals ({len(world.active_goals)}):")
+                        for g in world.active_goals[:10]:
+                            world_parts.append(
+                                f"  - {g.title} [{g.priority}]: {g.metric_current:.0f}% complete, "
+                                f"updated {g.days_since_update:.1f}d ago"
+                            )
+                    if world.recurring_topics:
+                        world_parts.append(f"Recurring Topics: {', '.join(world.recurring_topics[:5])}")
+                    if world.recent_learnings:
+                        world_parts.append(f"Recent Learnings ({len(world.recent_learnings)}):")
+                        for l in world.recent_learnings[:10]:
+                            world_parts.append(f"  - {l[:200]}")
+                    if world.unanswered_threads:
+                        world_parts.append(f"Unanswered Threads: {', '.join(world.unanswered_threads[:5])}")
+                    world_model_summary = "\n".join(world_parts)
+                except Exception as e:
+                    logger.warning(f"[ DREAMING CYCLE ] PCL world model extraction failed: {e}")
+
+            # 1d. ACE: Capture current affective baseline
+            ace_summary = ""
+            if ace:
+                try:
+                    from .security.calibration import CalibrationManager
+                    cal = CalibrationManager()
+                    baseline = cal.get_ace_baseline()
+                    affective = ace.get_affective_state()
+                    flow_mode = ace.current_state.get("flow_mode", "STANDARD")
+                    ace_summary = (
+                        f"ACE State: Flow={flow_mode}, "
+                        f"Valence={affective.valence:.0f}/1024, "
+                        f"Arousal={affective.arousal:.0f}/1024, "
+                        f"Tension={affective.tension:.0f}/1024, "
+                        f"Baseline Mean Stress={baseline['mean']:.1f}, Std={baseline['std']:.1f}"
+                    )
+                except Exception as e:
+                    logger.debug(f"[ DREAMING CYCLE ] ACE baseline extraction failed: {e}")
+
+            # Check if there is enough material to learn from
+            total_entries = len(episodic_contents) + len(healing_contents)
+            if total_entries < 3:
+                logger.info(
+                    f"[ DREAMING CYCLE ] Insufficient material ({total_entries} entries). "
+                    "Skipping tonight's forge cycle."
+                )
+                return
+
+            logger.info(
+                f"[ DREAMING CYCLE ] Extracted {len(episodic_contents)} episodic memories, "
+                f"{len(healing_contents)} self-healing deltas, "
+                f"PCL world model: {'available' if world_model_summary else 'unavailable'}"
+            )
+
+            # ═══════════════════════════════════════════════════════════════
+            # STEP 2: SYNTHESIS  (31B Dense Teacher Model)
+            # ═══════════════════════════════════════════════════════════════
+            logger.info("[ DREAMING CYCLE ] Step 2/4: Synthesizing instruction pairs via Teacher model...")
+
+            # Build the Teacher synthesis prompt from extracted data
+            memory_block = "\n".join([
+                f"[{e['source']}] {e['content'][:400]}" for e in episodic_contents[:30]
+            ])
+            healing_block = "\n".join([
+                f"[HEALING] {h['content'][:400]}" for h in healing_contents[:10]
+            ])
+
+            synthesis_system = (
+                "You are the Alluci Knowledge Synthesizer. Your role is to distill "
+                "a day's worth of user interactions, episodic memories, self-healing events, "
+                "and world state into high-quality instruction-response training pairs. "
+                "Each pair should capture a reusable insight, behavioral pattern, or knowledge "
+                "connection that would improve the agent's future responses.\n\n"
+                "Output EXACTLY a JSON array of objects with 'prompt' and 'response' keys. "
+                "Generate between 5 and 20 pairs. Focus on:\n"
+                "- Patterns in how the user communicates and what they value\n"
+                "- Domain knowledge connections the user frequently references\n"
+                "- Corrections from self-healing events (what went wrong and the fix)\n"
+                "- Goal-relevant knowledge that would accelerate progress\n\n"
+                "Do NOT generate generic or obvious pairs. Every pair must reflect "
+                "specific insights from the provided memories."
+            )
+
+            synthesis_prompt = (
+                f"=== TODAY'S EPISODIC MEMORIES ===\n{memory_block}\n\n"
+            )
+            if healing_block:
+                synthesis_prompt += f"=== SELF-HEALING EVENTS ===\n{healing_block}\n\n"
+            if world_model_summary:
+                synthesis_prompt += f"=== WORLD MODEL ===\n{world_model_summary}\n\n"
+            if ace_summary:
+                synthesis_prompt += f"=== AFFECTIVE BASELINE ===\n{ace_summary}\n\n"
+            synthesis_prompt += (
+                "Based on the above, generate instruction-response training pairs "
+                "as a JSON array. Output ONLY valid JSON."
+            )
+
+            # Call the Teacher model via the inference router
+            import json as json_mod
+            raw_response = await router.get_response(
+                prompt=synthesis_prompt,
+                system_instruction=synthesis_system,
+                complexity="HIGH",
+                privacy_level="AIRGAPPED",  # Keep all data local
+                inference_mode="LOCAL",     # Force local 31B Dense model
+            )
+
+            # Parse the synthesized pairs
+            synthetic_pairs: List[Dict[str, Any]] = []
             try:
-                from .engine.lora_forge import BulletproofLoRAForge, VRAMHypervisor
-                
-                # The 31B model traverses KùzuDB to synthesize profound connections
-                # (Simulated data generation for memory safety)
-                synthetic_data = [{"prompt": "Synthesized Pattern A", "response": "Deep logic A"}]
-                historical_data = [{"prompt": "Archetypal Base B", "response": "Core anchor B"}]
-                
-                # Execute the Bulletproof Forge
-                forge = BulletproofLoRAForge(settings=None)
-                await forge.forge_knowledge("general", synthetic_data, historical_data)
-                
-            except ImportError:
-                logger.warning("[CronEngine] LoRA Forge missing or MLX unavailable.")
-            except Exception as e:
-                logger.error(f"[CronEngine] Dreaming Cycle execution failed: {e}")
+                # Strip markdown code fences if present
+                cleaned = raw_response.strip()
+                if cleaned.startswith("```"):
+                    cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned[3:]
+                if cleaned.endswith("```"):
+                    cleaned = cleaned.rsplit("```", 1)[0]
+                cleaned = cleaned.strip()
+
+                parsed = json_mod.loads(cleaned)
+                if isinstance(parsed, list):
+                    synthetic_pairs = [
+                        p for p in parsed
+                        if isinstance(p, dict) and "prompt" in p and "response" in p
+                    ]
+            except (json_mod.JSONDecodeError, ValueError) as e:
+                logger.error(f"[ DREAMING CYCLE ] Teacher output parsing failed: {e}")
+                logger.debug(f"[ DREAMING CYCLE ] Raw Teacher output: {raw_response[:500]}")
+                return
+
+            if not synthetic_pairs:
+                logger.warning("[ DREAMING CYCLE ] Teacher produced no valid instruction pairs. Aborting.")
+                return
+
+            logger.info(f"[ DREAMING CYCLE ] Teacher synthesized {len(synthetic_pairs)} instruction pairs.")
+
+            # ═══════════════════════════════════════════════════════════════
+            # STEP 3: VERIFICATION  (PPN → DPK → AVL)
+            # ═══════════════════════════════════════════════════════════════
+            logger.info("[ DREAMING CYCLE ] Step 3/4: Verifying synthesized knowledge through PPN/DPK/AVL...")
+
+            verified_pairs: List[Dict[str, Any]] = []
+            rejected_count = 0
+
+            if orch and hasattr(orch, "dpk") and hasattr(orch, "avl"):
+                for pair in synthetic_pairs:
+                    combined_text = f"{pair['prompt']}\n{pair['response']}"
+                    try:
+                        # Run the full PPN → DPK → AVL pipeline on each pair
+                        is_stable, polytope_state = orch._perform_ppn_check(
+                            objective=combined_text,
+                            autonomy="RESTRICTED",
+                            origin="dreaming_cycle"
+                        )
+
+                        if polytope_state is not None:
+                            is_safe, avl_reason = orch.avl.verify(combined_text, polytope_state)
+                            if is_safe:
+                                verified_pairs.append(pair)
+                            else:
+                                rejected_count += 1
+                                logger.debug(
+                                    f"[ DREAMING CYCLE ] AVL rejected pair: {avl_reason} — "
+                                    f"Prompt: {pair['prompt'][:80]}..."
+                                )
+                        else:
+                            # PPN check failed to produce a state — skip pair
+                            rejected_count += 1
+                            logger.debug(
+                                "[ DREAMING CYCLE ] PPN produced no PolytopeState for pair — skipping."
+                            )
+                    except Exception as e:
+                        # Individual pair verification failure is non-fatal
+                        rejected_count += 1
+                        logger.debug(f"[ DREAMING CYCLE ] Verification error for pair: {e}")
+            else:
+                # If PPN/DPK/AVL subsystems are not available (e.g. missing sentence-transformers),
+                # pass all pairs through with a warning
+                logger.warning(
+                    "[ DREAMING CYCLE ] PPN/DPK/AVL subsystems unavailable. "
+                    "Passing all pairs through without topological verification."
+                )
+                verified_pairs = synthetic_pairs
+
+            logger.info(
+                f"[ DREAMING CYCLE ] Verification complete: "
+                f"{len(verified_pairs)} VERIFIED, {rejected_count} REJECTED"
+            )
+
+            if not verified_pairs:
+                logger.warning("[ DREAMING CYCLE ] All pairs rejected by AVL. No knowledge to forge tonight.")
+                return
+
+            # ═══════════════════════════════════════════════════════════════
+            # STEP 4: FORGING  (LoRAForge)
+            # ═══════════════════════════════════════════════════════════════
+            logger.info(
+                f"[ DREAMING CYCLE ] Step 4/4: Forging {len(verified_pairs)} verified pairs "
+                "into 12B Student model weights..."
+            )
+
+            # Separate into new (today's) and historical (replay buffer) data
+            # Use the older half as historical archive for Experience Replay mixing
+            midpoint = max(1, len(verified_pairs) // 2)
+            new_data = verified_pairs[:midpoint]
+            historical_data = verified_pairs[midpoint:]
+
+            # If we have episodic memories that are older, add them as historical
+            if len(episodic_contents) > 20:
+                older_memories = [
+                    {"prompt": f"Recall: {e['content'][:200]}", "response": e['content'][:400]}
+                    for e in episodic_contents[20:]
+                ]
+                historical_data.extend(older_memories[:10])
+
+            # Determine dominant domain from world model
+            domain = "general"
+            if world_model_summary:
+                domain_lower = world_model_summary.lower()
+                if any(kw in domain_lower for kw in ["code", "python", "script", "debug", "api"]):
+                    domain = "coding"
+                elif any(kw in domain_lower for kw in ["research", "paper", "study", "analysis"]):
+                    domain = "research"
+                elif any(kw in domain_lower for kw in ["creative", "write", "story", "design"]):
+                    domain = "creative"
+
+            forge = LoRAForge(settings=getattr(services, "settings", None))
+            await forge.forge_knowledge(domain, new_data, historical_data)
+
+            logger.info(
+                f"[ DREAMING CYCLE ] Complete. Domain={domain}, "
+                f"Synthesized={len(synthetic_pairs)}, Verified={len(verified_pairs)}, "
+                f"Rejected={rejected_count}, Forged={len(new_data)}+{len(historical_data)} pairs."
+            )
+
+        except ImportError as e:
+            logger.warning(f"[ DREAMING CYCLE ] LoRA Forge or dependency missing: {e}")
+        except Exception as e:
+            logger.error(f"[ DREAMING CYCLE ] Execution failed: {e}", exc_info=True)
 
     # ── Job Evaluation ────────────────────────────────────────────────────
 

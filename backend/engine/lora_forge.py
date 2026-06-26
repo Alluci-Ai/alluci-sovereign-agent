@@ -140,7 +140,7 @@ class TeacherStudentAuditor:
             logger.error(f"[Teacher-Student Audit] FAIL. Catastrophic forgetting detected (Pass rate: {pass_rate:.2f}). Rejecting LoRA update.")
             return False
 
-class BulletproofLoRAForge:
+class LoRAForge:
     """
     The Unified LoRA Forge. 
     Replaces both dream_cycle.py and mlx_trainer.py.
@@ -154,7 +154,7 @@ class BulletproofLoRAForge:
         
     async def forge_knowledge(self, domain: str, new_synthetic_data: List[Any], historical_archive: List[Any]):
         """Main entry point for the nightly Dreaming Cycle to forge weights."""
-        logger.info(f"====== INITIATING BULLETPROOF LORA FORGE ({domain.upper()}) ======")
+        logger.info(f"====== INITIATING LORA FORGE ({domain.upper()}) ======")
         
         # 1. MoE Routing
         lora_target = self.moe_router.route_domain(domain)

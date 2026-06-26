@@ -84,8 +84,10 @@ class SlackBridge(BridgeAdapter):
                 if hasattr(self, "_dispatch_inbound"):
                     await self._dispatch_inbound(normalized)
 
+            import re
+            
             # Register message listener
-            @self.app.message(".*")
+            @self.app.message(re.compile(".*"))
             async def handle_messages(message, say, logger):
                 await process_event(message)
                 

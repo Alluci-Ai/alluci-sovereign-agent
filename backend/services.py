@@ -142,27 +142,12 @@ async def init_services(app_instance):
     # Build ChromaDB collection for L2 semantic tier
     chroma_collection = None
     lite_mode = getattr(settings, "LITE_MODE", False)
-    if not lite_mode:
-        try:
-            import chromadb
-            persist_dir = os.path.join(os.path.expanduser(settings.POLYTOPE_STORAGE_ROOT), "memory")
-            os.makedirs(persist_dir, mode=0o700, exist_ok=True)
-            chroma_client = chromadb.PersistentClient(path=persist_dir)
-            chroma_collection = chroma_client.get_or_create_collection(
-                name="hlsm_semantic",
-                metadata={"hnsw:space": "cosine"},
-            )
-            logger.info(f"[ HLSM ] ChromaDB L2 collection initialized at {persist_dir}")
-        except ImportError:
-            logger.warning("[ HLSM ] chromadb not found — L2 semantic tier disabled")
-        except Exception as e:
-            logger.error(f"[ HLSM ] ChromaDB initialization failed: {e} — L2 disabled")
 
     # Instantiate the H-LSM manager
     hlsm_manager = HLSMManager(
         db_engine=db_engine,
         redis_client=redis_client,       # None if Redis unavailable — L0 falls back to SQL
-        chroma_collection=chroma_collection,
+        kuzu_db_path=settings.GRAPH_DB_PATH if not lite_mode else None,
         settings=settings,
     )
 
