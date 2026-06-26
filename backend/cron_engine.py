@@ -158,8 +158,8 @@ class CronEngine:
                         world_parts.append(f"Recurring Topics: {', '.join(world.recurring_topics[:5])}")
                     if world.recent_learnings:
                         world_parts.append(f"Recent Learnings ({len(world.recent_learnings)}):")
-                        for l in world.recent_learnings[:10]:
-                            world_parts.append(f"  - {l[:200]}")
+                        for learning in world.recent_learnings[:10]:
+                            world_parts.append(f"  - {learning[:200]}")
                     if world.unanswered_threads:
                         world_parts.append(f"Unanswered Threads: {', '.join(world.unanswered_threads[:5])}")
                     world_model_summary = "\n".join(world_parts)
