@@ -4,14 +4,17 @@ from backend.config import settings
 
 async def main():
     vault = VaultManager(settings.POLYTOPE_MASTER_KEY)
-    state = await vault.retrieve_secret("channel_slack_enabled")
-    print(f"Vault 'channel_slack_enabled': {state}")
     
-    # Try enabling it!
-    if state and not state.get("enabled", True):
-        print("Enabling it now!")
-        await vault.store_secret("channel_slack_enabled", {"enabled": True})
-        print("Enabled!")
-        
+    accounts = await vault.list_connections("slack")
+    print(f"Slack connection accounts: {accounts}")
+    if accounts:
+        for acc in accounts:
+            creds = await vault.retrieve_connection_secret("slack", acc)
+            if creds:
+                bot = creds.get("bot_token", "")
+                app = creds.get("app_token", "")
+                print(f"Account {acc} bot_token exists: {bool(bot)}")
+                print(f"Account {acc} app_token exists: {bool(app)}")
+
 if __name__ == "__main__":
     asyncio.run(main())
