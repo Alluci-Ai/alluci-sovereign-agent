@@ -686,9 +686,6 @@ class VaultManager:
         return await asyncio.to_thread(self._get_or_create_jwt_keypair_sync)
 
     def _get_or_create_jwt_keypair_sync(self):
-        from cryptography.hazmat.primitives.asymmetric import rsa
-        from cryptography.hazmat.primitives import serialization
-        from cryptography.hazmat.backends import default_backend
 
         key_path = os.path.join(self.vault_root, "jwt_signing.pem")
         pub_path  = os.path.join(self.vault_root, "jwt_signing_pub.pem")

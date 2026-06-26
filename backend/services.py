@@ -422,7 +422,7 @@ async def _init_channels(vault_root: str):
                         await vault.store_connection_secret(ch_name, acc_id, creds)
 
         except Exception as e:
-            logger.debug(f"[ CHANNELS ] {ch_name} connection error during boot: {e}")
+            logger.error(f"[ CHANNELS ] {ch_name} connection error during boot: {e}")
 
 async def shutdown_services():
     logger.info("[ SERVICES ] Shutting down...")
@@ -434,7 +434,7 @@ async def shutdown_services():
         logger.info("[ PCL ] Proactive Cognition Loop stopped")
     if cron_engine: await cron_engine.stop()
     if orchestrator: await orchestrator.stop_background_services()
-    if updater: await updater.stop()
+    if updater is not None: await updater.stop()
     
     for ch_name, adapter in channel_registry.items():
         if hasattr(adapter, "disconnect"):

@@ -81,8 +81,8 @@ class SlackBridge(BridgeAdapter):
                     "is_mention": is_mention,
                     "is_mention_event": event_payload.get("is_mention_event", False)
                 }
-                if hasattr(self, "_dispatch_inbound"):
-                    await self._dispatch_inbound(normalized)
+                if self.on_inbound:
+                    await self.on_inbound(normalized)
 
             import re
             
