@@ -72,7 +72,7 @@ class MLXEngine:
             
             # mlx_vlm handles the complex Vision/Text alignment schemas automatically
             from mlx_vlm import load
-            self.model, self.tokenizer = load(target_model_path)
+            self.model, self.tokenizer = load(target_model_path, trust_remote_code=True)
 
             logger.info("MLXEngine: Model and tokenizer loaded successfully.")
         except Exception as e:
@@ -83,8 +83,8 @@ class MLXEngine:
 
     async def ensure_loaded(self):
         """Asynchronously ensures the model is loaded."""
-        if self.model is None and not self.is_loading:
-            await asyncio.to_thread(self.load_model_sync)
+        if self.model is None or self.tokenizer is None:
+            self.load_model_sync()
         while self.is_loading:
             await asyncio.sleep(0.1)
 
@@ -134,13 +134,13 @@ class MLXEngine:
         from mlx_vlm import generate
         def _sync_gen():
             # MTP acceleration enabled natively via generate kwargs in MLX-VLM
-            return generate(model, tokenizer, prompt=formatted_prompt, max_tokens=max_tokens, temperature=temperature)
+            res = generate(model, tokenizer, prompt=formatted_prompt, max_tokens=max_tokens, temperature=temperature)
+            return getattr(res, "text", res) if not isinstance(res, str) else res
             
         if self._lock is None:
             self._lock = asyncio.Lock()
-            
-        async with self._lock:
-            return await asyncio.to_thread(_sync_gen)
+            # Run synchronously on the main thread to avoid MLX Stream GPU thread mismatch
+        return _sync_gen()
 
     async def generate_stream(self, prompt: str, system_instruction: str = "", max_tokens: int = 1024, temperature: float = 0.7) -> AsyncGenerator[str, None]:
         """Streams response token-by-token natively using mlx_lm.stream_generate."""
@@ -168,7 +168,7 @@ class MLXEngine:
         # mlx_vlm doesn't currently expose stream_generate directly at the top level
         # We wrap standard generate to behave asynchronously for streams, 
         # but in production, we use the mlx_vlm.utils generator.
-        from mlx_vlm.utils import stream_generate
+        from mlx_vlm import stream_generate
 
         q: asyncio.Queue = asyncio.Queue()
         loop = asyncio.get_running_loop()
@@ -176,7 +176,8 @@ class MLXEngine:
         def _run_generator():
             try:
                 for response in stream_generate(model, tokenizer, prompt=formatted_prompt, max_tokens=max_tokens, temperature=temperature):
-                    loop.call_soon_threadsafe(q.put_nowait, response.text)
+                    val = getattr(response, "text", response) if not isinstance(response, str) else response
+                    loop.call_soon_threadsafe(q.put_nowait, val)
                 loop.call_soon_threadsafe(q.put_nowait, None)  # sentinel
             except Exception as e:
                 logger.error(f"stream_generate error: {e}")

@@ -61,7 +61,7 @@ slack_bolt==1.28.0
 chromadb==0.5.0
 sentence-transformers==3.0.1 # Embedding model (~80MB download on first use)
 numpy==1.26.4                # Updated for Python 3.12 compatibility
-torch==2.2.2
+torch>=2.4.0
 
 # ─── Cache & Rate Limiting ────────────────────────────────────────────────────
 redis[hiredis]==5.0.0

@@ -392,11 +392,12 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
                     # ── Send the response back to the sender via the bridge ──
                     if response_text and sender and sender != "unknown":
                         try:
+                            reply_target = message.get("channel") or message.get("channel_id") or sender
                             bridge = services.channel_registry.get(protocol.lower())
                             if bridge and bridge.is_connected:
-                                send_result = await bridge.send(sender, response_text)
+                                send_result = await bridge.send(reply_target, response_text)
                                 self.logger.info(
-                                    f"[Orchestrator] Reply sent to {sender} via {protocol}: "
+                                    f"[Orchestrator] Reply sent to {reply_target} via {protocol}: "
                                     f"{send_result.get('status', 'unknown')}"
                                 )
                                 if hasattr(self, "_recent_outbound_messages"):
@@ -694,7 +695,8 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
             return is_valid, state
 
         except Exception as e:
-            self.logger.error(f"PPN/DPK Check Failed: {e}")
+            import traceback
+            self.logger.error(f"PPN/DPK Check Failed: {e}\n{traceback.format_exc()}")
             # Fail closed if security check errors out
             return False, None
 
