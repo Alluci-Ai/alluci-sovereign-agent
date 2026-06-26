@@ -744,24 +744,32 @@ class ModelRouter(ExecutiveRouter):
                     errors.append(f"{name}: {e}")
                     self.logger.warning(f"{name} failed, trying next local: {e}")
 
-            # ── Step 2: Cloud Fallback (If allowed) ─────────────────────────
+            # ── Step 2: Cloud Fallback (Elastic Tension Model) ───────────────────
             sovereign_mode = getattr(self.settings, "SOVEREIGN_MODE", False)
             
-            # [ User Directive: Strict Local Enforcement ]
-            # Block cloud fallback for LOW/MEDIUM complexity unless the topological
-            # classifier detects high-compute structural reasoning.
-            if complexity in ["LOW", "MEDIUM"]:
-                classification = self.classify_prompt_topology(prompt)
-                if classification["domain"] not in ["ARCHITECTURE", "MATH_CODE"]:
-                    allow_cloud = False
-                    self.logger.info("[ROUTER] Strict local enforcement active. Blocking cloud failover for standard topology.")
-                    if errors:
-                        # If local failed and cloud is blocked, raise immediately
-                        raise RuntimeError(f"Local inference failed and cloud fallback is blocked for standard topology. Errors: {errors}")
-                else:
-                    allow_cloud = not sovereign_mode and self.evaluate_privacy_constraint(privacy_level, is_cloud_provider=True)
+            if sovereign_mode:
+                allow_cloud = False
+                if errors:
+                    raise RuntimeError(f"Local inference failed and SOVEREIGN_MODE is strictly active. Errors: {errors}")
             else:
-                allow_cloud = not sovereign_mode and self.evaluate_privacy_constraint(privacy_level, is_cloud_provider=True)
+                from backend.security.calibration import CalibrationManager
+                calibration_mgr = CalibrationManager()
+                
+                # Retrieve real-time ACE stress (falling back to nominal if not directly injected)
+                current_stress = 50.0 
+                
+                trust_evaluation = calibration_mgr.evaluate_cloud_trust(psi, current_stress, privacy_level)
+                
+                if not trust_evaluation["allowed"]:
+                    self.logger.warning(f"[ROUTER] Soft Catch Triggered: {trust_evaluation['reason']}")
+                    if errors:
+                        # Soft Catch Intervention instead of crashing
+                        return f"I experienced a local hardware failure and attempted to route this query to a cloud provider, but our elastic security baseline detected an anomaly: {trust_evaluation['reason']} Do you authorize this external fallback connection?"
+                    else:
+                        allow_cloud = False
+                else:
+                    allow_cloud = True
+                    self.logger.info(f"[ROUTER] Cloud fallback authorized by Elastic Tension Model (Tension: {trust_evaluation['tension']:.2f}).")
             
             if allow_cloud:
                 data_region = getattr(self.settings, "DATA_REGION", "GLOBAL")

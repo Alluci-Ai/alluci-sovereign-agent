@@ -152,3 +152,33 @@ class CalibrationManager:
         std_stress = statistics.stdev(self.ace_history) if len(self.ace_history) > 1 else 10.0
         
         return {"mean": mean_stress, "std": std_stress}
+
+    def evaluate_cloud_trust(self, psi: float, stress_score: float, privacy_level: str) -> dict:
+        """
+        Calculates the Elastic Tension for cloud fallback.
+        Returns a dict: {"allowed": bool, "tension": float, "reason": str}
+        """
+        if privacy_level == "AIRGAPPED":
+            return {"allowed": False, "tension": 1.0, "reason": "AIRGAPPED hardware enforcement."}
+            
+        dynamic_threshold = self.get_dynamic_threshold(origin="local")
+        baseline = self.get_ace_baseline()
+        mean_stress = baseline["mean"]
+        std_stress = baseline["std"]
+        
+        # Calculate geometric and biometric tension
+        structural_tension = psi / max(dynamic_threshold, 0.01)
+        biometric_tension = (stress_score - mean_stress) / max(std_stress, 1.0)
+        
+        # Combined Risk Delta
+        risk_delta = (structural_tension * 0.4) + (max(0, biometric_tension) * 0.6)
+        
+        # Soft Catch Threshold: e.g. > 3 sigma total tension
+        if risk_delta > 3.0:
+            return {"allowed": False, "tension": risk_delta, "reason": f"Anomalous Tension Spike ({risk_delta:.2f}). Exceeds historical baseline."}
+            
+        if privacy_level == "SENSITIVE" and psi > dynamic_threshold:
+            return {"allowed": False, "tension": risk_delta, "reason": f"Structural PSI ({psi:.3f}) exceeds SENSITIVE threshold ({dynamic_threshold:.3f})."}
+            
+        return {"allowed": True, "tension": risk_delta, "reason": "Tension within nominal baseline."}
+
