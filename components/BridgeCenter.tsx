@@ -201,7 +201,7 @@ const BridgeCenter: React.FC<BridgeCenterProps> = ({
 
     const appleIds = ['icloud', 'email', 'imessage', 'iwatch', 'iphone'];
     const socialIds = ['wa', 'tg', 'dc', 'sg', 'ig', 'fb', 'x'];
-    const enterpriseIds = ['sl', 'mt', 'gm', 'gd', 'notion', 'webchat', 'wechat'];
+    const enterpriseIds = ['sl', 'mt', 'gm', 'gd', 'notion', 'github', 'webchat', 'wechat'];
     const verusIds = ['verus'];
 
     const grouped = {
