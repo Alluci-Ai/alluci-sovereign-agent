@@ -137,6 +137,8 @@ class SignalBridge(BridgeAdapter):
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
+            # Start stderr reader immediately to prevent deadlocks and get logs
+            asyncio.create_task(self._drain_stderr(self._daemon_process))
         except FileNotFoundError:
             self.logger.error(f"[SIGNAL] {self._cli_path} not found.")
             return False
@@ -146,8 +148,6 @@ class SignalBridge(BridgeAdapter):
             await asyncio.sleep(0.5)
             if os.path.exists(self._socket_path):
                 self.logger.info("[SIGNAL] Daemon socket ready.")
-                # Start a stderr reader so the process doesn't deadlock
-                asyncio.create_task(self._drain_stderr(self._daemon_process))
                 return True
 
         self.logger.warning("[SIGNAL] Daemon socket did not appear within 10s.")
@@ -165,7 +165,7 @@ class SignalBridge(BridgeAdapter):
             async for line in proc.stderr:
                 decoded = line.decode(errors="replace").strip()
                 if decoded:
-                    self.logger.debug(f"[SIGNAL-DAEMON] {decoded}")
+                    self.logger.warning(f"[SIGNAL-DAEMON] {decoded}")
 
     # ── Unix Socket JSON-RPC Client ──────────────────────────────────────────
 
@@ -428,6 +428,7 @@ class SignalBridge(BridgeAdapter):
 
     async def get_link_qr(self) -> str:
         """Generate a tsdevice:// URI for device linking."""
+        print("!!! get_link_qr CALLED", flush=True)
         import pty
         import os
         try:
@@ -444,23 +445,29 @@ class SignalBridge(BridgeAdapter):
             loop = asyncio.get_running_loop()
             await loop.connect_read_pipe(lambda: protocol, os.fdopen(master, 'rb', buffering=0))
             
+            print("!!! get_link_qr WAITING FOR READLINE", flush=True)
             while True:
                 line = await reader.readline()
                 if not line:
                     break
                 text = line.decode(errors='replace').strip()
+                print(f"!!! get_link_qr GOT LINE: {text}", flush=True)
                 if text.startswith("sgnl://"):
                     return text
+            print("!!! get_link_qr FINISHED WITHOUT SGNL", flush=True)
             return ""
         except Exception as e:
             import traceback
             err_trace = traceback.format_exc()
             self.logger.error(f"[SIGNAL] link command failed: {e}\nTraceback:\n{err_trace}")
+            print(f"!!! get_link_qr ERROR: {e}", flush=True)
             return ""
 
     async def init_qr(self) -> Dict[str, Any]:
         """Generate a tsdevice:// URI for device linking and broadcast QR_READY."""
+        print("!!! init_qr CALLED", flush=True)
         qr_url = await self.get_link_qr()
+        print(f"!!! init_qr GOT QR URL: {qr_url}", flush=True)
         if not qr_url:
             return {"status": "error", "message": "Failed to generate QR code. Is signal-cli installed?"}
         if self.on_event:
