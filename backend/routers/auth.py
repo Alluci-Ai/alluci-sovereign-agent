@@ -6,6 +6,7 @@ from ..config import settings
 from ..models import LoginRequest
 from ..security.auth import create_access_token, verify_authenticated
 from ..security.verusid_auth import verus_auth
+from ..security.verus_rpc import verus_rpc
 from ..security.rate_limit import RateLimiter
 from ..logging_config import get_logger
 from ..security.credential_store import credential_store
@@ -113,8 +114,14 @@ async def get_verusid_login_request(request: Request):
     redirect_uri = f"{daemon_url}/api/v1/auth/verusid/webhook"
 
     try:
+        signing_id = settings.VERUS_ID_IDENTITY or "Alluci@"
+        if signing_id.endswith("@") or "." in signing_id:
+            id_data = await verus_rpc.get_identity(signing_id)
+            if id_data and id_data.get("identity"):
+                signing_id = id_data["identity"]["identityaddress"]
+
         result = await verus_auth.get_verusid_login_request(
-            signing_id=settings.VERUS_ID_IDENTITY or "Alluci@",
+            signing_id=signing_id,
             redirect_uri=redirect_uri
         )
         return result

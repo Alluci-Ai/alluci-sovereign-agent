@@ -15,6 +15,7 @@
     "base64url": "^3.0.1",
     "bech32": "^2.0.0",
     "bignumber.js": "^10.0.2",
+    "bitcoin-ops": "github:VerusCoin/bitcoin-ops",
     "blake2b": "github:VerusCoin/blake2b",
     "blakejs": "^1.2.1",
     "bn.js": "^5.2.3",
