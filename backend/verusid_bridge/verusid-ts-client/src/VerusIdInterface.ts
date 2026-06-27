@@ -47,10 +47,10 @@ import {
   smarttxs,
   Transaction
 } from "@bitgo/utxo-lib";
-import { BlockInfo } from "verus-typescript-primitives/src/block/BlockInfo";
+import { BlockInfo } from "verus-typescript-primitives/dist/block/BlockInfo";
 import BigNumber from "bignumber.js"
 import { BN } from "bn.js";
-import { GenericEnvelope } from "verus-typescript-primitives/src/vdxf/classes/envelope/GenericEnvelope";
+import { GenericEnvelope } from "verus-typescript-primitives/dist/vdxf/classes/envelope/GenericEnvelope";
 
 const { createUnfundedIdentityUpdate, validateFundedCurrencyTransfer, completeFundedIdentityUpdate } = smarttxs;
 
@@ -1002,7 +1002,7 @@ class VerusIdInterface {
       // Ignore cmm fields that contained the "data" field because we can't establish if the cmm and/or encryption was 
       // done correctly yet
       if (identity.containsSignData()) {
-        const signDataKeys = identity.signDataMap!.keys();
+        const signDataKeys = Array.from(identity.signDataMap!.entries()).map(([k]) => k.toIAddress());
 
         if (serverKeysChangedCompJson.contentmultimap) {
           for (const key of signDataKeys) {

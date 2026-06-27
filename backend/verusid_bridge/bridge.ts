@@ -6,7 +6,8 @@ import {
   IDENTITY_VIEW,
   RedirectUri,
   LOGIN_CONSENT_WEBHOOK_VDXF_KEY,
-  toBase58Check
+  toBase58Check,
+  CompactIAddressObject
 } from 'verus-typescript-primitives';
 
 const I_ADDR_VERSION = 102;
@@ -47,7 +48,14 @@ async function main() {
             created_at: Math.floor(Date.now() / 1000)
         });
 
-        const request = await verusIdClient.createLoginConsentRequest(signing_id, challenge, wif);
+        const request = await verusIdClient.createLoginConsentRequest(
+            signing_id,
+            challenge,
+            wif,
+            undefined,
+            undefined,
+            system_id || "i5w5MuNik5NtLcYmNzcvaoixooEebB6MGV"
+        );
         console.log(JSON.stringify({
             request: request.toJson(),
             deeplink: request.toWalletDeeplinkUri(),
@@ -62,13 +70,20 @@ async function main() {
 
         const verusIdClient = new VerusIdInterface(system_id || "i5w5MuNik5NtLcYmNzcvaoixooEebB6MGV", rpc_url, config as any);
         
+        // Ensure response is parsed into a LoginConsentResponse
+        const loginResponse = new LoginConsentResponse(response);
+
         // verusid-ts-client handle verification directly with the raw response
-        const verified = await verusIdClient.verifyLoginConsentResponse(response);
+        const verified = await verusIdClient.verifyLoginConsentResponse(
+            loginResponse,
+            undefined,
+            system_id || "i5w5MuNik5NtLcYmNzcvaoixooEebB6MGV"
+        );
 
         console.log(JSON.stringify({
             verified: verified,
-            signing_id: response.signing_id,
-            decision: response.decision ? response.decision.toJson() : null
+            signing_id: loginResponse.signing_id,
+            decision: loginResponse.decision ? loginResponse.decision.toJson() : null
         }));
     } else {
         console.error("Unknown command:", command);

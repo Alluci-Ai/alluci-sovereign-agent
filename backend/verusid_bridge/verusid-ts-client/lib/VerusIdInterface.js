@@ -611,7 +611,7 @@ class VerusIdInterface {
                 // Ignore cmm fields that contained the "data" field because we can't establish if the cmm and/or encryption was 
                 // done correctly yet
                 if (identity.containsSignData()) {
-                    const signDataKeys = identity.signDataMap.keys();
+                    const signDataKeys = Array.from(identity.signDataMap.entries()).map(([k]) => k.toIAddress());
                     if (serverKeysChangedCompJson.contentmultimap) {
                         for (const key of signDataKeys) {
                             delete serverKeysChangedCompJson.contentmultimap[key];
