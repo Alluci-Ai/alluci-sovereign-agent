@@ -22,6 +22,7 @@ from ..bridges.iwatch import IWatchBridge
 from ..bridges.signal import SignalBridge
 from ..bridges.google_chat import GoogleChatBridge
 from ..bridges.nostr import NostrBridge
+from ..bridges.notion import NotionBridge
 from ..engine.errors import AdapterError
 from ..security.vault import VaultManager
 from ..security.oauth_handler import OAuthHandler
@@ -59,6 +60,7 @@ class BridgeActualizationAdapter(Adapter):
             "twitter": XBridge,
             "gmail": GmailBridge,
             "email": EmailBridge,
+            "notion": NotionBridge,
             "gdrive": GDriveBridge,
             "icloud": ICloudBridge,
             "msteams": MSTeamsBridge,

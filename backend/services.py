@@ -294,6 +294,7 @@ async def _init_channels(vault_root: str):
     from backend.bridges.gdrive import GDriveBridge
     from backend.bridges.webchat import WebChatBridge
     from backend.bridges.iphone import IPhoneBridge
+    from backend.bridges.notion import NotionBridge
     from backend.bridges.verus_wallet import VerusWalletBridge
 
     async def broadcast_bridge_event(event: str, data: Any):
@@ -317,6 +318,7 @@ async def _init_channels(vault_root: str):
     channel_registry["iwatch"] = IWatchBridge("iwatch", vault_root, vault_manager=vault)
     channel_registry["icloud"] = ICloudBridge("icloud", vault_root, vault_manager=vault)
     channel_registry["gmail"] = GmailBridge("gmail", vault_root, vault_manager=vault)
+    channel_registry["notion"] = NotionBridge("notion", vault_root, vault_manager=vault)
     channel_registry["gdrive"] = GDriveBridge("gdrive", vault_root, vault_manager=vault)
     channel_registry["webchat"] = WebChatBridge("webchat", vault_root, vault_manager=vault)
     channel_registry["iphone"] = IPhoneBridge("iphone", vault_root, vault_manager=vault)
@@ -391,6 +393,19 @@ async def _init_channels(vault_root: str):
                         logger.info("[ CHANNELS ] Auto-connected Slack bridge via environment variables")
                         continue
 
+            if ch_name == "notion":
+                import os
+                notion_token = os.environ.get("NOTION_TOKEN")
+                if notion_token:
+                    creds = {"token": notion_token}
+                    try:
+                        success = await asyncio.wait_for(adapter.connect(creds), timeout=15)
+                    except asyncio.TimeoutError:
+                        logger.error(f"[ CHANNELS ] Timeout connecting to {ch_name}")
+                        success = False
+                    if success:
+                        logger.info("[ CHANNELS ] Auto-connected Notion bridge via environment variables")
+                        continue
 
             # 2. Multi-account discovery (P1-009 Standard)
             accounts = await vault.list_connections(ch_name)
