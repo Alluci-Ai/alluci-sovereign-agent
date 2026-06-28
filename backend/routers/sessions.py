@@ -63,47 +63,41 @@ async def get_session_config(session_key: str):
             return {"session_key": session_key, "overrides": {}}
         return config
 
-# ─── Agent Constellation CRUD ─────────────────────────────────────────────────
-
-@router.get("/agents", dependencies=[Depends(verify_authenticated)])
-async def get_agents():
-    """Returns all AgentRecord entries from the database."""
+# ─── Agent Constellation CRUD ───────────────@router.get("/agents", dependencies=[Depends(verify_authenticated)])
+async def list_agents():
+    """Returns all AgentRecord entries with live DB telemetry."""
+    from sqlalchemy import func
+    from ..models import AgentSkillBinding, AgentChannelSubscription
+    
     with Session(db_engine) as session:
         agents = session.exec(select(AgentRecord)).all()
-
-    if not agents:
-        # First-boot: return the logical root agent as a read-only default.
-        # It has no DB row — real agents are created via POST /agents.
-        return {
-            "agents": [
-                {
-                    "id": "root",
-                    "name": "Sovereign Root",
-                    "model": "gpt-4o",
-                    "status": "ACTIVE",
-                    "description": "Primary sovereign agent (built-in)",
-                    "fallback_chain": "gemini-flash,claude-haiku",
-                    "heartbeat_orders": [],
-                    "created_at": None,
-                }
-            ]
-        }
-
-    return {
-        "agents": [
-            {
+        
+        result = []
+        for a in agents:
+            # SQL queries for telemetry counts
+            active_skills = session.exec(
+                select(func.count(col(AgentSkillBinding.id))).where(AgentSkillBinding.agent_id == a.id)
+            ).one()
+            
+            channels = session.exec(
+                select(func.count(col(AgentChannelSubscription.id))).where(AgentChannelSubscription.agent_id == a.id)
+            ).one()
+            
+            result.append({
                 "id": a.id,
                 "name": a.name,
                 "model": a.model,
                 "status": a.status,
                 "description": a.description,
                 "fallback_chain": a.fallback_chain,
+                "engine_manifest": json.loads(a.engine_manifest or "{}"),
+                "active_skills": active_skills,
+                "channels": channels,
                 "heartbeat_orders": json.loads(a.heartbeat_orders or "[]"),
                 "created_at": a.created_at.isoformat() if a.created_at else None,
-            }
-            for a in agents
-        ]
-    }
+            })
+
+    return {"agents": result}
 
 
 @router.get("/agents/{agent_id}", dependencies=[Depends(verify_authenticated)])
@@ -113,6 +107,18 @@ async def get_agent(agent_id: str):
         agent = session.get(AgentRecord, agent_id)
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
+        
+    # Get telemetry stats
+    from sqlalchemy import func
+    from ..models import AgentSkillBinding, AgentChannelSubscription
+    with Session(db_engine) as session:
+        active_skills = session.exec(
+            select(func.count(col(AgentSkillBinding.id))).where(AgentSkillBinding.agent_id == agent.id)
+        ).one()
+        channels = session.exec(
+            select(func.count(col(AgentChannelSubscription.id))).where(AgentChannelSubscription.agent_id == agent.id)
+        ).one()
+        
     return {
         "agent": {
             "id": agent.id,
@@ -122,6 +128,9 @@ async def get_agent(agent_id: str):
             "description": agent.description,
             "fallback_chain": agent.fallback_chain,
             "system_prompt": agent.system_prompt,
+            "engine_manifest": json.loads(agent.engine_manifest or "{}"),
+            "active_skills": active_skills,
+            "channels": channels,
             "heartbeat_orders": json.loads(agent.heartbeat_orders or "[]"),
             "soul_manifest_override": json.loads(
                 agent.soul_manifest_override or "{}"

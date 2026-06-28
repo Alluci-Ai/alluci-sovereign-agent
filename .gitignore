@@ -143,3 +143,12 @@ test_*.py
 ws_test.*
 polytope_sdk/
 test_signal.txt
+
+.sovereign_vault/
+polytope_data.kuzu
+polytope_data.kuzu.wal
+pytest_live_out.txt
+
+
+github/default_credentials.json
+

@@ -113,6 +113,13 @@ class AgentChannelSubscription(SQLModel, table=True):
     channel_id: str = Field(index=True)
     subscribed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+class AgentSkillBinding(SQLModel, table=True):
+    __tablename__ = "agent_skill_binding"  # type: ignore
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    agent_id: str = Field(index=True)
+    skill_id: str = Field(index=True)
+    assigned_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
 # --- HLSM Memory Models ---
 class HLSMEpisodicEntry(SQLModel, table=True):
     __tablename__ = "hlsm_episodic"  # type: ignore
@@ -325,6 +332,7 @@ class AgentRecord(SQLModel, table=True):
     system_prompt: Optional[str] = Field(default=None)
     # Optional JSON field for heartbeat orders
     heartbeat_orders: Optional[str] = Field(sa_column=Column(JSON), default=None)
+    engine_manifest: Optional[str] = Field(sa_column=Column(JSON), default=None)
     soul_manifest_override: Optional[str] = Field(sa_column=Column(JSON), default=None)
     created_at: Optional[datetime] = Field(default=None)
     updated_at: Optional[datetime] = Field(default=None)

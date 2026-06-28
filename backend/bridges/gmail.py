@@ -4,8 +4,33 @@ import httpx
 import asyncio
 from email.message import EmailMessage
 from typing import Dict, Any, List, Optional
+from html.parser import HTMLParser
 from .base import BridgeAdapter
 from datetime import datetime, timezone
+
+class MLStripper(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.reset()
+        self.strict = False
+        self.convert_charrefs = True
+        self.text = []
+        self.ignore = False
+
+    def handle_starttag(self, tag, attrs):
+        if tag in ["style", "script", "head", "title", "meta"]:
+            self.ignore = True
+
+    def handle_endtag(self, tag):
+        if tag in ["style", "script", "head", "title", "meta"]:
+            self.ignore = False
+
+    def handle_data(self, d):
+        if not self.ignore:
+            self.text.append(d)
+
+    def get_data(self):
+        return ''.join(self.text)
 
 class GmailBridge(BridgeAdapter):
     """
@@ -193,30 +218,53 @@ class GmailBridge(BridgeAdapter):
     async def send_message(self, recipient: str, content: str) -> Dict[str, Any]:
         return await self.send(recipient, content)
 
-    def _extract_body(self, payload: Dict[str, Any]) -> str:
-        """Recursively extract and decode message body from Gmail payload."""
-        if "parts" in payload:
-            bodies = []
-            for part in payload["parts"]:
-                bodies.append(self._extract_body(part))
-            return "".join(bodies)
-        
-        # Only process text/plain or text/html if no parts, or let parts recurrence handle it
-        mime_type = payload.get("mimeType", "")
-        if "text" not in mime_type and payload.get("parts"):
+    def _decode_part_data(self, payload: Dict[str, Any]) -> str:
+        body_data = payload.get("body", {}).get("data", "")
+        if not body_data:
+            return ""
+        try:
+            missing_padding = len(body_data) % 4
+            if missing_padding:
+                body_data += '=' * (4 - missing_padding)
+            return base64.urlsafe_b64decode(body_data).decode("utf-8", errors="replace")
+        except Exception:
             return ""
 
-        body_data = payload.get("body", {}).get("data", "")
-        if body_data:
+    def _extract_body(self, payload: Dict[str, Any]) -> str:
+        """Extract message body preferring text/plain, fallback to text/html with tags stripped."""
+        
+        def find_part(node: Dict[str, Any], target_mime: str) -> Optional[Dict[str, Any]]:
+            if node.get("mimeType") == target_mime:
+                return node
+            for p in node.get("parts", []):
+                res = find_part(p, target_mime)
+                if res: return res
+            return None
+
+        # 1. Prefer text/plain
+        plain = find_part(payload, "text/plain")
+        if plain:
+            return self._decode_part_data(plain)
+
+        # 2. Fallback to text/html and strip tags
+        html_part = find_part(payload, "text/html")
+        if html_part:
+            raw_html = self._decode_part_data(html_part)
             try:
-                # urlsafe_b64decode handles padding for us if we use the right library or just add it
-                missing_padding = len(body_data) % 4
-                if missing_padding:
-                    body_data += '=' * (4 - missing_padding)
-                return base64.urlsafe_b64decode(body_data).decode("utf-8", errors="replace")
+                s = MLStripper()
+                s.feed(raw_html)
+                # Condense multiple newlines from stripped divs/blocks
+                import re
+                cleaned = re.sub(r'\n\s*\n', '\n\n', s.get_data())
+                return cleaned.strip()
             except Exception:
-                return ""
-        return ""
+                return raw_html # Fallback if parsing fails
+
+        # 3. Last resort recursive extraction
+        if "parts" in payload:
+            return "".join([self._extract_body(p) for p in payload["parts"]])
+            
+        return self._decode_part_data(payload)
 
     async def fetch_unread(self, email: str, limit: int = 10) -> List[Dict[str, Any]]:
         account = self.accounts.get(email)

@@ -135,7 +135,7 @@ class Settings(BaseSettings):
     
     # Auth & Cookies
     AUTH_COOKIE_NAME: str = "alluci_daemon_token"
-    AUTH_COOKIE_SECURE: bool = False  # Auto-enforced to True in production
+    AUTH_COOKIE_SECURE: bool = False  # Should be False for local Electron apps
     AUTH_COOKIE_SAMESITE: Literal["lax", "none", "strict"] = "lax"
     
     # WebAuthn
@@ -168,9 +168,9 @@ class Settings(BaseSettings):
     @field_validator("AUTH_COOKIE_SECURE")
     @classmethod
     def enforce_secure_cookies(cls, v: bool, info) -> bool:
-        app_env = info.data.get("APP_ENV", "development")
-        if app_env == "production":
-            return True
+        # For a local-first Electron app running on localhost, enforcing Secure cookies
+        # over HTTP will cause browsers to reject them, breaking CSRF. 
+        # We respect the environment variable value rather than forcing it based on APP_ENV.
         return v
 
 def load_settings() -> Settings:

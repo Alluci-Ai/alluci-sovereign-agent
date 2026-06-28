@@ -202,12 +202,15 @@ async def toggle_channel(channel_id: str, request: Request, csrf_protect: CsrfPr
         if next_state and not getattr(adapter, "is_connected", False) and hasattr(adapter, "connect"):
             # Reconnect all vault accounts if available
             try:
-                accounts = await services.vault.list_connections(normalized)
-                if accounts:
-                    for acc_id in accounts:
-                        creds = await services.vault.retrieve_connection_secret(normalized, acc_id)
-                        if creds:
-                            await adapter.connect(creds)
+                if services.vault:
+                    accounts = await services.vault.list_connections(normalized)
+                    if accounts:
+                        for acc_id in accounts:
+                            creds = await services.vault.retrieve_connection_secret(normalized, acc_id)
+                            if creds:
+                                await adapter.connect(creds)
+                    else:
+                        await adapter.connect({})
                 else:
                     await adapter.connect({})
             except Exception:
@@ -568,6 +571,7 @@ async def oauth_callback(request: Request, bridge_id: str, code: str = Query(Non
                 await services.vault.store_connection_secret("slack", team_id, creds)  # type: ignore
                 if hasattr(adapter, "connect"):
                     await adapter.connect(creds)
+                    await _auto_bind_channel_to_core(normalized_id)
             
             elif normalized_id == "x":
                 sd = await oauth_store.consume_state(state)
@@ -955,6 +959,24 @@ BRIDGE_ID_MAP = {
 def normalize_bridge_id(bridge_id: str) -> str:
     return BRIDGE_ID_MAP.get(bridge_id, bridge_id)
 
+def _auto_bind_channel_to_core(channel_id: str):
+    from sqlmodel import Session, select
+    from ..database import engine as db_engine
+    from ..models import AgentChannelSubscription
+    try:
+        with Session(db_engine) as session:
+            sub = session.exec(
+                select(AgentChannelSubscription).where(
+                    AgentChannelSubscription.agent_id == "core",
+                    AgentChannelSubscription.channel_id == channel_id
+                )
+            ).first()
+            if not sub:
+                session.add(AgentChannelSubscription(agent_id="core", channel_id=channel_id))
+                session.commit()
+    except Exception as e:
+        logger.error(f"[ AUTO_BIND ] Failed to bind {channel_id} to core agent: {e}")
+
 @router.post("/auth/bridge/{bridge_id}/save", dependencies=[Depends(verify_authenticated)])
 async def save_bridge_credentials(
     bridge_id: str,
@@ -976,6 +998,9 @@ async def save_bridge_credentials(
                 await services.vault.store_secret(f"channel_{normalized_id}_enabled", {"enabled": True})
             except Exception as vault_e:
                 logger.warning(f"Failed to set vault flag for {normalized_id}, but creds saved: {vault_e}")
+        
+        _auto_bind_channel_to_core(normalized_id)
+        
         return {"status": "SUCCESS", "message": f"Credentials saved for {bridge_id}"}
     except Exception as e:
         logger.error(f"Failed to save credentials for {bridge_id}: {e}")
@@ -1032,6 +1057,7 @@ async def activate_bridge_route(
                 last_error = getattr(adapter, "last_error", f"Activation failed for {account_id}")
 
         if any_success:
+            _auto_bind_channel_to_core(normalized_id)
             return {"connected": True}
         elif requires_2fa:
             return {"connected": False, "requires_2fa": True, "error": last_error}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../../store/useStore';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-import { ChevronLeft, Save, Layout, Box, Wrench, Network, Clock, Zap, Activity, History, RefreshCw } from 'lucide-react';
+import { ChevronLeft, Save, Layout, Box, Wrench, Network, Clock, Zap, Activity, History, RefreshCw, Cpu } from 'lucide-react';
 import { HeartbeatOrderEditor } from '../heartbeat/HeartbeatOrderEditor';
 import WorkspaceEditor from './WorkspaceEditor';
 import ToolProfileEditor from './ToolProfileEditor';
@@ -9,6 +9,7 @@ import ChannelSubscriptions from './ChannelSubscriptions';
 import BulkSkillActions from '../skills/BulkSkillActions';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import NodeBindingEditor from '../devices/NodeBindingEditor';
+import EngineMatrixEditor from './EngineMatrixEditor';
 
 const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || '';
 
@@ -19,7 +20,7 @@ interface AgentDetailProps {
 
 export const AgentDetailTabs: React.FC<AgentDetailProps> = ({ agentId, onBack }) => {
     const { accessToken } = useStore();
-    const [activeTab, setActiveTab] = useState<'overview' | 'workspace' | 'tools' | 'channels' | 'heartbeat' | 'skills'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'workspace' | 'tools' | 'channels' | 'heartbeat' | 'skills' | 'engine'>('overview');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [agent, setAgent] = useState<any>(null);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -110,6 +111,7 @@ export const AgentDetailTabs: React.FC<AgentDetailProps> = ({ agentId, onBack })
                 <div className="flex bg-glass-1 border border-glass-edge p-1 rounded-xl shadow-lg shadow-black/20 overflow-x-auto">
                     {[
                         { id: 'overview', icon: Layout, label: 'Overview' },
+                        { id: 'engine', icon: Cpu, label: 'Engine Matrix' },
                         { id: 'workspace', icon: Box, label: 'Workspace' },
                         { id: 'tools', icon: Wrench, label: 'Tools' },
                         { id: 'channels', icon: Network, label: 'Channels' },
@@ -142,6 +144,15 @@ export const AgentDetailTabs: React.FC<AgentDetailProps> = ({ agentId, onBack })
                                     className="glass-input text-sm w-full font-medium"
                                     value={agent.name || ''}
                                     onChange={e => setAgent({ ...agent, name: e.target.value })}
+                                />
+                            </div>
+
+                            <div className="flex flex-col gap-1">
+                                <label className="text-[10px] text-text-tertiary">Designation Description</label>
+                                <input
+                                    className="glass-input text-xs w-full"
+                                    value={agent.description || ''}
+                                    onChange={e => setAgent({ ...agent, description: e.target.value })}
                                 />
                             </div>
 
@@ -191,6 +202,15 @@ export const AgentDetailTabs: React.FC<AgentDetailProps> = ({ agentId, onBack })
 
                 {/* ── WORKSPACE TAB ── */}
                 {activeTab === 'workspace' && <WorkspaceEditor agentId={agentId} />}
+
+                {/* ── ENGINE MATRIX TAB ── */}
+                {activeTab === 'engine' && (
+                    <EngineMatrixEditor 
+                        agentId={agentId} 
+                        engineManifest={agent.engine_manifest} 
+                        onSave={(manifest) => handleSaveAgent({ engine_manifest: manifest })}
+                    />
+                )}
 
                 {/* ── TOOLS TAB ── */}
                 {activeTab === 'tools' && <ToolProfileEditor agentId={agentId} />}

@@ -284,6 +284,25 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
             if not body:
                 return
 
+            import re
+            def clean_inbound_text(text: str) -> str:
+                # Remove bracketed/angled URLs
+                text = re.sub(r'[\[\<]https?://[^\]\>]+[\]\>]', '', text)
+                # Remove extremely long raw URLs (tracking links)
+                text = re.sub(r'https?://[^\s]{50,}', '[URL removed]', text)
+                # Strip common notification boilerplate
+                for bp in ["You are receiving this because", "Manage your notifications", "unsubscribe", "View results:", "Sign In"]:
+                    text = re.compile(re.escape(bp) + r'.*?(\n|$)', re.IGNORECASE).sub('', text)
+                # Condense whitespace
+                text = re.sub(r' {2,}', ' ', text)
+                text = re.sub(r'\n\s*\n', '\n', text)
+                return text.strip()
+
+            body = clean_inbound_text(body)
+
+            if not body:
+                return
+
             # Encode inbound message to H-LSM working memory for session context
             if self.hlsm and body:
                 try:

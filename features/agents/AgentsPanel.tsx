@@ -92,18 +92,20 @@ export const AgentsPanel: React.FC = () => {
                             <thead>
                                 <tr>
                                     <th>Identity</th>
+                                    <th>Name</th>
+                                    <th>Description</th>
                                     <th>Engine Core</th>
                                     <th>Link Status</th>
                                     <th>Active Skills</th>
                                     <th>Channels / Bridges</th>
-                                    <th>Action</th>
+                                    <th>Settings</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {loading && agents.length === 0 ? (
-                                    <tr><td colSpan={6} className="text-center py-8 opacity-50 text-[10px] font-mono tracking-widest">BOOTING_AGENT_ARRAY...</td></tr>
+                                    <tr><td colSpan={8} className="text-center py-8 opacity-50 text-[10px] font-mono tracking-widest">BOOTING_AGENT_ARRAY...</td></tr>
                                 ) : agents.length === 0 ? (
-                                    <tr><td colSpan={6} className="text-center py-8 opacity-50">No independent agents initialized.</td></tr>
+                                    <tr><td colSpan={8} className="text-center py-8 opacity-50">No independent agents initialized.</td></tr>
                                 ) : (
                                     agents.map(agent => (
                                         <tr
@@ -111,14 +113,19 @@ export const AgentsPanel: React.FC = () => {
                                             className="cursor-pointer hover:bg-glass-hover transition-colors"
                                             onClick={() => setSelectedAgentId(agent.id)}
                                         >
-                                            <td className="font-medium text-text-primary flex items-center gap-2">
-                                                {agent.name}
-                                                {/* Client side dirty indicator mock wrapper injected natively */}
+                                            <td className="font-mono text-[11px] text-accent opacity-80 flex items-center gap-2">
+                                                {agent.id}
                                                 <AgentDirtyIndicator agentId={agent.id} />
+                                            </td>
+                                            <td className="font-medium text-text-primary">
+                                                {agent.name}
+                                            </td>
+                                            <td className="text-[12px] opacity-70 truncate max-w-[150px]">
+                                                {agent.description || "No description"}
                                             </td>
                                             <td className="font-mono text-[10px] opacity-70">{agent.model}</td>
                                             <td>
-                                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-mono tracking-wider ${agent.status === 'READY' ? 'bg-status-good/10 text-status-good border border-status-good/20' : 'bg-glass-edge text-text-secondary'}`}>
+                                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-mono tracking-wider ${agent.status === 'READY' || agent.status === 'ACTIVE' ? 'bg-status-good/10 text-status-good border border-status-good/20' : 'bg-glass-edge text-text-secondary'}`}>
                                                     {agent.status}
                                                 </span>
                                             </td>

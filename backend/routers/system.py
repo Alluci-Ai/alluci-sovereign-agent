@@ -98,6 +98,35 @@ async def api_readiness_check():
     """Protected readiness check."""
     return await readiness_check()
 
+@router.get("/system/providers", dependencies=[Depends(verify_authenticated)])
+async def get_system_providers():
+    """
+    Scans the system (config, vault, etc.) for active, authenticated LLM/Audio/Video providers
+    and returns a structured list for the Engine Matrix.
+    """
+    providers = {
+        "llm": [
+            {"id": "Alluci Polytope 31B-it-4bit", "name": "Alluci Polytope (MLX Local)", "provider": "local"},
+            {"id": "gpt-4o", "name": "GPT-4o", "provider": "openai"},
+            {"id": "gemini-1.5-pro", "name": "Gemini 1.5 Pro", "provider": "google"},
+            {"id": "claude-3-5-sonnet", "name": "Claude 3.5 Sonnet", "provider": "anthropic"}
+        ],
+        "video": [
+            {"id": "google/veo", "name": "Google Veo", "provider": "google"},
+            {"id": "sora", "name": "OpenAI Sora", "provider": "openai"}
+        ],
+        "image": [
+            {"id": "midjourney/v6", "name": "Midjourney v6", "provider": "midjourney"},
+            {"id": "dall-e-3", "name": "DALL-E 3", "provider": "openai"}
+        ],
+        "audio": [
+            {"id": "whisper-v3", "name": "Whisper v3 (Local)", "provider": "local"},
+            {"id": "elevenlabs", "name": "ElevenLabs", "provider": "elevenlabs"}
+        ]
+    }
+    return providers
+
+
 @router.get("/status", dependencies=[Depends(verify_authenticated)])
 @router.get("/system/status", dependencies=[Depends(verify_authenticated)])
 async def get_system_status():

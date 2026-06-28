@@ -64,11 +64,13 @@ export const MemoryPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     const handleDelete = async (id: string) => {
         try {
             const res = await sovereignService.deleteMemory(id);
+            alert("Delete response: " + JSON.stringify(res));
             if (res.status === "SUCCESS") {
                 setMemories(prev => prev.filter(m => m.id !== id));
             }
-        } catch (e) {
+        } catch (e: any) {
             console.error("Delete failed", e);
+            alert("Delete failed: " + (e.message || e.toString()));
         }
     };
 

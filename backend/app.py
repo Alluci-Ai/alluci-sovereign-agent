@@ -105,6 +105,74 @@ async def lifespan(app: FastAPI):
         import asyncio
         asyncio.create_task(services.router.pre_load_model())
 
+    # --- Agent Constellation Bootstrapping ---
+    from sqlmodel import Session, select
+    from backend.database import engine as db_engine
+    from backend.models import AgentRecord, AgentSkillBinding, AgentChannelSubscription
+    import json
+    
+    try:
+        with Session(db_engine) as session:
+            core_agent = session.exec(select(AgentRecord).where(AgentRecord.id == "core")).first()
+            if not core_agent:
+                core_agent = AgentRecord(
+                    id="core",
+                    name="Alluci",
+                    description="Executive Agent",
+                    model="Alluci Polytope 31B-it-4bit",
+                    status="ACTIVE",
+                    engine_manifest=json.dumps({
+                        "llm": ["gpt-4o", "gemini-1.5-pro", "claude-3-5-sonnet"],
+                        "video": ["google/veo"],
+                        "image": ["midjourney/v6"],
+                        "audio": []
+                    })
+                )
+                session.add(core_agent)
+                session.commit()
+                session.refresh(core_agent)
+                logger.info("[ BOOTSTRAP ] Core Executive Agent injected into database.")
+                
+            # The Self-Healing Sync
+            # Sync Skills
+            if services.skill_manager:
+                all_skills = await services.skill_manager.list_skills()
+                # all_skills is likely a dict or list, let's assume it's dict of ID -> config, or list of configs
+                # actually list_skills() returns list of dicts. We need the ID.
+                # Let's extract skill IDs safely.
+                skill_ids = []
+                for s in all_skills:
+                    if isinstance(s, dict) and "id" in s:
+                        skill_ids.append(s["id"])
+                    elif isinstance(s, str):
+                        skill_ids.append(s)
+                
+                for skill_id in skill_ids:
+                    binding = session.exec(
+                        select(AgentSkillBinding).where(
+                            AgentSkillBinding.agent_id == "core",
+                            AgentSkillBinding.skill_id == skill_id
+                        )
+                    ).first()
+                    if not binding:
+                        session.add(AgentSkillBinding(agent_id="core", skill_id=skill_id))
+                session.commit()
+                
+            # Sync Channels
+            if services.channel_registry:
+                for channel_id in services.channel_registry.keys():
+                    sub = session.exec(
+                        select(AgentChannelSubscription).where(
+                            AgentChannelSubscription.agent_id == "core",
+                            AgentChannelSubscription.channel_id == channel_id
+                        )
+                    ).first()
+                    if not sub:
+                        session.add(AgentChannelSubscription(agent_id="core", channel_id=channel_id))
+                session.commit()
+    except Exception as e:
+        logger.error(f"[ BOOTSTRAP ] Failed to inject core agent: {e}")
+
     yield
     
     # --- Graceful Shutdown ---
