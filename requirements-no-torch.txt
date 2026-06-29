@@ -76,7 +76,7 @@ pywin32>=306; sys_platform == "win32"   # Windows Service support (windows_servi
 
 # ─── Browser Automation (screen_capture adapter) ──────────────────────────────
 playwright>=1.58.0           # Updated to resolve greenlet conflicts
-duckduckgo-search>=6.0.0
+duckduckgo-search>=8.1.1
 mss==9.0.1
 pypdf==4.3.1
 python-docx==1.1.2
