@@ -54,7 +54,7 @@ aiosmtplib==3.0.1            # Async SMTP for email bridge
 pyicloud==2.0.1              # iCloud bridge (Updated for Python 3.14 compatibility)
 pycryptodome==3.20.0          # WeCom AES decryption
 pyotp==2.9.0                  # iWatch pairing
-slack-sdk==3.41.0
+slack-sdk==3.42.0
 slack_bolt==1.28.0
 
 # ─── Vector Memory ────────────────────────────────────────────────────────────
