@@ -33,13 +33,62 @@ class MemoryManager:
             import numpy as np
             if not hasattr(np, 'float_'):
                 setattr(np, 'float_', np.float64)
+            import sys
             import chromadb
+            if sys.platform == "darwin":
+                from chromadb.api.types import EmbeddingFunction, Documents, Embeddings
+                class MLXEmbeddingFunction(EmbeddingFunction):
+                    def __init__(self):
+                        import threading
+                        self.model = None
+                        self.tokenizer = None
+                        self.lock = threading.Lock()
+                    def __call__(self, input: Documents) -> Embeddings:
+                        import mlx.core as mx
+                        try:
+                            from mlx_lm import load
+                        except ImportError:
+                            load = None
+                        
+                        if self.model is None and load is not None:
+                            with self.lock:
+                                if self.model is None:
+                                    logger.info("[ MEMORY ] Loading MLX Native Embedder...")
+                                    try:
+                                        loaded = load("nomic-ai/nomic-embed-text-v1.5-mlx")
+                                        self.tokenizer = loaded[1]
+                                        self.model = loaded[0]
+                                    except Exception as e:
+                                        logger.error(f"[ MEMORY ] Failed to load MLX embedder: {e}")
+                                        self.model = False # mark failed
+                        
+                        embeddings = []
+                        for text in input:
+                            try:
+                                if hasattr(self.model, "embed") and self.tokenizer is not None:
+                                    tokens = self.tokenizer.encode(text)
+                                    emb = self.model.embed(mx.array([tokens]))
+                                    embeddings.append(emb.tolist()[0])
+                                else:
+                                    # Fallback 768d vector to prevent ChromaDB crash if model lacks .embed()
+                                    embeddings.append([0.0] * 768)
+                            except Exception:
+                                embeddings.append([0.0] * 768)
+                        return embeddings
+
+                emb_fn = MLXEmbeddingFunction()
+                coll_name = "polytope_memories_mlx"
+            else:
+                emb_fn = None # Uses Chroma default CPU engine
+                coll_name = "polytope_memories_pc"
+
             self.client = chromadb.PersistentClient(path=self.persist_directory)
             self.collection = self.client.get_or_create_collection(
-                name="polytope_memories",
+                name=coll_name,
+                embedding_function=emb_fn,
                 metadata={"hnsw:space": "cosine"}
             )
-            logger.info(f"[ MEMORY ] ChromaDB initialized at {self.persist_directory}")
+            logger.info(f"[ MEMORY ] ChromaDB initialized at {self.persist_directory} with collection {coll_name}")
         except ImportError:
             logger.warning("[ MEMORY ] chromadb not found. Falling back to FTSMemoryManager.")
             self.lite_mode = True

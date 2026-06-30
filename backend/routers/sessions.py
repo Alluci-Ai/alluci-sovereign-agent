@@ -63,7 +63,8 @@ async def get_session_config(session_key: str):
             return {"session_key": session_key, "overrides": {}}
         return config
 
-# ─── Agent Constellation CRUD ───────────────@router.get("/agents", dependencies=[Depends(verify_authenticated)])
+# ─── Agent Constellation CRUD ───────────────
+@router.get("/agents", dependencies=[Depends(verify_authenticated)])
 async def list_agents():
     """Returns all AgentRecord entries with live DB telemetry."""
     from sqlalchemy import func

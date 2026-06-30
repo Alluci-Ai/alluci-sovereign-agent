@@ -7,11 +7,20 @@ from typing import Literal, Dict, Any, List, Optional, AsyncGenerator
 from ..logging_config import get_logger
 from ..metrics import LLM_REQUESTS_TOTAL
 from .executive import ExecutiveRouter
-from .mlx_engine import engine as mlx_engine
+import platform
 from .cache import prompt_cache
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from ..security.proxy_stub import NoOpSecureProxy
 logger = get_logger("ModelRouter")
+
+def get_cognitive_engine():
+    if platform.system() == 'Darwin' and platform.machine() == 'arm64':
+        from .mlx_engine import engine as local_engine
+    else:
+        from .llama_engine import engine as local_engine
+    return local_engine
+
+cognitive_engine = get_cognitive_engine()
 
 # Conditional imports for failover providers
 try:
@@ -231,15 +240,15 @@ class ModelRouter(ExecutiveRouter):
 
 
     async def _lce_request(self, prompt: str, system_instruction: str = "", agent_id: str = "executive") -> str:
-        """Local Cognitive Engine via Native MLX Inference."""
-        await mlx_engine.apply_context_moat(agent_id)
-        return await mlx_engine.generate(prompt, system_instruction=system_instruction)
+        """Local Cognitive Engine via OS-Agnostic Abstraction."""
+        await cognitive_engine.apply_lora_adapter(agent_id)
+        return await cognitive_engine.generate(prompt, system_instruction=system_instruction)
 
     async def pre_load_model(self) -> None:
         """Warm up local cognitive engine model cache."""
         if self.lce_enabled:
             try:
-                await mlx_engine.ensure_loaded()
+                await cognitive_engine.ensure_loaded()
             except Exception as e:
                 self.logger.warning(f"Background model preloading failed: {e}")
 
@@ -903,8 +912,8 @@ class ModelRouter(ExecutiveRouter):
         if inference_mode in ["HYBRID", "LOCAL"] and self.lce_enabled:
             try:
                 self.logger.info("[STREAM] Routing to local LCE native stream...")
-                await mlx_engine.apply_context_moat(agent_id)
-                async for chunk in mlx_engine.generate_stream(prompt, system_instruction=system_instruction):
+                await cognitive_engine.apply_lora_adapter(agent_id)
+                async for chunk in cognitive_engine.generate_stream(prompt, system_instruction=system_instruction):
                     yield chunk
                 return
             except Exception as e:

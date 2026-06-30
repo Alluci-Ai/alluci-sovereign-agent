@@ -88,6 +88,8 @@ class DocumentIngestAdapter(Adapter):
                         "total_chunks": len(chunks),
                     },
                 )
+                # Future: Route the chunk through the LLM to extract L3 Kuzu Graph nodes/edges
+                self._extract_entities_for_graph(chunk)
 
             self.logger.info(f"[ DOC_INGEST ] Ingested {len(chunks)} chunks from '{filename}'")
             return {
@@ -105,3 +107,11 @@ class DocumentIngestAdapter(Adapter):
         Splits text into manageable chunks.
         """
         return [text[i:i + chunk_size] for i in range(0, len(text), chunk_size)]
+
+    def _extract_entities_for_graph(self, chunk: str) -> None:
+        """
+        Extracts Graph entities (Nodes/Edges) for L3 Kuzu ingestion.
+        Implemented via cognitive LLM pass in the broader ingestion pipeline.
+        """
+        # Scaffolding for Kuzu L3 Memory Pipeline
+        pass

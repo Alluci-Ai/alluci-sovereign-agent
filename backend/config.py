@@ -47,10 +47,11 @@ class BridgeSettings(BaseModel):
 
 class InferenceSettings(BaseModel):
     LOCAL_LCE_URL: str = "http://localhost:8000"
-    LOCAL_MODEL_STRONG: str = "gemma-4-31b-it-4bit"
-    LOCAL_MODEL_MEDIUM: str = "gemma-4-26B-A4B-it-OptiQ-4bit"
-    LOCAL_MODEL_LIGHT: str = "gemma-4-12B-it-OptiQ-4bit"
-    LOCAL_MODEL_LITE: str = "gemma-4-e2b-it-4bit"
+    LOCAL_MODEL_MAX: str = "alluci-polytope-gemma-4-31b-bf16"
+    LOCAL_MODEL_STRONG: str = "alluci-polytope-gemma-4-31b-8bit"
+    LOCAL_MODEL_MEDIUM: str = "alluci-polytope-gemma-4-26b-a4b-4bit"
+    LOCAL_MODEL_LIGHT: str = "alluci-polytope-gemma-4-12B-it-4bit"
+    LOCAL_MODEL_LITE: str = "alluci-polytope-gemma-4-e2b-it-4bit"
     SOVEREIGN_MODE: bool = False
     GEMINI_API_KEY: Optional[str] = None
     OPENAI_API_KEY: Optional[str] = None
@@ -93,9 +94,11 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: Optional[str] = None
     ANTHROPIC_API_KEY: Optional[str] = None
     LOCAL_LCE_URL: str = "http://localhost:8000"
-    LOCAL_MODEL_STRONG: str = "gemma-4-31b-it-4bit"
-    LOCAL_MODEL_MEDIUM: str = "gemma-4-26B-A4B-it-OptiQ-4bit"
-    LOCAL_MODEL_LIGHT: str = "gemma-4-12B-it-OptiQ-4bit"
+    LOCAL_MODEL_MAX: str = "alluci-polytope-gemma-4-31b-bf16"
+    LOCAL_MODEL_STRONG: str = "alluci-polytope-gemma-4-31b-8bit"
+    LOCAL_MODEL_MEDIUM: str = "alluci-polytope-gemma-4-26b-a4b-4bit"
+    LOCAL_MODEL_LIGHT: str = "alluci-polytope-gemma-4-12B-it-4bit"
+    LOCAL_MODEL_LITE: str = "alluci-polytope-gemma-4-e2b-it-4bit"
     
     # Storage
     DATABASE_URL: str = "sqlite:///db.sqlite3"

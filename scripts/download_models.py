@@ -44,7 +44,7 @@ def download_models():
     
     for model_name in models_to_download:
         # The model_name from profiler.py is the full repo_id (e.g. 'Alluci/alluci-polytope-gemma-4-31b-bf16')
-        repo_id = model_name
+        repo_id = model_name if "/" in model_name else f"Alluci/{model_name}"
         clean_name = model_name.split("/")[-1]
         local_path = os.path.join(cache_dir, clean_name)
         

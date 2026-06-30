@@ -341,8 +341,8 @@ class TestModelRouterStream:
             yield "Token A "
             yield "Token B"
 
-        with patch("backend.inference.router.mlx_engine") as mock_mlx:
-            mock_mlx.apply_context_moat = AsyncMock()
+        with patch("backend.inference.router.cognitive_engine") as mock_mlx:
+            mock_mlx.apply_lora_adapter = AsyncMock()
             mock_mlx.generate_stream = mock_generate_stream
             
             chunks = []
@@ -350,7 +350,7 @@ class TestModelRouterStream:
                 chunks.append(chunk)
 
             assert chunks == ["Token A ", "Token B"]
-            mock_mlx.apply_context_moat.assert_called_once_with("executive")
+            mock_mlx.apply_lora_adapter.assert_called_once_with("executive")
 
     @pytest.mark.asyncio
     async def test_stream_fallback_when_lce_disabled(self):

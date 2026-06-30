@@ -15,6 +15,7 @@ interface HLSMStatsData {
     L0_working: TierStats;
     L1_episodic: TierStats;
     L2_semantic: TierStats;
+    L3_knowledge_graph?: TierStats;
   };
   consolidation_interval_minutes: number;
 }
@@ -49,7 +50,7 @@ export const HLSMStats: React.FC = () => {
         <span className="text-emerald-400 underline decoration-emerald-900/50">{stats.hlsm_version}</span>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
         {/* L0 Working */}
         <div className="p-3 rounded-lg bg-zinc-900/50 border border-zinc-800">
           <div className="text-zinc-500 mb-1">L0 WORKING</div>
@@ -68,7 +69,14 @@ export const HLSMStats: React.FC = () => {
         <div className="p-3 rounded-lg bg-emerald-950/10 border border-emerald-900/30">
           <div className="text-emerald-500/70 mb-1 font-bold">L2 SEMANTIC</div>
           <div className="text-lg text-emerald-400">{stats.tiers.L2_semantic.entries === -1 ? 'OFF' : stats.tiers.L2_semantic.entries}</div>
-          <div className="text-[10px] text-emerald-900/70">{stats.tiers.L2_semantic.backend}</div>
+          <div className="text-[10px] text-emerald-900/70">EMBED: {stats.tiers.L2_semantic.backend.toUpperCase()}</div>
+        </div>
+
+        {/* L3 Knowledge Graph */}
+        <div className="p-3 rounded-lg bg-indigo-950/10 border border-indigo-900/30">
+          <div className="text-indigo-500/70 mb-1 font-bold">L3 GRAPH</div>
+          <div className="text-lg text-indigo-400">{stats.tiers.L3_knowledge_graph ? stats.tiers.L3_knowledge_graph.entries : 0}</div>
+          <div className="text-[10px] text-indigo-900/70">KUZU ENGINE</div>
         </div>
       </div>
 

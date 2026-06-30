@@ -46,6 +46,23 @@ OLLAMA_URL=http://localhost:11434
 "@ | Out-File -Encoding UTF8 .env
 }
 
-# 6. Service Pre-check
+# 6. Compile Security Kernels (C++)
+Write-Host "[ INFO ]: Compiling Alluci C++ Security Kernels..."
+if (Test-Path "backend\core") {
+    mkdir -Force build
+    cd build
+    cmake .. -G "Visual Studio 17 2022" -A x64
+    cmake --build . --config Release
+    cd ..
+    Write-Host "[ OK ]: C++ Kernels compiled."
+} else {
+    Write-Warning "[ WARN ]: C++ core directory not found. Pure Python mode will be used."
+}
+
+# 7. Download Default Models
+Write-Host "[ INFO ]: Scanning hardware and downloading default models..."
+python scripts\download_models.py
+
+# 8. Service Pre-check
 Write-Host "[ INFO ]: Setup Complete."
 Write-Host "[ ACTION ]: You can now run the agent via 'python backend/app.py' or through the UI Platform Dashboard."
