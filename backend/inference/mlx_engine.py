@@ -7,11 +7,12 @@ from typing import AsyncGenerator, Optional, Dict, Any
 # Removed C++ PyBind11 module import; will use mlx_lm for inference.
 
 
+from .cognitive_engine import CognitiveEngine
 from backend.inference.profiler import HardwareProfiler
 
 logger = logging.getLogger("MLXEngine")
 
-class MLXEngine:
+class MLXEngine(CognitiveEngine):
     """
     [ PPN-021 ] Native MLX Inference Singleton.
     Wraps the highly optimized C++ AlluciCognitiveEngine via PyBind11.
@@ -20,6 +21,7 @@ class MLXEngine:
     model: Optional[Any] = None
     tokenizer: Optional[Any] = None
     current_lora: Optional[str] = None
+    base_weights_backup: Optional[Dict[str, Any]] = None
     is_loading: bool = False
     hardware_profile: Optional[Dict[str, Any]] = None
     _instance = None
@@ -32,6 +34,7 @@ class MLXEngine:
             cls._instance.model = None
             cls._instance.tokenizer = None
             cls._instance.current_lora = None
+            cls._instance.base_weights_backup = None
             cls._instance.is_loading = False
             cls._instance.hardware_profile = HardwareProfiler.get_system_profile()
             cls._instance._lock = asyncio.Lock()
@@ -48,19 +51,11 @@ class MLXEngine:
                 raise RuntimeError("Hardware profile not initialized.")
 
             # ── Alluci Polytope Local Model Routing MOAT ──
-            tier = self.hardware_profile.get("tier", "TIER_4_EDGE")
-            local_mapping = {
-                "TIER_1_MAX": "mirror_cache/alluci-gemma-4-31b-it-4bit",
-                "TIER_2_PRO": "mirror_cache/alluci-gemma-4-26b-a4b-it-4bit",
-                "TIER_3_BASE": "mirror_cache/alluci-gemma-4-12B-it-4bit",
-                "TIER_4_EDGE": "mirror_cache/alluci-gemma-4-e2b-it-4bit"
-            }
-
             target_model_path = self.hardware_profile["recommended_model"]
 
             # Resolve absolute path to the local model folder in the project workspace
             base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            local_path = os.path.join(base_dir, local_mapping.get(tier, ""))
+            local_path = os.path.join(base_dir, "mirror_cache", target_model_path.split("/")[-1])
 
             if local_path and os.path.exists(local_path):
                 target_model_path = local_path
@@ -73,6 +68,7 @@ class MLXEngine:
             # mlx_vlm handles the complex Vision/Text alignment schemas automatically
             from mlx_vlm import load
             self.model, self.tokenizer = load(target_model_path, trust_remote_code=True)
+            self.is_vlm = True
 
             logger.info("MLXEngine: Model and tokenizer loaded successfully.")
         except Exception as e:
@@ -83,10 +79,10 @@ class MLXEngine:
 
     async def ensure_loaded(self):
         """Asynchronously ensures the model is loaded."""
-        if self.model is None or self.tokenizer is None:
-            self.load_model_sync()
         while self.is_loading:
             await asyncio.sleep(0.1)
+        if self.model is None or self.tokenizer is None:
+            self.load_model_sync()
 
     def _apply_ace_logic(self, prompt: str, system_instruction: str, temperature: float) -> tuple[str, str, float]:
         """Injects ACE logic into the system instructions and adjusts temperature."""
@@ -110,7 +106,7 @@ class MLXEngine:
                 
         return prompt, system_instruction, temperature
 
-    async def generate(self, prompt: str, system_instruction: str = "", max_tokens: int = 1024, temperature: float = 0.7) -> str:
+    async def generate(self, prompt: str, system_instruction: str = "", max_tokens: int = 1024, temperature: float = 0.7, agent_id: Optional[str] = None) -> str:
         """Generates a complete response via the native MLX model."""
         await self.ensure_loaded()
         model = self.model
@@ -131,18 +127,23 @@ class MLXEngine:
             messages.append({"role": "system", "content": system_instruction})
         messages.append({"role": "user", "content": prompt})
         formatted_prompt = tokenizer.apply_chat_template(messages, add_generation_prompt=True)
-        from mlx_vlm import generate
-        def _sync_gen():
-            # MTP acceleration enabled natively via generate kwargs in MLX-VLM
+        if getattr(self, "is_vlm", True):
+            from mlx_vlm import generate
+        else:
+            from mlx_lm import generate
+            
+        def _sync_gen() -> str:
+            # MTP acceleration enabled natively via generate kwargs
             res = generate(model, tokenizer, prompt=formatted_prompt, max_tokens=max_tokens, temperature=temperature)
-            return getattr(res, "text", res) if not isinstance(res, str) else res
+            out = getattr(res, "text", res) if not isinstance(res, str) else res
+            return str(out) if out is not None else ""
             
         if self._lock is None:
             self._lock = asyncio.Lock()
             # Run synchronously on the main thread to avoid MLX Stream GPU thread mismatch
         return _sync_gen()
 
-    async def generate_stream(self, prompt: str, system_instruction: str = "", max_tokens: int = 1024, temperature: float = 0.7) -> AsyncGenerator[str, None]:
+    async def generate_stream(self, prompt: str, system_instruction: str = "", max_tokens: int = 1024, temperature: float = 0.7, agent_id: Optional[str] = None) -> AsyncGenerator[str, None]:
         """Streams response token-by-token natively using mlx_lm.stream_generate."""
         await self.ensure_loaded()
         model = self.model
@@ -164,11 +165,10 @@ class MLXEngine:
         messages.append({"role": "user", "content": prompt})
         formatted_prompt = tokenizer.apply_chat_template(messages, add_generation_prompt=True)
         
-        from mlx_vlm import generate
-        # mlx_vlm doesn't currently expose stream_generate directly at the top level
-        # We wrap standard generate to behave asynchronously for streams, 
-        # but in production, we use the mlx_vlm.utils generator.
-        from mlx_vlm import stream_generate
+        if getattr(self, "is_vlm", True):
+            from mlx_vlm import stream_generate
+        else:
+            from mlx_lm import stream_generate
 
         q: asyncio.Queue = asyncio.Queue()
         loop = asyncio.get_running_loop()
@@ -201,17 +201,67 @@ class MLXEngine:
                 if gen_task:
                     await gen_task
 
-    async def apply_context_moat(self, agent_id: str):
-        """Loads LoRA adapters if present. Currently a no-op for pure MLX models."""
-        await self.ensure_loaded()
-        # Placeholder: MLX models can load adapters via tokenizer or model method if supported.
-        # For now, simply log if an adapter path exists.
+    async def apply_lora_adapter(self, agent_id: str):
+        """
+        Dynamically applies the True LoRA (PEFT) adapter to the active model.
+        Updates the model graph natively via MLX in-memory hot-swapping.
+        """
         import re
         import os
+        import mlx.core as mx
+        from mlx.utils import tree_unflatten, tree_flatten
+        
         safe_agent_id = re.sub(r'[^a-zA-Z0-9_-]', '_', agent_id)
         lora_path = os.path.abspath(os.path.join("models", "loras", f"agent_{safe_agent_id}_lora.safetensors"))
-        if os.path.exists(lora_path) and self.current_lora != lora_path:
-            logger.info(f"LoRA adapter found at {lora_path}, but loading not implemented for MLX. Skipping.")
-            self.current_lora = lora_path
+        
+        if self._lock is None:
+            self._lock = asyncio.Lock()
+            
+        async with self._lock:
+            await self.ensure_loaded()
+            
+            if self.current_lora == lora_path:
+                return # Already loaded
+                
+            if not os.path.exists(lora_path):
+                logger.debug(f"[MLXEngine] No LoRA adapter found for {agent_id}. Using base model.")
+                if self.current_lora is not None:
+                    # Unload current LoRA and reset to base using in-memory backup
+                    if self.base_weights_backup is not None and self.model is not None:
+                        self.model.update(tree_unflatten(list(self.base_weights_backup.items())))
+                    self.base_weights_backup = None
+                    self.current_lora = None
+                return
+
+            logger.info(f"[MLXEngine] Applying LoRA adapter: {lora_path}")
+            try:
+                # Revert to base model first if we have another LoRA loaded
+                if self.current_lora is not None and self.base_weights_backup is not None and self.model is not None:
+                    # Safely load backup weights without tree_unflatten which can cause PyBind11 casting errors
+                    backup_items = list(self.base_weights_backup.items()) if isinstance(self.base_weights_backup, dict) else self.base_weights_backup
+                    self.model.load_weights(backup_items, strict=False)
+                    self.base_weights_backup = None
+                    self.current_lora = None
+
+                # Load adapters natively into MLX base model
+                lora_weights = mx.load(lora_path)
+                
+                # Backup original weights
+                if self.model is not None:
+                    flat_model = dict(tree_flatten(self.model.parameters()))
+                    
+                    # Ensure lora_weights is a dict to safely iterate over keys
+                    if not isinstance(lora_weights, dict):
+                        raise TypeError(f"Expected lora_weights to be a dict, got {type(lora_weights)}")
+                    self.base_weights_backup = {k: flat_model[k] for k in lora_weights.keys() if k in flat_model}
+
+                    # Use load_weights instead of update(tree_unflatten(...)) to bypass Pybind11 items() recursion errors
+                    self.model.load_weights(list(lora_weights.items()), strict=False)
+                    self.current_lora = lora_path
+                    logger.info(f"[MLXEngine] LoRA adapter successfully injected into unified graph.")
+                else:
+                    logger.warning("[MLXEngine] Base model is not loaded, skipping LoRA application.")
+            except Exception as e:
+                logger.error(f"[MLXEngine] Failed to apply LoRA adapter: {e}")
 
 engine = MLXEngine()
