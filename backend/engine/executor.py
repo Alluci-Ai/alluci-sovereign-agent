@@ -10,7 +10,7 @@ from .errors import AdapterNotFoundError
 from ..logging_config import get_logger
 from opentelemetry import trace
 from .supervisor import SupervisorAgent
-from ..ace.watch_auth import AppleWatchAuth
+from ..ace.watch_auth import BioTelemetryAuth
 from ..config import Settings
 
 logger = get_logger("Engine.Executor")
@@ -35,7 +35,7 @@ class Executor:
         
         # [ PPN-017 ] Sovereign Kill Switch Daemon
         settings = Settings()
-        self.watch_auth = AppleWatchAuth(require_telemetry=settings.REQUIRE_WATCH_TELEMETRY)
+        self.watch_auth = BioTelemetryAuth(require_telemetry=settings.REQUIRE_WATCH_TELEMETRY)
         self.ace = ace
 
     @property

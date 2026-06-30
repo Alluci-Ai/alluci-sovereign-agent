@@ -33,6 +33,22 @@ class BioTelemetryAuth:
         self.locked = False
         self.require_telemetry = require_telemetry
 
+    def update_sensors(self, is_on_wrist: bool = False, heart_rate: Optional[float] = None, 
+                       blood_oxygen: Optional[float] = None, stress_level: Optional[float] = None,
+                       source_device: str = "Apple Watch"):
+        """Direct update method for native Apple Watch / hardware telemetry."""
+        import time
+        self.sensor_data.is_on_wrist = is_on_wrist
+        if heart_rate is not None:
+            self.sensor_data.heart_rate = heart_rate
+        if blood_oxygen is not None:
+            self.sensor_data.blood_oxygen = blood_oxygen
+        if stress_level is not None:
+            self.sensor_data.stress_level = stress_level
+        self.sensor_data.source_device = source_device
+        self.sensor_data.last_update_ms = int(time.time() * 1000)
+        logger.debug(f"BioTelemetry updated natively from {self.sensor_data.source_device}")
+
     def handle_webhook_payload(self, payload: Dict[str, Any]):
         """Stream hook for live multi-platform biometric webhooks."""
         # Generic payload parsing mapping standard telemetry keys
