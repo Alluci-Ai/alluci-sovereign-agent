@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../../store/useStore';
-import { Save, Server, Shield, Cpu, Image, Video, Mic } from 'lucide-react';
+import { Save, Server, Shield, Cpu, Image, Video, Mic, Music } from 'lucide-react';
+
 
 const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || '';
 
@@ -60,7 +61,8 @@ export const EngineMatrixEditor: React.FC<{
         { id: 'llm', label: 'Language & Reasoning', icon: Cpu },
         { id: 'video', label: 'Video Synthesis', icon: Video },
         { id: 'image', label: 'Image Synthesis', icon: Image },
-        { id: 'audio', label: 'Audio & Speech', icon: Mic }
+        { id: 'audio', label: 'Audio & Speech', icon: Mic },
+        { id: 'music', label: 'Music Synthesis', icon: Music }
     ];
 
     if (loading) {
@@ -94,11 +96,13 @@ export const EngineMatrixEditor: React.FC<{
                                     return (
                                         <div 
                                             key={providerModel.id}
-                                            onClick={() => toggleModel(mod.id, providerModel.id)}
-                                            className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
-                                                isSelected 
-                                                ? 'bg-accent/10 border-accent/40 text-accent shadow-inner shadow-accent/5' 
-                                                : 'bg-glass-2 border-glass-edge text-text-secondary hover:border-glass-edge-hover'
+                                            onClick={() => providerModel.connected && toggleModel(mod.id, providerModel.id)}
+                                            className={`p-3 rounded-xl border flex items-center justify-between transition-all ${
+                                                !providerModel.connected
+                                                ? 'opacity-50 cursor-not-allowed bg-glass-pressed border-glass-edge/30 grayscale'
+                                                : 'cursor-pointer ' + (isSelected 
+                                                    ? 'bg-accent/10 border-accent/40 text-accent shadow-inner shadow-accent/5' 
+                                                    : 'bg-glass-2 border-glass-edge text-text-secondary hover:border-glass-edge-hover')
                                             }`}
                                         >
                                             <div className="flex flex-col">
@@ -106,9 +110,12 @@ export const EngineMatrixEditor: React.FC<{
                                                 <span className="text-[9px] uppercase tracking-widest opacity-60 flex items-center gap-1">
                                                     {providerModel.provider === 'local' ? <Shield size={8} /> : null}
                                                     {providerModel.provider}
+                                                    {!providerModel.connected && <span className="ml-1 text-[8.5px] font-mono text-text-tertiary/80">[API DISCONNECTED]</span>}
                                                 </span>
                                             </div>
-                                            <div className={`w-3 h-3 rounded-full border ${isSelected ? 'bg-accent border-accent' : 'border-text-tertiary/30'}`}></div>
+                                            <div className={`relative w-7 h-4 rounded-full transition-colors ${isSelected ? 'bg-accent/80 border border-accent' : 'bg-glass-pressed border border-glass-edge'}`}>
+                                                <div className={`absolute top-[1px] w-[12px] h-[12px] rounded-full transition-all duration-300 ${isSelected ? 'right-[1px] bg-white shadow-[0_0_8px_rgba(var(--accent-color),0.8)]' : 'left-[1px] bg-text-tertiary/50'}`}></div>
+                                            </div>
                                         </div>
                                     );
                                 })}

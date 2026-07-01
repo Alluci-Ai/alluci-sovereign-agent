@@ -10,6 +10,7 @@ from ..database import engine as db_engine
 from ..models import AuditEntry
 from ..security.auth import verify_authenticated
 from .. import services
+from ..routers.models import scan_local_models
 from fastapi_csrf_protect import CsrfProtect
 
 logger = get_logger("SystemRouter")
@@ -104,26 +105,82 @@ async def get_system_providers():
     Scans the system (config, vault, etc.) for active, authenticated LLM/Audio/Video providers
     and returns a structured list for the Engine Matrix.
     """
+    vault_keys = {}
+    if getattr(services, "vault", None):
+        keys = await services.vault.retrieve_secret("alluci_api_keys") or {}
+        vault_keys = keys if isinstance(keys, dict) else {}
+
+    llm_keys = vault_keys.get("llm", {})
+    audio_keys = vault_keys.get("audio", {})
+    video_keys = vault_keys.get("video", {})
+    image_keys = vault_keys.get("image", {})
+    music_keys = vault_keys.get("music", {})
+
     providers = {
-        "llm": [
-            {"id": "Alluci Polytope 31B-it-4bit", "name": "Alluci Polytope (MLX Local)", "provider": "local"},
-            {"id": "gpt-4o", "name": "GPT-4o", "provider": "openai"},
-            {"id": "gemini-1.5-pro", "name": "Gemini 1.5 Pro", "provider": "google"},
-            {"id": "claude-3-5-sonnet", "name": "Claude 3.5 Sonnet", "provider": "anthropic"}
-        ],
-        "video": [
-            {"id": "google/veo", "name": "Google Veo", "provider": "google"},
-            {"id": "sora", "name": "OpenAI Sora", "provider": "openai"}
-        ],
-        "image": [
-            {"id": "midjourney/v6", "name": "Midjourney v6", "provider": "midjourney"},
-            {"id": "dall-e-3", "name": "DALL-E 3", "provider": "openai"}
-        ],
-        "audio": [
-            {"id": "whisper-v3", "name": "Whisper v3 (Local)", "provider": "local"},
-            {"id": "elevenlabs", "name": "ElevenLabs", "provider": "elevenlabs"}
-        ]
+        "llm": [],
+        "video": [],
+        "image": [],
+        "audio": [],
+        "music": []
     }
+    
+    # 1. Local LLM Scan
+    local_llms = await scan_local_models()
+    for local in local_llms:
+        providers["llm"].append({
+            "id": local["id"], 
+            "name": local["name"], 
+            "provider": "local", 
+            "connected": True
+        })
+        
+    # 2. Cloud LLMs
+    has_openai = bool(llm_keys.get("openai") or getattr(settings, "OPENAI_API_KEY", None))
+    providers["llm"].extend([
+        {"id": "gpt-4o", "name": "GPT-4o", "provider": "openai", "connected": has_openai},
+        {"id": "gpt-4o-mini", "name": "GPT-4o Mini", "provider": "openai", "connected": has_openai}
+    ])
+    
+    has_google = bool(llm_keys.get("googleCloud") or getattr(settings, "GEMINI_API_KEY", None))
+    providers["llm"].extend([
+        {"id": "gemini-1.5-pro", "name": "Gemini 1.5 Pro", "provider": "google", "connected": has_google},
+        {"id": "gemini-1.5-flash", "name": "Gemini 1.5 Flash", "provider": "google", "connected": has_google}
+    ])
+    
+    has_anthropic = bool(llm_keys.get("anthropic") or getattr(settings, "ANTHROPIC_API_KEY", None))
+    providers["llm"].extend([
+        {"id": "claude-3-5-sonnet-20241022", "name": "Claude 3.5 Sonnet", "provider": "anthropic", "connected": has_anthropic},
+        {"id": "claude-3-haiku-20240307", "name": "Claude 3 Haiku", "provider": "anthropic", "connected": has_anthropic},
+        {"id": "claude-3-opus-20240229", "name": "Claude 3 Opus", "provider": "anthropic", "connected": has_anthropic}
+    ])
+    
+    has_groq = bool(llm_keys.get("groq") or getattr(settings, "GROQ_API_KEY", None))
+    providers["llm"].append({"id": "llama3-70b-8192", "name": "Groq LLaMA 3", "provider": "groq", "connected": has_groq})
+
+    has_deepseek = bool(llm_keys.get("deepseek") or getattr(settings, "DEEPSEEK_API_KEY", None))
+    providers["llm"].append({"id": "deepseek-coder", "name": "DeepSeek Coder", "provider": "deepseek", "connected": has_deepseek})
+    
+    # 3. Video
+    providers["video"].append({"id": "google/veo", "name": "Google Veo", "provider": "google", "connected": has_google})
+    has_runway = bool(video_keys.get("runway"))
+    providers["video"].append({"id": "runway-gen2", "name": "RunwayML Gen-2", "provider": "runway", "connected": has_runway})
+    
+    # 4. Image
+    has_midjourney = bool(image_keys.get("midjourney"))
+    providers["image"].append({"id": "midjourney/v6", "name": "Midjourney v6", "provider": "midjourney", "connected": has_midjourney})
+    providers["image"].append({"id": "dall-e-3", "name": "DALL-E 3", "provider": "openai", "connected": has_openai})
+    
+    # 5. Audio
+    has_elevenlabs = bool(audio_keys.get("elevenLabs"))
+    providers["audio"].append({"id": "elevenlabs", "name": "ElevenLabs", "provider": "elevenlabs", "connected": has_elevenlabs})
+    providers["audio"].append({"id": "whisper-v3", "name": "Whisper v3 (Local)", "provider": "local", "connected": True})
+    
+    # 6. Music
+    has_suno = bool(music_keys.get("suno"))
+    has_udio = bool(music_keys.get("udio"))
+    providers["music"].append({"id": "suno-v3", "name": "Suno v3", "provider": "suno", "connected": has_suno})
+    providers["music"].append({"id": "udio", "name": "Udio", "provider": "udio", "connected": has_udio})
+    
     return providers
 
 

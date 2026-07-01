@@ -205,12 +205,48 @@ async def update_agent(request: Request, agent_id: str, payload: Dict[str, Any] 
         if not agent:
             raise HTTPException(status_code=404, detail="Agent not found")
 
-        for field_name in ("name", "model", "status", "description", "system_prompt", "pii_override_enabled"):
+        for field_name in ("name", "status", "description", "system_prompt", "pii_override_enabled"):
             if field_name in payload:
                 setattr(agent, field_name, payload[field_name])
 
+        # Load existing manifest
+        try:
+            manifest = json.loads(agent.engine_manifest) if agent.engine_manifest else {}
+        except:
+            manifest = {}
+            
+        if "llm" not in manifest:
+            manifest["llm"] = []
+
+        # If frontend sent a new engine matrix
+        if "engine_manifest" in payload:
+            manifest = payload["engine_manifest"]
+            if "llm" not in manifest:
+                manifest["llm"] = []
+                
+        # Primary Engine Handling
+        if "model" in payload:
+            agent.model = payload["model"]
+            # Auto-inject into matrix
+            if agent.model not in manifest["llm"]:
+                manifest["llm"].append(agent.model)
+                
+        # Fallback Chain Handling
         if "fallback_chain" in payload:
             agent.fallback_chain = payload["fallback_chain"]
+            # Auto-inject fallbacks into matrix
+            if agent.fallback_chain:
+                fallbacks = [m.strip() for m in agent.fallback_chain.split(",") if m.strip()]
+                for f_model in fallbacks:
+                    if f_model not in manifest["llm"]:
+                        manifest["llm"].append(f_model)
+
+        # Pruning Logic: If engine matrix is explicitly updated, and Primary Engine is no longer allowed
+        if "engine_manifest" in payload and manifest["llm"]:
+            if agent.model not in manifest["llm"]:
+                agent.model = manifest["llm"][0]  # Safely degrade to highest priority authorized model
+
+        agent.engine_manifest = json.dumps(manifest)
 
         if "heartbeat_orders" in payload:
             orders = payload["heartbeat_orders"]

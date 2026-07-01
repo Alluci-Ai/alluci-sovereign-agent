@@ -822,6 +822,7 @@ class ModelRouter(ExecutiveRouter):
                 pii_override = False
                 agent_model = "gpt-4o"
                 agent_fallback = "gemini-flash,claude-haiku"
+                engine_manifest = {}
                 
                 try:
                     with Session(db_engine) as session:
@@ -831,6 +832,11 @@ class ModelRouter(ExecutiveRouter):
                             agent_model = agent.model
                             if agent.fallback_chain:
                                 agent_fallback = agent.fallback_chain
+                            if agent.engine_manifest:
+                                try:
+                                    engine_manifest = json.loads(agent.engine_manifest)
+                                except:
+                                    pass
                 except Exception as e:
                     self.logger.error(f"Failed to load agent record {agent_id}: {e}")
 
@@ -852,20 +858,39 @@ class ModelRouter(ExecutiveRouter):
                 # Define cloud providers and their check-conditions
                 cloud_sequence = []
                 
+                allowed_llms = engine_manifest.get("llm", [])
+                
+                def _trigger_intervention(provider):
+                    # In a full production environment, this pushes an INTERVENTION_REQUIRED event to Redis/WebSockets
+                    self.logger.warning(f"⚠️ [ROUTER INTERVENTION] Sub-system requested {provider}, but it is NOT authorized in the Engine Matrix! Emitting INTERVENTION_REQUIRED.")
+                    return False
+                
                 # Gemini Failover (Vault-aware lazy loading)
                 if GEMINI_AVAILABLE and (self.vault or self.gemini_flash):
-                    cloud_sequence.append(("Gemini", lambda p: self._gemini_request(p, use_pro=use_strong, json_mode=json_mode, system_instruction=system_instruction, session_id=session_id)))
+                    if not allowed_llms or any(m in allowed_llms for m in ["gemini-1.5-pro", "gemini-1.5-flash"]):
+                        cloud_sequence.append(("Gemini", lambda p: self._gemini_request(p, use_pro=use_strong, json_mode=json_mode, system_instruction=system_instruction, session_id=session_id)))
+                    else:
+                        _trigger_intervention("Gemini")
                 
                 # OpenAI Failover
                 if OPENAI_AVAILABLE and (self.vault or self.openai_client):
-                    cloud_sequence.append(("OpenAI", lambda p: self._openai_request(p, use_strong=use_strong, json_mode=json_mode, system_instruction=system_instruction, session_id=session_id)))
+                    if not allowed_llms or any(m in allowed_llms for m in ["gpt-4o", "gpt-4o-mini"]):
+                        cloud_sequence.append(("OpenAI", lambda p: self._openai_request(p, use_strong=use_strong, json_mode=json_mode, system_instruction=system_instruction, session_id=session_id)))
+                    else:
+                        _trigger_intervention("OpenAI")
                 
                 # Anthropic Failover
                 if ANTHROPIC_AVAILABLE and (self.vault or self.anthropic_client):
-                    cloud_sequence.append(("Anthropic", lambda p: self._anthropic_request(p, use_strong=use_strong, system_instruction=system_instruction)))
+                    if not allowed_llms or any(m in allowed_llms for m in ["claude-3-5-sonnet", "claude-3-haiku", "claude-3-opus"]):
+                        cloud_sequence.append(("Anthropic", lambda p: self._anthropic_request(p, use_strong=use_strong, system_instruction=system_instruction)))
+                    else:
+                        _trigger_intervention("Anthropic")
                 
                 if self.groq_api_key:
-                    cloud_sequence.append(("Groq", lambda p: self.get_fast_tactical_response(p, system_instruction=system_instruction)))
+                    if not allowed_llms or "llama3-70b-8192" in allowed_llms:
+                        cloud_sequence.append(("Groq", lambda p: self.get_fast_tactical_response(p, system_instruction=system_instruction)))
+                    else:
+                        _trigger_intervention("Groq")
                 
 
 
