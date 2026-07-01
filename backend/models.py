@@ -334,6 +334,7 @@ class AgentRecord(SQLModel, table=True):
     # Optional JSON field for heartbeat orders
     heartbeat_orders: Optional[str] = Field(sa_column=Column(JSON), default=None)
     engine_manifest: Optional[str] = Field(sa_column=Column(JSON), default=None)
+    tools_manifest: Optional[str] = Field(sa_column=Column(JSON), default=None)
     soul_manifest_override: Optional[str] = Field(sa_column=Column(JSON), default=None)
     created_at: Optional[datetime] = Field(default=None)
     updated_at: Optional[datetime] = Field(default=None)

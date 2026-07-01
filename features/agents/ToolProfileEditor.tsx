@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../../store/useStore';
-import { ToggleLeft, ToggleRight, Settings } from 'lucide-react';
+import { getCsrfToken } from '../../csrfStore';
+import { ToggleLeft, ToggleRight, Settings, Save } from 'lucide-react';
 
 const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || '';
 
@@ -32,20 +33,29 @@ export const ToolProfileEditor: React.FC<ToolProfileEditorProps> = ({ agentId })
         fetchTools();
     }, [agentId, accessToken]);
 
+    const saveTools = async (toolsState: any[]) => {
+        try {
+            const csrfToken = await getCsrfToken(DAEMON_URL, accessToken);
+            await fetch(`${DAEMON_URL}/api/v1/agents/${agentId}/tools`, {
+                method: 'PUT',
+                headers: { 
+                    'Authorization': `Bearer ${accessToken}`, 
+                    'Content-Type': 'application/json',
+                    ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {})
+                },
+                body: JSON.stringify({ tools: toolsState }),
+                credentials: 'include'
+            });
+        } catch (e) {
+            console.error('Failed saving tools', e);
+        }
+    };
+
     const toggleTool = async (index: number) => {
         const next = [...tools];
         next[index].enabled = !next[index].enabled;
         setTools(next);
-
-        try {
-            await fetch(`${DAEMON_URL}/api/v1/agents/${agentId}/tools`, {
-                method: 'PUT',
-                headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ tools: next }),
-                credentials: 'include'
-            });
-        // eslint-disable-next-line no-empty
-        } catch (e) { }
+        await saveTools(next);
     };
 
     return (
@@ -68,10 +78,20 @@ export const ToolProfileEditor: React.FC<ToolProfileEditorProps> = ({ agentId })
 
                         {t.enabled && (
                             <div className="mt-4 pt-3 border-t border-glass-edge/40 flex flex-col gap-2">
-                                <label className="text-[9px] font-mono uppercase text-accent flex gap-1 items-center"><Settings size={10} /> Parameter Overrides (JSON)</label>
+                                <div className="flex items-center justify-between">
+                                    <label className="text-[9px] font-mono uppercase text-accent flex gap-1 items-center"><Settings size={10} /> Parameter Overrides (JSON)</label>
+                                    <button onClick={(e) => { e.stopPropagation(); saveTools(tools); }} className="glass-btn gap-1" style={{ padding: '2px 8px', fontSize: 9 }}>
+                                        <Save size={10} /> Save Config
+                                    </button>
+                                </div>
                                 <textarea
                                     className="bg-black/40 border border-white/5 p-2 rounded-lg text-[10px] text-blue-200 font-mono resize-none outline-none h-12 overflow-hidden focus:border-accent/40 block"
-                                    defaultValue={t.params}
+                                    value={t.params}
+                                    onChange={(e) => {
+                                        const next = [...tools];
+                                        next[i].params = e.target.value;
+                                        setTools(next);
+                                    }}
                                     spellCheck="false"
                                     onClick={e => e.stopPropagation()}
                                 />

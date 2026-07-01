@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../../store/useStore';
+import { getCsrfToken } from '../../csrfStore';
 import { FileCode, Save, FilePlus, RefreshCcw } from 'lucide-react';
 
 const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || '';
@@ -55,11 +56,13 @@ export const WorkspaceEditor: React.FC<WorkspaceEditorProps> = ({ agentId }) => 
     const saveContent = async () => {
         setSaving(true);
         try {
+            const csrfToken = await getCsrfToken(DAEMON_URL, accessToken);
             await fetch(`${DAEMON_URL}/api/v1/agents/${agentId}/files/${encodeURIComponent(selectedFile)}`, {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {})
                 },
                 body: JSON.stringify({ content }),
                 credentials: 'include'
@@ -68,6 +71,28 @@ export const WorkspaceEditor: React.FC<WorkspaceEditorProps> = ({ agentId }) => 
             console.error('Failed saving file content', err);
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleCreateFile = async () => {
+        const filename = prompt("Enter new filename (e.g. agent.md):");
+        if (filename && !files.includes(filename)) {
+            setFiles([...files, filename]);
+            setSelectedFile(filename);
+            setContent("");
+            
+            // Create an empty file on backend
+            const csrfToken = await getCsrfToken(DAEMON_URL, accessToken);
+            await fetch(`${DAEMON_URL}/api/v1/agents/${agentId}/files/${encodeURIComponent(filename)}`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json',
+                    ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {})
+                },
+                body: JSON.stringify({ content: "" }),
+                credentials: 'include'
+            });
         }
     };
 
@@ -87,7 +112,7 @@ export const WorkspaceEditor: React.FC<WorkspaceEditorProps> = ({ agentId }) => 
             <div className="w-56 border-r border-glass-edge bg-glass-pressed flex flex-col">
                 <div className="p-3 border-b border-glass-edge flex items-center justify-between text-text-tertiary">
                     <span className="text-[10px] glass-label uppercase tracking-widest">Virtual VFS</span>
-                    <button className="hover:text-accent transition-colors"><FilePlus size={12} /></button>
+                    <button className="hover:text-accent transition-colors" onClick={handleCreateFile}><FilePlus size={12} /></button>
                 </div>
                 <div className="flex-1 overflow-y-auto p-2">
                     {files.map(f => (

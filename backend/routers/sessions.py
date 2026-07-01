@@ -1,4 +1,5 @@
 
+import os
 import json
 import uuid
 from datetime import datetime, timezone
@@ -400,3 +401,113 @@ async def get_root_heartbeat_history(limit: int = 30):
             for r in records
         ]
     }
+
+WORKSPACE_DIR = os.path.abspath("backend/workspace")
+
+@router.get("/agents/{agent_id}/tools", dependencies=[Depends(verify_authenticated)])
+async def get_agent_tools(agent_id: str):
+    """Get all tools with their agent-specific overrides."""
+    if not services.skill_manager:
+        return {"tools": []}
+    global_skills = await services.skill_manager.list_skills()
+    
+    with Session(db_engine) as session:
+        agent = session.get(AgentRecord, agent_id)
+        
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+        
+    agent_tools = {}
+    if hasattr(agent, "tools_manifest") and agent.tools_manifest:
+        try:
+            agent_tools = json.loads(agent.tools_manifest)
+        except Exception:
+            pass
+            
+    tools = []
+    for skill in global_skills:
+        skill_id = skill.get("id")
+        if not skill_id:
+            continue
+        skill_name = skill.get("name", skill_id)
+        skill_desc = skill.get("description", "")
+        
+        agent_override = agent_tools.get(skill_id, {})
+        enabled = agent_override.get("enabled", False)
+        params = agent_override.get("params", "{\n  \n}")
+        
+        tools.append({
+            "id": skill_id,
+            "name": skill_name,
+            "description": skill_desc,
+            "enabled": enabled,
+            "params": params
+        })
+        
+    return {"tools": tools}
+
+
+@router.put("/agents/{agent_id}/tools", dependencies=[Depends(verify_authenticated)])
+async def update_agent_tools(request: Request, agent_id: str, payload: Dict[str, Any] = Body(...), csrf_protect: CsrfProtect = Depends()):
+    await csrf_protect.validate_csrf(request)
+    """Update agent-specific tool bindings and parameter overrides."""
+    tools_payload = payload.get("tools", [])
+    
+    tools_manifest = {}
+    for t in tools_payload:
+        if t.get("enabled"):
+            tools_manifest[t.get("id")] = {
+                "enabled": True,
+                "params": t.get("params", "{}")
+            }
+            
+    with Session(db_engine) as session:
+        agent = session.get(AgentRecord, agent_id)
+        if not agent:
+            raise HTTPException(status_code=404, detail="Agent not found")
+            
+        agent.tools_manifest = json.dumps(tools_manifest)
+        session.add(agent)
+        session.commit()
+        
+    return {"status": "SUCCESS"}
+
+
+@router.get("/agents/{agent_id}/files", dependencies=[Depends(verify_authenticated)])
+async def list_agent_files(agent_id: str):
+    agent_dir = os.path.join(WORKSPACE_DIR, agent_id)
+    if not os.path.exists(agent_dir):
+        return {"files": []}
+    files = []
+    for f in os.listdir(agent_dir):
+        if os.path.isfile(os.path.join(agent_dir, f)):
+            files.append(f)
+    return {"files": files}
+
+
+@router.get("/agents/{agent_id}/files/{filename:path}", dependencies=[Depends(verify_authenticated)])
+async def get_agent_file(agent_id: str, filename: str):
+    agent_dir = os.path.join(WORKSPACE_DIR, agent_id)
+    file_path = os.path.abspath(os.path.join(agent_dir, filename))
+    if not file_path.startswith(agent_dir):
+        raise HTTPException(status_code=403, detail="Path traversal forbidden")
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found")
+    with open(file_path, "r", encoding="utf-8") as f:
+        content = f.read()
+    return {"content": content}
+
+
+@router.put("/agents/{agent_id}/files/{filename:path}", dependencies=[Depends(verify_authenticated)])
+async def save_agent_file(request: Request, agent_id: str, filename: str, payload: Dict[str, Any] = Body(...), csrf_protect: CsrfProtect = Depends()):
+    await csrf_protect.validate_csrf(request)
+    agent_dir = os.path.join(WORKSPACE_DIR, agent_id)
+    os.makedirs(agent_dir, exist_ok=True)
+    file_path = os.path.abspath(os.path.join(agent_dir, filename))
+    if not file_path.startswith(agent_dir):
+        raise HTTPException(status_code=403, detail="Path traversal forbidden")
+    
+    content = payload.get("content", "")
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write(content)
+    return {"status": "SUCCESS"}
