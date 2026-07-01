@@ -36,7 +36,7 @@ export const SecureTunnelModal: React.FC<{
     const [discoveryMode, setDiscoveryMode] = useState<'MDNS' | 'MANUAL'>('MDNS');
     const [iphoneIp, setIphoneIp] = useState("");
 
-    // iMessage permissions (mock state)
+    // iMessage permissions
     const [hasCheckedPerms, setHasCheckedPerms] = useState(false);
 
     const handleImessageCheck = async () => {

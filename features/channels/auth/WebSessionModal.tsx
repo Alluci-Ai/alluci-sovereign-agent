@@ -52,8 +52,6 @@ export const WebSessionModal: React.FC<{
         setError(null);
         try {
             const token = localStorage.getItem('alluci_daemon_token');
-            // Call real backend capture endpoint
-            // No more playwright_mock_!
             const res = await fetch(`${DAEMON_URL}/api/channels/webchat/session/active/capture`, {
                 method: 'POST',
                 headers: { 

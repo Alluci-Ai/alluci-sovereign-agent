@@ -9,7 +9,7 @@ try:
     import mlx.core as mx
     import mlx.nn as nn
     import mlx.optimizers as optim
-    from mlx_lm.utils import load as load_model
+    from mlx_lm.utils import load as load_model, generate
     from mlx.utils import tree_flatten
     MLX_AVAILABLE = True
 except ImportError:
@@ -127,10 +127,15 @@ class TeacherStudentAuditor:
         
         if MLX_AVAILABLE and mx is not None:
             for prompt in test_prompts:
-                # Simulated student generation
-                mx_input = mx.array([1, 2, 3]) # Mock tokens
-                # If the student successfully generates without catastrophic collapse
-                passed_tests += 1
+                try:
+                    # Execute a real forward pass on the 12B Student model
+                    # using the standard mlx_lm.generate loop.
+                    output = generate(student_model, tokenizer, prompt=prompt, max_tokens=100, verbose=False)
+                    if output and len(output.strip()) > 0:
+                        # If the student successfully generates without catastrophic collapse
+                        passed_tests += 1
+                except Exception as e:
+                    logger.error(f"[Teacher-Student Audit] Forward pass failed on prompt: {e}")
                 
         pass_rate = passed_tests / max(1, len(test_prompts))
         if pass_rate >= 0.95:

@@ -2,43 +2,16 @@ use std::path::Path;
 use tokio::net::{UnixListener, UnixStream};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-// Note: In a real environment, the following modules are provided by objc2-virtualization
-// For this scaffolding, we provide mock structs to allow the plan to be understood
-// and structurally compiled by downstream devs.
-
-pub struct VZVirtualMachineConfiguration;
-impl VZVirtualMachineConfiguration {
-    pub fn new() -> Self { Self }
-    pub fn setBootLoader_(&mut self, _bootloader: Option<&VZLinuxBootLoader>) {}
-    pub fn setCPUCount_(&mut self, _count: usize) {}
-    pub fn setMemorySize_(&mut self, _size: u64) {}
-    pub fn setSocketDevices_(&mut self, _devices: Option<&[VZVirtioSocketDeviceConfiguration]>) {}
-    pub fn setDirectorySharingDevices_(&mut self, _devices: Option<&[VZVirtioFileSystemDeviceConfiguration]>) {}
-    pub fn validateWithError_(&mut self, _error: &mut Option<String>) -> bool { true }
-}
-
-pub struct VZLinuxBootLoader;
-impl VZLinuxBootLoader {
-    pub fn initWithKernelURL_initrdURL(_kernel: &str, _initrd: &str) -> Self { Self }
-    pub fn setCommandLine_(&self, _cmd: &str) {}
-}
-
-pub struct VZVirtioSocketDeviceConfiguration;
-impl VZVirtioSocketDeviceConfiguration {
-    pub fn new() -> Self { Self }
-}
-
-pub struct VZVirtioFileSystemDeviceConfiguration;
-impl VZVirtioFileSystemDeviceConfiguration {
-    pub fn new(_tag: &str, _dir: &str) -> Self { Self }
-}
-
-pub struct VZVirtualMachine;
-impl VZVirtualMachine {
-    pub fn initWithConfiguration(_config: &VZVirtualMachineConfiguration) -> Self { Self }
-    pub fn startWithCompletionHandler_<F>(&self, _handler: F) where F: Fn(Option<String>) {}
-}
-
+// Integrated with objc2-virtualization to interact with macOS Hypervisor.framework
+use objc2_virtualization::{
+    VZVirtualMachineConfiguration,
+    VZLinuxBootLoader,
+    VZVirtioSocketDeviceConfiguration,
+    VZVirtioFileSystemDeviceConfiguration,
+    VZVirtualMachine
+};
+use objc2_foundation::NSURL;
+use objc2::rc::Retained;
 
 pub struct EphemeralMicroVM {
     vm_config: VZVirtualMachineConfiguration,

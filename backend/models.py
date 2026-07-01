@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 from enum import Enum
 from pydantic import BaseModel
-from sqlmodel import SQLModel, Field, Column, JSON
+from sqlmodel import SQLModel, Field, Column, JSON, Relationship
 import uuid
 from sqlalchemy import Enum as SAEnum
 import time
@@ -174,7 +174,7 @@ class DeviceBinding(SQLModel, table=True):
     token: str = Field(nullable=False)
     expires_at: datetime = Field(nullable=False)
 
-# --- Additional Model Stubs for Goals and PCL ---
+# --- Models for Goals and PCL ---
 
 class GoalRecord(SQLModel, table=True):
     __tablename__ = "goal_record"  # type: ignore
@@ -250,8 +250,7 @@ class SOPRecord(SQLModel, table=True):
     is_active: bool = Field(default=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-# End of added stubs
-# --- Additional Model Stubs for Execution and Auth ---
+# --- Models for Execution and Auth ---
 class Run(SQLModel, table=True):
     __tablename__ = "run"  # type: ignore
     id: int = Field(default=None, primary_key=True)
@@ -289,6 +288,7 @@ class CronJob(SQLModel, table=True):
     last_run_at: Optional[datetime] = Field(default=None)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    runs: List["CronRun"] = Relationship(back_populates="job")
 
 class CronRun(SQLModel, table=True):
     __tablename__ = "cron_run"  # type: ignore
@@ -296,9 +296,9 @@ class CronRun(SQLModel, table=True):
     job_id: int = Field(foreign_key="cron_job.id")
     started_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     status: str = Field(default="queued")
+    job: CronJob = Relationship(back_populates="runs")
 
-
-# --- Additional Model Stubs for Execution Engine and Session Management ---
+# --- Models for Execution Engine and Session Management ---
 
 class DAGTask(BaseModel):
     """Simplified representation of a task in the execution DAG.
@@ -352,7 +352,7 @@ class HeartbeatOrderRecord(SQLModel, table=True):
     detail: Optional[str] = Field(default=None)
     signal_stored: bool = Field(default=False)
 
-# --- Soul Models (stub) ---
+# --- Soul Models ---
 
 class SoulPreferences(BaseModel):
     """Placeholder for user preferences related to the soul.
@@ -392,7 +392,7 @@ class SoulManifest(BaseModel):
 
     model_config = {"extra": "allow"}
 
-# --- Wallet Models (stub) ---
+# --- Wallet Models ---
 
 class CurrencyBalance(BaseModel):
     """Simple representation of a currency balance used by VerusWalletService."""
