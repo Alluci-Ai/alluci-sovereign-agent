@@ -113,9 +113,11 @@ export const AgentsPanel: React.FC = () => {
                                             className="cursor-pointer hover:bg-glass-hover transition-colors"
                                             onClick={() => setSelectedAgentId(agent.id)}
                                         >
-                                            <td className="font-mono text-[11px] text-accent opacity-80 flex items-center gap-2">
-                                                {agent.id}
-                                                <AgentDirtyIndicator agentId={agent.id} />
+                                            <td className="font-mono text-[11px] text-accent opacity-80">
+                                                <div className="flex items-center gap-2">
+                                                    {agent.id}
+                                                    <AgentDirtyIndicator agentId={agent.id} />
+                                                </div>
                                             </td>
                                             <td className="font-medium text-text-primary">
                                                 {agent.name}

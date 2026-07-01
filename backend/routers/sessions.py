@@ -80,9 +80,17 @@ async def list_agents():
                 select(func.count(col(AgentSkillBinding.id))).where(AgentSkillBinding.agent_id == a.id)
             ).one()
             
-            channels = session.exec(
-                select(func.count(col(AgentChannelSubscription.id))).where(AgentChannelSubscription.agent_id == a.id)
-            ).one()
+            channels_query = session.exec(
+                select(AgentChannelSubscription).where(AgentChannelSubscription.agent_id == a.id)
+            ).all()
+            
+            if a.id == "core":
+                channels = sum(
+                    1 for sub in channels_query 
+                    if getattr(services.channel_registry.get(sub.channel_id), "is_connected", False)
+                )
+            else:
+                channels = len(channels_query)
             
             result.append({
                 "id": a.id,
@@ -116,9 +124,17 @@ async def get_agent(agent_id: str):
         active_skills = session.exec(
             select(func.count(col(AgentSkillBinding.id))).where(AgentSkillBinding.agent_id == agent.id)
         ).one()
-        channels = session.exec(
-            select(func.count(col(AgentChannelSubscription.id))).where(AgentChannelSubscription.agent_id == agent.id)
-        ).one()
+        channels_query = session.exec(
+            select(AgentChannelSubscription).where(AgentChannelSubscription.agent_id == agent.id)
+        ).all()
+        
+        if agent.id == "core":
+            channels = sum(
+                1 for sub in channels_query 
+                if getattr(services.channel_registry.get(sub.channel_id), "is_connected", False)
+            )
+        else:
+            channels = len(channels_query)
         
     return {
         "agent": {
@@ -159,6 +175,7 @@ async def create_agent(request: Request, payload: Dict[str, Any] = Body(...), cs
         description=payload.get("description"),
         model=payload.get("model", "gpt-4o"),
         fallback_chain=payload.get("fallback_chain", "gemini-flash,claude-haiku"),
+        pii_override_enabled=payload.get("pii_override_enabled", False),
         status=payload.get("status", "DRAFT"),
         system_prompt=payload.get("system_prompt"),
         heartbeat_orders=json.dumps(payload.get("heartbeat_orders", [])),
@@ -188,7 +205,7 @@ async def update_agent(request: Request, agent_id: str, payload: Dict[str, Any] 
         if not agent:
             raise HTTPException(status_code=404, detail="Agent not found")
 
-        for field_name in ("name", "model", "status", "description", "system_prompt"):
+        for field_name in ("name", "model", "status", "description", "system_prompt", "pii_override_enabled"):
             if field_name in payload:
                 setattr(agent, field_name, payload[field_name])
 

@@ -41,28 +41,28 @@ const CATEGORIES = [
 
 const DEFAULT_PROVIDERS = {
     llm: [
-        { id: 'openai', label: 'OpenAI (GPT-4o & GPT-o1)' },
-        { id: 'anthropic', label: 'Anthropic (Claude 3.7)' },
-        { id: 'googleCloud', label: 'Google Cloud (Gemini 2.5)' },
-        { id: 'kimi', label: 'Moonshot (Kimi k2.5)' },
-        { id: 'groq', label: 'Groq (LPU Inference)' },
-        { id: 'deepseek', label: 'DeepSeek (R1 / Chat)' },
+        { id: 'openai', label: 'OpenAI' },
+        { id: 'anthropic', label: 'Anthropic' },
+        { id: 'googleCloud', label: 'Google Cloud' },
+        { id: 'kimi', label: 'Moonshot' },
+        { id: 'groq', label: 'Groq' },
+        { id: 'deepseek', label: 'DeepSeek' },
         { id: 'openrouter', label: 'OpenRouter' },
-        { id: 'lmStudio', label: 'LM Studio (Local)' },
+        { id: 'lmStudio', label: 'LM Studio' },
         { id: 'together', label: 'Together AI' },
-        { id: 'cohere', label: 'Cohere (Command R+)' },
+        { id: 'cohere', label: 'Cohere' },
         { id: 'aws', label: 'AWS Bedrock' }
     ],
     audio: [
-        { id: 'elevenLabs', label: 'ElevenLabs (Voice Synthesis)' }
+        { id: 'elevenLabs', label: 'ElevenLabs' }
     ],
     music: [
     ],
     image: [
-        { id: 'midjourney', label: 'Midjourney (ImagineAPI)' }
+        { id: 'midjourney', label: 'Midjourney' }
     ],
     video: [
-        { id: 'runway', label: 'RunwayML (Gen-3)' }
+        { id: 'runway', label: 'RunwayML' }
     ]
 };
 
@@ -77,6 +77,8 @@ const ApiWizard: React.FC<ApiWizardProps> = ({ isOpen, onClose, apiKeys, onSave 
     const [customServiceName, setCustomServiceName] = useState("");
     const [showCustomInput, setShowCustomInput] = useState<string | null>(null);
     const { setAccessToken } = useStore();
+
+    const hasChanges = JSON.stringify(apiKeys) !== JSON.stringify(localKeys);
 
     const handleNext = () => {
         if (currentStep < CATEGORIES.length - 1) setCurrentStep(currentStep + 1);
@@ -334,13 +336,27 @@ const ApiWizard: React.FC<ApiWizardProps> = ({ isOpen, onClose, apiKeys, onSave 
                             </button>
                         )}
                         {stepInfo.id !== 'auth' && (
-                            <button onClick={handleNext} className="glass-btn glass-btn--primary" style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, padding: '6px 14px' }}>
-                                {currentStep === CATEGORIES.length - 1 ? (
-                                    <>Finalize <Save size={13} /></>
-                                ) : (
-                                    <>Next <ArrowRight size={13} /></>
-                                )}
-                            </button>
+                            <>
+                                <button 
+                                    onClick={() => onSave(localKeys)} 
+                                    disabled={!hasChanges}
+                                    className={`glass-btn ${hasChanges ? 'glass-btn--primary' : ''}`}
+                                    style={{ 
+                                        display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, padding: '6px 14px',
+                                        opacity: hasChanges ? 1 : 0.5,
+                                        transition: 'all 0.2s ease',
+                                    }}
+                                >
+                                    Save <Save size={13} />
+                                </button>
+                                <button onClick={handleNext} className="glass-btn" style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, padding: '6px 14px' }}>
+                                    {currentStep === CATEGORIES.length - 1 ? (
+                                        <>Close <ArrowRight size={13} /></>
+                                    ) : (
+                                        <>Next <ArrowRight size={13} /></>
+                                    )}
+                                </button>
+                            </>
                         )}
                     </div>
                 </div>

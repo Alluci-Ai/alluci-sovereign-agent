@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../../store/useStore';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-import { ChevronLeft, Save, Layout, Box, Wrench, Network, Clock, Zap, Activity, History, RefreshCw, Cpu } from 'lucide-react';
+import { ChevronLeft, AlertTriangle, Save, Layout, Box, Wrench, Network, Clock, Zap, Activity, History, RefreshCw, Cpu } from 'lucide-react';
 import { HeartbeatOrderEditor } from '../heartbeat/HeartbeatOrderEditor';
 import WorkspaceEditor from './WorkspaceEditor';
 import ToolProfileEditor from './ToolProfileEditor';
@@ -25,7 +25,10 @@ export const AgentDetailTabs: React.FC<AgentDetailProps> = ({ agentId, onBack })
     const [agent, setAgent] = useState<any>(null);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [heartbeatHistory, setHeartbeatHistory] = useState<any[]>([]);
+    const [availableModels, setAvailableModels] = useState<{id: string, name: string, category: string}[]>([]);
     const [saving, setSaving] = useState(false);
+    const [showPiiModal, setShowPiiModal] = useState(false);
+    const [pendingPiiState, setPendingPiiState] = useState(false);
 
     const fetchHeartbeatHistory = async () => {
         try {
@@ -57,7 +60,22 @@ export const AgentDetailTabs: React.FC<AgentDetailProps> = ({ agentId, onBack })
                 console.error('Failed fetching agent mapping:', err);
             }
         };
+        const loadModels = async () => {
+            try {
+                const res = await fetch(`${DAEMON_URL}/api/v1/models/available`, {
+                    headers: { 'Authorization': `Bearer ${accessToken}` },
+                    credentials: 'include'
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    setAvailableModels(data.models || []);
+                }
+            } catch (err) {
+                console.error('Failed fetching available models:', err);
+            }
+        };
         load();
+        loadModels();
         if (activeTab === 'heartbeat') fetchHeartbeatHistory();
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [agentId, accessToken, activeTab]);
@@ -161,21 +179,82 @@ export const AgentDetailTabs: React.FC<AgentDetailProps> = ({ agentId, onBack })
                                     <label className="text-[10px] text-text-tertiary">Primary Engine Model</label>
                                     <select
                                         className="glass-input text-xs w-full bg-glass-1 border border-glass-edge text-text-primary py-2 px-3 rounded-lg"
-                                        value={agent.model}
+                                        value={agent.model || ''}
                                         onChange={e => setAgent({ ...agent, model: e.target.value })}
                                     >
-                                        <option value="gpt-4o">GPT-4 Omni (Global)</option>
-                                        <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
-                                        <option value="claude-3-5-sonnet">Claude 3.5 Sonnet</option>
+                                        <option value="">Select Engine...</option>
+                                        {['Local', 'API', 'Open'].map(cat => (
+                                            <optgroup key={cat} label={cat}>
+                                                {availableModels.filter(m => m.category === cat).map(m => (
+                                                    <option key={m.id} value={m.id}>{m.name}</option>
+                                                ))}
+                                            </optgroup>
+                                        ))}
                                     </select>
+                                    <div className="mt-3 bg-glass-2 border border-glass-edge rounded-lg p-2 flex items-center justify-between">
+                                        <div className="flex flex-col">
+                                            <span className="text-[10px] font-medium text-text-primary">Direct Routing (Unfiltered)</span>
+                                            <span className="text-[9px] text-text-tertiary">Bypass local PII proxy for Teacher Models</span>
+                                        </div>
+                                        <button
+                                            className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors ${agent.pii_override_enabled ? 'bg-red-500/80' : 'bg-glass-edge'}`}
+                                            onClick={() => {
+                                                const newState = !agent.pii_override_enabled;
+                                                if (newState) {
+                                                    setPendingPiiState(newState);
+                                                    setShowPiiModal(true);
+                                                } else {
+                                                    setAgent({ ...agent, pii_override_enabled: false });
+                                                }
+                                            }}
+                                        >
+                                            <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${agent.pii_override_enabled ? 'translate-x-4' : 'translate-x-1'}`} />
+                                        </button>
+                                    </div>
                                 </div>
                                 <div className="flex flex-col gap-1">
                                     <label className="text-[10px] text-text-tertiary opacity-70">Fallback Chain Sequence</label>
-                                    <input
-                                        className="glass-input text-xs w-full font-mono opacity-80"
-                                        value={agent.fallback || 'gemini-1.5-pro, claude-3-haiku'}
-                                        onChange={e => setAgent({ ...agent, fallback: e.target.value })}
-                                    />
+                                    <div className="flex flex-col gap-2">
+                                        <div className="flex flex-wrap gap-1 items-center bg-glass-pressed border border-glass-edge p-1.5 rounded-lg min-h-[36px]">
+                                            {agent.fallback ? agent.fallback.split(',').map((fb: string, idx: number) => {
+                                                const cleanFb = fb.trim();
+                                                if (!cleanFb) return null;
+                                                const found = availableModels.find(m => m.id === cleanFb);
+                                                return (
+                                                    <span key={idx} className="flex items-center gap-1 bg-glass-1 text-accent px-2 py-0.5 rounded text-[10px] font-mono border border-glass-edge shadow-sm">
+                                                        {found ? found.name : cleanFb}
+                                                        <button 
+                                                            className="opacity-50 hover:opacity-100 hover:text-red-400 ml-1 outline-none"
+                                                            onClick={() => {
+                                                                const newFb = agent.fallback.split(',').map((s: string) => s.trim()).filter((s: string) => s && s !== cleanFb).join(',');
+                                                                setAgent({ ...agent, fallback: newFb });
+                                                            }}
+                                                        >×</button>
+                                                    </span>
+                                                );
+                                            }) : <span className="text-[10px] text-text-tertiary opacity-50 italic px-1">No fallbacks</span>}
+                                        </div>
+                                        <select
+                                            className="glass-input text-[10px] w-full bg-glass-1 border border-glass-edge text-text-tertiary py-1 px-2 rounded-lg"
+                                            value=""
+                                            onChange={e => {
+                                                if (!e.target.value) return;
+                                                const current = agent.fallback ? agent.fallback.split(',').map((s: string) => s.trim()).filter(Boolean) : [];
+                                                if (!current.includes(e.target.value)) {
+                                                    setAgent({ ...agent, fallback: [...current, e.target.value].join(',') });
+                                                }
+                                            }}
+                                        >
+                                            <option value="">+ Add Fallback Model</option>
+                                            {['Local', 'API', 'Open'].map(cat => (
+                                                <optgroup key={cat} label={cat}>
+                                                    {availableModels.filter(m => m.category === cat).map(m => (
+                                                        <option key={m.id} value={m.id}>{m.name}</option>
+                                                    ))}
+                                                </optgroup>
+                                            ))}
+                                        </select>
+                                    </div>
                                 </div>
                             </div>
 
@@ -291,6 +370,46 @@ export const AgentDetailTabs: React.FC<AgentDetailProps> = ({ agentId, onBack })
                 )}
             </div>
 
+
+            {/* PII Override Warning Modal */}
+            {showPiiModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+                    <div className="bg-glass-1 border border-red-500/30 rounded-xl p-6 max-w-md w-full shadow-2xl relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-500/50 to-orange-500/50"></div>
+                        <div className="flex items-start gap-4 mb-4">
+                            <div className="p-3 bg-red-500/10 rounded-lg text-red-400">
+                                <AlertTriangle size={24} />
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-medium text-text-primary">Disable Privacy Protection?</h3>
+                                <p className="text-xs text-text-secondary mt-1 leading-relaxed">
+                                    You are about to disable the AlluciSecureProxy for this sub-agent. This means <strong>all prompts and data</strong> routed to external Teacher Models will bypass local PII scrubbing and anonymization.
+                                </p>
+                            </div>
+                        </div>
+                        <div className="bg-glass-pressed border border-glass-edge p-3 rounded-lg text-[10px] text-text-tertiary mb-6">
+                            Only disable this if the external model explicitly requires full, unmodified context to perform its task (e.g. complex coding tasks or specific external integrations).
+                        </div>
+                        <div className="flex justify-end gap-3">
+                            <button
+                                onClick={() => setShowPiiModal(false)}
+                                className="px-4 py-2 rounded-lg text-xs font-medium text-text-secondary hover:text-text-primary hover:bg-glass-2 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setAgent({ ...agent, pii_override_enabled: pendingPiiState });
+                                    setShowPiiModal(false);
+                                }}
+                                className="px-4 py-2 rounded-lg text-xs font-medium bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/30 transition-colors"
+                            >
+                                I Understand, Disable Protection
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

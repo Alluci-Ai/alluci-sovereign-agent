@@ -3,41 +3,41 @@ import { Connection, AutonomyLevel } from '../types';
 
 export const KNOWN_PROVIDERS = {
     llm: [
-        { id: 'openai', label: 'OpenAI (GPT-5.1 / o1)' },
-        { id: 'anthropic', label: 'Anthropic (Claude 4.5 / 4.6)' },
-        { id: 'googleCloud', label: 'Google Cloud (Gemini 3)' },
-        { id: 'groq', label: 'Groq (High-Speed)' },
-        { id: 'deepseek', label: 'DeepSeek (R1 / V3)' }
+        { id: 'openai', label: 'OpenAI' },
+        { id: 'anthropic', label: 'Anthropic' },
+        { id: 'googleCloud', label: 'Google Cloud' },
+        { id: 'groq', label: 'Groq' },
+        { id: 'deepseek', label: 'DeepSeek' }
     ],
     audio: [
         { id: 'openaiRealtime', label: 'OpenAI Realtime API' },
-        { id: 'elevenLabsAgents', label: 'ElevenLabs (Agents API)' },
-        { id: 'retellAi', label: 'Retell AI (Telephony)' },
-        { id: 'inworldAi', label: 'Inworld AI (Character)' }
+        { id: 'elevenLabsAgents', label: 'ElevenLabs' },
+        { id: 'retellAi', label: 'Retell AI' },
+        { id: 'inworldAi', label: 'Inworld AI' }
     ],
     music: [
-        { id: 'suno', label: 'Suno API (Vocals/Melody)' },
+        { id: 'suno', label: 'Suno API' },
         { id: 'elevenLabsMusic', label: 'ElevenLabs Music API' },
-        { id: 'stableAudio', label: 'Stable Audio (Stability AI)' },
-        { id: 'soundverse', label: 'Soundverse (functional)' },
-        { id: 'udio', label: 'Udio (High Fidelity)' },
-        { id: 'googleLyria', label: 'Google (Lyria 3)' }
+        { id: 'stableAudio', label: 'Stable Audio' },
+        { id: 'soundverse', label: 'Soundverse' },
+        { id: 'udio', label: 'Udio' },
+        { id: 'googleLyria', label: 'Google' }
     ],
     image: [
-        { id: 'openaiDalle', label: 'OpenAI (DALL·E 3)' },
-        { id: 'falAi', label: 'Fal.ai (Fast Diffusion)' },
-        { id: 'midjourney', label: 'Midjourney (Alpha API)' },
+        { id: 'openaiDalle', label: 'OpenAI' },
+        { id: 'falAi', label: 'Fal.ai' },
+        { id: 'midjourney', label: 'Midjourney' },
         { id: 'adobeFirefly', label: 'Adobe Firefly API' },
-        { id: 'googleNanoBanana', label: 'Google (Nano Banana)' },
+        { id: 'googleNanoBanana', label: 'Google' },
         { id: 'seedance', label: 'Seedance 2.0' }
     ],
     video: [
-        { id: 'runway', label: 'Runway (Gen-4.5)' },
+        { id: 'runway', label: 'Runway' },
         { id: 'luma', label: 'Luma Dream Machine' },
         { id: 'heygen', label: 'HeyGen / Synthesia' },
-        { id: 'livepeer', label: 'Livepeer (Decentralized)' },
-        { id: 'googleVeo', label: 'Google (Veo)' },
-        { id: 'googleGenie', label: 'Google (Genie)' }
+        { id: 'livepeer', label: 'Livepeer' },
+        { id: 'googleVeo', label: 'Google' },
+        { id: 'googleGenie', label: 'Google' }
     ]
 };
 

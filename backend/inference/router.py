@@ -11,6 +11,9 @@ import platform
 from .cache import prompt_cache
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from ..security.proxy_stub import NoOpSecureProxy
+from sqlmodel import Session
+from ..models import AgentRecord
+from ..database import engine as db_engine
 logger = get_logger("ModelRouter")
 
 def get_cognitive_engine():
@@ -252,21 +255,48 @@ class ModelRouter(ExecutiveRouter):
             except Exception as e:
                 self.logger.warning(f"Background model preloading failed: {e}")
 
-    @retry(reraise=True, stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10), retry=retry_if_exception_type((httpx.HTTPError, Exception)))
-    async def _gemini_request(self, prompt: str, use_pro: bool = False, json_mode: bool = False, system_instruction: str = "", session_id: Optional[str] = None) -> str:
-        """Cloud Failover 1: Gemini."""
-        if not self.gemini_flash and self.vault:
-            # Attempt to pull key from vault and re-configure
+    async def _ensure_vault_keys(self):
+        """Lazily load any missing API keys from the Sovereign Vault."""
+        if not self.vault:
+            return
+        try:
             keys = await self.vault.retrieve_secret("alluci_api_keys") or {}
-            gemini_key = keys.get("llm", {}).get("googleCloud")
-            if gemini_key:
+            llm = keys.get("llm", {})
+            
+            if not getattr(self, "gemini_flash", None) and llm.get("googleCloud"):
                 client_opts = {}
                 if getattr(self.settings, "ENFORCE_EU_ENDPOINTS", False):
                     client_opts = {"api_endpoint": "europe-west3-aiplatform.googleapis.com"}
-                genai.configure(api_key=gemini_key, client_options=client_opts)
+                genai.configure(api_key=llm["googleCloud"], client_options=client_opts)
                 self.gemini_flash = genai.GenerativeModel("gemini-2.0-flash")
                 self.gemini_pro = genai.GenerativeModel("gemini-2.5-pro-preview-05-06")
-                self.logger.info("Gemini models initialized from vault.")
+                
+            if not getattr(self, "openai_client", None) and llm.get("openai"):
+                self.openai_client = openai.AsyncOpenAI(api_key=llm["openai"])
+                
+            if not getattr(self, "anthropic_client", None) and llm.get("anthropic"):
+                if ANTHROPIC_AVAILABLE:
+                    self.anthropic_client = anthropic.AsyncAnthropic(api_key=llm["anthropic"])
+                    
+            if not getattr(self, "groq_api_key", None) and llm.get("groq"):
+                self.groq_api_key = llm["groq"]
+                
+            if not getattr(self, "deepseek_client", None) and llm.get("deepseek"):
+                base_url = "https://models.inference.ai.azure.com" if llm["deepseek"].startswith("github_pat_") else "https://api.deepseek.com"
+                self.deepseek_client = openai.AsyncOpenAI(api_key=llm["deepseek"], base_url=base_url)
+                
+            if not getattr(self, "openrouter_client", None) and llm.get("openrouter"):
+                self.openrouter_client = openai.AsyncOpenAI(api_key=llm["openrouter"], base_url="https://openrouter.ai/api/v1")
+                
+            if not getattr(self, "nvidia_nim_api_key", None) and llm.get("kimi"):
+                self.nvidia_nim_api_key = llm["kimi"]
+                
+        except Exception as e:
+            self.logger.warning(f"Failed to load keys from vault: {e}")
+
+    @retry(reraise=True, stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10), retry=retry_if_exception_type((httpx.HTTPError, Exception)))
+    async def _gemini_request(self, prompt: str, use_pro: bool = False, json_mode: bool = False, system_instruction: str = "", session_id: Optional[str] = None, model_override: Optional[str] = None) -> str:
+        """Cloud Failover 1: Gemini."""
 
         model = self.gemini_pro if use_pro else self.gemini_flash
         if not model:
@@ -306,7 +336,7 @@ class ModelRouter(ExecutiveRouter):
         return content
 
     @retry(reraise=True, stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10), retry=retry_if_exception_type((httpx.HTTPError, Exception)))
-    async def _openai_request(self, prompt: str, use_strong: bool = False, json_mode: bool = False, system_instruction: str = "", session_id: Optional[str] = None) -> str:
+    async def _openai_request(self, prompt: str, use_strong: bool = False, json_mode: bool = False, system_instruction: str = "", session_id: Optional[str] = None, model_override: Optional[str] = None) -> str:
         """Cloud Failover 2: OpenAI."""
         if not self.openai_client:
             raise RuntimeError("OpenAI not configured")
@@ -317,7 +347,7 @@ class ModelRouter(ExecutiveRouter):
             if "europe" not in str(self.openai_client.base_url).lower() and "eu" not in str(self.openai_client.base_url).lower():
                 self.logger.warning("[COMPLIANCE] ENFORCE_EU_ENDPOINTS is true, but OpenAI Base URL does not appear to be an EU region. Forcing override or check.")
                 
-        model = "gpt-4o" if use_strong else "gpt-4o-mini"
+        model = model_override if model_override else ("gpt-4o" if use_strong else "gpt-4o-mini")
         
         messages = []
         if system_instruction:
@@ -360,14 +390,14 @@ class ModelRouter(ExecutiveRouter):
         return content
 
     @retry(reraise=True, stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10), retry=retry_if_exception_type((httpx.HTTPError, Exception)))
-    async def _generic_openai_request(self, prompt: str, client: Any, name: str, use_strong: bool = False, system_instruction: str = "") -> str:
+    async def _generic_openai_request(self, prompt: str, client: Any, name: str, use_strong: bool = False, system_instruction: str = "", model_override: Optional[str] = None) -> str:
         """Handles generic OpenAI-compatible providers like DeepSeek, Together, OpenRouter."""
         model_map = {
             "DeepSeek": ("deepseek-reasoner" if use_strong else "deepseek-chat"),
             "Together": "meta-llama/Llama-3.3-70b-instruct-turbo",
             "OpenRouter": "google/gemma-2-9b-it", # Fallback to Gemma family in cloud if possible
         }
-        model = model_map.get(name, "default")
+        model = model_override if model_override else model_map.get(name, "default")
         
         messages = []
         if system_instruction:
@@ -382,7 +412,7 @@ class ModelRouter(ExecutiveRouter):
         return response.choices[0].message.content
 
     @retry(reraise=True, stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10), retry=retry_if_exception_type((httpx.HTTPError, Exception)))
-    async def _anthropic_request(self, prompt: str, use_strong: bool = False, system_instruction: str = "") -> str:
+    async def _anthropic_request(self, prompt: str, use_strong: bool = False, system_instruction: str = "", model_override: Optional[str] = None) -> str:
         """Cloud Failover 3: Anthropic."""
         if not self.anthropic_client:
             raise RuntimeError("Anthropic not configured")
@@ -650,6 +680,8 @@ class ModelRouter(ExecutiveRouter):
         automatically forces strict local LCE execution if the topological classifier 
         detects SENSITIVE data, ensuring mathematical pseudonymization.
         """
+        await self._ensure_vault_keys()
+        
         # ── Polytope Cognitive Fine-Tuning Emulation ──────────────────
         # Since 4-bit Edge tensors cannot be LoRA-updated locally, we inject the
         # absolute Polytope persona and behavioral specs into the inescapable system layer.
@@ -786,17 +818,36 @@ class ModelRouter(ExecutiveRouter):
                 from ..security.proxy import AlluciSecureProxy
                 proxy = AlluciSecureProxy()
                 
+                # Check PII Override setting from the DB
+                pii_override = False
+                agent_model = "gpt-4o"
+                agent_fallback = "gemini-flash,claude-haiku"
+                
+                try:
+                    with Session(db_engine) as session:
+                        agent = session.get(AgentRecord, agent_id)
+                        if agent:
+                            pii_override = agent.pii_override_enabled
+                            agent_model = agent.model
+                            if agent.fallback_chain:
+                                agent_fallback = agent.fallback_chain
+                except Exception as e:
+                    self.logger.error(f"Failed to load agent record {agent_id}: {e}")
+
                 if data_region == "EU":
                     self.logger.info("[COMPLIANCE] DATA_REGION=EU. Hard-locking AlluciSecureProxy to mathematically guarantee no PII egress.")
-                    # Explicit validation to prevent any architectural bypasses in the future
                     if not proxy:
                         raise RuntimeError("CRITICAL: EU Data Residency requires AlluciSecureProxy, but proxy failed to initialize.")
+                    pii_override = False # Hard override block in EU region
                         
-                packet = proxy.process_outbound_prompt(prompt)
-                abstract_prompt = packet.compressed_abstract_prompt
-                fallback_vault = packet.secure_ephemeral_vault
-
-                # Polytope Cognitive Fine-Tuning Emulation is already injected at the start of get_response.
+                if pii_override:
+                    self.logger.warning(f"⚠️ [ROUTER] Direct Cloud Routing ENABLED for Agent {agent_id}. Bypassing PII Proxy!")
+                    abstract_prompt = prompt
+                    fallback_vault = {}
+                else:
+                    packet = proxy.process_outbound_prompt(prompt)
+                    abstract_prompt = packet.compressed_abstract_prompt
+                    fallback_vault = packet.secure_ephemeral_vault
 
                 # Define cloud providers and their check-conditions
                 cloud_sequence = []
@@ -887,6 +938,8 @@ class ModelRouter(ExecutiveRouter):
         If local LCE is available, streams from MLXEngine. Otherwise, falls back
         to full-block get_response yielding in a single chunk.
         """
+        await self._ensure_vault_keys()
+        
         # Inject the Polytope Cognitive System Prompt core if not already present
         polytope_system_core = (
             "You are Alluci, a Sovereign Agent built on the Polytope Architecture.\n"
@@ -1030,6 +1083,7 @@ You must return a valid JSON object with the following schema:
         **Security Guarantee:** Tactical responses are restricted to hardware-accelerated 
         endpoints for non-PII, time-critical tasks.
         """
+        await self._ensure_vault_keys()
         if not self.groq_api_key:
             return await self.get_response(prompt, complexity="LOW", system_instruction=system_instruction, agent_id=agent_id)
         

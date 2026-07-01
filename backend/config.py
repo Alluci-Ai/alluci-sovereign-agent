@@ -45,13 +45,15 @@ class BridgeSettings(BaseModel):
     VERUS_PUBLIC_RPC_URL: str = "https://api.verus.services"
     VERUS_INTEGRATION_MODE: Literal["off", "lite", "full"] = "off"
 
+from pydantic import BaseModel, Field
+
 class InferenceSettings(BaseModel):
     LOCAL_LCE_URL: str = "http://localhost:8000"
     LOCAL_MODEL_MAX: str = "alluci-polytope-gemma-4-31b-bf16"
     LOCAL_MODEL_STRONG: str = "alluci-polytope-gemma-4-31b-8bit"
     LOCAL_MODEL_MEDIUM: str = "alluci-polytope-gemma-4-26b-a4b-4bit"
-    LOCAL_MODEL_LIGHT: str = "alluci-polytope-gemma-4-12B-it-4bit"
-    LOCAL_MODEL_LITE: str = "alluci-polytope-gemma-4-e2b-it-4bit"
+    LOCAL_MODEL_LIGHT: str = Field(default="alluci-polytope-gemma-4-12B-it-4bit", title="Local Model Lite")
+    LOCAL_MODEL_LITE: str = Field(default="alluci-polytope-gemma-4-e2b-it-4bit", title="Local Model Edge")
     SOVEREIGN_MODE: bool = False
     GEMINI_API_KEY: Optional[str] = None
     OPENAI_API_KEY: Optional[str] = None
@@ -97,8 +99,8 @@ class Settings(BaseSettings):
     LOCAL_MODEL_MAX: str = "alluci-polytope-gemma-4-31b-bf16"
     LOCAL_MODEL_STRONG: str = "alluci-polytope-gemma-4-31b-8bit"
     LOCAL_MODEL_MEDIUM: str = "alluci-polytope-gemma-4-26b-a4b-4bit"
-    LOCAL_MODEL_LIGHT: str = "alluci-polytope-gemma-4-12B-it-4bit"
-    LOCAL_MODEL_LITE: str = "alluci-polytope-gemma-4-e2b-it-4bit"
+    LOCAL_MODEL_LIGHT: str = Field(default="alluci-polytope-gemma-4-12B-it-4bit", title="Local Model Lite")
+    LOCAL_MODEL_LITE: str = Field(default="alluci-polytope-gemma-4-e2b-it-4bit", title="Local Model Edge")
     
     # Storage
     DATABASE_URL: str = "sqlite:///db.sqlite3"
