@@ -7,28 +7,35 @@ interface Subscription {
 }
 
 export const ChannelSubscriptions: React.FC<{ agentId: string }> = ({ agentId }) => {
-    const { getAgentSubscriptions, updateAgentSubscription } = usePolytopeAPI();
+    const { getAgentSubscriptions, getChannelsStatus, updateAgentSubscription } = usePolytopeAPI();
     const [subs, setSubs] = useState<Subscription[]>([]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [availableChannels, setAvailableChannels] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
-    const availableChannels = [
-        { id: 'telegram', name: 'Telegram Bot API' },
-        { id: 'whatsapp', name: 'WhatsApp Business' },
-        { id: 'nostr', name: 'Nostr Identity Relay' },
-        { id: 'imessage', name: 'iMessage Bridge' },
-        { id: 'discord', name: 'Discord Gateway' },
-        { id: 'verus', name: 'Verus Wallet ID' },
-    ];
+    const channelNames: Record<string, string> = {
+        'telegram': 'Telegram Bot API',
+        'whatsapp': 'WhatsApp Business',
+        'nostr': 'Nostr Identity Relay',
+        'imessage': 'iMessage Bridge',
+        'discord': 'Discord Gateway',
+        'verus': 'Verus Wallet ID',
+        'webchat': 'WebChat Gateway'
+    };
 
     useEffect(() => {
         const load = async () => {
             setLoading(true);
-            const data = await getAgentSubscriptions(agentId);
-            setSubs(data || []);
+            const [subsData, channelsData] = await Promise.all([
+                getAgentSubscriptions(agentId),
+                getChannelsStatus()
+            ]);
+            setSubs(subsData || []);
+            setAvailableChannels(channelsData.channels || []);
             setLoading(false);
         };
         load();
-    }, [agentId, getAgentSubscriptions]);
+    }, [agentId, getAgentSubscriptions, getChannelsStatus]);
 
     const toggle = async (channelId: string) => {
         const current = subs.find(s => s.channel_id === channelId);
@@ -58,20 +65,27 @@ export const ChannelSubscriptions: React.FC<{ agentId: string }> = ({ agentId })
 
             <div className="flex flex-col gap-2">
                 {availableChannels.map(ch => {
-                    const sub = subs.find(s => s.channel_id === ch.id);
+                    const sub = subs.find(s => s.channel_id === ch.channel);
                     const isActive = sub?.is_active || false;
+                    const displayName = channelNames[ch.channel] || ch.channel.charAt(0).toUpperCase() + ch.channel.slice(1);
                     return (
                         <label
-                            key={ch.id}
-                            className={`flex items-center gap-4 p-3 rounded-lg border cursor-pointer transition-all ${isActive ? 'bg-glass-pressed border-accent/20 shadow-[0_0_15px_rgba(43,158,255,0.05)]' : 'bg-transparent border-transparent hover:bg-glass-hover'}`}
+                            key={ch.channel}
+                            className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-all ${isActive ? 'bg-glass-pressed border-accent/20 shadow-[0_0_15px_rgba(43,158,255,0.05)]' : 'bg-transparent border-transparent hover:bg-glass-hover'}`}
                         >
-                            <input
-                                type="checkbox"
-                                checked={isActive}
-                                onChange={() => toggle(ch.id)}
-                                className="bg-black/40 border border-white/20 rounded accent-accent w-4 h-4 cursor-pointer"
-                            />
-                            <span className={`text-[12px] font-mono tracking-wider ${isActive ? 'text-accent' : 'text-text-secondary'}`}>{ch.name}</span>
+                            <div className="flex items-center gap-4">
+                                <input
+                                    type="checkbox"
+                                    checked={isActive}
+                                    onChange={() => toggle(ch.channel)}
+                                    className="bg-black/40 border border-white/20 rounded accent-accent w-4 h-4 cursor-pointer"
+                                />
+                                <span className={`text-[12px] font-mono tracking-wider ${isActive ? 'text-accent' : 'text-text-secondary'}`}>{displayName}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 opacity-60">
+                                <div className={`w-1.5 h-1.5 rounded-full ${ch.connected ? 'bg-status-good' : 'bg-status-error'}`} />
+                                <span className="text-[9px] font-mono uppercase">{ch.connected ? 'Connected' : 'Offline'}</span>
+                            </div>
                         </label>
                     );
                 })}

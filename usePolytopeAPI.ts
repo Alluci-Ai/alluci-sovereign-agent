@@ -42,19 +42,33 @@ export const usePolytopeAPI = () => {
       setIsBusy(false);
     }
   }, []);
-  const getAgentSubscriptions = useCallback(async (agentId: string) => {
-    try {
-      const state = useStore.getState();
-      const token = state.accessToken || localStorage.getItem('alluci_daemon_token');
-      const res = await fetch(`${DAEMON_URL}/api/v1/agents/${agentId}/subscriptions`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      return await res.json();
-    } catch (error) {
-      console.error("Failed to fetch subscriptions:", error);
-      return [];
-    }
-  }, []);
+    const getAgentSubscriptions = useCallback(async (agentId: string) => {
+        try {
+            const state = useStore.getState();
+            const token = state.accessToken || localStorage.getItem('alluci_daemon_token');
+            const res = await fetch(`${DAEMON_URL}/api/v1/agents/${agentId}/subscriptions`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            return await res.json();
+        } catch (error) {
+            console.error("Failed to fetch subscriptions:", error);
+            return [];
+        }
+    }, []);
+
+    const getChannelsStatus = useCallback(async () => {
+        try {
+            const state = useStore.getState();
+            const token = state.accessToken || localStorage.getItem('alluci_daemon_token');
+            const res = await fetch(`${DAEMON_URL}/api/v1/channels/status`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            return await res.json();
+        } catch (error) {
+            console.error("Failed to fetch channels status:", error);
+            return { total: 0, channels: [] };
+        }
+    }, []);
 
   const updateAgentSubscription = useCallback(async (agentId: string, channelId: string, isActive: boolean) => {
     try {
@@ -78,5 +92,5 @@ export const usePolytopeAPI = () => {
     }
   }, []);
 
-  return { isBusy, executeObjective, getAgentSubscriptions, updateAgentSubscription };
+  return { isBusy, executeObjective, getAgentSubscriptions, getChannelsStatus, updateAgentSubscription };
 };
