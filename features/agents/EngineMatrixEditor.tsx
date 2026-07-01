@@ -54,19 +54,21 @@ export const EngineMatrixEditor: React.FC<{
         fetchProviders();
     }, [accessToken]);
 
-    const toggleModel = (modality: string, modelId: string) => {
+    const toggleModel = async (modality: string, modelId: string) => {
         const currentList = manifest[modality] || [];
         const updatedList = currentList.includes(modelId)
             ? currentList.filter((m: string) => m !== modelId)
             : [...currentList, modelId];
 
-        setManifest({ ...manifest, [modality]: updatedList });
-    };
-
-    const handleSave = async () => {
+        const newManifest = { ...manifest, [modality]: updatedList };
+        setManifest(newManifest);
+        
         setSaving(true);
-        await onSave(manifest);
-        setSaving(false);
+        try {
+            await onSave(newManifest);
+        } finally {
+            setTimeout(() => setSaving(false), 600);
+        }
     };
 
     const modalities = [
@@ -85,12 +87,20 @@ export const EngineMatrixEditor: React.FC<{
         <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-3xl">
             <div className="bg-glass-1 border border-glass-edge p-6 rounded-2xl shadow-xl flex flex-col gap-6">
                 
-                <div className="flex items-center gap-3 border-b border-glass-edge pb-4">
-                    <Server size={20} className="text-accent" />
-                    <div>
-                        <h3 className="text-sm font-medium text-text-primary">Engine Manifest Matrix</h3>
-                        <p className="text-[11px] text-text-tertiary">Assign & prioritize inference capabilities for this agent manifold.</p>
+                <div className="flex items-center justify-between border-b border-glass-edge pb-4">
+                    <div className="flex items-center gap-3">
+                        <Server size={20} className="text-accent" />
+                        <div>
+                            <h3 className="text-sm font-medium text-text-primary">Engine Manifest Matrix</h3>
+                            <p className="text-[11px] text-text-tertiary">Assign & prioritize inference capabilities for this agent manifold.</p>
+                        </div>
                     </div>
+                    {saving && (
+                        <div className="flex items-center gap-2 px-3 py-1 bg-accent/10 border border-accent/20 rounded-full text-[10px] text-accent animate-in fade-in duration-300">
+                            <span className="w-1.5 h-1.5 rounded-full bg-accent animate-ping"></span>
+                            Syncing...
+                        </div>
+                    )}
                 </div>
 
                 <div className="flex flex-col gap-8">
@@ -139,16 +149,6 @@ export const EngineMatrixEditor: React.FC<{
                             </div>
                         </div>
                     ))}
-                </div>
-
-                <div className="flex justify-end pt-4 border-t border-glass-edge mt-2">
-                    <button 
-                        onClick={handleSave} 
-                        disabled={saving}
-                        className="glass-btn flex items-center gap-2 px-6 py-2 bg-accent/20 hover:bg-accent/30 text-accent border border-accent/40 shadow-[0_0_15px_rgba(var(--accent-color),0.15)]"
-                    >
-                        <Save size={14} /> {saving ? 'Writing OS...' : 'Save Engine Manifest'}
-                    </button>
                 </div>
             </div>
         </div>

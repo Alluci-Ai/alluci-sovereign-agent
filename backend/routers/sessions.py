@@ -237,7 +237,15 @@ async def update_agent(request: Request, agent_id: str, payload: Dict[str, Any] 
 
         # If frontend sent a new engine matrix
         if "engine_manifest" in payload:
-            manifest = payload["engine_manifest"]
+            manifest_val = payload["engine_manifest"]
+            if isinstance(manifest_val, str):
+                try:
+                    manifest = json.loads(manifest_val)
+                except:
+                    manifest = {}
+            else:
+                manifest = manifest_val
+                
             if "llm" not in manifest:
                 manifest["llm"] = []
                 

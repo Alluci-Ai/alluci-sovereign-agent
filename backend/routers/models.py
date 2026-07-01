@@ -75,6 +75,20 @@ async def scan_local_models() -> List[Dict[str, str]]:
                     name = "Local Model Lite"
                 local_models.append({"id": f"local/{item}", "name": name, "category": "Local"})
                 
+    # Always include the built-in Alluci Polytope Gemma 4 models from settings
+    builtin_models = [
+        {"id": f"local/{settings.LOCAL_MODEL_MAX}", "name": "Polytope Gemma 4 Max (31B BF16)", "category": "Local"},
+        {"id": f"local/{settings.LOCAL_MODEL_STRONG}", "name": "Polytope Gemma 4 Strong (31B 8bit)", "category": "Local"},
+        {"id": f"local/{settings.LOCAL_MODEL_MEDIUM}", "name": "Polytope Gemma 4 Medium (26B 4bit)", "category": "Local"},
+        {"id": f"local/{settings.LOCAL_MODEL_LIGHT}", "name": "Polytope Gemma 4 Light (12B 4bit)", "category": "Local"},
+        {"id": f"local/{settings.LOCAL_MODEL_LITE}", "name": "Polytope Gemma 4 Edge (2B 4bit)", "category": "Local"}
+    ]
+    
+    existing_ids = {m["id"] for m in local_models}
+    for m in builtin_models:
+        if m["id"] not in existing_ids:
+            local_models.append(m)
+            
     # We can also add Ollama local scan if needed by checking `ollama list` output
     # but for now we stick to simple directory scanning as requested.
     return local_models

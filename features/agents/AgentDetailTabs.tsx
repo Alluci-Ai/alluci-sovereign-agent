@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../../store/useStore';
+import { getCsrfToken } from '../../csrfStore';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { ChevronLeft, AlertTriangle, Save, Layout, Box, Wrench, Network, Clock, Zap, Activity, History, RefreshCw, Cpu } from 'lucide-react';
 import { HeartbeatOrderEditor } from '../heartbeat/HeartbeatOrderEditor';
@@ -84,17 +85,28 @@ export const AgentDetailTabs: React.FC<AgentDetailProps> = ({ agentId, onBack })
     const handleSaveAgent = async (updatedData: any) => {
         setSaving(true);
         try {
+            const payload = { ...updatedData };
+            if (typeof payload.engine_manifest === 'string') {
+                try {
+                    payload.engine_manifest = JSON.parse(payload.engine_manifest);
+                } catch (e) {
+                    console.error("Failed to parse engine_manifest string prior to saving:", e);
+                }
+            }
+
+            const csrfToken = await getCsrfToken(DAEMON_URL, accessToken);
             const res = await fetch(`${DAEMON_URL}/api/v1/agents/${agentId}`, {
                 method: 'PUT',
                 headers: { 
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${accessToken}` 
+                    'Authorization': `Bearer ${accessToken}`,
+                    ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {})
                 },
-                body: JSON.stringify(updatedData),
+                body: JSON.stringify(payload),
                 credentials: 'include'
             });
             if (res.ok) {
-                setAgent({ ...agent, ...updatedData });
+                setAgent({ ...agent, ...payload });
             }
         } catch (err) {
             console.error('Failed saving agent:', err);
