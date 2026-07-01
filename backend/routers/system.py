@@ -136,49 +136,114 @@ async def get_system_providers():
         
     # 2. Cloud LLMs
     has_openai = bool(llm_keys.get("openai") or getattr(settings, "OPENAI_API_KEY", None))
-    providers["llm"].extend([
-        {"id": "gpt-4o", "name": "GPT-4o", "provider": "openai", "connected": has_openai},
-        {"id": "gpt-4o-mini", "name": "GPT-4o Mini", "provider": "openai", "connected": has_openai}
-    ])
-    
-    has_google = bool(llm_keys.get("googleCloud") or getattr(settings, "GEMINI_API_KEY", None))
-    providers["llm"].extend([
-        {"id": "gemini-1.5-pro", "name": "Gemini 1.5 Pro", "provider": "google", "connected": has_google},
-        {"id": "gemini-1.5-flash", "name": "Gemini 1.5 Flash", "provider": "google", "connected": has_google}
-    ])
+    providers["llm"].append({"id": "openai", "name": "OpenAI", "provider": "openai", "connected": has_openai})
     
     has_anthropic = bool(llm_keys.get("anthropic") or getattr(settings, "ANTHROPIC_API_KEY", None))
-    providers["llm"].extend([
-        {"id": "claude-3-5-sonnet-20241022", "name": "Claude 3.5 Sonnet", "provider": "anthropic", "connected": has_anthropic},
-        {"id": "claude-3-haiku-20240307", "name": "Claude 3 Haiku", "provider": "anthropic", "connected": has_anthropic},
-        {"id": "claude-3-opus-20240229", "name": "Claude 3 Opus", "provider": "anthropic", "connected": has_anthropic}
-    ])
+    providers["llm"].append({"id": "anthropic", "name": "Anthropic", "provider": "anthropic", "connected": has_anthropic})
+    
+    has_google = bool(llm_keys.get("googleCloud") or getattr(settings, "GEMINI_API_KEY", None))
+    providers["llm"].append({"id": "googleCloud", "name": "Google Cloud", "provider": "googleCloud", "connected": has_google})
     
     has_groq = bool(llm_keys.get("groq") or getattr(settings, "GROQ_API_KEY", None))
-    providers["llm"].append({"id": "llama3-70b-8192", "name": "Groq LLaMA 3", "provider": "groq", "connected": has_groq})
+    providers["llm"].append({"id": "groq", "name": "Groq", "provider": "groq", "connected": has_groq})
 
     has_deepseek = bool(llm_keys.get("deepseek") or getattr(settings, "DEEPSEEK_API_KEY", None))
-    providers["llm"].append({"id": "deepseek-coder", "name": "DeepSeek Coder", "provider": "deepseek", "connected": has_deepseek})
+    providers["llm"].append({"id": "deepseek", "name": "DeepSeek", "provider": "deepseek", "connected": has_deepseek})
     
+    has_moonshot = bool(llm_keys.get("kimi"))
+    providers["llm"].append({"id": "kimi", "name": "Moonshot", "provider": "kimi", "connected": has_moonshot})
+
+    has_openrouter = bool(llm_keys.get("openrouter"))
+    providers["llm"].append({"id": "openrouter", "name": "OpenRouter", "provider": "openrouter", "connected": has_openrouter})
+
+    has_lmstudio = bool(llm_keys.get("lmStudio"))
+    providers["llm"].append({"id": "lmStudio", "name": "LM Studio", "provider": "lmStudio", "connected": has_lmstudio})
+    
+    has_together = bool(llm_keys.get("together"))
+    providers["llm"].append({"id": "together", "name": "Together AI", "provider": "together", "connected": has_together})
+    
+    has_cohere = bool(llm_keys.get("cohere"))
+    providers["llm"].append({"id": "cohere", "name": "Cohere", "provider": "cohere", "connected": has_cohere})
+    
+    has_aws = bool(llm_keys.get("aws"))
+    providers["llm"].append({"id": "aws", "name": "AWS Bedrock", "provider": "aws", "connected": has_aws})
+
     # 3. Video
-    providers["video"].append({"id": "google/veo", "name": "Google Veo", "provider": "google", "connected": has_google})
     has_runway = bool(video_keys.get("runway"))
-    providers["video"].append({"id": "runway-gen2", "name": "RunwayML Gen-2", "provider": "runway", "connected": has_runway})
+    providers["video"].append({"id": "runway", "name": "RunwayML", "provider": "runway", "connected": has_runway})
     
+    has_luma = bool(video_keys.get("luma"))
+    providers["video"].append({"id": "luma", "name": "Luma", "provider": "luma", "connected": has_luma})
+    
+    has_veo = bool(video_keys.get("veo"))
+    providers["video"].append({"id": "veo", "name": "Google Veo", "provider": "veo", "connected": has_veo})
+    
+    has_genie = bool(video_keys.get("genie"))
+    providers["video"].append({"id": "genie", "name": "Google Genie", "provider": "genie", "connected": has_genie})
+    
+    has_heygen = bool(video_keys.get("heygen"))
+    providers["video"].append({"id": "heygen", "name": "HeyGen", "provider": "heygen", "connected": has_heygen})
+    
+    has_seedance_video = bool(video_keys.get("seedanceVideo"))
+    providers["video"].append({"id": "seedanceVideo", "name": "Seedance", "provider": "seedanceVideo", "connected": has_seedance_video})
+    
+    has_livepeer = bool(video_keys.get("livepeer"))
+    providers["video"].append({"id": "livepeer", "name": "Livepeer", "provider": "livepeer", "connected": has_livepeer})
+
     # 4. Image
     has_midjourney = bool(image_keys.get("midjourney"))
-    providers["image"].append({"id": "midjourney/v6", "name": "Midjourney v6", "provider": "midjourney", "connected": has_midjourney})
-    providers["image"].append({"id": "dall-e-3", "name": "DALL-E 3", "provider": "openai", "connected": has_openai})
+    providers["image"].append({"id": "midjourney", "name": "Midjourney", "provider": "midjourney", "connected": has_midjourney})
+    
+    has_falAI = bool(image_keys.get("falAI"))
+    providers["image"].append({"id": "falAI", "name": "FalAI", "provider": "falAI", "connected": has_falAI})
+    
+    has_seedance = bool(image_keys.get("seedance"))
+    providers["image"].append({"id": "seedance", "name": "Seedance", "provider": "seedance", "connected": has_seedance})
+    
+    has_googleNanoBanana = bool(image_keys.get("googleNanoBanana"))
+    providers["image"].append({"id": "googleNanoBanana", "name": "GoogleNanoBanana", "provider": "googleNanoBanana", "connected": has_googleNanoBanana})
+    
+    has_openAIDallE = bool(image_keys.get("openAIDallE"))
+    providers["image"].append({"id": "openAIDallE", "name": "OpenAIDallE", "provider": "openAIDallE", "connected": has_openAIDallE})
+    
+    has_adobeFirefly = bool(image_keys.get("adobeFirefly"))
+    providers["image"].append({"id": "adobeFirefly", "name": "AdobeFirefly", "provider": "adobeFirefly", "connected": has_adobeFirefly})
     
     # 5. Audio
     has_elevenlabs = bool(audio_keys.get("elevenLabs"))
-    providers["audio"].append({"id": "elevenlabs", "name": "ElevenLabs", "provider": "elevenlabs", "connected": has_elevenlabs})
-    providers["audio"].append({"id": "whisper-v3", "name": "Whisper v3 (Local)", "provider": "local", "connected": True})
+    providers["audio"].append({"id": "elevenLabs", "name": "ElevenLabs", "provider": "elevenLabs", "connected": has_elevenlabs})
+    
+    has_elevenlabsAgents = bool(audio_keys.get("elevenLabsAgents"))
+    providers["audio"].append({"id": "elevenLabsAgents", "name": "ElevenLabsAgents", "provider": "elevenLabsAgents", "connected": has_elevenlabsAgents})
+    
+    has_retellAI = bool(audio_keys.get("retellAI"))
+    providers["audio"].append({"id": "retellAI", "name": "RetellAI", "provider": "retellAI", "connected": has_retellAI})
+    
+    has_openAIRealtime = bool(audio_keys.get("openAIRealtime"))
+    providers["audio"].append({"id": "openAIRealtime", "name": "OpenAIRealtime", "provider": "openAIRealtime", "connected": has_openAIRealtime})
+    
+    has_inworldAI = bool(audio_keys.get("inworldAI"))
+    providers["audio"].append({"id": "inworldAI", "name": "InworldAI", "provider": "inworldAI", "connected": has_inworldAI})
+    
+    providers["audio"].append({"id": "localWhisper", "name": "Whisper (Local)", "provider": "local", "connected": True})
     
     # 6. Music
+    has_elevenLabsMusic = bool(music_keys.get("elevenLabsMusic"))
+    providers["music"].append({"id": "elevenLabsMusic", "name": "ElevenLabsMusic", "provider": "elevenLabsMusic", "connected": has_elevenLabsMusic})
+    
     has_suno = bool(music_keys.get("suno"))
+    providers["music"].append({"id": "suno", "name": "Suno", "provider": "suno", "connected": has_suno})
+    
+    has_soundverse = bool(music_keys.get("soundverse"))
+    providers["music"].append({"id": "soundverse", "name": "Soundverse", "provider": "soundverse", "connected": has_soundverse})
+    
+    has_googleLyria = bool(music_keys.get("googleLyria"))
+    providers["music"].append({"id": "googleLyria", "name": "GoogleLyria", "provider": "googleLyria", "connected": has_googleLyria})
+    
+    has_stableAudio = bool(music_keys.get("stableAudio"))
+    providers["music"].append({"id": "stableAudio", "name": "StableAudio", "provider": "stableAudio", "connected": has_stableAudio})
+    
     has_udio = bool(music_keys.get("udio"))
-    providers["music"].append({"id": "suno-v3", "name": "Suno v3", "provider": "suno", "connected": has_suno})
     providers["music"].append({"id": "udio", "name": "Udio", "provider": "udio", "connected": has_udio})
     
     return providers

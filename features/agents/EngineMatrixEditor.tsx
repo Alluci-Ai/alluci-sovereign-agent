@@ -17,10 +17,22 @@ export const EngineMatrixEditor: React.FC<{
     const [providers, setProviders] = useState<any>({ llm: [], video: [], image: [], audio: [] });
     const [loading, setLoading] = useState(true);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const [manifest, setManifest] = useState<any>(
-        engineManifest || { llm: [], video: [], image: [], audio: [] }
-    );
+    const getInitialManifest = () => {
+        if (!engineManifest) return { llm: [], video: [], image: [], audio: [], music: [] };
+        if (typeof engineManifest === 'string') {
+            try { return JSON.parse(engineManifest); }
+            catch (e) { return { llm: [], video: [], image: [], audio: [], music: [] }; }
+        }
+        return engineManifest;
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [manifest, setManifest] = useState<any>(getInitialManifest());
     const [saving, setSaving] = useState(false);
+
+    useEffect(() => {
+        setManifest(getInitialManifest());
+    }, [engineManifest]);
 
     useEffect(() => {
         const fetchProviders = async () => {

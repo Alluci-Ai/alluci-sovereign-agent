@@ -191,6 +191,23 @@ async def create_agent(request: Request, payload: Dict[str, Any] = Body(...), cs
     return {"agent": {"id": agent.id, "name": agent.name, "status": agent.status}}
 
 
+
+PROVIDER_MAP = {
+    "gpt-4o": "openai",
+    "gpt-4o-mini": "openai",
+    "gemini-1.5-pro": "googleCloud",
+    "gemini-1.5-flash": "googleCloud",
+    "claude-3-5-sonnet-20241022": "anthropic",
+    "claude-3-haiku-20240307": "anthropic",
+    "claude-3-opus-20240229": "anthropic",
+    "llama3-70b-8192": "groq",
+    "deepseek-coder": "deepseek",
+    "Alluci Polytope 31B-it-4bit": "local"
+}
+
+def _get_provider_for_model(model_id: str) -> str:
+    return PROVIDER_MAP.get(model_id, model_id)
+
 @router.put(
     "/agents/{agent_id}",
     dependencies=[
@@ -227,24 +244,23 @@ async def update_agent(request: Request, agent_id: str, payload: Dict[str, Any] 
         # Primary Engine Handling
         if "model" in payload:
             agent.model = payload["model"]
-            # Auto-inject into matrix
-            if agent.model not in manifest["llm"]:
-                manifest["llm"].append(agent.model)
+            provider = _get_provider_for_model(agent.model)
+            if provider not in manifest["llm"]:
+                manifest["llm"].append(provider)
                 
         # Fallback Chain Handling
         if "fallback_chain" in payload:
             agent.fallback_chain = payload["fallback_chain"]
-            # Auto-inject fallbacks into matrix
             if agent.fallback_chain:
                 fallbacks = [m.strip() for m in agent.fallback_chain.split(",") if m.strip()]
                 for f_model in fallbacks:
-                    if f_model not in manifest["llm"]:
-                        manifest["llm"].append(f_model)
+                    f_prov = _get_provider_for_model(f_model)
+                    if f_prov not in manifest["llm"]:
+                        manifest["llm"].append(f_prov)
 
-        # Pruning Logic: If engine matrix is explicitly updated, and Primary Engine is no longer allowed
-        if "engine_manifest" in payload and manifest["llm"]:
-            if agent.model not in manifest["llm"]:
-                agent.model = manifest["llm"][0]  # Safely degrade to highest priority authorized model
+        # Graceful Degradation replaces the need for hard pruning here, 
+        # but we ensure we don't accidentally overwrite agent.model with a provider ID.
+
 
         agent.engine_manifest = json.dumps(manifest)
 

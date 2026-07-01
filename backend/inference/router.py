@@ -867,27 +867,27 @@ class ModelRouter(ExecutiveRouter):
                 
                 # Gemini Failover (Vault-aware lazy loading)
                 if GEMINI_AVAILABLE and (self.vault or self.gemini_flash):
-                    if not allowed_llms or any(m in allowed_llms for m in ["gemini-1.5-pro", "gemini-1.5-flash"]):
+                    if not allowed_llms or "googleCloud" in allowed_llms:
                         cloud_sequence.append(("Gemini", lambda p: self._gemini_request(p, use_pro=use_strong, json_mode=json_mode, system_instruction=system_instruction, session_id=session_id)))
                     else:
-                        _trigger_intervention("Gemini")
+                        _trigger_intervention("Google Cloud")
                 
                 # OpenAI Failover
                 if OPENAI_AVAILABLE and (self.vault or self.openai_client):
-                    if not allowed_llms or any(m in allowed_llms for m in ["gpt-4o", "gpt-4o-mini"]):
+                    if not allowed_llms or "openai" in allowed_llms:
                         cloud_sequence.append(("OpenAI", lambda p: self._openai_request(p, use_strong=use_strong, json_mode=json_mode, system_instruction=system_instruction, session_id=session_id)))
                     else:
                         _trigger_intervention("OpenAI")
                 
                 # Anthropic Failover
                 if ANTHROPIC_AVAILABLE and (self.vault or self.anthropic_client):
-                    if not allowed_llms or any(m in allowed_llms for m in ["claude-3-5-sonnet", "claude-3-haiku", "claude-3-opus"]):
+                    if not allowed_llms or "anthropic" in allowed_llms:
                         cloud_sequence.append(("Anthropic", lambda p: self._anthropic_request(p, use_strong=use_strong, system_instruction=system_instruction)))
                     else:
                         _trigger_intervention("Anthropic")
                 
                 if self.groq_api_key:
-                    if not allowed_llms or "llama3-70b-8192" in allowed_llms:
+                    if not allowed_llms or "groq" in allowed_llms:
                         cloud_sequence.append(("Groq", lambda p: self.get_fast_tactical_response(p, system_instruction=system_instruction)))
                     else:
                         _trigger_intervention("Groq")
@@ -895,18 +895,35 @@ class ModelRouter(ExecutiveRouter):
 
 
                 # Add smaller providers / OpenRouter / etc.
-                for name, client in [("DeepSeek", self.deepseek_client), ("OpenRouter", self.openrouter_client), ("Together", self.together_client)]:
+                provider_map = {
+                    "DeepSeek": ("deepseek", self.deepseek_client),
+                    "OpenRouter": ("openrouter", self.openrouter_client),
+                    "Together": ("together", self.together_client)
+                }
+                for name, (prov_id, client) in provider_map.items():
                     if client:
-                        cloud_sequence.append((name, lambda p, c=client, n=name: self._generic_openai_request(p, c, n, use_strong, system_instruction=system_instruction)))  # type: ignore
+                        if not allowed_llms or prov_id in allowed_llms:
+                            cloud_sequence.append((name, lambda p, c=client, n=name: self._generic_openai_request(p, c, n, use_strong, system_instruction=system_instruction)))  # type: ignore
+                        else:
+                            _trigger_intervention(name)
 
                 if self.cohere_client:
-                    cloud_sequence.append(("Cohere", lambda p: self._cohere_request(p, use_strong=use_strong, system_instruction=system_instruction)))
+                    if not allowed_llms or "cohere" in allowed_llms:
+                        cloud_sequence.append(("Cohere", lambda p: self._cohere_request(p, use_strong=use_strong, system_instruction=system_instruction)))
+                    else:
+                        _trigger_intervention("Cohere")
                 
                 if self.bedrock_session:
-                    cloud_sequence.append(("AWS Bedrock", lambda p: self._bedrock_request(p, use_strong=use_strong, system_instruction=system_instruction)))
+                    if not allowed_llms or "aws" in allowed_llms:
+                        cloud_sequence.append(("AWS Bedrock", lambda p: self._bedrock_request(p, use_strong=use_strong, system_instruction=system_instruction)))
+                    else:
+                        _trigger_intervention("AWS Bedrock")
 
                 if self.nvidia_nim_api_key:
-                    cloud_sequence.append(("Kimi", lambda p: self._kimi_request(p, thinking=use_strong, system_instruction=system_instruction)))
+                    if not allowed_llms or "kimi" in allowed_llms:
+                        cloud_sequence.append(("Kimi", lambda p: self._kimi_request(p, thinking=use_strong, system_instruction=system_instruction)))
+                    else:
+                        _trigger_intervention("Kimi")
 
                 # ── [ PPN-032 ] Topological Route Classification ──────────────
                 # Analyze the prompt to determine the optimal cloud provider,

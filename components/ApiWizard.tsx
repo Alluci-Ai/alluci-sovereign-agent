@@ -54,15 +54,36 @@ const DEFAULT_PROVIDERS = {
         { id: 'aws', label: 'AWS Bedrock' }
     ],
     audio: [
-        { id: 'elevenLabs', label: 'ElevenLabs' }
+        { id: 'elevenLabs', label: 'ElevenLabs' },
+        { id: 'elevenLabsAgents', label: 'ElevenLabsAgents' },
+        { id: 'retellAI', label: 'RetellAI' },
+        { id: 'openAIRealtime', label: 'OpenAIRealtime' },
+        { id: 'inworldAI', label: 'InworldAI' }
     ],
     music: [
+        { id: 'elevenLabsMusic', label: 'ElevenLabsMusic' },
+        { id: 'suno', label: 'Suno' },
+        { id: 'soundverse', label: 'Soundverse' },
+        { id: 'googleLyria', label: 'GoogleLyria' },
+        { id: 'stableAudio', label: 'StableAudio' },
+        { id: 'udio', label: 'Udio' }
     ],
     image: [
-        { id: 'midjourney', label: 'Midjourney' }
+        { id: 'midjourney', label: 'Midjourney' },
+        { id: 'falAI', label: 'FalAI' },
+        { id: 'seedance', label: 'Seedance' },
+        { id: 'googleNanoBanana', label: 'GoogleNanoBanana' },
+        { id: 'openAIDallE', label: 'OpenAIDallE' },
+        { id: 'adobeFirefly', label: 'AdobeFirefly' }
     ],
     video: [
-        { id: 'runway', label: 'RunwayML' }
+        { id: 'runway', label: 'RunwayML' },
+        { id: 'luma', label: 'Luma' },
+        { id: 'veo', label: 'Google Veo' },
+        { id: 'genie', label: 'Google Genie' },
+        { id: 'heygen', label: 'HeyGen' },
+        { id: 'seedanceVideo', label: 'Seedance' },
+        { id: 'livepeer', label: 'Livepeer' }
     ]
 };
 
@@ -70,7 +91,15 @@ const ApiWizard: React.FC<ApiWizardProps> = ({ isOpen, onClose, apiKeys, onSave 
     const [currentStep, setCurrentStep] = useState(0);
     const [egressHosts, setEgressHosts] = useState<string[]>([]);
     const [rotationSchedule, setRotationSchedule] = useState<{ interval_days: number; last_rotated: string | null }>({ interval_days: 30, last_rotated: null });
-    const [localKeys, setLocalKeys] = useState<ApiManifoldKeys>(apiKeys);
+    const [localKeys, setLocalKeys] = useState<ApiManifoldKeys>(
+        apiKeys || { llm: {}, audio: {}, image: {}, video: {}, music: {} }
+    );
+
+    useEffect(() => {
+        if (apiKeys) {
+            setLocalKeys(apiKeys);
+        }
+    }, [apiKeys]);
     const [masterKey, setMasterKey] = useState("");
     const [isAuthenticating, setIsAuthenticating] = useState(false);
     const [authError, setAuthError] = useState("");
