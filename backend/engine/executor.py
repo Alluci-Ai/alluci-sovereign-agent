@@ -259,9 +259,38 @@ class Executor:
                             context=f"Task ID: {task_id}"
                         )
                         if not res.get("approved"):
-                            logger.warning(f"Task {task_id} DENIED by User (Policy: {res.get('policy')})")
-                            raise PermissionError(f"Execution denied by User: {res.get('policy')}")
-
-                return await adapter.execute(args)
-
-
+                            raise PermissionError(f"Action '{action}' was denied by ExecApprovalManager.")
+                
+                # Fetch Tool Manifest Params (if available) to inject API keys, etc.
+                from sqlmodel import Session as SqlSession
+                from ..models import Run, AgentRecord
+                import json
+                
+                injected_args = dict(args)
+                with SqlSession(self.session_factory()) as session:
+                    # Find agent_id from task_id -> task_record
+                    from ..models import TaskRecord
+                    statement = select(TaskRecord).where(TaskRecord.task_dag_id == task_id)
+                    task_record = session.exec(statement).first()
+                    if task_record and task_record.agent_id:
+                        agent = session.get(AgentRecord, task_record.agent_id)
+                        if agent and agent.tools_manifest:
+                            def _safe_loads(val):
+                                if not val: return {}
+                                if isinstance(val, dict): return val
+                                try: return json.loads(val)
+                                except Exception: return {}
+                            tools_data = _safe_loads(agent.tools_manifest)
+                            if action in tools_data:
+                                tool_config = tools_data[action]
+                                if tool_config.get("enabled", False):
+                                    params = tool_config.get("params", {})
+                                    if isinstance(params, str):
+                                        try:
+                                            params = json.loads(params)
+                                        except:
+                                            params = {}
+                                    if isinstance(params, dict):
+                                        injected_args.update(params)
+                
+                return await adapter.execute(injected_args)

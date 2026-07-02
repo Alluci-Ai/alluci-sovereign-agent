@@ -223,6 +223,7 @@ export const MobileMenu: React.FC<{ isOpen: boolean; onClose: () => void; onActi
         { id: 'files', label: 'Files' },
         { id: 'tasks', label: 'Tasks' },
         { id: 'skills', label: 'Skills' },
+        { id: 'tools', label: 'Tools' },
         { id: 'bridges', label: 'Bridges' },
         { id: 'api', label: 'API Keys' },
         { id: 'soul', label: 'Soul Core' },

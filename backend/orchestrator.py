@@ -464,6 +464,8 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
         # 1. Identity & Cognition Layer (Fast Retrieval)
         try:
             # Check for a memory-cached manifest first to avoid vault overhead
+            agent_tools_manifest = {}
+            agent_skills_manifest = {}
             if hasattr(self, "_cached_soul") and self._cached_soul:  # type: ignore
                 manifest = self._cached_soul  # type: ignore
             elif self.agent_id and self.agent_id not in ["executive", "alluci"]:
@@ -472,17 +474,33 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
                 try:
                     with Session(db_engine) as session:
                         agent_record = session.get(AgentRecord, self.agent_id)
-                        if agent_record and agent_record.soul_manifest_override:
-                            manifest = json.loads(agent_record.soul_manifest_override)
+                        if agent_record:
+                            if agent_record.soul_manifest_override:
+                                manifest = json.loads(agent_record.soul_manifest_override)
+                            else:
+                                manifest = await self.vault.retrieve_secret("soul_manifest")
+                            
+                            def _safe_loads(val):
+                                if not val: return {}
+                                if isinstance(val, dict): return val
+                                try: return json.loads(val)
+                                except Exception: return {}
+                            
+                            agent_tools_manifest = _safe_loads(agent_record.tools_manifest)
+                            agent_skills_manifest = _safe_loads(agent_record.skills_manifest)
                         else:
                             manifest = await self.vault.retrieve_secret("soul_manifest")
                 except Exception as db_err:
                     self.logger.error(f"[ SOUL ] Failed to load AgentRecord override for {self.agent_id}: {db_err}")
                     manifest = await self.vault.retrieve_secret("soul_manifest")
                 self._cached_soul = manifest
+                self._cached_tools_manifest = agent_tools_manifest
+                self._cached_skills_manifest = agent_skills_manifest
             else:
                 manifest = await self.vault.retrieve_secret("soul_manifest")
                 self._cached_soul = manifest
+                self._cached_tools_manifest = agent_tools_manifest
+                self._cached_skills_manifest = agent_skills_manifest
 
             if manifest:
                 id_core = manifest.get("identityCore", "You are Alluci, a Sovereign Executive Assistant and cognitive agent.")
@@ -599,13 +617,17 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
         if self.skill_manager:
             try:
                 skills = await self.skill_manager.list_skills()
-                active_ids = manifest.get("active_skill_ids") if manifest else None
                 
-                # Filter skills if active_skill_ids is specified, otherwise default to all verified skills
-                if active_ids is not None:
-                    active_skills = [s for s in skills if s.get("id") in active_ids and s.get("verified", False)]
+                # Filter active skills from agent's skills_manifest
+                agent_skills = getattr(self, "_cached_skills_manifest", {})
+                if agent_skills:
+                    active_skills = [s for s in skills if s.get("id") in agent_skills and agent_skills[s.get("id")].get("enabled", False)]
                 else:
-                    active_skills = [s for s in skills if s.get("verified", False)]
+                    active_ids = manifest.get("active_skill_ids") if manifest else None
+                    if active_ids is not None:
+                        active_skills = [s for s in skills if s.get("id") in active_ids and s.get("verified", False)]
+                    else:
+                        active_skills = [s for s in skills if s.get("verified", False)]
                     
                 if active_skills:
                     context_parts.append("AVAILABLE COGNITIVE MODULES (SKILLS):")
@@ -618,7 +640,13 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
 
         # 2b. Available Tools (Adapters)
         if hasattr(self, "adapter_registry"):
-            tools = self.adapter_registry.list_tools()
+            all_tools = self.adapter_registry.list_tools()
+            agent_tools = getattr(self, "_cached_tools_manifest", {})
+            if agent_tools:
+                tools = [t for t in all_tools if t in agent_tools and agent_tools[t].get("enabled", False)]
+            else:
+                tools = all_tools
+                
             context_parts.append("AVAILABLE TOOLS (ADAPTERS):")
             context_parts.append(f"You MUST use exactly one of these tool names in your 'tool' field: {', '.join(tools)}")
             context_parts.append("Do NOT invent or hallucinate tool names.")
@@ -683,6 +711,9 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
             chi = V - E + F
             sig_hash = self.dpk.compute_signature_hash(B.tolist(), chi)
             
+            # Fuse manifests for signature hash calculation if needed
+            is_tool_action = kwargs.get("is_tool_action", False)
+            
             state = PolytopeState(
                 signature_hash=sig_hash,
                 vertices_V=V,
@@ -696,7 +727,8 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
                 hardware_status=affect_state.hardware_status,
                 origin=origin,
                 is_override=override_tearing,
-                is_avl_override=override_avl
+                is_avl_override=override_avl,
+                is_tool_action=is_tool_action
             )
             
             # 6. DPK Authorization
@@ -746,7 +778,8 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
             self.ace.process_semantic_fallback(objective, preferences=prefs)  # type: ignore
 
         # 1. PPN / DPK Manifold Check
-        is_manifold_stable, polytope_state = self._perform_ppn_check(objective, autonomy, origin, override_tearing, override_avl)
+        # Here we don't necessarily know if it's a tool or skill, but execute_objective is typically a high-level cognitive action.
+        is_manifold_stable, polytope_state = self._perform_ppn_check(objective, autonomy, origin, override_tearing, override_avl, is_tool_action=False)
         
         # Bypass for development/testing
         if getattr(self.settings, 'APP_ENV', 'development') in ['development', 'testing']:

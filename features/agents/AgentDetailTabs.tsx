@@ -6,6 +6,7 @@ import { ChevronLeft, AlertTriangle, Save, Layout, Box, Wrench, Network, Clock, 
 import { HeartbeatOrderEditor } from '../heartbeat/HeartbeatOrderEditor';
 import WorkspaceEditor from './WorkspaceEditor';
 import ToolProfileEditor from './ToolProfileEditor';
+import SkillProfileEditor from './SkillProfileEditor';
 import ChannelSubscriptions from './ChannelSubscriptions';
 import BulkSkillActions from '../skills/BulkSkillActions';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -307,6 +308,7 @@ export const AgentDetailTabs: React.FC<AgentDetailProps> = ({ agentId, onBack })
                 {activeTab === 'tools' && <ToolProfileEditor agentId={agentId} />}
 
                 {/* ── CHANNELS TAB ── */}
+                {activeTab === 'skills' && <SkillProfileEditor agentId={agentId} />}
                 {activeTab === 'channels' && <ChannelSubscriptions agentId={agentId} />}
 
                 {/* ── HEARTBEAT TAB ── */}
@@ -369,17 +371,6 @@ export const AgentDetailTabs: React.FC<AgentDetailProps> = ({ agentId, onBack })
                     </div>
                 )}
 
-                {/* ── SKILLS TAB ── */}
-                {activeTab === 'skills' && (
-                    <div className="bg-glass-1 border border-glass-edge rounded-xl p-8 text-center text-[11px] font-mono text-text-tertiary flex flex-col items-center gap-4 animate-in fade-in duration-300">
-                        <Zap size={32} className="opacity-20" />
-                        Skills loaded natively via global Skill registry mappings. Independent Agent bounding is active but array is empty.
-
-                        <div className="w-full max-w-sm mt-4">
-                            <BulkSkillActions agentId={agentId} onComplete={() => console.log('Bulk executed')} />
-                        </div>
-                    </div>
-                )}
             </div>
 
 

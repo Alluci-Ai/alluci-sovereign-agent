@@ -43,7 +43,7 @@ class AVLGate:
 
         # Dynamic Baseline from DPK Calibration Cache
         try:
-            dynamic_threshold = self.calibration_manager.get_dynamic_threshold(origin=state.origin)
+            dynamic_threshold = self.calibration_manager.get_dynamic_threshold(origin=state.origin, is_tool=state.is_tool_action)
             dynamic_budget = dynamic_threshold * 10.0
             dynamic_euler = max(2, int(dynamic_budget / 2))
         except Exception as e:
@@ -104,7 +104,7 @@ class AVLGate:
 
         # Dynamic Baseline from DPK Calibration Cache
         try:
-            dynamic_threshold = self.calibration_manager.get_dynamic_threshold(origin=state.origin)
+            dynamic_threshold = self.calibration_manager.get_dynamic_threshold(origin=state.origin, is_tool=state.is_tool_action)
             dynamic_budget = dynamic_threshold * 10.0
             dynamic_euler = max(2, int(dynamic_budget / 2))
         except Exception as e:

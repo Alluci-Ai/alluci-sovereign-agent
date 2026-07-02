@@ -404,6 +404,36 @@ async def get_root_heartbeat_history(limit: int = 30):
 
 WORKSPACE_DIR = os.path.abspath("backend/workspace")
 
+def _safe_json_loads(val: Any) -> dict:
+    if not val:
+        return {}
+    if isinstance(val, dict):
+        return val
+    try:
+        return json.loads(val)
+    except Exception:
+        return {}
+
+@router.get("/registry/skills", dependencies=[Depends(verify_authenticated)])
+async def get_registry_skills():
+    if not services.skill_manager:
+        return {"skills": []}
+    global_skills = await services.skill_manager.list_skills()
+    skills = [s for s in global_skills if s.get("category", "").upper() in ["FRAMEWORK", "MINDSET", "KNOWLEDGE"]]
+    return {"skills": skills}
+
+@router.get("/registry/tools", dependencies=[Depends(verify_authenticated)])
+async def get_registry_tools():
+    if not services.skill_manager:
+        return {"tools": []}
+    global_skills = await services.skill_manager.list_skills()
+    # Include explicit tool categories AND any skill with executable capabilities (intrinsic linking)
+    tools = [s for s in global_skills if (
+        s.get("category", "").upper() in ["BRIDGE", "MCP", "TOOL"] or
+        (s.get("capabilities") and len(s.get("capabilities", [])) > 0)
+    )]
+    return {"tools": tools}
+
 @router.get("/agents/{agent_id}/tools", dependencies=[Depends(verify_authenticated)])
 async def get_agent_tools(agent_id: str):
     """Get all tools with their agent-specific overrides."""
@@ -417,15 +447,17 @@ async def get_agent_tools(agent_id: str):
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
         
-    agent_tools = {}
-    if hasattr(agent, "tools_manifest") and agent.tools_manifest:
-        try:
-            agent_tools = json.loads(agent.tools_manifest)
-        except Exception:
-            pass
+    agent_tools = _safe_json_loads(agent.tools_manifest)
             
     tools = []
     for skill in global_skills:
+        cat = skill.get("category", "").upper()
+        has_capabilities = bool(skill.get("capabilities") and len(skill.get("capabilities", [])) > 0)
+        
+        # Include explicit tool categories AND skills with executable capabilities (intrinsic linking)
+        if cat not in ["BRIDGE", "MCP", "TOOL"] and not has_capabilities:
+            continue
+            
         skill_id = skill.get("id")
         if not skill_id:
             continue
@@ -439,13 +471,14 @@ async def get_agent_tools(agent_id: str):
         tools.append({
             "id": skill_id,
             "name": skill_name,
+            "category": cat or "TOOL",
             "description": skill_desc,
             "enabled": enabled,
-            "params": params
+            "params": params,
+            "intrinsic": cat not in ["BRIDGE", "MCP", "TOOL"]  # Flag intrinsically-linked tools
         })
         
     return {"tools": tools}
-
 
 @router.put("/agents/{agent_id}/tools", dependencies=[Depends(verify_authenticated)])
 async def update_agent_tools(request: Request, agent_id: str, payload: Dict[str, Any] = Body(...), csrf_protect: CsrfProtect = Depends()):
@@ -466,7 +499,68 @@ async def update_agent_tools(request: Request, agent_id: str, payload: Dict[str,
         if not agent:
             raise HTTPException(status_code=404, detail="Agent not found")
             
-        agent.tools_manifest = json.dumps(tools_manifest)
+        agent.tools_manifest = tools_manifest
+        session.add(agent)
+        session.commit()
+        
+    return {"status": "SUCCESS"}
+
+@router.get("/agents/{agent_id}/skills", dependencies=[Depends(verify_authenticated)])
+async def get_agent_skills(agent_id: str):
+    """Get all cognitive skills with their agent-specific overrides."""
+    if not services.skill_manager:
+        return {"skills": []}
+    global_skills = await services.skill_manager.list_skills()
+    
+    with Session(db_engine) as session:
+        agent = session.get(AgentRecord, agent_id)
+        
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+        
+    agent_skills = _safe_json_loads(agent.skills_manifest)
+            
+    skills = []
+    for skill in global_skills:
+        skill_id = skill.get("id")
+        if not skill_id:
+            continue
+        skill_name = skill.get("name", skill_id)
+        skill_desc = skill.get("description", "")
+        skill_cat = skill.get("category", "CUSTOM")
+        
+        agent_override = agent_skills.get(skill_id, {})
+        enabled = agent_override.get("enabled", False)
+        
+        skills.append({
+            "id": skill_id,
+            "name": skill_name,
+            "description": skill_desc,
+            "category": skill_cat,
+            "enabled": enabled
+        })
+        
+    return {"skills": skills}
+
+@router.put("/agents/{agent_id}/skills", dependencies=[Depends(verify_authenticated)])
+async def update_agent_skills(request: Request, agent_id: str, payload: Dict[str, Any] = Body(...), csrf_protect: CsrfProtect = Depends()):
+    await csrf_protect.validate_csrf(request)
+    """Update agent-specific skill bindings."""
+    skills_payload = payload.get("skills", [])
+    
+    skills_manifest = {}
+    for s in skills_payload:
+        if s.get("enabled"):
+            skills_manifest[s.get("id")] = {
+                "enabled": True
+            }
+            
+    with Session(db_engine) as session:
+        agent = session.get(AgentRecord, agent_id)
+        if not agent:
+            raise HTTPException(status_code=404, detail="Agent not found")
+            
+        agent.skills_manifest = skills_manifest
         session.add(agent)
         session.commit()
         

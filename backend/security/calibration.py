@@ -14,7 +14,8 @@ class CalibrationManager:
         self.rbm_path = self.cache_dir / "rbm_profiles.json"
         self.avl_cache_path = self.cache_dir / "avl_calibration_cache.json"
         self.ace_cache_path = self.cache_dir / "ace_baseline_cache.json"
-        self.history: List[float] = []
+        self.skill_history: List[float] = []
+        self.tool_history: List[float] = []
         self.avl_history: List[dict] = []
         self.ace_history: List[float] = [] # Stress/Tension history
         self.rbm_profiles = {}  # Relational Boundary Manifolds
@@ -24,9 +25,16 @@ class CalibrationManager:
         if self.cache_path.exists():
             try:
                 with open(self.cache_path, "r") as f:
-                    self.history = json.load(f)
+                    data = json.load(f)
+                    if isinstance(data, dict):
+                        self.skill_history = data.get("skill_history", [])
+                        self.tool_history = data.get("tool_history", [])
+                    elif isinstance(data, list):
+                        self.skill_history = data
+                        self.tool_history = []
             except Exception:
-                self.history = []
+                self.skill_history = []
+                self.tool_history = []
         
         if self.rbm_path.exists():
             try:
@@ -52,7 +60,7 @@ class CalibrationManager:
     def save_cache(self):
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         with open(self.cache_path, "w") as f:
-            json.dump(self.history, f)
+            json.dump({"skill_history": self.skill_history, "tool_history": self.tool_history}, f)
         with open(self.rbm_path, "w") as f:
             json.dump(self.rbm_profiles, f)
         with open(self.avl_cache_path, "w") as f:
@@ -60,7 +68,7 @@ class CalibrationManager:
         with open(self.ace_cache_path, "w") as f:
             json.dump(self.ace_history, f)
 
-    def get_dynamic_threshold(self, origin: str = "local", soul_preferences: dict = None) -> float:
+    def get_dynamic_threshold(self, origin: str = "local", soul_preferences: dict = None, is_tool: bool = False) -> float:
         """
         Calculates the fluid baseline.
         Local origins use Discovery Mode & Continuous Normalization.
@@ -83,27 +91,33 @@ class CalibrationManager:
             else:
                 return 0.05  # Absolute minimum for unknown external origin (Fortress Mode)
 
+        target_history = self.tool_history if is_tool else self.skill_history
+
         # 2. Local Discovery Mode (Simulated Annealing)
-        if len(self.history) < 5:
-            base = 0.40 # Highly relaxed
+        if len(target_history) < 5:
+            base = 0.60 if is_tool else 0.40 # Highly relaxed, more so for tools
             if soul_preferences:
                 creativity = soul_preferences.get('creativity', 0.5)
                 base += (creativity - 0.5) * 0.2
             return base
             
         # 3. Continuous Statistical Normalization
-        mean_shift = statistics.mean(self.history)
-        std_shift = statistics.stdev(self.history) if len(self.history) > 1 else 0.05
+        mean_shift = statistics.mean(target_history)
+        std_shift = statistics.stdev(target_history) if len(target_history) > 1 else 0.05
         
         # Normalization: Mean + 3 Sigma
         return max(0.15, mean_shift + (3 * std_shift))
 
-    def log_approved_trajectory(self, topology_shift: float, origin: str = "local"):
+    def log_approved_trajectory(self, topology_shift: float, origin: str = "local", is_tool: bool = False):
         """Logs the geometric signature into the calibration cache for self-healing."""
         if origin == "local":
-            self.history.append(topology_shift)
-            if len(self.history) > 200:
-                self.history = self.history[-200:]
+            target_history = self.tool_history if is_tool else self.skill_history
+            target_history.append(topology_shift)
+            if len(target_history) > 200:
+                if is_tool:
+                    self.tool_history = self.tool_history[-200:]
+                else:
+                    self.skill_history = self.skill_history[-200:]
         else:
             if origin not in self.rbm_profiles:
                 self.rbm_profiles[origin] = {"history": [], "frozen": False}

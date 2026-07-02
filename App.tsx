@@ -23,6 +23,9 @@ import { MobileMenu } from './components/Visualizers';
 // Inline Panels (rendered in main content area)
 import { AuthPortal } from './components/AuthPortal';
 import { SkillDetailOverlay } from './components/SkillGrid';
+import { ToolDetailOverlay } from './components/ToolsPanel';
+import SkillBuilderWizard from './components/SkillBuilderWizard';
+import ToolBuilderWizard from './components/ToolBuilderWizard';
 
 // Hooks
 import { useDaemonStatus } from './hooks/useDaemonStatus';
@@ -57,9 +60,14 @@ const App: React.FC = () => {
     isSidebarCollapsed,
     setApiKeys,
     connections, setConnections,
-    setSkills,
+    skills, setSkills,
     selectedSkill, setSelectedSkill,
-    setSkillToEdit, setShowSkillWizard,
+    showSkillWizard, setShowSkillWizard,
+    skillToEdit, setSkillToEdit,
+    tools, setTools,
+    showToolWizard, setShowToolWizard,
+    selectedTool, setSelectedTool,
+    toolToEdit, setToolToEdit,
     setAuditLog,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     updateAgent,
@@ -368,6 +376,9 @@ const App: React.FC = () => {
       </div>
 
       {selectedSkill && <SkillDetailOverlay skill={selectedSkill} onClose={() => setSelectedSkill(null)} onEdit={(skill) => { setSelectedSkill(null); setSkillToEdit(skill); setShowSkillWizard(true); setActiveView('skills'); }} />}
+      {showSkillWizard && <SkillBuilderWizard onClose={() => setShowSkillWizard(false)} />}
+      {showToolWizard && <ToolBuilderWizard onClose={() => setShowToolWizard(false)} />}
+      {selectedTool && <ToolDetailOverlay tool={selectedTool} onClose={() => setSelectedTool(null)} onEdit={(tool) => { setSelectedTool(null); setToolToEdit(tool); setShowToolWizard(true); setActiveView('tools'); }} />}
       <RpcConsole />
       <canvas ref={canvasRef} width={320} height={240} className="hidden" />
     </div>

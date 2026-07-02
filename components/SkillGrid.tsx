@@ -278,6 +278,20 @@ export const SkillDetailOverlay: React.FC<SkillDetailOverlayProps> = ({ skill, o
                         </div>
                     </section>
 
+                    <section>
+                        <h4 style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent)', marginBottom: 8 }}>Tools (Extrinsic Dependencies)</h4>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            {skill.tools && skill.tools.length > 0 ? skill.tools.map((t, i) => (
+                                <div key={i} style={{ display: 'flex', gap: 6, fontSize: 13, fontFamily: 'var(--font-mono)', alignItems: 'flex-start' }}>
+                                    <span style={{ color: 'var(--status-good)' }}>🛠</span>
+                                    <span>{t}</span>
+                                </div>
+                            )) : (
+                                <p style={{ fontSize: 13, fontFamily: 'var(--font-mono)', color: 'var(--text-quaternary)' }}>No intrinsic tools linked.</p>
+                            )}
+                        </div>
+                    </section>
+
                     <section className="bg-glass-2 border border-glass-edge p-5 rounded-xl flex flex-col gap-3">
                         <h4 className="glass-label text-[10px] tracking-widest text-text-tertiary m-0 border-b border-white/5 pb-2">Sensitive Vault Overrides</h4>
                         <PerSkillKeyInput

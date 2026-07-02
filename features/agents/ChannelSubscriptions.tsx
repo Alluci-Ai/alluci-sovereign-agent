@@ -69,16 +69,17 @@ export const ChannelSubscriptions: React.FC<{ agentId: string }> = ({ agentId })
                     const isActive = sub?.is_active || false;
                     const displayName = channelNames[ch.channel] || ch.channel.charAt(0).toUpperCase() + ch.channel.slice(1);
                     return (
-                        <label
+                        <div
                             key={ch.channel}
+                            onClick={() => toggle(ch.channel)}
                             className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-all ${isActive ? 'bg-glass-pressed border-accent/20 shadow-[0_0_15px_rgba(43,158,255,0.05)]' : 'bg-transparent border-transparent hover:bg-glass-hover'}`}
                         >
                             <div className="flex items-center gap-4">
                                 <input
                                     type="checkbox"
                                     checked={isActive}
-                                    onChange={() => toggle(ch.channel)}
-                                    className="bg-black/40 border border-white/20 rounded accent-accent w-4 h-4 cursor-pointer"
+                                    readOnly
+                                    className="bg-black/40 border border-white/20 rounded accent-accent w-4 h-4 cursor-pointer pointer-events-none"
                                 />
                                 <span className={`text-[12px] font-mono tracking-wider ${isActive ? 'text-accent' : 'text-text-secondary'}`}>{displayName}</span>
                             </div>
@@ -86,13 +87,13 @@ export const ChannelSubscriptions: React.FC<{ agentId: string }> = ({ agentId })
                                 <div className={`w-1.5 h-1.5 rounded-full ${ch.connected ? 'bg-status-good' : 'bg-status-error'}`} />
                                 <span className="text-[9px] font-mono uppercase">{ch.connected ? 'Connected' : 'Offline'}</span>
                             </div>
-                        </label>
+                        </div>
                     );
                 })}
             </div>
 
             <p className="text-[10px] text-text-tertiary font-mono opacity-50 flex items-center gap-1 max-w-xs mt-2 text-center md:text-left mx-auto md:mx-0">
-                // System strictly rejects unauthorized subscription mapping routes natively
+                Click a conduit to authorize or revoke subscription mapping for this agent.
             </p>
         </div>
     );

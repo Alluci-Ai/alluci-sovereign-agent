@@ -29,6 +29,7 @@ import ApiWizard from './ApiWizard';
 import { TaskPanel } from './TaskPanel';
 import BridgeCenter from './BridgeCenter';
 import { SkillGrid } from './SkillGrid';
+import { ToolsPanel } from './ToolsPanel';
 
 interface ViewManifoldProps {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -79,6 +80,10 @@ const ViewManifold: React.FC<ViewManifoldProps> = ({
     skills, setSkills,
     setSelectedSkill,
     skillToEdit, setSkillToEdit,
+    tools, setTools,
+    setSelectedTool,
+    setToolToEdit,
+    setShowToolWizard,
     apiKeys,
     canvasNodes,
     setIsProcessing,
@@ -121,6 +126,20 @@ const ViewManifold: React.FC<ViewManifoldProps> = ({
               onCreate={() => { setSkillToEdit(null); setShowSkillWizard(true); }}
             />
           )}
+        </div>
+      );
+    case 'tools':
+      return (
+        <div className="inline-panel-wrapper">
+            <ToolsPanel
+              tools={tools || []}
+              onSelect={setSelectedTool}
+              onToggle={(id) => {
+                  setTools(prev => prev.map(x => x.id === id ? { ...x, enabled: !x.enabled } : x));
+              }}
+              onDelete={() => { }}
+              onCreate={() => { setToolToEdit(null); setShowToolWizard(true); }}
+            />
         </div>
       );
     case 'bridges':

@@ -44,6 +44,16 @@ class TaskStatus(str, Enum):
     SKIPPED = "skipped"
     SUSPENDED_SECURITY = "suspended_security"
 
+class CognitiveCategory(str, Enum):
+    FRAMEWORK = "FRAMEWORK"
+    MINDSET = "MINDSET"
+    KNOWLEDGE = "KNOWLEDGE"
+
+class ExtrinsicCategory(str, Enum):
+    BRIDGE = "BRIDGE"
+    MCP = "MCP"
+    TOOL = "TOOL"
+
 class RunStatus(str, Enum):
     QUEUED = "queued"
     ACTIVE = "active"
@@ -335,6 +345,7 @@ class AgentRecord(SQLModel, table=True):
     heartbeat_orders: Optional[str] = Field(sa_column=Column(JSON), default=None)
     engine_manifest: Optional[str] = Field(sa_column=Column(JSON), default=None)
     tools_manifest: Optional[str] = Field(sa_column=Column(JSON), default=None)
+    skills_manifest: Optional[str] = Field(sa_column=Column(JSON), default=None)
     soul_manifest_override: Optional[str] = Field(sa_column=Column(JSON), default=None)
     created_at: Optional[datetime] = Field(default=None)
     updated_at: Optional[datetime] = Field(default=None)

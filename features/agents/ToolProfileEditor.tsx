@@ -13,24 +13,56 @@ export const ToolProfileEditor: React.FC<ToolProfileEditorProps> = ({ agentId })
     const { accessToken } = useStore();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [tools, setTools] = useState<any[]>([]);
+    const [intrinsicTools, setIntrinsicTools] = useState<Set<string>>(new Set());
 
     useEffect(() => {
-        const fetchTools = async () => {
+        const fetchData = async () => {
             try {
-                const res = await fetch(`${DAEMON_URL}/api/v1/agents/${agentId}/tools`, {
-                    headers: { 'Authorization': `Bearer ${accessToken}` },
-                    credentials: 'include'
-                });
-                if (res.ok) {
-                    const data = await res.json();
+                const [toolsRes, skillsRes] = await Promise.all([
+                    fetch(`${DAEMON_URL}/api/v1/agents/${agentId}/tools`, { headers: { 'Authorization': `Bearer ${accessToken}` }, credentials: 'include' }),
+                    fetch(`${DAEMON_URL}/api/v1/agents/${agentId}/skills`, { headers: { 'Authorization': `Bearer ${accessToken}` }, credentials: 'include' })
+                ]);
 
-                    setTools(data.tools || []);
+                let loadedTools = [];
+                if (toolsRes.ok) {
+                    const data = await toolsRes.json();
+                    loadedTools = data.tools || [];
+                }
+
+                let loadedSkills = [];
+                if (skillsRes.ok) {
+                    const data = await skillsRes.json();
+                    loadedSkills = data.skills || [];
+                }
+
+                const intrinsicSet = new Set<string>();
+                loadedSkills.forEach((s: any) => {
+                    if (s.enabled && s.tools && Array.isArray(s.tools)) {
+                        s.tools.forEach((t: string) => intrinsicSet.add(t));
+                    }
+                });
+
+                // Auto-enable intrinsic tools
+                let modified = false;
+                loadedTools.forEach((t: any) => {
+                    if (intrinsicSet.has(t.name) && !t.enabled) {
+                        t.enabled = true;
+                        modified = true;
+                    }
+                });
+
+                setIntrinsicTools(intrinsicSet);
+                setTools(loadedTools);
+
+                if (modified) {
+                    // Optionally save back the auto-enabled state
+                    saveTools(loadedTools);
                 }
             } catch (err) {
-                console.error('Failed fetching agent tools', err);
+                console.error('Failed fetching agent tools/skills', err);
             }
         };
-        fetchTools();
+        fetchData();
     }, [agentId, accessToken]);
 
     const saveTools = async (toolsState: any[]) => {
@@ -53,7 +85,13 @@ export const ToolProfileEditor: React.FC<ToolProfileEditorProps> = ({ agentId })
 
     const toggleTool = async (index: number) => {
         const next = [...tools];
-        next[index].enabled = !next[index].enabled;
+        const t = next[index];
+        if (intrinsicTools.has(t.name)) {
+            // Intrinsic tools cannot be disabled manually
+            console.warn(`Cannot disable intrinsic tool: ${t.name}`);
+            return;
+        }
+        t.enabled = !t.enabled;
         setTools(next);
         await saveTools(next);
     };
@@ -67,12 +105,15 @@ export const ToolProfileEditor: React.FC<ToolProfileEditorProps> = ({ agentId })
                     <div key={i} className={`p-4 rounded-xl border transition-colors ${t.enabled ? 'border-status-good/30 bg-status-good/5' : 'border-glass-edge bg-glass-2'}`}>
                         <div className="flex items-center justify-between cursor-pointer" onClick={() => toggleTool(i)}>
                             <div>
-                                <span className="font-mono text-[13px] text-text-primary tracking-tight">{t.name}</span>
+                                <div className="flex items-center gap-2">
+                                    <span className="font-mono text-[13px] text-text-primary tracking-tight">{t.name}</span>
+                                    {intrinsicTools.has(t.name) && <span className="glass-tag bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[8px] px-1.5 py-0.5">INTRINSIC</span>}
+                                </div>
                                 <p className="text-[10px] text-text-tertiary mt-1">{t.description}</p>
                             </div>
                             <div className="text-text-primary flex items-center gap-2">
                                 <span className={`glass-label text-[9px] ${t.enabled ? 'text-status-good' : 'opacity-40'}`}>{t.enabled ? 'ACTIVE' : 'DORMANT'}</span>
-                                {t.enabled ? <ToggleRight size={20} className="text-status-good drop-shadow-[0_0_8px_rgba(48,209,88,0.4)]" /> : <ToggleLeft size={20} className="text-glass-edge" />}
+                                {t.enabled ? <ToggleRight size={20} className={`${intrinsicTools.has(t.name) ? 'text-status-good/50 cursor-not-allowed' : 'text-status-good drop-shadow-[0_0_8px_rgba(48,209,88,0.4)]'}`} /> : <ToggleLeft size={20} className="text-glass-edge" />}
                             </div>
                         </div>
 

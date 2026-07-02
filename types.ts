@@ -70,7 +70,7 @@ export interface SkillPersonalityImpact {
 export interface SkillManifest {
   id: string;
   name: string;
-  category: 'BRIDGE' | 'MANIFOLD' | 'FRAMEWORK' | 'CUSTOM';
+  category: 'BRIDGE' | 'MANIFOLD' | 'FRAMEWORK' | 'CUSTOM' | 'MCP' | 'TOOL' | 'KNOWLEDGE' | 'MINDSET' | string;
   description: string;
 
   // [ COGNITIVE_LAYERS ]
@@ -80,6 +80,7 @@ export interface SkillManifest {
   frameworks: string[];      // Structural logic schemas
   chainsOfThought: string[]; // Explicit reasoning steps
   logic: string[];           // Governing axioms (Deductive/Inductive)
+  tools?: string[];          // Extrinsic Dependencies (MCPs, APIs, CLIs)
 
   // [ DYNAMIC_BINDING ]
   personalityMapping: SkillPersonalityImpact;
@@ -98,6 +99,15 @@ export interface SkillManifest {
   capabilities: string[];
   bestPractices?: string[];
   voiceProfile?: string;
+}
+
+export interface ToolManifest {
+  id: string;
+  name: string;
+  category: 'BRIDGE' | 'MCP' | 'TOOL' | string;
+  description: string;
+  enabled: boolean;
+  params: string;
 }
 
 export enum SoulHumor {

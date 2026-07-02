@@ -6,11 +6,12 @@ import {
     ApiManifoldKeys,
     SoulManifest,
     Message,
-    PendingAttachment
+    PendingAttachment,
+    ToolManifest
 } from '../types';
 
 export type ActiveView =
-    | 'chat' | 'soul' | 'skills' | 'bridges' | 'memory'
+    | 'chat' | 'soul' | 'skills' | 'tools' | 'bridges' | 'memory'
     | 'api' | 'tasks' | 'files' | 'audit' | 'canvas'
     | 'sessions' | 'analytics' | 'crons'
     | 'agents' | 'config' | 'logs' | 'debug' | 'wallet' | 'node' | 'dag' | 'pvt';
@@ -117,6 +118,14 @@ export interface AppState {
     setSelectedSkill: (val: SkillManifest | null) => void;
     skillToEdit: SkillManifest | null;
     setSkillToEdit: (val: SkillManifest | null) => void;
+    tools: ToolManifest[];
+    setTools: (val: ToolManifest[] | ((prev: ToolManifest[]) => ToolManifest[])) => void;
+    selectedTool: ToolManifest | null;
+    setSelectedTool: (t: ToolManifest | null) => void;
+    toolToEdit: ToolManifest | null;
+    setToolToEdit: (t: ToolManifest | null) => void;
+    showToolWizard: boolean;
+    setShowToolWizard: (val: boolean) => void;
     auditLog: AuditEntry[];
     setAuditLog: (val: AuditEntry[] | ((prev: AuditEntry[]) => AuditEntry[])) => void;
 
@@ -338,6 +347,16 @@ export const useStore = create<AppState>((set) => ({
     setSelectedSkill: (val) => set({ selectedSkill: val }),
     skillToEdit: null,
     setSkillToEdit: (val) => set({ skillToEdit: val }),
+    tools: [],
+    setTools: (val) => set((state) => ({
+        tools: typeof val === 'function' ? val(state.tools) : val
+    })),
+    selectedTool: null,
+    setSelectedTool: (t) => set({ selectedTool: t }),
+    toolToEdit: null,
+    setToolToEdit: (t) => set({ toolToEdit: t }),
+    showToolWizard: false,
+    setShowToolWizard: (val) => set({ showToolWizard: val }),
     auditLog: [],
     setAuditLog: (val) => set((state) => ({
         auditLog: typeof val === 'function' ? val(state.auditLog) : val

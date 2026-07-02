@@ -7,7 +7,7 @@ import {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     CheckSquare, FolderOpen, Shield, ChevronLeft, ChevronRight, ChevronDown, ChevronUp,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    LayoutList, BarChart3, Calendar, Bot, Settings, ScrollText, Bug, CalendarDays, Wallet, Server, GitFork, Activity
+    LayoutList, BarChart3, Calendar, Bot, Settings, ScrollText, Bug, CalendarDays, Wallet, Server, GitFork, Activity, Wrench
 } from 'lucide-react';
 
 interface NavItem {
@@ -46,6 +46,7 @@ const NAV_GROUPS: NavGroup[] = [
         items: [
             { id: 'soul', label: 'Soul', icon: Brain },
             { id: 'skills', label: 'Skills', icon: Zap },
+            { id: 'tools', label: 'Tools', icon: Wrench },
             { id: 'memory', label: 'Memory', icon: FolderOpen },
             { id: 'agents', label: 'Agents', icon: Bot },
         ]

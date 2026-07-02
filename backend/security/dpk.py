@@ -42,6 +42,7 @@ class PolytopeState:
     origin: str = "local"        # Origin vector for Zero-Trust RBM
     is_override: bool = False    # Human-in-the-Loop Override flag (DPK)
     is_avl_override: bool = False # Human-in-the-Loop Override flag (AVL)
+    is_tool_action: bool = False  # Flag for Extrinsic Tools vs Intrinsic Skills
     tearing_exception: Optional["TearingException"] = None # Holds the exception if tearing occurs
 
 class DiscreteProjectionKernel:
@@ -164,10 +165,10 @@ class DiscreteProjectionKernel:
             if current.is_override:
                 # 2. Human-in-the-Loop Override: user explicitly approved the trajectory
                 logger.warning(f"[DPK] OVERRIDE ACCEPTED. Logging trajectory {topology_shift:.4f} to {current.origin} calibration cache.")
-                self.calibration_manager.log_approved_trajectory(topology_shift / 10.0, origin=current.origin)
+                self.calibration_manager.log_approved_trajectory(topology_shift / 10.0, origin=current.origin, is_tool=current.is_tool_action)
             else:
                 try:
-                    dynamic_threshold = self.calibration_manager.get_dynamic_threshold(origin=current.origin) * 10.0
+                    dynamic_threshold = self.calibration_manager.get_dynamic_threshold(origin=current.origin, is_tool=current.is_tool_action) * 10.0
                 except Exception as e:
                     if str(e) == "RBM_FROZEN":
                         logger.error(f"[DPK] RBM FREEZE: Origin {current.origin} is quarantined.")
@@ -180,7 +181,7 @@ class DiscreteProjectionKernel:
                     raise TearingException(topology_shift, dynamic_threshold, current.origin)
                 
                 # Automatically evolve baseline if within bounds
-                self.calibration_manager.log_approved_trajectory(topology_shift / 10.0, origin=current.origin)
+                self.calibration_manager.log_approved_trajectory(topology_shift / 10.0, origin=current.origin, is_tool=current.is_tool_action)
 
         self.prev_state = current
         self.initialized = True
