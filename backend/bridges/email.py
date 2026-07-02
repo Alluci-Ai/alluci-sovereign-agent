@@ -10,6 +10,8 @@ from email.mime.multipart import MIMEMultipart
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from .base import BridgeAdapter
+from .gmail import MLStripper
+import re
 
 class EmailBridge(BridgeAdapter):
     """
@@ -146,12 +148,32 @@ class EmailBridge(BridgeAdapter):
                     body = ""
                     
                     if msg.is_multipart():
+                        html_body = ""
                         for part in msg.walk():
-                            if part.get_content_type() == "text/plain":
+                            ctype = part.get_content_type()
+                            if ctype == "text/plain":
                                 body = part.get_payload(decode=True).decode(errors='ignore')  # type: ignore
                                 break
+                            elif ctype == "text/html":
+                                html_body = part.get_payload(decode=True).decode(errors='ignore')  # type: ignore
+                        if not body and html_body:
+                            try:
+                                s = MLStripper()
+                                s.feed(html_body)
+                                body = re.sub(r'\n\s*\n', '\n\n', s.get_data()).strip()
+                            except Exception:
+                                body = html_body
                     else:
-                        body = msg.get_payload(decode=True).decode(errors='ignore')  # type: ignore
+                        body_content = msg.get_payload(decode=True).decode(errors='ignore')  # type: ignore
+                        if msg.get_content_type() == "text/html":
+                            try:
+                                s = MLStripper()
+                                s.feed(body_content)
+                                body = re.sub(r'\n\s*\n', '\n\n', s.get_data()).strip()
+                            except Exception:
+                                body = body_content
+                        else:
+                            body = body_content
                     
                     data = {
                         "id": e_id.decode(),

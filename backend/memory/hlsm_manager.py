@@ -22,6 +22,47 @@ import hashlib
 import json
 import time
 import uuid
+import re
+from html.parser import HTMLParser
+
+class MLStripper(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.reset()
+        self.strict = False
+        self.convert_charrefs = True
+        self.text = []
+        self.ignore = False
+
+    def handle_starttag(self, tag, attrs):
+        if tag in ["style", "script", "head", "title", "meta"]:
+            self.ignore = True
+
+    def handle_endtag(self, tag):
+        if tag in ["style", "script", "head", "title", "meta"]:
+            self.ignore = False
+
+    def handle_data(self, d):
+        if not self.ignore:
+            self.text.append(d)
+
+    def get_data(self):
+        return ''.join(self.text)
+
+def _sanitize_hlsm_text(content: str) -> str:
+    """Guarantee that H-LSM only ever ingests cleanly formatted text."""
+    if not content or not isinstance(content, str):
+        return str(content)
+    if '<' not in content and '>' not in content:
+        return content
+    try:
+        s = MLStripper()
+        s.feed(content)
+        cleaned = re.sub(r'\n\s*\n', '\n\n', s.get_data())
+        return cleaned.strip()
+    except Exception:
+        cleaned = re.sub(r'<[^>]+>', '', content)
+        return re.sub(r'\n\s*\n', '\n\n', cleaned).strip()
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
@@ -196,6 +237,7 @@ class HLSMManager:
 
     async def l0_store(self, content: str, session_key: str, source: str = "conversation") -> str:
         """Store a working memory entry for the current session."""
+        content = _sanitize_hlsm_text(content)
         entry_id = str(uuid.uuid4())
         entry = {
             "id": entry_id,
@@ -314,6 +356,7 @@ class HLSMManager:
         extra_metadata: Optional[Dict] = None,
     ) -> str:
         """Store an episodic memory entry to L1 (SQL)."""
+        content = _sanitize_hlsm_text(content)
         entry_id = str(uuid.uuid4())
         now = time.time()
         objective_hash = hashlib.sha256(objective.encode()).hexdigest()[:16] if objective else ""
