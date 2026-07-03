@@ -180,6 +180,8 @@ export interface AppState {
     setVoiceTranscription: (val: string | null) => void;
     textInput: string;
     setTextInput: (val: string | ((prev: string) => string)) => void;
+    autoSubmitEnabled: boolean;
+    setAutoSubmitEnabled: (val: boolean) => void;
 
     // Sprint 3: Exec Approval
     pendingApproval: {
@@ -425,6 +427,8 @@ export const useStore = create<AppState>((set) => ({
     setTextInput: (val) => set((state) => ({
         textInput: typeof val === 'function' ? val(state.textInput) : val
     })),
+    autoSubmitEnabled: false,
+    setAutoSubmitEnabled: (val) => set({ autoSubmitEnabled: val }),
 
     // Sprint 3: Exec Approval
     pendingApproval: null,

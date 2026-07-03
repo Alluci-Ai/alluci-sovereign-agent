@@ -231,6 +231,7 @@ const ViewManifold: React.FC<ViewManifoldProps> = ({
                 handleFileChange={handleFileChange}
                 handleCommandSubmit={handleCommandSubmit}
                 isProcessing={isProcessing}
+                bridgeManagerRef={bridgeManagerRef}
               />
             </div>
           </ErrorBoundary>

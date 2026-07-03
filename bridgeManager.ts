@@ -178,9 +178,15 @@ export class BridgeManager {
 
   private voiceSocket: WebSocket | null = null;
   private audioContext: AudioContext | null = null;
+  private playAudioContext: AudioContext | null = null;
+  private nextPlayTime: number = 0;
   private vadNode: AudioWorkletNode | null = null;
   private mediaStream: MediaStream | null = null;
-  private onTranscriptCallback: ((text: string, isFinal: boolean) => void) | null = null;
+  private onTranscriptCallback: ((text: string, type: 'fragment' | 'utterance' | 'cognition') => void) | null = null;
+
+  getStream(): MediaStream | null {
+    return this.mediaStream;
+  }
 
   /**
    * Detects the host device hardware tier for dynamic model routing.
@@ -200,24 +206,56 @@ export class BridgeManager {
    * and begins streaming 200ms PCM chunks containing active speech.
    */
   async streamAudioWebSocket(
-    onTranscript: (text: string, isFinal: boolean) => void
+    onTranscript: (text: string, type: 'fragment' | 'utterance' | 'cognition') => void,
+    autoSubmit: boolean = false
   ): Promise<boolean> {
     try {
       this.onTranscriptCallback = onTranscript;
+      this.nextPlayTime = 0;
       const deviceTier = this.detectDeviceTier();
 
       // 1. Open bidirectional WebSocket to the sovereign voice endpoint
       const daemonUrl = import.meta.env?.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
       const wsUrl = daemonUrl.replace(/^http/, 'ws');
-      this.voiceSocket = new WebSocket(`${wsUrl}/api/v1/voice/stream?device_tier=${deviceTier}`);
+      this.voiceSocket = new WebSocket(`${wsUrl}/api/v1/voice/stream?device_tier=${deviceTier}&auto_submit=${autoSubmit}`);
       this.voiceSocket.binaryType = 'arraybuffer';
 
-      // Handle incoming transcription fragments from the backend
-      this.voiceSocket.onmessage = (event) => {
+      // Handle incoming messages (JSON text metadata or raw binary PCM audio) from the backend
+      this.voiceSocket.onmessage = async (event) => {
         try {
-          const payload = JSON.parse(event.data as string);
-          if (payload.text && this.onTranscriptCallback) {
-            this.onTranscriptCallback(payload.text, payload.is_final ?? false);
+          if (event.data instanceof ArrayBuffer) {
+            // Play back raw 48kHz Int16 mono PCM data from Kokoro using Web Audio API
+            const pcmData = new Int16Array(event.data);
+            const float32Data = new Float32Array(pcmData.length);
+            for (let i = 0; i < pcmData.length; i++) {
+                float32Data[i] = pcmData[i] / 32768.0;
+            }
+
+            if (!this.playAudioContext) {
+                const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+                this.playAudioContext = new AudioContextClass({ sampleRate: 48000 });
+            }
+            if (this.playAudioContext.state === 'suspended') {
+                await this.playAudioContext.resume();
+            }
+
+            const audioBuffer = this.playAudioContext.createBuffer(1, float32Data.length, 48000);
+            audioBuffer.copyToChannel(float32Data, 0);
+
+            const source = this.playAudioContext.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(this.playAudioContext.destination);
+
+            // Gapless scheduling
+            const startTime = Math.max(this.playAudioContext.currentTime, this.nextPlayTime);
+            source.start(startTime);
+            this.nextPlayTime = startTime + audioBuffer.duration;
+          } else {
+            const payload = JSON.parse(event.data as string);
+            if (payload.text && this.onTranscriptCallback) {
+              const payloadType = payload.type || (payload.is_final ? 'utterance' : 'fragment');
+              this.onTranscriptCallback(payload.text, payloadType);
+            }
           }
         } catch (e) {
           this.logger?.error(`Voice WS parse error: ${e}`);
@@ -280,8 +318,12 @@ export class BridgeManager {
       this.vadNode = null;
     }
     if (this.audioContext) {
-      await this.audioContext.close();
+      await this.audioContext.close().catch(() => {});
       this.audioContext = null;
+    }
+    if (this.playAudioContext) {
+      await this.playAudioContext.close().catch(() => {});
+      this.playAudioContext = null;
     }
     if (this.mediaStream) {
       this.mediaStream.getTracks().forEach(track => track.stop());

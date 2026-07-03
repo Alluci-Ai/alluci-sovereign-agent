@@ -20,7 +20,12 @@ interface AudioChunkManifest {
 class VADProcessor extends AudioWorkletProcessor {
     private readonly SAMPLING_RATE = 16000;
     private readonly TARGET_WINDOW_SIZE: number;
-    private readonly ENERGY_THRESHOLD = 0.035;
+    private readonly DEFAULT_ENERGY_THRESHOLD = 0.035;
+
+    private dynamicEnergyThreshold: number = 0.035;
+    private calibrationChunks: number = 0;
+    private totalCalibrationRms: number = 0;
+    private isCalibrated: boolean = false;
 
     private rollingCache: Float32Array;
     private cacheIndex: number = 0;
@@ -57,7 +62,21 @@ class VADProcessor extends AudioWorkletProcessor {
         }
         totalRmsEnergy = Math.sqrt(totalRmsEnergy / this.TARGET_WINDOW_SIZE);
 
-        const containsActiveSpeech = totalRmsEnergy > this.ENERGY_THRESHOLD;
+        if (!this.isCalibrated) {
+            this.calibrationChunks++;
+            this.totalCalibrationRms += totalRmsEnergy;
+            if (this.calibrationChunks >= 5) {
+                const avgAmbient = this.totalCalibrationRms / this.calibrationChunks;
+                // Calibrate threshold at 2.5x average ambient noise, bounded between 0.015 and 0.08
+                this.dynamicEnergyThreshold = Math.max(0.015, Math.min(0.08, avgAmbient * 2.5));
+                this.isCalibrated = true;
+                // eslint-disable-next-line no-console
+                console.log(`[VAD Worklet] Calibrated. Dynamic energy threshold: ${this.dynamicEnergyThreshold.toFixed(4)}`);
+            }
+        }
+
+        const currentThreshold = this.isCalibrated ? this.dynamicEnergyThreshold : this.DEFAULT_ENERGY_THRESHOLD;
+        const containsActiveSpeech = totalRmsEnergy > currentThreshold;
 
         // Post back to main thread (bridgeManager.ts)
         const chunk = new Float32Array(this.rollingCache);

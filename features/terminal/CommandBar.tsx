@@ -2,6 +2,7 @@ import React from 'react';
 import { useVoice } from '../../hooks/useVoice';
 import { useStore } from '../../store/useStore';
 import { AutonomyLevel } from '../../kernel/types';
+import { AudioWaveformVisualizer } from '../../components/AudioWaveformVisualizer';
 
 interface CommandBarProps {
     textInput: string;
@@ -14,6 +15,7 @@ interface CommandBarProps {
     handleCommandSubmit: (e: React.FormEvent) => void;
     handlePaste: (e: React.ClipboardEvent) => void;
     isProcessing: boolean;
+    bridgeManagerRef: React.RefObject<any>;
 }
 
 const CommandBar: React.FC<CommandBarProps> = ({
@@ -25,10 +27,13 @@ const CommandBar: React.FC<CommandBarProps> = ({
     handleFileChange,
     handleCommandSubmit,
     handlePaste,
-    isProcessing
+    isProcessing,
+    bridgeManagerRef
 }) => {
-    const { startRecording, stopRecording } = useVoice();
+    const { startRecording, stopRecording, stream } = useVoice(bridgeManagerRef);
     const isVoiceRecording = useStore(state => state.isVoiceRecording);
+    const autoSubmitEnabled = useStore(state => state.autoSubmitEnabled);
+    const setAutoSubmitEnabled = useStore(state => state.setAutoSubmitEnabled);
     const theme = useStore(state => state.theme);
     const [inputMode, setInputMode] = React.useState<'chat' | 'dispatch'>('chat');
 
@@ -138,13 +143,9 @@ const CommandBar: React.FC<CommandBarProps> = ({
 
                 <button
                     type="button"
-                    onMouseDown={startRecording}
-                    onMouseUp={stopRecording}
-                    onMouseLeave={stopRecording}
-                    onTouchStart={(e) => { e.preventDefault(); startRecording(); }}
-                    onTouchEnd={(e) => { e.preventDefault(); stopRecording(); }}
-                    title="Hold to Speak"
-                    className={`shrink-0 flex items-center justify-center transition-all duration-200 ml-1 ${isVoiceRecording ? 'scale-110 shadow-[0_0_15px_rgba(255,125,0,0.4)]' : ''}`}
+                    onClick={isVoiceRecording ? stopRecording : startRecording}
+                    title={isVoiceRecording ? "Stop Recording" : "Click to Speak"}
+                    className={`shrink-0 flex items-center justify-center transition-all duration-200 ml-1 ${isVoiceRecording ? 'scale-110 shadow-[0_0_15px_rgba(255,125,0,0.4)] animate-pulse' : ''}`}
                     style={{
                         width: 40,
                         height: 40,
@@ -163,12 +164,38 @@ const CommandBar: React.FC<CommandBarProps> = ({
                     </svg>
                 </button>
 
+                <button
+                    type="button"
+                    onClick={() => setAutoSubmitEnabled(!autoSubmitEnabled)}
+                    title={autoSubmitEnabled ? "Auto-Submit Prompt (Enabled)" : "Auto-Submit Prompt (Disabled)"}
+                    className="shrink-0 flex items-center justify-center transition-all duration-200 ml-1"
+                    style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: '50%',
+                        border: autoSubmitEnabled ? '1.5px solid var(--accent)' : '1px solid var(--separator)',
+                        background: autoSubmitEnabled ? 'rgba(48, 209, 88, 0.1)' : 'var(--fill-quaternary)',
+                        color: autoSubmitEnabled ? 'var(--accent)' : 'var(--text-secondary)',
+                        cursor: 'pointer',
+                    }}
+                >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                    </svg>
+                </button>
+
+                {isVoiceRecording && (
+                    <div className="flex-1 max-w-xs md:max-w-md mx-2">
+                        <AudioWaveformVisualizer stream={stream} />
+                    </div>
+                )}
+
                 <textarea
                     value={textInput}
                     onChange={(e) => setTextInput(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSubmit(e); } }}
                     onPaste={handlePaste}
-                    placeholder={isProcessing ? "Adding to replay queue..." : "Ask Alluci..."}
+                    placeholder={isProcessing ? "Adding to replay queue..." : (isVoiceRecording ? "Listening..." : "Ask Alluci...")}
                     className="flex-1 bg-transparent border-none text-[14px] text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-0 p-3 h-10 md:h-12 resize-none scrollbar-hide py-3 md:py-3.5"
                     rows={1}
                 />

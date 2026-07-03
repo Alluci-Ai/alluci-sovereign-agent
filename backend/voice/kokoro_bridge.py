@@ -48,9 +48,16 @@ class AlluciKokoroBridge:
         self.profiles = self.manifest.get("voice_profiles", {})
         
         self.tts = None
+        self.load_model()
+
+    def load_model(self):
+        """Lazily load the Kokoro model if not already loaded."""
+        if self.tts is not None:
+            return
         if KOKORO_AVAILABLE:
             try:
                 # Verify the system detects compatible Apple Silicon hardware
+                import mlx.core as mx
                 assert mx.default_device() == mx.gpu, "[FATAL] Alluci Audio Pipeline requires hardware-accelerated Apple Silicon Unified Memory."
                 
                 weight_path = self.model_meta.get('weight_path', '')
@@ -61,11 +68,25 @@ class AlluciKokoroBridge:
             except Exception as e:
                 logger.error(f"Failed to initialize Kokoro: {e}")
 
+    def unload_model(self):
+        """Unload Kokoro model weights from unified memory."""
+        if self.tts is not None:
+            self.tts = None
+            import gc
+            gc.collect()
+            try:
+                import mlx.core as mx
+                mx.metal.clear_cache()
+            except ImportError:
+                pass
+            logger.info("[SOVEREIGN VOICE] Kokoro model weights unloaded from VRAM.")
+
     async def synthesize_text_to_pcm(self, text_payload: str, voice_profile: str = "am_adam") -> bytes:
         """
         Synthesizes text directly into a complete PCM byte buffer (16-bit 48kHz).
         Offloads processing to an asyncio thread.
         """
+        self.load_model()
         if not text_payload.strip() or not self.tts:
             return b''
 

@@ -1,7 +1,8 @@
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useState } from 'react';
 import { useStore } from '../store/useStore';
+import { getCsrfToken } from '../csrfStore';
 
-export const useVoice = () => {
+export const useVoice = (bridgeManagerRef?: React.RefObject<any>) => {
     const {
         accessToken,
         setIsVoiceRecording,
@@ -11,11 +12,77 @@ export const useVoice = () => {
 
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const chunksRef = useRef<Blob[]>([]);
+    const [stream, setStream] = useState<MediaStream | null>(null);
+
+    const stopRecording = useCallback(async () => {
+        // Toggle-to-Speak (Real-time WebSocket mode)
+        if (bridgeManagerRef?.current) {
+            await bridgeManagerRef.current.stopAudioStream();
+            setStream(null);
+            setIsVoiceRecording(false);
+            return;
+        }
+
+        // Fallback hold-to-speak (MediaRecorder mode)
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+            mediaRecorderRef.current.stop();
+            setIsVoiceRecording(false);
+        }
+    }, [bridgeManagerRef, setIsVoiceRecording]);
 
     const startRecording = useCallback(async () => {
+        // Toggle-to-Speak (Real-time WebSocket mode)
+        if (bridgeManagerRef?.current) {
+            try {
+                const autoSubmit = useStore.getState().autoSubmitEnabled;
+                setTextInput("");
+
+                const success = await bridgeManagerRef.current.streamAudioWebSocket(
+                    (text: string, type: 'fragment' | 'utterance' | 'cognition') => {
+                        if (type === 'fragment') {
+                            setTextInput(prev => prev ? `${prev} ${text}` : text);
+                        } else if (type === 'utterance') {
+                            setVoiceTranscription(text);
+                            setTextInput(text);
+
+                            if (autoSubmit) {
+                                // Add user prompt to chat history visually
+                                useStore.getState().setTranscriptions(prev => [...prev, {
+                                    text: text,
+                                    isUser: true,
+                                    timestamp: new Date().toISOString()
+                                }]);
+                                setTextInput("");
+                            }
+                        } else if (type === 'cognition') {
+                            // Add assistant response to chat history visually
+                            useStore.getState().setTranscriptions(prev => [...prev, {
+                                text: text,
+                                isUser: false,
+                                timestamp: new Date().toISOString()
+                            }]);
+                            // Stop recording once assistant response is received
+                            stopRecording();
+                        }
+                    },
+                    autoSubmit
+                );
+
+                if (success) {
+                    setStream(bridgeManagerRef.current.getStream());
+                    setIsVoiceRecording(true);
+                }
+            } catch (err) {
+                console.error('Failed to establish audio WebSocket stream', err);
+            }
+            return;
+        }
+
+        // Fallback hold-to-speak (MediaRecorder mode)
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            const mediaRecorder = new MediaRecorder(stream);
+            const streamObj = await navigator.mediaDevices.getUserMedia({ audio: true });
+            setStream(streamObj);
+            const mediaRecorder = new MediaRecorder(streamObj);
             mediaRecorderRef.current = mediaRecorder;
             chunksRef.current = [];
 
@@ -28,7 +95,8 @@ export const useVoice = () => {
             mediaRecorder.onstop = async () => {
                 const audioBlob = new Blob(chunksRef.current, { type: 'audio/wav' });
                 await sendTranscriptionRequest(audioBlob);
-                stream.getTracks().forEach(track => track.stop());
+                streamObj.getTracks().forEach(track => track.stop());
+                setStream(null);
             };
 
             mediaRecorder.start();
@@ -37,14 +105,7 @@ export const useVoice = () => {
             console.error('Failed to start recording', err);
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [accessToken, setIsVoiceRecording, setVoiceTranscription, setTextInput]);
-
-    const stopRecording = useCallback(() => {
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-            mediaRecorderRef.current.stop();
-            setIsVoiceRecording(false);
-        }
-    }, [setIsVoiceRecording]);
+    }, [accessToken, setIsVoiceRecording, setVoiceTranscription, setTextInput, bridgeManagerRef, stopRecording]);
 
     const sendTranscriptionRequest = async (blob: Blob) => {
         const formData = new FormData();
@@ -52,10 +113,12 @@ export const useVoice = () => {
 
         try {
             const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || '';
+            const csrfToken = await getCsrfToken(DAEMON_URL, accessToken);
             const response = await fetch(`${DAEMON_URL}/api/v1/voice/transcribe`, {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${accessToken}`
+                    'Authorization': `Bearer ${accessToken}`,
+                    ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
                 },
                 body: formData
             });
@@ -92,5 +155,6 @@ export const useVoice = () => {
         }
     };
 
-    return { startRecording, stopRecording, playSynthesis };
+    return { startRecording, stopRecording, playSynthesis, stream };
 };
+

@@ -11,6 +11,7 @@ except ImportError:
 from .. import services
 from ..inference.voice_orchestrator import voice_orchestrator, DeviceTier
 import json
+import asyncio
 
 logger = get_logger("VoiceRouter")
 
@@ -30,9 +31,13 @@ async def ws_voice_stream(websocket: WebSocket):
     and streams partial text predictions back to the client in real-time.
     """
     await websocket.accept()
+    from ..security.memory_offloader import start_memory_offloader_loop, record_activity
+    asyncio.create_task(start_memory_offloader_loop())
+    record_activity()
 
-    # Read device tier from query params (set by bridgeManager.ts)
+    # Read device tier and auto_submit from query params
     device_tier_str = websocket.query_params.get("device_tier", "MACBOOK_WORKSTATION")
+    auto_submit = websocket.query_params.get("auto_submit", "false").lower() == "true"
     try:
         tier = DeviceTier(device_tier_str)
     except ValueError:
@@ -51,6 +56,7 @@ async def ws_voice_stream(websocket: WebSocket):
             message = await websocket.receive()
             
             if "bytes" in message:
+                record_activity()
                 pcm_bytes = message["bytes"]
                 # Process the 200ms fragment through MLX-Whisper
                 result = await voice_orchestrator.process_200ms_fragment(pcm_bytes)
@@ -80,25 +86,41 @@ async def ws_voice_stream(websocket: WebSocket):
                             "requires_cognition": final["requires_cognition"],
                         })
 
-                        # If the device can reason locally, route to MLXEngine
-                        if final["requires_cognition"] and services.local_inference:
-                            # Hand off to the main inference pipeline
-                            cognition_result = await services.local_inference.transcribe(
-                                final["text"].encode("utf-8")
-                            )
+                        # Route to ModelRouter for LCE / Failover cognition
+                        if final["requires_cognition"] and auto_submit and services.router:
+                            from ..inference.voice_orchestrator import voice_orchestrator as orch
+                            from ..security.memory_offloader import record_activity
+                            full_text_list = []
+                            sentence_buffer = []
+
+                            async for chunk in services.router.get_response_stream(final["text"]):
+                                full_text_list.append(chunk)
+                                sentence_buffer.append(chunk)
+
+                                # Check for sentence boundary
+                                if any(punct in chunk for punct in [".", "!", "?", "\n"]):
+                                    sentence = "".join(sentence_buffer).strip()
+                                    if sentence:
+                                        record_activity()
+                                        tts_result = await orch.synthesize_response(sentence, "am_adam")
+                                        if tts_result["type"] == "audio_pcm":
+                                            await websocket.send_bytes(tts_result["data"])
+                                        sentence_buffer = []
+
+                            # Process remaining text in buffer
+                            remaining = "".join(sentence_buffer).strip()
+                            if remaining:
+                                record_activity()
+                                tts_result = await orch.synthesize_response(remaining, "am_adam")
+                                if tts_result["type"] == "audio_pcm":
+                                    await websocket.send_bytes(tts_result["data"])
+
+                            cognition_result = "".join(full_text_list)
                             await websocket.send_json({
                                 "type": "cognition",
                                 "text": cognition_result,
                                 "is_final": True,
                             })
-                            
-                            # Synthesize cognition result to audio if tethered
-                            from ..inference.voice_orchestrator import voice_orchestrator as orch
-                            tts_result = await orch.synthesize_response(cognition_result, "am_adam")
-                            if tts_result["type"] == "audio_pcm":
-                                await websocket.send_bytes(tts_result["data"])
-                            else:
-                                await websocket.send_json(tts_result)
                                 
             elif "text" in message:
                 try:
@@ -135,6 +157,8 @@ async def transcribe_voice(request: Request, file: UploadFile = File(...),
     csrf_protect: CsrfProtect = Depends(),):
     await csrf_protect.validate_csrf(request)
     """Transcribes audio using local Whisper bridge (P1-007)."""
+    from ..security.memory_offloader import record_activity
+    record_activity()
     if not services.local_inference:
         raise HTTPException(status_code=503, detail="Local inference not initialized")
     
@@ -145,6 +169,8 @@ async def transcribe_voice(request: Request, file: UploadFile = File(...),
 @router.get("/voice/synthesise", dependencies=[Depends(verify_authenticated)])
 async def synthesise_voice(text: str = Query(...)):
     """Synthesise text to speech using local Piper bridge (P1-007)."""
+    from ..security.memory_offloader import record_activity
+    record_activity()
     if not services.local_inference:
         raise HTTPException(status_code=503, detail="Local inference not initialized")
     audio_bytes = await services.local_inference.synthesise(text)
