@@ -278,7 +278,7 @@ export class BridgeManager {
 
       // 3. Create AudioContext and register the sovereign VAD worklet
       this.audioContext = new AudioContext({ sampleRate: 16000 });
-      await this.audioContext.audioWorklet.addModule('/src/audio/vadWorklet.ts');
+      await this.audioContext.audioWorklet.addModule('/vadWorklet.js');
 
       const sourceNode = this.audioContext.createMediaStreamSource(this.mediaStream);
       this.vadNode = new AudioWorkletNode(this.audioContext, 'vad-processor');
@@ -304,6 +304,10 @@ export class BridgeManager {
       return true;
     } catch (e) {
       this.logger?.error(`streamAudioWebSocket init failed: ${e}`);
+      if (this.mediaStream) {
+        this.mediaStream.getTracks().forEach(track => track.stop());
+        this.mediaStream = null;
+      }
       return false;
     }
   }
