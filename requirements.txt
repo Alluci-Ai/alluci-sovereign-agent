@@ -5,7 +5,7 @@
 
 # ─── Web Framework ────────────────────────────────────────────────────────────
 fastapi
-uvicorn[standard]>=0.30.0
+uvicorn[standard]>=0.49.0
 python-multipart
 starlette
 
@@ -21,7 +21,7 @@ asyncpg==0.29.0              # PostgreSQL async driver (runtime)
 aiosqlite==0.20.0            # SQLite async support
 
 # ─── Security & Cryptography ──────────────────────────────────────────────────
-cryptography==44.0.1
+cryptography==49.0.0
 python-jose[cryptography]==3.4.0
 webauthn==2.1.0
 keyring==25.7.0              # OS Keychain integration for vault master key
@@ -55,7 +55,7 @@ aiosmtplib==3.0.1            # Async SMTP for email bridge
 pyicloud==2.0.1              # iCloud bridge (Updated for Python 3.14 compatibility)
 pycryptodome==3.20.0          # WeCom AES decryption
 pyotp==2.9.0                  # iWatch pairing
-slack-sdk==3.41.0
+slack-sdk==3.42.0
 slack_bolt==1.28.0
 
 # ─── Vector Memory ────────────────────────────────────────────────────────────
@@ -76,7 +76,7 @@ opentelemetry-sdk==1.25.0
 opentelemetry-instrumentation-fastapi==0.46b0
 opentelemetry-instrumentation-httpx==0.46b0
 opentelemetry-exporter-otlp==1.25.0
-prometheus-client==0.24.1
+prometheus-client==0.25.0
 
 # ─── Async & System Utilities ─────────────────────────────────────────────────
 aiofiles==23.2.1
@@ -87,7 +87,7 @@ pywin32==306; sys_platform == "win32"   # Windows Service support (windows_servi
 
 # ─── Optional Adapters & Bridges (Install manually if needed) ─────────────────
 # playwright==1.58.0           # WebFetch adapter (Heavy dependency)
-# duckduckgo-search==6.0.0     # WebSearch adapter
+# duckduckgo-search==8.1.1     # WebSearch adapter
 # mss==9.0.1                   # ScreenCapture adapter
 # pypdf==6.10.2                # Document Ingest adapter
 # python-docx==1.1.2           # Document Ingest adapter
