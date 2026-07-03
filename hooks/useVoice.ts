@@ -34,7 +34,7 @@ export const useVoice = (bridgeManagerRef?: React.RefObject<any>) => {
         // Toggle-to-Speak (Real-time WebSocket mode)
         if (bridgeManagerRef?.current) {
             try {
-                const autoSubmit = useStore.getState().autoSubmitEnabled;
+                const autoSubmit = true;
                 setTextInput("");
 
                 const success = await bridgeManagerRef.current.streamAudioWebSocket(

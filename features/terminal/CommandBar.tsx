@@ -32,10 +32,16 @@ const CommandBar: React.FC<CommandBarProps> = ({
 }) => {
     const { startRecording, stopRecording, stream } = useVoice(bridgeManagerRef);
     const isVoiceRecording = useStore(state => state.isVoiceRecording);
-    const autoSubmitEnabled = useStore(state => state.autoSubmitEnabled);
-    const setAutoSubmitEnabled = useStore(state => state.setAutoSubmitEnabled);
     const theme = useStore(state => state.theme);
     const [inputMode, setInputMode] = React.useState<'chat' | 'dispatch'>('chat');
+
+    const handleStopAndSubmit = async () => {
+        await stopRecording();
+        const currentText = textInput.trim();
+        if (currentText) {
+            onSubmit(new Event('submit') as any);
+        }
+    };
 
     const onSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -62,12 +68,12 @@ const CommandBar: React.FC<CommandBarProps> = ({
                 
                 const { submitObjective } = await import('../../lib/objectiveService');
                 const res = await submitObjective(
-                    currentText,
-                    AutonomyLevel.SOVEREIGN,
-                    [], // vaultScope
-                    [], // capabilityScope
-                    aceState,
-                    token
+                     currentText,
+                     AutonomyLevel.SOVEREIGN,
+                     [], // vaultScope
+                     [], // capabilityScope
+                     aceState,
+                     token
                 );
                 
                 if (res.status === 'halted' || res.status === 'failed') {
@@ -143,7 +149,7 @@ const CommandBar: React.FC<CommandBarProps> = ({
 
                 <button
                     type="button"
-                    onClick={isVoiceRecording ? stopRecording : startRecording}
+                    onClick={isVoiceRecording ? handleStopAndSubmit : startRecording}
                     title={isVoiceRecording ? "Stop Recording" : "Click to Speak"}
                     className={`shrink-0 flex items-center justify-center transition-all duration-200 ml-1 ${isVoiceRecording ? 'scale-110 shadow-[0_0_15px_rgba(255,125,0,0.4)] animate-pulse' : ''}`}
                     style={{
@@ -161,26 +167,6 @@ const CommandBar: React.FC<CommandBarProps> = ({
                         <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
                         <line x1="12" y1="19" x2="12" y2="23" />
                         <line x1="8" y1="23" x2="16" y2="23" />
-                    </svg>
-                </button>
-
-                <button
-                    type="button"
-                    onClick={() => setAutoSubmitEnabled(!autoSubmitEnabled)}
-                    title={autoSubmitEnabled ? "Auto-Submit Prompt (Enabled)" : "Auto-Submit Prompt (Disabled)"}
-                    className="shrink-0 flex items-center justify-center transition-all duration-200 ml-1"
-                    style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: '50%',
-                        border: autoSubmitEnabled ? '1.5px solid var(--accent)' : '1px solid var(--separator)',
-                        background: autoSubmitEnabled ? 'rgba(48, 209, 88, 0.1)' : 'var(--fill-quaternary)',
-                        color: autoSubmitEnabled ? 'var(--accent)' : 'var(--text-secondary)',
-                        cursor: 'pointer',
-                    }}
-                >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
                     </svg>
                 </button>
 
