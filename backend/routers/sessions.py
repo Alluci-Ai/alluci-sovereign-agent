@@ -499,7 +499,7 @@ async def update_agent_tools(request: Request, agent_id: str, payload: Dict[str,
         if not agent:
             raise HTTPException(status_code=404, detail="Agent not found")
             
-        agent.tools_manifest = tools_manifest
+        agent.tools_manifest = json.dumps(tools_manifest)
         session.add(agent)
         session.commit()
         
@@ -560,7 +560,7 @@ async def update_agent_skills(request: Request, agent_id: str, payload: Dict[str
         if not agent:
             raise HTTPException(status_code=404, detail="Agent not found")
             
-        agent.skills_manifest = skills_manifest
+        agent.skills_manifest = json.dumps(skills_manifest)
         session.add(agent)
         session.commit()
         

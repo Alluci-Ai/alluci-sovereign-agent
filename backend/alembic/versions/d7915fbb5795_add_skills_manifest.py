@@ -81,8 +81,8 @@ def upgrade() -> None:
                         else:
                             new_tools[item_id] = item_val
                             
-                    agent.tools_manifest = new_tools
-                    agent.skills_manifest = new_skills
+                    agent.tools_manifest = new_tools  # type: ignore[assignment]
+                    agent.skills_manifest = new_skills  # type: ignore[assignment]
             except Exception as e:
                 print(f"Failed to migrate agent {agent.id}: {e}")
                 
@@ -109,7 +109,7 @@ def downgrade() -> None:
                     
                 if isinstance(skills_data, dict) and isinstance(tools_data, dict):
                     merged_tools = {**tools_data, **skills_data}
-                    agent.tools_manifest = merged_tools
+                    agent.tools_manifest = merged_tools  # type: ignore[assignment]
             except Exception as e:
                 print(f"Failed to downgrade agent {agent.id}: {e}")
                 
