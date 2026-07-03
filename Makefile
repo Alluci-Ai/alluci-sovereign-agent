@@ -25,8 +25,11 @@ init:
 
 stop:
 	@echo "Stopping all processes gracefully..."
-	@lsof -ti :8000 | xargs kill -15 2>/dev/null || true
-	@lsof -ti :3000 | xargs kill -15 2>/dev/null || true
+	@pkill -9 -f "uvicorn backend.app:app" 2>/dev/null || true
+	@pkill -9 -f "pytest" 2>/dev/null || true
+	@pkill -9 -f "signal-cli" 2>/dev/null || true
+	@lsof -ti :8000 | xargs kill -9 2>/dev/null || true
+	@lsof -ti :3000 | xargs kill -9 2>/dev/null || true
 	@sleep 1
 
 start: stop
