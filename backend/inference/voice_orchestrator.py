@@ -132,7 +132,7 @@ class AlluciVoiceOrchestrator:
             # Whisper cannot reliably transcribe < 1 second of audio.
             # 16000 samples/sec * 4 bytes/float32 = 64000 bytes per second
             if len(self._audio_buffer) < 64000:
-                return {"text": "", "is_final": False}
+                return {"text": "", "is_final": False, "buffer_filling": True}
 
             # Convert the entire accumulated buffer to float32
             sample_count = len(self._audio_buffer) // 4

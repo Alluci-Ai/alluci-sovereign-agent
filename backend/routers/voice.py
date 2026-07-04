@@ -69,6 +69,9 @@ async def ws_voice_stream(websocket: WebSocket):
                         "fragment_index": result.get("fragment_index", 0),
                         "is_final": False,
                     })
+                elif result.get("buffer_filling"):
+                    # Buffer is still filling up to the 1s minimum, do not count as silence yet
+                    pass
                 else:
                     consecutive_silence_count += 1
 
