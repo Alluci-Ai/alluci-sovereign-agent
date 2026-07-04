@@ -183,6 +183,12 @@ export class BridgeManager {
   private vadNode: AudioWorkletNode | null = null;
   private mediaStream: MediaStream | null = null;
   private onTranscriptCallback: ((text: string, type: 'fragment' | 'utterance' | 'cognition') => void) | null = null;
+  private _intentionalClose: boolean = false;
+  private _reconnectAttempts: number = 0;
+  private _maxReconnectAttempts: number = 3;
+  private _lastOnTranscript: ((text: string, type: 'fragment' | 'utterance' | 'cognition') => void) | null = null;
+  private _lastAutoSubmit: boolean = false;
+  private _idleTimer: ReturnType<typeof setTimeout> | null = null;
 
   getStream(): MediaStream | null {
     return this.mediaStream;
@@ -211,6 +217,9 @@ export class BridgeManager {
   ): Promise<boolean> {
     try {
       this.onTranscriptCallback = onTranscript;
+      this._lastOnTranscript = onTranscript;
+      this._lastAutoSubmit = autoSubmit;
+      this._intentionalClose = false;
       this.nextPlayTime = 0;
       const deviceTier = this.detectDeviceTier();
 
@@ -266,6 +275,17 @@ export class BridgeManager {
         this.logger?.error(`Voice WebSocket error: ${err}`);
       };
 
+      this.voiceSocket.onclose = async () => {
+        if (!this._intentionalClose && this._reconnectAttempts < this._maxReconnectAttempts) {
+            this._reconnectAttempts++;
+            this.logger?.error(`Voice WebSocket closed unexpectedly. Reconnecting (${this._reconnectAttempts}/${this._maxReconnectAttempts})...`);
+            await new Promise(r => setTimeout(r, 1000));
+            if (this._lastOnTranscript) {
+                await this.streamAudioWebSocket(this._lastOnTranscript, this._lastAutoSubmit);
+            }
+        }
+      };
+
       // 1b. Block until the WebSocket is confirmed OPEN before starting audio
       await new Promise<void>((resolve, reject) => {
         this.voiceSocket!.onopen = () => resolve();
@@ -301,8 +321,14 @@ export class BridgeManager {
           accumulatedSampleCount: number;
         };
 
-        // Only transmit chunks containing active speech — silence is pruned at the edge
-        if (chunk.containsActiveSpeech && this.voiceSocket?.readyState === WebSocket.OPEN) {
+        if (this._idleTimer) clearTimeout(this._idleTimer);
+        this._idleTimer = setTimeout(() => {
+            this.logger?.error('Voice session idle for 10 minutes. Closing.');
+            this.stopAudioStream();
+        }, 10 * 60 * 1000);
+
+        // Transmit all chunks (let Whisper handle silence natively)
+        if (this.voiceSocket?.readyState === WebSocket.OPEN) {
           this.voiceSocket.send(chunk.pcmFrameBuffer.buffer);
         }
       };
@@ -327,6 +353,13 @@ export class BridgeManager {
    * Cleanly releases all audio hardware resources and closes the WebSocket.
    */
   async stopAudioStream(): Promise<void> {
+    this._intentionalClose = true;
+    this._reconnectAttempts = 0;
+    if (this._idleTimer) {
+      clearTimeout(this._idleTimer);
+      this._idleTimer = null;
+    }
+
     if (this.vadNode) {
       this.vadNode.disconnect();
       this.vadNode = null;

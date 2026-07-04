@@ -36,6 +36,7 @@ export const useVoice = (bridgeManagerRef?: React.RefObject<any>) => {
             try {
                 const autoSubmit = true;
                 setTextInput("");
+                setIsVoiceRecording(true);  // Instant UI feedback
 
                 const success = await bridgeManagerRef.current.streamAudioWebSocket(
                     (text: string, type: 'fragment' | 'utterance' | 'cognition') => {
@@ -70,7 +71,9 @@ export const useVoice = (bridgeManagerRef?: React.RefObject<any>) => {
 
                 if (success) {
                     setStream(bridgeManagerRef.current.getStream());
-                    setIsVoiceRecording(true);
+                } else {
+                    setIsVoiceRecording(false);
+                    setStream(null);
                 }
             } catch (err) {
                 console.error('[useVoice] Failed to establish audio WebSocket stream:', err);
