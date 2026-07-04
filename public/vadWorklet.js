@@ -41,19 +41,8 @@ class VADProcessor extends AudioWorkletProcessor {
         }
         totalRmsEnergy = Math.sqrt(totalRmsEnergy / this.TARGET_WINDOW_SIZE);
 
-        if (!this.isCalibrated) {
-            this.calibrationChunks++;
-            this.totalCalibrationRms += totalRmsEnergy;
-            if (this.calibrationChunks >= 5) {
-                const avgAmbient = this.totalCalibrationRms / this.calibrationChunks;
-                // Calibrate threshold at 2.5x average ambient noise, bounded between 0.015 and 0.08
-                this.dynamicEnergyThreshold = Math.max(0.015, Math.min(0.08, avgAmbient * 2.5));
-                this.isCalibrated = true;
-                console.log(`[VAD Worklet] Calibrated. Dynamic energy threshold: ${this.dynamicEnergyThreshold.toFixed(4)}`);
-            }
-        }
-
-        const currentThreshold = this.isCalibrated ? this.dynamicEnergyThreshold : this.DEFAULT_ENERGY_THRESHOLD;
+        // Hardcode a robust, fixed threshold to eliminate startup latency and prevent calibration on active speech
+        const currentThreshold = 0.015;
         const containsActiveSpeech = totalRmsEnergy > currentThreshold;
 
         // Post back to main thread (bridgeManager.ts)

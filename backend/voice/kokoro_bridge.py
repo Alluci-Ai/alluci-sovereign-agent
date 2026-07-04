@@ -98,12 +98,16 @@ class AlluciKokoroBridge:
         
         def _generate():
             # Generate the full audio array
-            audio_array = self.tts.generate(  # type: ignore
+            result = self.tts.generate(  # type: ignore
                 text=text_payload,
                 voice=voice_profile,
                 speed=1.0,
                 sample_rate=self.model_meta.get("sample_rate", 48000)
             )
+            
+            # The kokoro-mlx generate method returns a TTSResult object containing the audio array
+            audio_array = result.audio if hasattr(result, 'audio') else result
+
             # Convert float32 [-1, 1] to int16 PCM
             if audio_array is not None:
                 audio_array = np.clip(audio_array, -1.0, 1.0)

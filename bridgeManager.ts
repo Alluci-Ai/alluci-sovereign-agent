@@ -359,8 +359,8 @@ export class BridgeManager {
                 consecutiveSilenceChunks++;
                 this.voiceSocket.send(chunk.pcmFrameBuffer.buffer); // Still send the silence so Whisper has trailing context
 
-                if (consecutiveSilenceChunks >= 5) {
-                    // 1 second of silence -> Finalize
+                if (consecutiveSilenceChunks >= 10) {
+                    // 2 seconds of silence -> Finalize
                     this.voiceSocket.send(JSON.stringify({ type: "control", action: "finalize_utterance" }));
                     hasSpokenInSession = false;
                     consecutiveSilenceChunks = 0;
