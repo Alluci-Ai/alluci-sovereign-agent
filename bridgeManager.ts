@@ -266,6 +266,16 @@ export class BridgeManager {
         this.logger?.error(`Voice WebSocket error: ${err}`);
       };
 
+      // 1b. Block until the WebSocket is confirmed OPEN before starting audio
+      await new Promise<void>((resolve, reject) => {
+        this.voiceSocket!.onopen = () => resolve();
+        const existingOnError = this.voiceSocket!.onerror;
+        this.voiceSocket!.onerror = (err) => {
+          if (existingOnError) (existingOnError as Function).call(this.voiceSocket, err);
+          reject(new Error('Voice WebSocket failed to connect'));
+        };
+      });
+
       // 2. Request microphone access (mono, 16kHz for Whisper compatibility)
       this.mediaStream = await navigator.mediaDevices.getUserMedia({
         audio: {

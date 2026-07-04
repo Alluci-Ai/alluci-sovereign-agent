@@ -73,7 +73,9 @@ export const useVoice = (bridgeManagerRef?: React.RefObject<any>) => {
                     setIsVoiceRecording(true);
                 }
             } catch (err) {
-                console.error('Failed to establish audio WebSocket stream', err);
+                console.error('[useVoice] Failed to establish audio WebSocket stream:', err);
+                setIsVoiceRecording(false);
+                setStream(null);
             }
             return;
         }
