@@ -13,12 +13,14 @@ export const useVoice = (bridgeManagerRef?: React.RefObject<any>) => {
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const chunksRef = useRef<Blob[]>([]);
     const [stream, setStream] = useState<MediaStream | null>(null);
+    const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
 
     const stopRecording = useCallback(async () => {
         // Toggle-to-Speak (Real-time WebSocket mode)
         if (bridgeManagerRef?.current) {
             await bridgeManagerRef.current.stopAudioStream();
             setStream(null);
+            setAnalyser(null);
             setIsVoiceRecording(false);
             return;
         }
@@ -71,14 +73,17 @@ export const useVoice = (bridgeManagerRef?: React.RefObject<any>) => {
 
                 if (success) {
                     setStream(bridgeManagerRef.current.getStream());
+                    setAnalyser(bridgeManagerRef.current.getAnalyser());
                 } else {
                     setIsVoiceRecording(false);
                     setStream(null);
+                    setAnalyser(null);
                 }
             } catch (err) {
                 console.error('[useVoice] Failed to establish audio WebSocket stream:', err);
                 setIsVoiceRecording(false);
                 setStream(null);
+                setAnalyser(null);
             }
             return;
         }
@@ -160,6 +165,6 @@ export const useVoice = (bridgeManagerRef?: React.RefObject<any>) => {
         }
     };
 
-    return { startRecording, stopRecording, playSynthesis, stream };
+    return { startRecording, stopRecording, playSynthesis, stream, analyser };
 };
 

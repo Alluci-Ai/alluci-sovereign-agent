@@ -189,9 +189,14 @@ export class BridgeManager {
   private _lastOnTranscript: ((text: string, type: 'fragment' | 'utterance' | 'cognition') => void) | null = null;
   private _lastAutoSubmit: boolean = false;
   private _idleTimer: ReturnType<typeof setTimeout> | null = null;
+  private analyserNode: AnalyserNode | null = null;
 
   getStream(): MediaStream | null {
     return this.mediaStream;
+  }
+
+  getAnalyser(): AnalyserNode | null {
+    return this.analyserNode;
   }
 
   /**
@@ -303,11 +308,10 @@ export class BridgeManager {
         };
       });
 
-      // 2. Request microphone access (mono, 16kHz for Whisper compatibility)
+      // 2. Request microphone access (mono, native rate; AudioContext handles resampling to 16kHz)
       this.mediaStream = await navigator.mediaDevices.getUserMedia({
         audio: {
           channelCount: 1,
-          sampleRate: 16000,
           echoCancellation: true,
           noiseSuppression: true,
         }
@@ -320,6 +324,7 @@ export class BridgeManager {
       this.vadNode = new AudioWorkletNode(this.audioContext, 'vad-processor');
 
       let hasSpokenInSession = false;
+      let consecutiveSilenceChunks = 0;
 
       // 4. Listen for 200ms speech chunks from the VAD worklet
       this.vadNode.port.onmessage = (event) => {
@@ -339,21 +344,49 @@ export class BridgeManager {
         if (!hasSpokenInSession) {
             if (chunk.containsActiveSpeech) {
                 hasSpokenInSession = true;
+                consecutiveSilenceChunks = 0;
                 this.logger?.info('First speech detected. Unlocking transmission to backend.');
             } else {
                 return; // Drop initial silent chunks
             }
         }
 
-        // Transmit all chunks (let Whisper handle natural pauses natively)
         if (this.voiceSocket?.readyState === WebSocket.OPEN) {
-          this.voiceSocket.send(chunk.pcmFrameBuffer.buffer);
+            if (chunk.containsActiveSpeech) {
+                consecutiveSilenceChunks = 0;
+                this.voiceSocket.send(chunk.pcmFrameBuffer.buffer);
+            } else {
+                consecutiveSilenceChunks++;
+                this.voiceSocket.send(chunk.pcmFrameBuffer.buffer); // Still send the silence so Whisper has trailing context
+
+                if (consecutiveSilenceChunks >= 5) {
+                    // 1 second of silence -> Finalize
+                    this.voiceSocket.send(JSON.stringify({ type: "control", action: "finalize_utterance" }));
+                    hasSpokenInSession = false;
+                    consecutiveSilenceChunks = 0;
+                }
+            }
         }
       };
 
-      // 5. Wire the audio graph: Microphone → VAD Worklet
-      sourceNode.connect(this.vadNode);
-      // Don't connect to destination — we don't want to play back the user's mic
+      // 5. Wire the audio graph linearly: Microphone → Analyser → VAD Worklet → SilentGain → Destination
+      this.analyserNode = this.audioContext.createAnalyser();
+      this.analyserNode.fftSize = 256;
+      this.analyserNode.smoothingTimeConstant = 0.8;
+      
+      sourceNode.connect(this.analyserNode);
+      this.analyserNode.connect(this.vadNode);
+
+      // Connect vadNode to destination via a silent GainNode to prevent browser 
+      // optimization from suspending the worklet processing loop.
+      const silentGainNode = this.audioContext.createGain();
+      silentGainNode.gain.value = 0;
+      this.vadNode.connect(silentGainNode);
+      silentGainNode.connect(this.audioContext.destination);
+
+      if (this.audioContext.state === 'suspended') {
+          await this.audioContext.resume();
+      }
 
       return true;
     } catch (e) {
@@ -399,5 +432,6 @@ export class BridgeManager {
       this.voiceSocket = null;
     }
     this.onTranscriptCallback = null;
+    this.analyserNode = null;
   }
 }

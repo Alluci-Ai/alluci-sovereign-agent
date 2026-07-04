@@ -2,9 +2,10 @@ import React, { useEffect, useRef } from 'react';
 
 interface AudioWaveformVisualizerProps {
     stream: MediaStream | null;
+    analyser?: AnalyserNode | null;
 }
 
-export const AudioWaveformVisualizer: React.FC<AudioWaveformVisualizerProps> = ({ stream }) => {
+export const AudioWaveformVisualizer: React.FC<AudioWaveformVisualizerProps> = ({ stream, analyser: providedAnalyser }) => {
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const audioContextRef = useRef<AudioContext | null>(null);
     const analyserRef = useRef<AnalyserNode | null>(null);
@@ -12,37 +13,46 @@ export const AudioWaveformVisualizer: React.FC<AudioWaveformVisualizerProps> = (
     const animationFrameRef = useRef<number | null>(null);
 
     useEffect(() => {
-        if (!stream) return;
+        if (!stream && !providedAnalyser) return;
 
-        // 1. Initialize Audio Context & Analyser
-        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-        const audioContext = new AudioContextClass();
-        if (audioContext.state === 'suspended') {
-            audioContext.resume();
+        let activeAnalyser: AnalyserNode;
+
+        if (providedAnalyser) {
+            activeAnalyser = providedAnalyser;
+        } else {
+            // Fallback: Initialize Audio Context & Analyser locally
+            const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+            const audioContext = new AudioContextClass();
+            if (audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+            const newAnalyser = audioContext.createAnalyser();
+            newAnalyser.fftSize = 256;
+            newAnalyser.smoothingTimeConstant = 0.8;
+
+            if (stream) {
+                const source = audioContext.createMediaStreamSource(stream);
+                source.connect(newAnalyser);
+                sourceRef.current = source;
+            }
+
+            audioContextRef.current = audioContext;
+            analyserRef.current = newAnalyser;
+            activeAnalyser = newAnalyser;
         }
-        const analyser = audioContext.createAnalyser();
-        analyser.fftSize = 256;
-        analyser.smoothingTimeConstant = 0.8;
-
-        const source = audioContext.createMediaStreamSource(stream);
-        source.connect(analyser);
-
-        audioContextRef.current = audioContext;
-        analyserRef.current = analyser;
-        sourceRef.current = source;
 
         // 2. Start Animation Loop
         const canvas = canvasRef.current;
         if (canvas) {
             const ctx = canvas.getContext('2d');
-            const bufferLength = analyser.frequencyBinCount;
+            const bufferLength = activeAnalyser.frequencyBinCount;
             const dataArray = new Uint8Array(bufferLength);
 
             const draw = () => {
-                if (!canvasRef.current || !analyserRef.current || !ctx) return;
+                if (!canvasRef.current || !ctx) return;
 
                 animationFrameRef.current = requestAnimationFrame(draw);
-                analyserRef.current.getByteFrequencyData(dataArray);
+                activeAnalyser.getByteFrequencyData(dataArray);
 
                 const width = canvas.width;
                 const height = canvas.height;

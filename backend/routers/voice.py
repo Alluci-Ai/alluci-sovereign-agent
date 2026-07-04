@@ -47,10 +47,6 @@ async def ws_voice_stream(websocket: WebSocket):
     config = voice_orchestrator.configure_for_device(tier)
     await websocket.send_json({"type": "config", **config})
 
-    # Track silence for utterance finalization
-    consecutive_silence_count = 0
-    SILENCE_THRESHOLD_CHUNKS = 5  # 5 × 200ms = 1 second of silence → finalize
-
     try:
         while True:
             message = await websocket.receive()
@@ -62,73 +58,66 @@ async def ws_voice_stream(websocket: WebSocket):
                 result = await voice_orchestrator.process_200ms_fragment(pcm_bytes)
 
                 if result.get("text"):
-                    consecutive_silence_count = 0
                     await websocket.send_json({
                         "type": "fragment",
                         "text": result["text"],
                         "fragment_index": result.get("fragment_index", 0),
                         "is_final": False,
                     })
-                elif result.get("buffer_filling"):
-                    # Buffer is still filling up to the 1s minimum, do not count as silence yet
-                    pass
-                else:
-                    consecutive_silence_count += 1
 
-                # After sustained silence, finalize the utterance
-                if consecutive_silence_count >= SILENCE_THRESHOLD_CHUNKS and voice_orchestrator._fragment_count > 0:
-                    final = voice_orchestrator.finalize_utterance()
-                    consecutive_silence_count = 0
-
-                    if final["text"]:
-                        await websocket.send_json({
-                            "type": "utterance",
-                            "text": final["text"],
-                            "fragment_count": final["fragment_count"],
-                            "is_final": True,
-                            "requires_cognition": final["requires_cognition"],
-                        })
-
-                        # Route to ModelRouter for LCE / Failover cognition
-                        if final["requires_cognition"] and auto_submit and services.router:
-                            from ..inference.voice_orchestrator import voice_orchestrator as orch
-                            from ..security.memory_offloader import record_activity
-                            full_text_list = []
-                            sentence_buffer = []
-
-                            async for chunk in services.router.get_response_stream(final["text"]):
-                                full_text_list.append(chunk)
-                                sentence_buffer.append(chunk)
-
-                                # Check for sentence boundary
-                                if any(punct in chunk for punct in [".", "!", "?", "\n"]):
-                                    sentence = "".join(sentence_buffer).strip()
-                                    if sentence:
-                                        record_activity()
-                                        tts_result = await orch.synthesize_response(sentence, "am_adam")
-                                        if tts_result["type"] == "audio_pcm":
-                                            await websocket.send_bytes(tts_result["data"])
-                                        sentence_buffer = []
-
-                            # Process remaining text in buffer
-                            remaining = "".join(sentence_buffer).strip()
-                            if remaining:
-                                record_activity()
-                                tts_result = await orch.synthesize_response(remaining, "am_adam")
-                                if tts_result["type"] == "audio_pcm":
-                                    await websocket.send_bytes(tts_result["data"])
-
-                            cognition_result = "".join(full_text_list)
-                            await websocket.send_json({
-                                "type": "cognition",
-                                "text": cognition_result,
-                                "is_final": True,
-                            })
-                                
             elif "text" in message:
                 try:
                     payload = json.loads(message["text"])
-                    if "respiratoryRate" in payload:
+                    
+                    if payload.get("type") == "control" and payload.get("action") == "finalize_utterance":
+                        if voice_orchestrator._fragment_count > 0:
+                            final = voice_orchestrator.finalize_utterance()
+                            if final["text"]:
+                                await websocket.send_json({
+                                    "type": "utterance",
+                                    "text": final["text"],
+                                    "fragment_count": final["fragment_count"],
+                                    "is_final": True,
+                                    "requires_cognition": final.get("requires_cognition", True),
+                                })
+
+                                # Route to ModelRouter for LCE / Failover cognition
+                                if final.get("requires_cognition", True) and auto_submit and services.router:
+                                    from ..inference.voice_orchestrator import voice_orchestrator as orch
+                                    from ..security.memory_offloader import record_activity
+                                    full_text_list = []
+                                    sentence_buffer = []
+
+                                    async for chunk in services.router.get_response_stream(final["text"]):
+                                        full_text_list.append(chunk)
+                                        sentence_buffer.append(chunk)
+
+                                        # Check for sentence boundary
+                                        if any(punct in chunk for punct in [".", "!", "?", "\n"]):
+                                            sentence = "".join(sentence_buffer).strip()
+                                            if sentence:
+                                                record_activity()
+                                                tts_result = await orch.synthesize_response(sentence, "am_adam")
+                                                if tts_result["type"] == "audio_pcm":
+                                                    await websocket.send_bytes(tts_result["data"])
+                                                sentence_buffer = []
+
+                                    # Process remaining text in buffer
+                                    remaining = "".join(sentence_buffer).strip()
+                                    if remaining:
+                                        record_activity()
+                                        tts_result = await orch.synthesize_response(remaining, "am_adam")
+                                        if tts_result["type"] == "audio_pcm":
+                                            await websocket.send_bytes(tts_result["data"])
+
+                                    cognition_result = "".join(full_text_list)
+                                    await websocket.send_json({
+                                        "type": "cognition",
+                                        "text": cognition_result,
+                                        "is_final": True,
+                                    })
+                                    
+                    elif "respiratoryRate" in payload:
                         # Feed into anti-spoof
                         from ..ace.anti_spoof import AntiSpoofKernel
                         kernel = AntiSpoofKernel()

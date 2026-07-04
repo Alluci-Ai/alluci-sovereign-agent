@@ -30,7 +30,7 @@ const CommandBar: React.FC<CommandBarProps> = ({
     isProcessing,
     bridgeManagerRef
 }) => {
-    const { startRecording, stopRecording, stream } = useVoice(bridgeManagerRef);
+    const { startRecording, stopRecording, stream, analyser } = useVoice(bridgeManagerRef);
     const isVoiceRecording = useStore(state => state.isVoiceRecording);
     const theme = useStore(state => state.theme);
     const [inputMode, setInputMode] = React.useState<'chat' | 'dispatch'>('chat');
@@ -172,7 +172,7 @@ const CommandBar: React.FC<CommandBarProps> = ({
 
                 {isVoiceRecording && (
                     <div className="flex-1 max-w-xs md:max-w-md mx-2">
-                        <AudioWaveformVisualizer stream={stream} />
+                        <AudioWaveformVisualizer stream={stream} analyser={analyser} />
                     </div>
                 )}
 
