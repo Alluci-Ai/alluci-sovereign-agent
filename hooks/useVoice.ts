@@ -41,7 +41,7 @@ export const useVoice = (bridgeManagerRef?: React.RefObject<any>) => {
                 const success = await bridgeManagerRef.current.streamAudioWebSocket(
                     (text: string, type: 'fragment' | 'utterance' | 'cognition') => {
                         if (type === 'fragment') {
-                            setTextInput(prev => prev ? `${prev} ${text}` : text);
+                            setTextInput(text);
                         } else if (type === 'utterance') {
                             setVoiceTranscription(text);
                             setTextInput(text);

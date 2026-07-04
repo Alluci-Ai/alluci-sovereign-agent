@@ -80,7 +80,8 @@ class AlluciVoiceOrchestrator:
         self._gemma_path: Optional[str] = None
 
         # Rolling transcript buffer for predictive prefetching
-        self._transcript_buffer: list[str] = []
+        self._audio_buffer: bytearray = bytearray()
+        self._current_transcript: str = ""
         self._fragment_count: int = 0
 
         logger.info("[VOICE ORCHESTRATOR] Singleton initialized. Awaiting device tier assignment.")
@@ -97,7 +98,8 @@ class AlluciVoiceOrchestrator:
         self._active_tier = tier
         self._whisper_repo = config["whisper_repo"]
         self._gemma_path = config["gemma_path"]
-        self._transcript_buffer = []
+        self._audio_buffer.clear()
+        self._current_transcript = ""
         self._fragment_count = 0
 
         logger.info(
@@ -124,9 +126,17 @@ class AlluciVoiceOrchestrator:
             return {"text": "", "error": "Device tier not configured", "is_final": False}
 
         try:
-            # Convert raw PCM bytes to numpy float32 array
-            sample_count = len(pcm_bytes) // 4  # 4 bytes per float32
-            audio_array = np.frombuffer(pcm_bytes, dtype=np.float32, count=sample_count)
+            # Accumulate the raw PCM bytes
+            self._audio_buffer.extend(pcm_bytes)
+            
+            # Whisper cannot reliably transcribe < 1 second of audio.
+            # 16000 samples/sec * 4 bytes/float32 = 64000 bytes per second
+            if len(self._audio_buffer) < 64000:
+                return {"text": "", "is_final": False}
+
+            # Convert the entire accumulated buffer to float32
+            sample_count = len(self._audio_buffer) // 4
+            audio_array = np.frombuffer(self._audio_buffer, dtype=np.float32, count=sample_count)
 
             # Run MLX-Whisper natively on Apple Silicon GPU
             result = await asyncio.to_thread(
@@ -142,9 +152,9 @@ class AlluciVoiceOrchestrator:
 
             fragment_text = result.get("text", "").strip()
             self._fragment_count += 1
+            self._current_transcript = fragment_text
 
             if fragment_text:
-                self._transcript_buffer.append(fragment_text)
                 logger.debug(
                     f"[VOICE STREAM] Fragment #{self._fragment_count}: '{fragment_text}'"
                 )
@@ -166,11 +176,12 @@ class AlluciVoiceOrchestrator:
         Merges all buffered 200ms fragments into a single coherent utterance
         and returns it for Gemma 4 cognition.
         """
-        full_transcript = " ".join(self._transcript_buffer).strip()
+        full_transcript = self._current_transcript
         fragment_count = self._fragment_count
 
         # Reset for next utterance
-        self._transcript_buffer = []
+        self._audio_buffer.clear()
+        self._current_transcript = ""
         self._fragment_count = 0
 
         logger.info(
