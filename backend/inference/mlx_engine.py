@@ -143,7 +143,7 @@ class MLXEngine(CognitiveEngine):
             # Run synchronously on the main thread to avoid MLX Stream GPU thread mismatch
         return _sync_gen()
 
-    async def generate_stream(self, prompt: str, system_instruction: str = "", max_tokens: int = 1024, temperature: float = 0.7, agent_id: Optional[str] = None) -> AsyncGenerator[str, None]:
+    async def generate_stream(self, prompt: str, system_instruction: str = "", max_tokens: int = 1024, temperature: float = 0.75, agent_id: Optional[str] = None) -> AsyncGenerator[str, None]:
         """Streams response token-by-token natively using mlx_lm.stream_generate."""
         await self.ensure_loaded()
         model = self.model
@@ -175,7 +175,7 @@ class MLXEngine(CognitiveEngine):
 
         def _run_generator():
             try:
-                for response in stream_generate(model, tokenizer, prompt=formatted_prompt, max_tokens=max_tokens, temperature=temperature):
+                for response in stream_generate(model, tokenizer, prompt=formatted_prompt, max_tokens=max_tokens, temperature=temperature, repetition_penalty=1.15, repetition_context_size=20):
                     val = getattr(response, "text", response) if not isinstance(response, str) else response
                     loop.call_soon_threadsafe(q.put_nowait, val)
                 loop.call_soon_threadsafe(q.put_nowait, None)  # sentinel

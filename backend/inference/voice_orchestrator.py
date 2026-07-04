@@ -128,12 +128,15 @@ class AlluciVoiceOrchestrator:
             sample_count = len(pcm_bytes) // 4  # 4 bytes per float32
             audio_array = np.frombuffer(pcm_bytes, dtype=np.float32, count=sample_count)
 
-            # Run MLX-Whisper natively on Apple Silicon GPU
+            # Run MLX-Whisper natively on Apple Silicon GPU with anti-hallucination kwargs
             result = await asyncio.to_thread(
                 mlx_whisper.transcribe,
                 audio_array,
                 path_or_hf_repo=self._whisper_repo,
                 fp16=True,
+                condition_on_previous_text=False,
+                no_speech_threshold=0.6,
+                logprob_threshold=-1.0,
             )
 
             fragment_text = result.get("text", "").strip()
