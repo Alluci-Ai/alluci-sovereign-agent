@@ -319,6 +319,8 @@ export class BridgeManager {
       const sourceNode = this.audioContext.createMediaStreamSource(this.mediaStream);
       this.vadNode = new AudioWorkletNode(this.audioContext, 'vad-processor');
 
+      let hasSpokenInSession = false;
+
       // 4. Listen for 200ms speech chunks from the VAD worklet
       this.vadNode.port.onmessage = (event) => {
         const chunk = event.data as {
@@ -333,7 +335,17 @@ export class BridgeManager {
             this.stopAudioStream();
         }, 10 * 60 * 1000);
 
-        // Transmit all chunks (let Whisper handle silence natively)
+        // Frontend Silence Trimming: Do not transmit until the first active speech is detected
+        if (!hasSpokenInSession) {
+            if (chunk.containsActiveSpeech) {
+                hasSpokenInSession = true;
+                this.logger?.info('First speech detected. Unlocking transmission to backend.');
+            } else {
+                return; // Drop initial silent chunks
+            }
+        }
+
+        // Transmit all chunks (let Whisper handle natural pauses natively)
         if (this.voiceSocket?.readyState === WebSocket.OPEN) {
           this.voiceSocket.send(chunk.pcmFrameBuffer.buffer);
         }
