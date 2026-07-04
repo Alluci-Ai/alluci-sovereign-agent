@@ -223,6 +223,13 @@ export class BridgeManager {
       this.nextPlayTime = 0;
       const deviceTier = this.detectDeviceTier();
 
+      // Create AudioContext synchronously during the user gesture to prevent 'suspended' state
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      this.audioContext = new AudioContextClass({ sampleRate: 16000 });
+      if (this.audioContext.state === 'suspended') {
+          this.audioContext.resume();
+      }
+
       // 1. Open bidirectional WebSocket to the sovereign voice endpoint
       const daemonUrl = import.meta.env?.VITE_DAEMON_URL || 'http://127.0.0.1:8000';
       const wsUrl = daemonUrl.replace(/^http/, 'ws');
@@ -306,8 +313,7 @@ export class BridgeManager {
         }
       });
 
-      // 3. Create AudioContext and register the sovereign VAD worklet
-      this.audioContext = new AudioContext({ sampleRate: 16000 });
+      // 3. Register the sovereign VAD worklet
       await this.audioContext.audioWorklet.addModule('/vadWorklet.js');
 
       const sourceNode = this.audioContext.createMediaStreamSource(this.mediaStream);

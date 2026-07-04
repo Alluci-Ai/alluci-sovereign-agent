@@ -17,6 +17,9 @@ export const AudioWaveformVisualizer: React.FC<AudioWaveformVisualizerProps> = (
         // 1. Initialize Audio Context & Analyser
         const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
         const audioContext = new AudioContextClass();
+        if (audioContext.state === 'suspended') {
+            audioContext.resume();
+        }
         const analyser = audioContext.createAnalyser();
         analyser.fftSize = 256;
         analyser.smoothingTimeConstant = 0.8;
