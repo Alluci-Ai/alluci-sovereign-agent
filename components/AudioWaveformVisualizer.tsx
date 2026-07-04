@@ -64,8 +64,8 @@ export const AudioWaveformVisualizer: React.FC<AudioWaveformVisualizerProps> = (
                 ctx.fillStyle = gradient;
 
                 for (let i = 0; i < bufferLength; i++) {
-                    // Amplitude scaling
-                    barHeight = (dataArray[i] / 255) * height * 0.85;
+                    // Amplitude scaling (minimum 2px height so it's visible in silence)
+                    barHeight = Math.max(2, (dataArray[i] / 255) * height * 0.85);
 
                     // Centering visualizer waves symmetrically
                     const y = (height - barHeight) / 2;

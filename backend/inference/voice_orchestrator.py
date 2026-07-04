@@ -134,6 +134,10 @@ class AlluciVoiceOrchestrator:
                 audio_array,
                 path_or_hf_repo=self._whisper_repo,
                 fp16=True,
+                condition_on_previous_text=False,
+                no_speech_threshold=0.6,
+                logprob_threshold=-1.0,
+                compression_ratio_threshold=2.4,
             )
 
             fragment_text = result.get("text", "").strip()
