@@ -13,7 +13,7 @@ export class BridgeManager {
   private verusIdentity: string | null = null;
   private manifoldIntegrity: number = 1.0;
   private access_token: string | null = null;
-  private logger: Console | { error: (msg: string) => void };
+  private logger: Console | { error: (msg: string) => void; info: (msg: string) => void };
 
   constructor(security: SovereignSecurityManager) {
     this.security = security;
