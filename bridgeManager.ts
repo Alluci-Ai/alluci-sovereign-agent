@@ -308,14 +308,41 @@ export class BridgeManager {
         };
       });
 
-      // 2. Request microphone access (mono, native rate; AudioContext handles resampling to 16kHz)
-      this.mediaStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          channelCount: 1,
-          echoCancellation: true,
-          noiseSuppression: true,
-        }
-      });
+      // 2. Request generic microphone access to trigger permission prompt
+      this.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+      // Scan hardware to bypass macOS Continuity Camera hijacking
+      try {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const builtIn = devices.find(d => 
+              d.kind === 'audioinput' && 
+              (d.label.toLowerCase().includes('built-in') || d.label.toLowerCase().includes('macbook'))
+          );
+          
+          if (builtIn && this.mediaStream.getAudioTracks()[0].label !== builtIn.label) {
+              // Continuity Camera hijacked the stream! Kill it and explicitly bind to the Mac's microphone.
+              this.mediaStream.getTracks().forEach(t => t.stop());
+              this.mediaStream = await navigator.mediaDevices.getUserMedia({
+                  audio: {
+                      deviceId: { exact: builtIn.deviceId },
+                      channelCount: 1,
+                      echoCancellation: true,
+                      noiseSuppression: true
+                  }
+              });
+              this.logger?.info(`[VOICE] Hijack averted. Rerouted to built-in microphone: ${builtIn.label}`);
+          } else {
+              // We are already on the correct hardware, just apply the Whisper constraints.
+              const track = this.mediaStream.getAudioTracks()[0];
+              await track.applyConstraints({
+                  channelCount: 1,
+                  echoCancellation: true,
+                  noiseSuppression: true
+              });
+          }
+      } catch (e) {
+          this.logger?.info(`[VOICE] Hardware scanner failed, proceeding with default stream: ${e}`);
+      }
 
       // 3. Register the sovereign VAD worklet
       await this.audioContext.audioWorklet.addModule('/vadWorklet.js');
