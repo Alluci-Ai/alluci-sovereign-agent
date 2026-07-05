@@ -170,36 +170,19 @@ class MLXEngine(CognitiveEngine):
         else:
             from mlx_lm import stream_generate
 
-        q: asyncio.Queue = asyncio.Queue()
-        loop = asyncio.get_running_loop()
-
-        def _run_generator():
-            try:
-                for response in stream_generate(model, tokenizer, prompt=formatted_prompt, max_tokens=max_tokens, temperature=temperature, repetition_penalty=1.15, repetition_context_size=20):
-                    val = getattr(response, "text", response) if not isinstance(response, str) else response
-                    loop.call_soon_threadsafe(q.put_nowait, val)
-                loop.call_soon_threadsafe(q.put_nowait, None)  # sentinel
-            except Exception as e:
-                logger.error(f"stream_generate error: {e}")
-                loop.call_soon_threadsafe(q.put_nowait, e)
-
-        gen_task = None
         if self._lock is None:
             self._lock = asyncio.Lock()
             
         async with self._lock:
-            gen_task = asyncio.create_task(asyncio.to_thread(_run_generator))
             try:
-                while True:
-                    item = await q.get()
-                    if item is None:
-                        break
-                    if isinstance(item, Exception):
-                        raise item
-                    yield item
-            finally:
-                if gen_task:
-                    await gen_task
+                for response in stream_generate(model, tokenizer, prompt=formatted_prompt, max_tokens=max_tokens, temperature=temperature, repetition_penalty=1.15, repetition_context_size=20):
+                    val = getattr(response, "text", response) if not isinstance(response, str) else response
+                    yield val
+                    # Yield control to the FastAPI event loop so WebSocket chunks can flush
+                    await asyncio.sleep(0)
+            except Exception as e:
+                logger.error(f"stream_generate error: {e}")
+                raise e
 
     async def apply_lora_adapter(self, agent_id: str):
         """
