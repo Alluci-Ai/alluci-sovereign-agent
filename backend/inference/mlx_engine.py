@@ -177,7 +177,7 @@ class MLXEngine(CognitiveEngine):
             try:
                 for response in stream_generate(model, tokenizer, prompt=formatted_prompt, max_tokens=max_tokens, temperature=temperature, repetition_penalty=1.15, repetition_context_size=20):
                     val = getattr(response, "text", response) if not isinstance(response, str) else response
-                    yield val
+                    yield str(val)
                     # Yield control to the FastAPI event loop so WebSocket chunks can flush
                     await asyncio.sleep(0)
             except Exception as e:
