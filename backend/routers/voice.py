@@ -130,8 +130,15 @@ async def ws_voice_stream(websocket: WebSocket):
                 except json.JSONDecodeError:
                     pass
 
-    except WebSocketDisconnect:
-        logger.info("[VOICE STREAM] Client disconnected.")
+    except (WebSocketDisconnect, RuntimeError) as e:
+        if isinstance(e, WebSocketDisconnect) or "Cannot call" in str(e):
+            logger.info("[VOICE STREAM] Client disconnected.")
+        else:
+            logger.error(f"[VOICE STREAM] Error: {e}")
+            try:
+                await websocket.close(code=1011, reason=str(e))
+            except Exception:
+                pass
     except Exception as e:
         logger.error(f"[VOICE STREAM] Error: {e}")
         try:

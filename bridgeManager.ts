@@ -384,9 +384,6 @@ export class BridgeManager {
       this.vadNode.connect(silentGainNode);
       silentGainNode.connect(this.audioContext.destination);
 
-      if (this.audioContext.state === 'suspended') {
-          await this.audioContext.resume();
-      }
 
       return true;
     } catch (e) {
@@ -420,7 +417,16 @@ export class BridgeManager {
       this.audioContext = null;
     }
     if (this.playAudioContext) {
-      await this.playAudioContext.close().catch(() => {});
+      const timeRemaining = this.nextPlayTime - this.playAudioContext.currentTime;
+      if (timeRemaining > 0) {
+        // Wait for the audio to finish playing before tearing down the context
+        const ctxToClose = this.playAudioContext;
+        setTimeout(() => {
+          ctxToClose.close().catch(() => {});
+        }, timeRemaining * 1000 + 500); // 500ms safety buffer
+      } else {
+        await this.playAudioContext.close().catch(() => {});
+      }
       this.playAudioContext = null;
     }
     if (this.mediaStream) {
