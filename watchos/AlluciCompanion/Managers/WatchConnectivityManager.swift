@@ -5,9 +5,6 @@ class WatchConnectivityManager: NSObject, ObservableObject, WCSessionDelegate {
     @Published var isReachable: Bool = false
     @Published var lastReceivedVitals: TelemetrySample?
     
-    // Offline queue (Scenario E & F)
-    private var offlinePayloadQueue: [[String: Any]] = []
-    
     override init() {
         super.init()
         if WCSession.isSupported() {
@@ -17,12 +14,8 @@ class WatchConnectivityManager: NSObject, ObservableObject, WCSessionDelegate {
         }
     }
     
-    func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
         DispatchQueue.main.async {
             self.isReachable = session.isReachable
-            if self.isReachable {
-                self.flushQueue()
-            }
         }
     }
     
@@ -38,21 +31,10 @@ class WatchConnectivityManager: NSObject, ObservableObject, WCSessionDelegate {
         if WCSession.default.isReachable {
             WCSession.default.sendMessage(payload, replyHandler: nil) { error in
                 print("Failed to send payload: \(error)")
-                self.offlinePayloadQueue.append(payload) // Queue on failure
             }
         } else {
-            // Queue for Scenario E / F
-            offlinePayloadQueue.append(payload)
+            print("WCSession unreachable. Cannot send payload.")
         }
-    }
-    
-    // Flush queued payloads when reconnected
-    private func flushQueue() {
-        guard !offlinePayloadQueue.isEmpty else { return }
-        for payload in offlinePayloadQueue {
-            WCSession.default.sendMessage(payload, replyHandler: nil) { _ in }
-        }
-        offlinePayloadQueue.removeAll()
     }
     
     func session(_ session: WCSession, didReceiveMessage message: [String : Any]) {
@@ -66,18 +48,27 @@ class WatchConnectivityManager: NSObject, ObservableObject, WCSessionDelegate {
             self.lastReceivedVitals = sample
         }
         
-        // Forward to backend
-        Task {
-            await sender.sendTelemetry(sample: sample)
+        if let voicePrompt = voice {
+            // Intercept voice command and hand off to HybridRouter
+            HybridRouter.shared.routeVoiceCommand(voicePrompt) { agentResponse in
+                print("[WatchConnectivityManager] Sending response back to Watch: \(agentResponse)")
+                // Send response payload back to the Watch
+                let replyPayload = ["agentResponse": agentResponse]
+                self.sendPayloadToiPhone(payload: replyPayload) // Note: Method name is sendPayloadToiPhone but it's used bidirectionally in the prototype
+            }
+        }
+        
+        // Forward biometrics to backend
+        if hr != nil || hrv != nil {
+            Task {
+                await sender.sendTelemetry(sample: sample)
+            }
         }
     }
     
     func sessionReachabilityDidChange(_ session: WCSession) {
         DispatchQueue.main.async {
             self.isReachable = session.isReachable
-            if self.isReachable {
-                self.flushQueue()
-            }
         }
     }
 }
