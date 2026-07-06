@@ -118,7 +118,7 @@ class AlluciKokoroBridge:
             pcm_bytes = _generate()
             return pcm_bytes
         except Exception as e:
-            logger.error(f"Kokoro synthesis failed: {e}")
+            logger.error(f"Kokoro synthesis failed for profile '{voice_profile}': {e}. Ensure the voice profile (.npz) is cached locally if running with HF_HUB_OFFLINE=1.")
             return b''
 
 kokoro_bridge = AlluciKokoroBridge()

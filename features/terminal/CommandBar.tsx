@@ -1,5 +1,5 @@
 import React from 'react';
-import { useVoice } from '../../hooks/useVoice';
+import { useVoiceStream } from '../../hooks/useVoiceStream';
 import { useStore } from '../../store/useStore';
 import { AutonomyLevel } from '../../kernel/types';
 import { AudioWaveformVisualizer } from '../../components/AudioWaveformVisualizer';
@@ -30,13 +30,23 @@ const CommandBar: React.FC<CommandBarProps> = ({
     isProcessing,
     bridgeManagerRef
 }) => {
-    const { startRecording, stopRecording, stream, analyser } = useVoice(bridgeManagerRef);
-    const isVoiceRecording = useStore(state => state.isVoiceRecording);
+    const { setTranscriptions } = useStore();
+    
+    const { isRecording, isAgentSpeaking, isConnected, toggleRecording, stream } = useVoiceStream(
+        (text, isFinal) => {
+            setTextInput(text);
+        },
+        (finalText) => {
+            // Auto submit when utterance is finalized
+            onSubmit(new Event('submit') as any);
+        }
+    );
+    
     const theme = useStore(state => state.theme);
     const [inputMode, setInputMode] = React.useState<'chat' | 'dispatch'>('chat');
 
     const handleStopAndSubmit = async () => {
-        await stopRecording();
+        toggleRecording();
         const currentText = textInput.trim();
         if (currentText) {
             onSubmit(new Event('submit') as any);
@@ -149,16 +159,16 @@ const CommandBar: React.FC<CommandBarProps> = ({
 
                 <button
                     type="button"
-                    onClick={isVoiceRecording ? handleStopAndSubmit : startRecording}
-                    title={isVoiceRecording ? "Stop Recording" : "Click to Speak"}
-                    className={`shrink-0 flex items-center justify-center transition-all duration-200 ml-1 ${isVoiceRecording ? 'scale-110 shadow-[0_0_15px_rgba(255,125,0,0.4)] animate-pulse' : ''}`}
+                    onClick={isRecording ? handleStopAndSubmit : toggleRecording}
+                    title={isRecording ? "Stop Recording" : "Click to Speak"}
+                    className={`shrink-0 flex items-center justify-center transition-all duration-200 ml-1 ${isRecording ? 'scale-110 shadow-[0_0_15px_rgba(255,125,0,0.4)] animate-pulse' : ''}`}
                     style={{
                         width: 40,
                         height: 40,
                         borderRadius: '50%',
-                        border: isVoiceRecording ? '1.5px solid var(--tension)' : '1px solid var(--separator)',
-                        background: isVoiceRecording ? 'rgba(255,125,0,0.1)' : 'var(--fill-quaternary)',
-                        color: isVoiceRecording ? 'var(--tension)' : 'var(--text-secondary)',
+                        border: isRecording ? '1.5px solid var(--tension)' : '1px solid var(--separator)',
+                        background: isRecording ? 'rgba(255,125,0,0.1)' : 'var(--fill-quaternary)',
+                        color: isRecording ? 'var(--tension)' : 'var(--text-secondary)',
                         cursor: 'pointer',
                     }}
                 >
@@ -170,9 +180,9 @@ const CommandBar: React.FC<CommandBarProps> = ({
                     </svg>
                 </button>
 
-                {isVoiceRecording && (
+                {isRecording && (
                     <div className="flex-1 max-w-xs md:max-w-md mx-2">
-                        <AudioWaveformVisualizer stream={stream} analyser={analyser} />
+                        <AudioWaveformVisualizer stream={stream} analyser={null} />
                     </div>
                 )}
 
@@ -181,7 +191,7 @@ const CommandBar: React.FC<CommandBarProps> = ({
                     onChange={(e) => setTextInput(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSubmit(e); } }}
                     onPaste={handlePaste}
-                    placeholder={isProcessing ? "Adding to replay queue..." : (isVoiceRecording ? "Listening..." : "Ask Alluci...")}
+                    placeholder={isProcessing ? "Adding to replay queue..." : (isRecording ? "Listening..." : "Ask Alluci...")}
                     className="flex-1 bg-transparent border-none text-[14px] text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-0 p-3 h-10 md:h-12 resize-none scrollbar-hide py-3 md:py-3.5"
                     rows={1}
                 />

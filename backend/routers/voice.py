@@ -88,6 +88,9 @@ async def ws_voice_stream(websocket: WebSocket):
                                     full_text_list = []
                                     sentence_buffer = []
 
+                                    soul = getattr(services.orchestrator, "_cached_soul", {}) or {}
+                                    voice_profile = soul.get("voiceProfile") if soul.get("voiceProfile") else "af_bella"
+
                                     async for chunk in services.router.get_response_stream(final["text"]):
                                         full_text_list.append(chunk)
                                         sentence_buffer.append(chunk)
@@ -97,7 +100,7 @@ async def ws_voice_stream(websocket: WebSocket):
                                             sentence = "".join(sentence_buffer).strip()
                                             if sentence:
                                                 record_activity()
-                                                tts_result = await orch.synthesize_response(sentence, "am_adam")
+                                                tts_result = await orch.synthesize_response(sentence, voice_profile)
                                                 if tts_result["type"] == "audio_pcm":
                                                     await websocket.send_bytes(tts_result["data"])
                                                 sentence_buffer = []
@@ -106,7 +109,7 @@ async def ws_voice_stream(websocket: WebSocket):
                                     remaining = "".join(sentence_buffer).strip()
                                     if remaining:
                                         record_activity()
-                                        tts_result = await orch.synthesize_response(remaining, "am_adam")
+                                        tts_result = await orch.synthesize_response(remaining, voice_profile)
                                         if tts_result["type"] == "audio_pcm":
                                             await websocket.send_bytes(tts_result["data"])
 

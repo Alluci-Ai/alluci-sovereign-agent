@@ -134,9 +134,10 @@ class AlluciVoiceOrchestrator:
             if len(self._audio_buffer) < 64000:
                 return {"text": "", "is_final": False, "buffer_filling": True}
 
-            # Convert the entire accumulated buffer to float32
-            sample_count = len(self._audio_buffer) // 4
-            audio_array = np.frombuffer(self._audio_buffer, dtype=np.float32, count=sample_count)
+            # Convert the accumulated buffer from 16-bit PCM (Int16) to float32 [-1.0, 1.0]
+            sample_count = len(self._audio_buffer) // 2  # 2 bytes per Int16 sample
+            int16_array = np.frombuffer(self._audio_buffer, dtype=np.int16, count=sample_count)
+            audio_array = int16_array.astype(np.float32) / 32768.0
 
             # Run MLX-Whisper natively on Apple Silicon GPU
             result = await asyncio.to_thread(
