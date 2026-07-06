@@ -115,7 +115,7 @@ class AlluciKokoroBridge:
             return b''
 
         try:
-            pcm_bytes = await asyncio.to_thread(_generate)
+            pcm_bytes = _generate()
             return pcm_bytes
         except Exception as e:
             logger.error(f"Kokoro synthesis failed: {e}")

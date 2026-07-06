@@ -13,10 +13,10 @@ class HardwareProfiler:
     
     # Gemma 4 variants mapped to their required memory footprints
     MODELS = {
-        "DENSE_31B_BF16": "Alluci/alluci-polytope-gemma-4-31b-bf16",
-        "DENSE_31B_4BIT": "Alluci/alluci-polytope-gemma-4-31b-4bit",
-        "MOE_26B_4BIT": "Alluci/alluci-polytope-gemma-4-26b-a4b-4bit",
-        "DENSE_12B_4BIT": "Alluci/alluci-polytope-gemma-4-12B-it-4bit",
+        "DENSE_31B_BF16": "Alluci/alluci-polytope-gemma-4-31b-it-bf16",
+        "DENSE_31B_4BIT": "Alluci/alluci-polytope-gemma-4-31b-it-8bit",
+        "MOE_26B_4BIT": "Alluci/alluci-polytope-gemma-4-26b-a4b-it-4bit",
+        "DENSE_12B_4BIT": "Alluci/alluci-polytope-gemma-4-12b-it-4bit",
         "EDGE_2B_4BIT": "Alluci/alluci-polytope-gemma-4-e2b-it-4bit"
     }
 

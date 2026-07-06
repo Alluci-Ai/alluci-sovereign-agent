@@ -503,14 +503,14 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
                 self._cached_skills_manifest = agent_skills_manifest
 
             if manifest:
-                id_core = manifest.get("identityCore", "You are Alluci, a Sovereign Executive Assistant and cognitive agent.")
-                reasoning = manifest.get("reasoningStyle", "Polytopic: Identifying vertices, mapping edges, and selecting faces for optimal collapse.")
-                frameworks = manifest.get("frameworks", [])
-                mindsets = manifest.get("mindsets", [])
-                methodologies = manifest.get("methodologies", [])
-                logic = manifest.get("logic", [])
-                cots = manifest.get("chainsOfThought", [])
-                best_practices = manifest.get("bestPractices", [])
+                id_core = manifest.get("identityCore") or "You are Alluci, a Sovereign Executive Assistant and cognitive agent."
+                reasoning = manifest.get("reasoningStyle") or "Polytopic: Identifying vertices, mapping edges, and selecting faces for optimal collapse."
+                frameworks = manifest.get("frameworks") or []
+                mindsets = manifest.get("mindsets") or []
+                methodologies = manifest.get("methodologies") or []
+                logic = manifest.get("logic") or []
+                cots = manifest.get("chainsOfThought") or []
+                best_practices = manifest.get("bestPractices") or []
                 
                 context_parts.append(f"IDENTITY CORE: {id_core}")
                 if reasoning:
@@ -680,7 +680,7 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
 
         return "\n".join(context_parts)
 
-    def _perform_ppn_check(self, objective: str, autonomy: str, origin: str = "local", override_tearing: bool = False, override_avl: bool = False) -> Tuple[bool, Optional[PolytopeState]]:
+    def _perform_ppn_check(self, objective: str, autonomy: str, origin: str = "local", override_tearing: bool = False, override_avl: bool = False, **kwargs: Any) -> Tuple[bool, Optional[PolytopeState]]:
         """
         Runs the Polytope Projection Network and Discrete Projection Kernel
         to verify manifold integrity before planning.

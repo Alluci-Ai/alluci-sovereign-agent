@@ -39,7 +39,7 @@ async def update_soul_manifest(request: Request, manifest: SoulManifest, csrf_pr
     
     # Update local vault
     if services.vault:
-        await services.vault.store_secret("soul_manifest", manifest.model_dump())
+        await services.vault.store_secret("soul_manifest", manifest.model_dump(exclude_none=True))
     
     # Update sovereign VDXF (if enabled)
     if settings.VERUS_INTEGRATION_MODE != "off" and settings.VERUS_ID_IDENTITY:

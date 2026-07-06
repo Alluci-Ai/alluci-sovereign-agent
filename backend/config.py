@@ -49,9 +49,9 @@ from pydantic import BaseModel, Field
 
 class InferenceSettings(BaseModel):
     LOCAL_LCE_URL: str = "http://localhost:8000"
-    LOCAL_MODEL_MAX: str = "alluci-polytope-gemma-4-31b-bf16"
-    LOCAL_MODEL_STRONG: str = "alluci-polytope-gemma-4-31b-8bit"
-    LOCAL_MODEL_MEDIUM: str = "alluci-polytope-gemma-4-26b-a4b-4bit"
+    LOCAL_MODEL_MAX: str = "alluci-polytope-gemma-4-31b-it-bf16"
+    LOCAL_MODEL_STRONG: str = "alluci-polytope-gemma-4-31b-it-8bit"
+    LOCAL_MODEL_MEDIUM: str = "alluci-polytope-gemma-4-26b-a4b-it-4bit"
     LOCAL_MODEL_LIGHT: str = Field(default="alluci-polytope-gemma-4-12B-it-4bit", title="Local Model Lite")
     LOCAL_MODEL_LITE: str = Field(default="alluci-polytope-gemma-4-e2b-it-4bit", title="Local Model Edge")
     SOVEREIGN_MODE: bool = False
@@ -96,9 +96,9 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: Optional[str] = None
     ANTHROPIC_API_KEY: Optional[str] = None
     LOCAL_LCE_URL: str = "http://localhost:8000"
-    LOCAL_MODEL_MAX: str = "alluci-polytope-gemma-4-31b-bf16"
-    LOCAL_MODEL_STRONG: str = "alluci-polytope-gemma-4-31b-8bit"
-    LOCAL_MODEL_MEDIUM: str = "alluci-polytope-gemma-4-26b-a4b-4bit"
+    LOCAL_MODEL_MAX: str = "alluci-polytope-gemma-4-31b-it-bf16"
+    LOCAL_MODEL_STRONG: str = "alluci-polytope-gemma-4-31b-it-8bit"
+    LOCAL_MODEL_MEDIUM: str = "alluci-polytope-gemma-4-26b-a4b-it-4bit"
     LOCAL_MODEL_LIGHT: str = Field(default="alluci-polytope-gemma-4-12B-it-4bit", title="Local Model Lite")
     LOCAL_MODEL_LITE: str = Field(default="alluci-polytope-gemma-4-e2b-it-4bit", title="Local Model Edge")
     

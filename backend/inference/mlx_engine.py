@@ -175,9 +175,14 @@ class MLXEngine(CognitiveEngine):
             
         async with self._lock:
             try:
-                for response in stream_generate(model, tokenizer, prompt=formatted_prompt, max_tokens=max_tokens, temperature=temperature, repetition_penalty=1.15, repetition_context_size=20):
+                text_buffer = ""
+                for response in stream_generate(model, tokenizer, prompt=formatted_prompt, max_tokens=max_tokens, temperature=temperature):
                     val = getattr(response, "text", response) if not isinstance(response, str) else response
-                    yield str(val)
+                    s_val = str(val)
+                    text_buffer += s_val
+                    if "User:" in text_buffer or "<|im_end|>" in text_buffer or "User :" in text_buffer:
+                        break
+                    yield s_val
                     # Yield control to the FastAPI event loop so WebSocket chunks can flush
                     await asyncio.sleep(0)
             except Exception as e:
