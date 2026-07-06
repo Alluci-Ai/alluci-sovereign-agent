@@ -55,7 +55,7 @@ numpy>=1.24.0                # Required for embedding operations
 
 # ─── Cache & Rate Limiting ────────────────────────────────────────────────────
 redis[hiredis]>=5.0.0,<6.0.0
-fastapi-limiter==0.1.6
+fastapi-limiter==0.2.0
 
 # ─── Observability & Logging ──────────────────────────────────────────────────
 structlog>=24.1.0
