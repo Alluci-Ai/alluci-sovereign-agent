@@ -49,7 +49,7 @@ pyotp==2.9.0                  # iWatch pairing
 slack-sdk==3.41.0
 
 # ─── Vector Memory ────────────────────────────────────────────────────────────
-chromadb==0.5.0
+chromadb==1.5.9
 sentence-transformers==3.0.1 # Embedding model (~80MB download on first use)
 numpy>=1.24.0                # Required for embedding operations
 
