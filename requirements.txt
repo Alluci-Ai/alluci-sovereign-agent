@@ -45,7 +45,7 @@ cohere==5.0.0
 boto3==1.34.0               # AWS Bedrock fallback
 aioboto3==12.3.0            # Async AWS Bedrock fallback
 httpx==0.27.0
-tiktoken==0.7.0
+tiktoken==0.13.0
 
 # ─── Messaging & Bridge SDKs ──────────────────────────────────────────────────
 discord.py==2.3.2            # Discord bridge
