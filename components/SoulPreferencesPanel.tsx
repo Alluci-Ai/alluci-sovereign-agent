@@ -127,6 +127,10 @@ const IdentityForge: React.FC<{ onClose: () => void; onManifestUpdate?: (manifes
     const [saving, setSaving] = useState(false);
     const [isSkillPickerOpen, setIsSkillPickerOpen] = useState(false);
     const [selectedSkillsForIngest, setSelectedSkillsForIngest] = useState<string[]>([]);
+    const [profiles, setProfiles] = useState<any[]>([]);
+    const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+    const [isCreatingProfile, setIsCreatingProfile] = useState(false);
+    const [newProfileName, setNewProfileName] = useState('');
 
     const mergePreferences = (prefs: any) => ({
         tone: prefs?.tone ?? 0.5,
@@ -143,6 +147,16 @@ const IdentityForge: React.FC<{ onClose: () => void; onManifestUpdate?: (manifes
         try {
             const controller = new AbortController();
             const id = setTimeout(() => controller.abort(), 1000);
+            
+            // Load Profiles
+            const profRes = await fetch(`${DAEMON_URL}/api/v1/soul/profiles`, {
+                headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+            });
+            if (profRes.ok) {
+                const pData = await profRes.json();
+                setProfiles(pData.profiles || []);
+            }
+
             const res = await fetch(`${DAEMON_URL}/api/v1/soul/manifest`, {
                 headers: token ? { 'Authorization': `Bearer ${token}` } : {},
                 signal: controller.signal
@@ -212,14 +226,21 @@ const IdentityForge: React.FC<{ onClose: () => void; onManifestUpdate?: (manifes
         const token = localStorage.getItem('alluci_daemon_token');
         try {
             const csrfToken = await getCsrfToken(DAEMON_URL, token);
-            const res = await fetch(`${DAEMON_URL}/api/v1/soul/manifest`, {
-                method: 'PUT',
+            let endpoint = `${DAEMON_URL}/api/v1/soul/manifest`;
+            let method = 'PUT';
+            let payload: any = manifest;
+            if (selectedProfileId) {
+                endpoint = `${DAEMON_URL}/api/v1/soul/profiles/${selectedProfileId}`;
+                payload = { manifest: manifest };
+            }
+            const res = await fetch(endpoint, {
+                method: method,
                 headers: { 
                     'Content-Type': 'application/json', 
                     ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
                     ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {})
                 },
-                body: JSON.stringify(manifest)
+                body: JSON.stringify(payload)
             });
             if (res.ok) { setIsDirty(false); }
             else if (res.status === 429) { alert("Biometric stress detected. Please calm down."); throw new Error("Throttled"); }
@@ -265,6 +286,77 @@ const IdentityForge: React.FC<{ onClose: () => void; onManifestUpdate?: (manifes
 
     return (
         <div style={{ maxWidth: 920, margin: '0 auto' }}>
+            {/* Profile Selector */}
+            <div style={{ marginBottom: 20, display: 'flex', gap: 12, alignItems: 'center', background: 'var(--fill-quaternary)', padding: 12, borderRadius: 12, border: '1px solid var(--separator)' }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <label style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>Active Profile Context</label>
+                    <select 
+                        className="glass-input" 
+                        value={selectedProfileId || ''} 
+                        onChange={(e) => {
+                            const val = e.target.value;
+                            if (!val) {
+                                setSelectedProfileId(null);
+                                fetchManifest(); // reload core
+                            } else {
+                                setSelectedProfileId(val);
+                                const prof = profiles.find(p => p.id === val);
+                                if (prof && prof.manifest) {
+                                    const m = prof.manifest;
+                                    m.preferences = mergePreferences(m.preferences);
+                                    setManifest(m);
+                                }
+                            }
+                        }}
+                        style={{ padding: '6px 10px', fontSize: 13 }}
+                    >
+                        <option value="">Core Executive (Global Vault)</option>
+                        {profiles.map(p => (
+                            <option key={p.id} value={p.id}>{p.name}</option>
+                        ))}
+                    </select>
+                </div>
+                {!isCreatingProfile ? (
+                    <button onClick={() => setIsCreatingProfile(true)} className="glass-btn" style={{ padding: '8px 16px', fontSize: 12, alignSelf: 'flex-end' }}>+ New Profile</button>
+                ) : (
+                    <div style={{ display: 'flex', gap: 6, alignSelf: 'flex-end' }}>
+                        <input className="glass-input" placeholder="Profile Name..." value={newProfileName} onChange={e => setNewProfileName(e.target.value)} style={{ padding: '6px 10px', fontSize: 12 }} />
+                        <button onClick={async () => {
+                            if (!newProfileName) return setIsCreatingProfile(false);
+                            const token = localStorage.getItem('alluci_daemon_token');
+                            const csrfToken = await getCsrfToken(DAEMON_URL, token);
+                            const res = await fetch(`${DAEMON_URL}/api/v1/soul/profiles`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}), ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}) },
+                                body: JSON.stringify({ name: newProfileName, manifest: manifest })
+                            });
+                            if (res.ok) {
+                                const data = await res.json();
+                                setProfiles([...profiles, data.profile]);
+                                setSelectedProfileId(data.profile.id);
+                                setIsCreatingProfile(false);
+                                setNewProfileName('');
+                            }
+                        }} className="glass-btn glass-btn--primary" style={{ padding: '6px 12px', fontSize: 12 }}>Create</button>
+                        <button onClick={() => setIsCreatingProfile(false)} className="glass-btn" style={{ padding: '6px 12px', fontSize: 12 }}>Cancel</button>
+                    </div>
+                )}
+                {selectedProfileId && (
+                    <button onClick={async () => {
+                        if (!confirm('Delete this profile? Agents using it will lose their identity.')) return;
+                        const token = localStorage.getItem('alluci_daemon_token');
+                        const csrfToken = await getCsrfToken(DAEMON_URL, token);
+                        await fetch(`${DAEMON_URL}/api/v1/soul/profiles/${selectedProfileId}`, {
+                            method: 'DELETE',
+                            headers: { ...(token ? { 'Authorization': `Bearer ${token}` } : {}), ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}) },
+                        });
+                        setProfiles(profiles.filter(p => p.id !== selectedProfileId));
+                        setSelectedProfileId(null);
+                        fetchManifest();
+                    }} className="glass-btn" style={{ padding: '8px 12px', fontSize: 12, alignSelf: 'flex-end', color: 'var(--accent-danger)' }}>Delete</button>
+                )}
+            </div>
+
             {/* Header */}
             <div style={{
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',

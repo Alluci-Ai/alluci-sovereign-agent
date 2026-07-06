@@ -475,7 +475,16 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
                     with Session(db_engine) as session:
                         agent_record = session.get(AgentRecord, self.agent_id)
                         if agent_record:
-                            if agent_record.soul_manifest_override:
+                            if agent_record.soul_profile_id:
+                                from .models import SoulProfileRecord
+                                profile_rec = session.get(SoulProfileRecord, agent_record.soul_profile_id)
+                                if profile_rec and profile_rec.manifest:
+                                    manifest = profile_rec.manifest
+                                elif agent_record.soul_manifest_override:
+                                    manifest = json.loads(agent_record.soul_manifest_override)
+                                else:
+                                    manifest = await self.vault.retrieve_secret("soul_manifest")
+                            elif agent_record.soul_manifest_override:
                                 manifest = json.loads(agent_record.soul_manifest_override)
                             else:
                                 manifest = await self.vault.retrieve_secret("soul_manifest")

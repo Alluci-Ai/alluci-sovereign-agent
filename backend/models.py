@@ -347,6 +347,7 @@ class AgentRecord(SQLModel, table=True):
     tools_manifest: Optional[str] = Field(sa_column=Column(JSON), default=None)
     skills_manifest: Optional[str] = Field(sa_column=Column(JSON), default=None)
     soul_manifest_override: Optional[str] = Field(sa_column=Column(JSON), default=None)
+    soul_profile_id: Optional[str] = Field(default=None, foreign_key="soul_profile_record.id")
     created_at: Optional[datetime] = Field(default=None)
     updated_at: Optional[datetime] = Field(default=None)
 
@@ -364,6 +365,15 @@ class HeartbeatOrderRecord(SQLModel, table=True):
     signal_stored: bool = Field(default=False)
 
 # --- Soul Models ---
+
+class SoulProfileRecord(SQLModel, table=True):
+    __tablename__ = "soul_profile_record"  # type: ignore
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    name: str = Field(index=True)
+    description: Optional[str] = Field(default=None)
+    manifest: dict = Field(sa_column=Column(JSON), default_factory=dict)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class SoulPreferences(BaseModel):
     """Placeholder for user preferences related to the soul.

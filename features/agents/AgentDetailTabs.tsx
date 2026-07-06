@@ -28,6 +28,7 @@ export const AgentDetailTabs: React.FC<AgentDetailProps> = ({ agentId, onBack })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [heartbeatHistory, setHeartbeatHistory] = useState<any[]>([]);
     const [availableModels, setAvailableModels] = useState<{id: string, name: string, category: string}[]>([]);
+    const [availableProfiles, setAvailableProfiles] = useState<{id: string, name: string}[]>([]);
     const [saving, setSaving] = useState(false);
     const [showPiiModal, setShowPiiModal] = useState(false);
     const [pendingPiiState, setPendingPiiState] = useState(false);
@@ -76,8 +77,23 @@ export const AgentDetailTabs: React.FC<AgentDetailProps> = ({ agentId, onBack })
                 console.error('Failed fetching available models:', err);
             }
         };
+        const loadProfiles = async () => {
+            try {
+                const res = await fetch(`${DAEMON_URL}/api/v1/soul/profiles`, {
+                    headers: { 'Authorization': `Bearer ${accessToken}` },
+                    credentials: 'include'
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    setAvailableProfiles(data.profiles || []);
+                }
+            } catch (err) {
+                console.error('Failed fetching available profiles:', err);
+            }
+        };
         load();
         loadModels();
+        loadProfiles();
         if (activeTab === 'heartbeat') fetchHeartbeatHistory();
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [agentId, accessToken, activeTab]);
@@ -281,6 +297,23 @@ export const AgentDetailTabs: React.FC<AgentDetailProps> = ({ agentId, onBack })
                                     value={agent.system_prompt || 'You are a Sovereign Agent. Autonomous. Secure.'}
                                     onChange={e => setAgent({ ...agent, system_prompt: e.target.value })}
                                 />
+                            </div>
+
+                            <div className="flex flex-col gap-1 mt-2">
+                                <label className="text-[10px] text-text-tertiary uppercase flex justify-between">
+                                    <span>Soul Profile Architecture</span>
+                                    <span className="text-accent opacity-60">Cognitive Framework</span>
+                                </label>
+                                <select
+                                    className="glass-input mt-1 w-full text-sm font-medium bg-glass-1 border border-glass-edge py-2 px-3 rounded-lg text-text-primary"
+                                    value={agent.soul_profile_id || ''}
+                                    onChange={e => setAgent({ ...agent, soul_profile_id: e.target.value })}
+                                >
+                                    <option value="">Core Executive (Global Default)</option>
+                                    {availableProfiles.map(p => (
+                                        <option key={p.id} value={p.id}>{p.name}</option>
+                                    ))}
+                                </select>
                             </div>
 
                             <div className="flex justify-end pt-4">

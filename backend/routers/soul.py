@@ -2,7 +2,9 @@
 from ..logging_config import get_logger
 from fastapi import APIRouter, HTTPException, Depends, Body, Request
 from ..security.auth import verify_authenticated
-from ..models import SoulManifest, SoulPreferences
+from ..models import SoulManifest, SoulPreferences, SoulProfileRecord
+from ..database import get_session
+from sqlmodel import Session, select
 from .. import services
 from ..security.rate_limit import RateLimiter
 from fastapi_csrf_protect import CsrfProtect
@@ -65,3 +67,55 @@ async def get_soul_preferences():
         prefs = await services.vault.retrieve_secret("soul_preferences")
         if prefs: return prefs
     return SoulPreferences()
+
+@router.get("/soul/profiles", dependencies=[Depends(verify_authenticated)])
+async def list_soul_profiles(session: Session = Depends(get_session)):
+    """List all configured Soul Profiles."""
+    profiles = session.exec(select(SoulProfileRecord)).all()
+    return {"profiles": [p.model_dump() for p in profiles]}
+
+@router.post("/soul/profiles", dependencies=[Depends(verify_authenticated)])
+async def create_soul_profile(request: Request, data: dict = Body(...), session: Session = Depends(get_session), csrf_protect: CsrfProtect = Depends()):
+    await csrf_protect.validate_csrf(request)
+    """Create a new Soul Profile."""
+    profile = SoulProfileRecord(
+        name=data.get("name", "New Profile"),
+        description=data.get("description", ""),
+        manifest=data.get("manifest", {})
+    )
+    session.add(profile)
+    session.commit()
+    session.refresh(profile)
+    return {"status": "SUCCESS", "profile": profile.model_dump()}
+
+@router.put("/soul/profiles/{profile_id}", dependencies=[Depends(verify_authenticated)])
+async def update_soul_profile(request: Request, profile_id: str, data: dict = Body(...), session: Session = Depends(get_session), csrf_protect: CsrfProtect = Depends()):
+    await csrf_protect.validate_csrf(request)
+    """Update an existing Soul Profile."""
+    profile = session.get(SoulProfileRecord, profile_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    
+    if "name" in data:
+        profile.name = data["name"]
+    if "description" in data:
+        profile.description = data["description"]
+    if "manifest" in data:
+        profile.manifest = data["manifest"]
+        
+    session.add(profile)
+    session.commit()
+    session.refresh(profile)
+    return {"status": "SUCCESS", "profile": profile.model_dump()}
+
+@router.delete("/soul/profiles/{profile_id}", dependencies=[Depends(verify_authenticated)])
+async def delete_soul_profile(request: Request, profile_id: str, session: Session = Depends(get_session), csrf_protect: CsrfProtect = Depends()):
+    await csrf_protect.validate_csrf(request)
+    """Delete a Soul Profile."""
+    profile = session.get(SoulProfileRecord, profile_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found")
+        
+    session.delete(profile)
+    session.commit()
+    return {"status": "SUCCESS"}
