@@ -15,6 +15,8 @@ import numpy as np
 from typing import Optional, Dict, Any
 from enum import Enum
 
+from ..config import settings
+
 logger = logging.getLogger("VoiceOrchestrator")
 
 try:
@@ -44,12 +46,12 @@ TIER_MODEL_MAP: Dict[DeviceTier, Dict[str, Any]] = {
     },
     DeviceTier.IPHONE_17_PRO: {
         "whisper_repo": "backend/vault/h_lsm/models/whisper-base-8bit",
-        "gemma_path": "/usr/local/bin/alluci/models/polytope_e2b",
+        "gemma_path": f"./mirror_cache/{settings.LOCAL_MODEL_LITE}",
         "description": "Mobile Hub — Offline voice + Gemma 4 E2B conformer",
     },
     DeviceTier.MACBOOK_WORKSTATION: {
         "whisper_repo": "backend/vault/h_lsm/models/whisper-large-v3-turbo",
-        "gemma_path": "/usr/local/bin/alluci/models/polytope_31b_fp16",
+        "gemma_path": f"./mirror_cache/{settings.LOCAL_MODEL_MAX}",
         "description": "Cognitive Core — Full unquantized Whisper + Gemma 4 31B Dense",
     },
 }
