@@ -135,7 +135,7 @@ class ExecutiveOrchestrator:
 
     async def _handle_task_complete(self, task):
         """Hook from the executor when a DAG task completes."""
-        if task.action in ["write_file", "generate_code", "create_markdown", "write_artifact"]:
+        if task.action in ["write_file", "generate_code", "create_markdown", "write_artifact", "deep_research_evaluate"]:
             # Depending on the adapter, the result or arguments might contain the artifact text
             content = task.result if len(str(task.result)) > 20 else str(task.args)
             title = task.args.get("filename", task.action)

@@ -8,6 +8,11 @@ from .web_fetch import WebFetchAdapter
 from .code_exec import CodeExecAdapter
 from .screen_capture import ScreenCaptureAdapter
 from .doc_ingest import DocumentIngestAdapter
+from .deep_research import (
+    DeepResearchQueryExpansionAdapter,
+    DeepResearchHarvestAdapter,
+    DeepResearchEvaluateAdapter
+)
 
 class AdapterRegistry:
     def __init__(self, vault_root: Optional[str] = None, memory_manager = None, on_inbound: Callable = None):  # type: ignore
@@ -21,6 +26,9 @@ class AdapterRegistry:
         self.register(WebFetchAdapter())
         self.register(CodeExecAdapter())
         self.register(ScreenCaptureAdapter())
+        self.register(DeepResearchQueryExpansionAdapter())
+        self.register(DeepResearchHarvestAdapter())
+        self.register(DeepResearchEvaluateAdapter())
         if memory_manager:
             self.register(DocumentIngestAdapter(memory_manager))
         # MemoryAdapter is initialized with the global memory instance in app.py
