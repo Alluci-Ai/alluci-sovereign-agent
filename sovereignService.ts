@@ -149,6 +149,20 @@ export class AlluciSovereignService {
             body: JSON.stringify({ tags })
         });
     }
+
+    // ─── Agents API ────────────────────────────────────────────────────────
+    
+    async listAgents() {
+        return this._fetch('/agents');
+    }
+    
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async createAgent(payload: any) {
+        return this._fetch('/agents', {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+    }
 }
 
 export const sovereignService = new AlluciSovereignService();

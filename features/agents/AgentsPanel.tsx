@@ -3,8 +3,7 @@ import { useStore } from '../../store/useStore';
 import { Bot, UserPlus, Settings, Activity, Network } from 'lucide-react';
 import AgentDetailTabs from './AgentDetailTabs';
 import AgentDirtyIndicator from './AgentDirtyIndicator';
-
-const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || '';
+import { sovereignService } from '../../sovereignService';
 
 export const AgentsPanel: React.FC = () => {
     const { accessToken } = useStore();
@@ -16,14 +15,8 @@ export const AgentsPanel: React.FC = () => {
     const fetchAgents = async () => {
         setLoading(true);
         try {
-            const res = await fetch(`${DAEMON_URL}/api/v1/agents`, {
-                headers: { 'Authorization': `Bearer ${accessToken}` },
-                credentials: 'include'
-            });
-            if (res.ok) {
-                const data = await res.json();
-                setAgents(data.agents || []);
-            }
+            const data = await sovereignService.listAgents();
+            setAgents(data.agents || []);
         } catch (err) {
             console.error('[AgentsPanel] Initial sync failed', err);
         } finally {
@@ -38,22 +31,18 @@ export const AgentsPanel: React.FC = () => {
 
     const handleCreate = async () => {
         try {
-            const res = await fetch(`${DAEMON_URL}/api/v1/agents`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ name: 'New Agent Model', model: 'gpt-4o', status: 'DRAFT', active_skills: 0, channels: 0 }),
-                credentials: 'include'
+            const data = await sovereignService.createAgent({ 
+                name: 'New Agent Model', 
+                model: 'gpt-4o', 
+                status: 'DRAFT', 
+                active_skills: 0, 
+                channels: 0 
             });
-            if (res.ok) {
-                const data = await res.json();
-                setAgents([...agents, data.agent]);
-                setSelectedAgentId(data.agent.id);
-            }
-        } catch (e) {
+            setAgents([...agents, data.agent]);
+            setSelectedAgentId(data.agent.id);
+        } catch (e: any) {
             console.error('Failed to create stub agent:', e);
+            alert(e.message || 'Failed to initialize agent. Check console for details.');
         }
     };
 

@@ -418,28 +418,22 @@ def _safe_json_loads(val: Any) -> dict:
 async def get_registry_skills():
     if not services.skill_manager:
         return {"skills": []}
-    global_skills = await services.skill_manager.list_skills()
-    skills = [s for s in global_skills if s.get("category", "").upper() in ["FRAMEWORK", "MINDSET", "KNOWLEDGE"]]
+    skills = await services.skill_manager.list_skills()
     return {"skills": skills}
 
 @router.get("/registry/tools", dependencies=[Depends(verify_authenticated)])
 async def get_registry_tools():
-    if not services.skill_manager:
+    if not services.tool_manager:
         return {"tools": []}
-    global_skills = await services.skill_manager.list_skills()
-    # Include explicit tool categories AND any skill with executable capabilities (intrinsic linking)
-    tools = [s for s in global_skills if (
-        s.get("category", "").upper() in ["BRIDGE", "MCP", "TOOL"] or
-        (s.get("capabilities") and len(s.get("capabilities", [])) > 0)
-    )]
+    tools = await services.tool_manager.list_tools()
     return {"tools": tools}
 
 @router.get("/agents/{agent_id}/tools", dependencies=[Depends(verify_authenticated)])
 async def get_agent_tools(agent_id: str):
     """Get all tools with their agent-specific overrides."""
-    if not services.skill_manager:
+    if not services.tool_manager:
         return {"tools": []}
-    global_skills = await services.skill_manager.list_skills()
+    global_tools = await services.tool_manager.list_tools()
     
     with Session(db_engine) as session:
         agent = session.get(AgentRecord, agent_id)
@@ -450,32 +444,26 @@ async def get_agent_tools(agent_id: str):
     agent_tools = _safe_json_loads(agent.tools_manifest)
             
     tools = []
-    for skill in global_skills:
-        cat = skill.get("category", "").upper()
-        has_capabilities = bool(skill.get("capabilities") and len(skill.get("capabilities", [])) > 0)
-        
-        # Include explicit tool categories AND skills with executable capabilities (intrinsic linking)
-        if cat not in ["BRIDGE", "MCP", "TOOL"] and not has_capabilities:
+    for tool in global_tools:
+        tool_id = tool.get("id")
+        if not tool_id:
             continue
-            
-        skill_id = skill.get("id")
-        if not skill_id:
-            continue
-        skill_name = skill.get("name", skill_id)
-        skill_desc = skill.get("description", "")
+        tool_name = tool.get("name", tool_id)
+        tool_desc = tool.get("description", "")
+        tool_cat = tool.get("category", "TOOL")
         
-        agent_override = agent_tools.get(skill_id, {})
+        agent_override = agent_tools.get(tool_id, {})
         enabled = agent_override.get("enabled", False)
         params = agent_override.get("params", "{\n  \n}")
         
         tools.append({
-            "id": skill_id,
-            "name": skill_name,
-            "category": cat or "TOOL",
-            "description": skill_desc,
+            "id": tool_id,
+            "name": tool_name,
+            "category": tool_cat,
+            "description": tool_desc,
             "enabled": enabled,
             "params": params,
-            "intrinsic": cat not in ["BRIDGE", "MCP", "TOOL"]  # Flag intrinsically-linked tools
+            "intrinsic": False
         })
         
     return {"tools": tools}

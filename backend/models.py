@@ -410,6 +410,8 @@ class SoulManifest(BaseModel):
     bootSequence: Optional[str] = None
     heartbeat: Optional[str] = None
     executionGraph: Optional[dict] = None
+    active_skill_ids: Optional[list] = None
+    active_tool_ids: Optional[list] = None
 
     model_config = {"extra": "allow"}
 

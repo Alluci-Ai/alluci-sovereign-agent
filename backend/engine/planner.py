@@ -14,14 +14,14 @@ class Planner:
     def __init__(self, router: ModelRouter):
         self.router = router
 
-    async def generate_plan(self, objective: str, context: str = "", psi: float = 0.0, agent_id: str = "executive") -> Dict[str, DAGTask]:
+    async def generate_plan(self, objective: str, context: str = "", tools: list = None, psi: float = 0.0, agent_id: str = "executive") -> Dict[str, DAGTask]:
         """
         Generates a valid DAG from the objective, influenced by the Soul's context and skills.
         """
         # Augment objective with the Soul's context and affective state
         prompt_with_psi = f"AFFECTIVE TENSION (psi): {psi:.2f}\n\nOBJECTIVE: \"{objective}\"\n\nBased on the Identity and current Affective Tension, create a plan."
         
-        raw_plan = await self.router.get_structured_plan(prompt_with_psi, system_instruction=context, agent_id=agent_id)
+        raw_plan = await self.router.get_structured_plan(prompt_with_psi, system_instruction=context, tools=tools, agent_id=agent_id)
         steps = raw_plan.get("steps", [])
         
         if not steps:

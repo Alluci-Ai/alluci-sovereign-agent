@@ -440,9 +440,17 @@ const SkillBuilderWizard: React.FC<{ onClose: () => void, initialData?: SkillMan
         {/* JSON Preview Sidebar (Desktop Only) */}
         <div className="hidden lg:block absolute top-0 right-0 w-1/3 h-full border-l border-[rgba(255,255,255,0.18)]  p-6 overflow-hidden">
           <h4 className="glass-label text-[8px] opacity-40 mb-4">LIVE_MANIFEST_PREVIEW</h4>
-          <pre className="text-[8px] font-mono overflow-auto h-full pb-10 opacity-70">
+          <pre className="text-[8px] font-mono overflow-auto pb-4 opacity-70">
             {JSON.stringify(manifest, null, 2)}
           </pre>
+          {/* Validation Warnings */}
+          {(manifest.capabilities || manifest.parameters) && (
+            <div className="mt-4 p-2 bg-[var(--accent-danger)]/10 border border-[var(--accent-danger)] rounded text-[9px] text-[var(--accent-danger)]">
+              ⚠️ WARNING: Execution attributes (capabilities/parameters) found in a Cognitive Skill structure. 
+              Skills are for cognition and routing; Execution logic should be built in ToolBuilderWizard.
+            </div>
+          )}
+
         </div>
       </div>
 

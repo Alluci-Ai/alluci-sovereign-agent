@@ -242,10 +242,10 @@ class ModelRouter(ExecutiveRouter):
 
 
 
-    async def _lce_request(self, prompt: str, system_instruction: str = "", agent_id: str = "executive") -> str:
+    async def _lce_request(self, prompt: str, system_instruction: str = "", tools: Optional[list] = None, agent_id: str = "executive") -> str:
         """Local Cognitive Engine via OS-Agnostic Abstraction."""
         await cognitive_engine.apply_lora_adapter(agent_id)
-        return await cognitive_engine.generate(prompt, system_instruction=system_instruction)
+        return await cognitive_engine.generate(prompt, system_instruction=system_instruction, tools=tools)
 
     async def pre_load_model(self) -> None:
         """Warm up local cognitive engine model cache."""
@@ -295,7 +295,8 @@ class ModelRouter(ExecutiveRouter):
             self.logger.warning(f"Failed to load keys from vault: {e}")
 
     @retry(reraise=True, stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10), retry=retry_if_exception_type((httpx.HTTPError, Exception)))
-    async def _gemini_request(self, prompt: str, use_pro: bool = False, json_mode: bool = False, system_instruction: str = "", session_id: Optional[str] = None, model_override: Optional[str] = None) -> str:
+    async def _gemini_request(self, prompt: str, use_pro: bool = False, json_mode: bool = False, system_instruction: str = "", session_id: Optional[str] = None,
+        tools: Optional[list] = None, model_override: Optional[str] = None) -> str:
         """Cloud Failover 1: Gemini."""
 
         model = self.gemini_pro if use_pro else self.gemini_flash
@@ -336,7 +337,8 @@ class ModelRouter(ExecutiveRouter):
         return content
 
     @retry(reraise=True, stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10), retry=retry_if_exception_type((httpx.HTTPError, Exception)))
-    async def _openai_request(self, prompt: str, use_strong: bool = False, json_mode: bool = False, system_instruction: str = "", session_id: Optional[str] = None, model_override: Optional[str] = None) -> str:
+    async def _openai_request(self, prompt: str, use_strong: bool = False, json_mode: bool = False, system_instruction: str = "", session_id: Optional[str] = None,
+        tools: Optional[list] = None, model_override: Optional[str] = None) -> str:
         """Cloud Failover 2: OpenAI."""
         if not self.openai_client:
             raise RuntimeError("OpenAI not configured")
@@ -673,6 +675,7 @@ class ModelRouter(ExecutiveRouter):
         system_instruction: str = "",
         inference_mode: Literal["LOCAL", "CLOUD", "TACTICAL", "HYBRID"] = "HYBRID",
         session_id: Optional[str] = None,
+        tools: Optional[list] = None,
         agent_id: str = "executive"
     ) -> str:
         """
@@ -769,7 +772,7 @@ class ModelRouter(ExecutiveRouter):
             local_providers = []
             if inference_mode in ["HYBRID", "LOCAL", "FAST"]:
                 if self.lce_enabled:
-                    local_providers.append(("Native LCE (MLX)", lambda p: self._lce_request(p, system_instruction=system_instruction, agent_id=agent_id)))
+                    local_providers.append(("Native LCE (MLX)", lambda p: self._lce_request(p, system_instruction=system_instruction, tools=tools, agent_id=agent_id)))
                 if self.lm_studio_client:
                     local_providers.append(("LM Studio", lambda p: self._lm_studio_request(p, use_strong=use_strong, system_instruction=system_instruction)))
 
@@ -973,6 +976,7 @@ class ModelRouter(ExecutiveRouter):
         system_instruction: str = "",
         inference_mode: Literal["LOCAL", "CLOUD", "TACTICAL", "HYBRID"] = "HYBRID",
         session_id: Optional[str] = None,
+        tools: Optional[list] = None,
         agent_id: str = "executive"
     ) -> AsyncGenerator[str, None]:
         """
@@ -1027,7 +1031,7 @@ class ModelRouter(ExecutiveRouter):
         )
         yield response
 
-    async def get_structured_plan(self, prompt: str, system_instruction: str = "", agent_id: str = "executive") -> Dict[str, Any]:
+    async def get_structured_plan(self, prompt: str, system_instruction: str = "", tools: list = None, agent_id: str = "executive") -> Dict[str, Any]:
         """
         Utility to get a JSON-formatted execution plan from the LLM.
         Forces JSON mode and handles parsing failovers.
@@ -1053,7 +1057,7 @@ Schema:
 """
 
         try:
-            res = await self.get_response(prompt, system_instruction=system_instruction, agent_id=agent_id)
+            res = await self.get_response(prompt, system_instruction=system_instruction, tools=tools, agent_id=agent_id)
             import re
             # Extract JSON from potential markdown blocks or extra text
             res_clean = res.strip()
@@ -1119,7 +1123,7 @@ You must return a valid JSON object with the following schema:
         return await self.get_structured_plan(prompt, system_instruction="You are a strict objective critic.", agent_id=agent_id)
 
     @retry(reraise=True, stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10), retry=retry_if_exception_type((httpx.HTTPError, Exception)))
-    async def get_fast_tactical_response(self, prompt: str, system_instruction: str = "", agent_id: str = "executive") -> str:
+    async def get_fast_tactical_response(self, prompt: str, system_instruction: str = "", tools: list = None, agent_id: str = "executive") -> str:
         """Shortcut method directly using Groq for fast, simple tactical decisions.
         
         **Security Guarantee:** Tactical responses are restricted to hardware-accelerated 
@@ -1127,7 +1131,8 @@ You must return a valid JSON object with the following schema:
         """
         await self._ensure_vault_keys()
         if not self.groq_api_key:
-            return await self.get_response(prompt, complexity="LOW", system_instruction=system_instruction, agent_id=agent_id)
+            return await self.get_response(
+            prompt, tools=tools, complexity="LOW", system_instruction=system_instruction, agent_id=agent_id)
         
         # Check Prompt Cache
         cached_res = await prompt_cache.get(prompt, system_instruction, "TACTICAL")

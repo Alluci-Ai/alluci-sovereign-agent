@@ -11,6 +11,7 @@ from backend.inference.router import ModelRouter
 from backend.security.guardrail import GuardrailScanner
 from backend.ace.engine import AffectiveEngine
 from backend.skill_manager import SkillManager
+from backend.tool_manager import ToolManager
 from backend.memory.hlsm_manager import HLSMManager
 from backend.analytics import UsageTracker
 pass  # Orchestrator import deferred
@@ -42,6 +43,7 @@ ace: Optional[AffectiveEngine] = None
 orchestrator: Optional[ExecutiveOrchestrator] = None
 task_manager: Optional[TaskManager] = None
 skill_manager: Optional[SkillManager] = None
+tool_manager: Optional[ToolManager] = None
 sovereign_identity: Optional[SovereignIdentity] = None
 local_inference: Optional[LocalInferenceBridge] = None
 ws_gw: Optional[JsonRpcGateway] = None
@@ -61,7 +63,7 @@ updater = updater_instance
 channel_registry: Dict[str, Any] = {}
 
 async def init_services(app_instance):
-    global vault, router, ace, orchestrator, task_manager, skill_manager, sovereign_identity
+    global vault, router, ace, orchestrator, task_manager, skill_manager, tool_manager, sovereign_identity
     global local_inference, ws_gw, usage_tracker, cron_engine, config_editor, exec_approval
     global memory, hlsm_manager, redis_client, scanner, device_manager, pcl, goal_engine, sop_engine
 
@@ -132,8 +134,9 @@ async def init_services(app_instance):
     # 5. Affective Engine
     ace = AffectiveEngine()
 
-    # 6. Skill Manager
+    # 6. Skill Manager & Tool Manager
     skill_manager = SkillManager(vault)
+    tool_manager = ToolManager(vault)
 
     # 7. Persistent H-LSM Memory System
     # Initialize the three-tier Hierarchical Long-Short Manifold manager.
@@ -172,6 +175,7 @@ async def init_services(app_instance):
         vault=vault,
         ace=ace,
         skill_manager=skill_manager,
+        tool_manager=tool_manager,
         analytics=usage_tracker,
         settings=settings,
         vault_root=vault_root,

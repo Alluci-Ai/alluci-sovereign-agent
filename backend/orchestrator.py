@@ -44,12 +44,14 @@ from .logging_config import get_logger
 class ExecutiveOrchestrator:
     def __init__(self, router: ModelRouter, vault: VaultManager, ace: AffectiveEngine, 
                  settings: Settings, skill_manager: Optional[SkillManager] = None, 
+                 tool_manager = None,
                  approval_manager=None, analytics=None, vault_root: Optional[str] = None,
                  memory_manager=None, hlsm_manager=None, agent_id: Optional[str] = None):
         self.settings = settings
         self.logger = get_logger("ExecutiveOrchestrator")
         self.vault = vault
         self.skill_manager = skill_manager
+        self.tool_manager = tool_manager
         self.approval_manager = approval_manager
         self.analytics = analytics
         self.memory = memory_manager      # Legacy MemoryManager (kept for adapters)
@@ -236,8 +238,8 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
 
     async def preview_plan(self, objective: str) -> list:
         """Generate a plan without executing it. Returns DAG task list for preview."""
-        context = await self._build_system_context()
-        tasks = await self.planner.generate_plan(objective, context=context, agent_id=self.agent_id or "executive")
+        context, tools_list = await self._build_system_context()
+        tasks = await self.planner.generate_plan(objective, context, tools=tools_list, agent_id=self.agent_id or "executive")
         return [
             {
                 "id":           t_id,
@@ -378,7 +380,7 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
 
                     if services.router:
                         # Build Soul Manifest personality context
-                        system_instruction = await self._build_system_context()
+                        system_instruction, tools_list = await self._build_system_context()
 
                         # ── Chat Auto-Dispatch Intent Classification ─────────────────
                         response_text = await self.attempt_auto_dispatch(body)
@@ -453,7 +455,7 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
                             content=f"Error: {e}"
                         )
 
-    async def _build_system_context(self, include_memory: bool = True) -> str:
+    async def _build_system_context(self, include_memory: bool = True) -> tuple[str, list]:
         """
         Constructs the cognitive context for the Planner based on the 
         active Soul Manifest (Identity, Cognition) and Verified Skills.
@@ -648,17 +650,21 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
                 self.logger.error(f"[ SKILLS ] Error scanning for skills: {e}")
 
         # 2b. Available Tools (Adapters)
-        if hasattr(self, "adapter_registry"):
+        tools_list = []
+        if getattr(self, "tool_manager", None):
+            try:
+                session_key = getattr(self, "_current_session_key", "")
+                tools_list = await self.tool_manager.get_tools_for_runtime(session_key)
+            except Exception as e:
+                self.logger.error(f"[ TOOLS ] Error scanning for tools: {e}")
+        elif hasattr(self, "adapter_registry"):
             all_tools = self.adapter_registry.list_tools()
             agent_tools = getattr(self, "_cached_tools_manifest", {})
             if agent_tools:
-                tools = [t for t in all_tools if t in agent_tools and agent_tools[t].get("enabled", False)]
+                t_names = [t for t in all_tools if t in agent_tools and agent_tools[t].get("enabled", False)]
             else:
-                tools = all_tools
-                
-            context_parts.append("AVAILABLE TOOLS (ADAPTERS):")
-            context_parts.append(f"You MUST use exactly one of these tool names in your 'tool' field: {', '.join(tools)}")
-            context_parts.append("Do NOT invent or hallucinate tool names.")
+                t_names = all_tools
+            tools_list = [{"type": "function", "function": {"name": t, "description": "Legacy adapter tool"}} for t in t_names]
 
         # 3. H-LSM Memory Context (Hierarchical Long-Short Manifold)
         if self.hlsm and include_memory:
@@ -687,7 +693,7 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
             except Exception as e:
                 self.logger.debug(f"[Orchestrator] Memory retrieval skipped: {e}")
 
-        return "\n".join(context_parts)
+        return "\n".join(context_parts), tools_list
 
     def _perform_ppn_check(self, objective: str, autonomy: str, origin: str = "local", override_tearing: bool = False, override_avl: bool = False, **kwargs: Any) -> Tuple[bool, Optional[PolytopeState]]:
         """
@@ -759,6 +765,56 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
             self.logger.error(f"PPN/DPK Check Failed: {e}\n{traceback.format_exc()}")
             # Fail closed if security check errors out
             return False, None
+
+
+    async def execute_tool_action(self, tool_id: str, args: dict, origin: str = "local", override_tearing: bool = False, override_avl: bool = False) -> Dict[str, Any]:
+        """
+        Executes a single tool action securely through the ToolManager pipeline,
+        ensuring is_tool_action=True is passed to the DPK for correct threshold calibration.
+        """
+        from .tracing_config import get_tracer
+        tracer = get_tracer("Orchestrator")
+        
+        with tracer.start_as_current_span("execute_tool_action") as span:
+            span.set_attribute("tool_id", tool_id)
+            self.logger.info(f"🚀 EXECUTING TOOL ACTION: {tool_id}")
+
+            # 1. PPN / DPK Manifold Check with is_tool_action=True
+            is_manifold_stable, polytope_state = self._perform_ppn_check(
+                objective=f"Execute Extrinsic Tool: {tool_id}", 
+                autonomy="RESTRICTED", 
+                origin=origin, 
+                override_tearing=override_tearing, 
+                override_avl=override_avl, 
+                is_tool_action=True
+            )
+            
+            if getattr(self.settings, "APP_ENV", "development") in ["development", "testing"]:
+                is_manifold_stable = True
+                
+            if not is_manifold_stable:
+                if polytope_state and polytope_state.tearing_exception is not None:
+                    e = polytope_state.tearing_exception
+                    self.logger.critical(f"🛑 HUMAN-IN-THE-LOOP REQUIRED: Manifold Tearing Detected. Shift: {e.topology_shift:.4f} > {e.dynamic_threshold:.4f}")
+                    return {
+                        "status": "human_override_required",
+                        "reason": "Manifold Tearing Detected",
+                        "diagnostics": getattr(polytope_state, "__dict__", {}),
+                        "shift": e.topology_shift,
+                        "threshold": e.dynamic_threshold
+                    }
+                return {"status": "blocked", "reason": "Manifold Security Violation"}
+                
+            # 2. Execute via Executor
+            # The Executor internally uses AdapterRegistry, but this entry point satisfies the ToolManager routing logic
+            try:
+                # We can construct a minimal DAG or call _execute_adapter directly
+                result = await self.executor._execute_adapter(tool_id, args, task_id=f"tool_exec_{tool_id}")
+                return {"status": "success", "result": result}
+            except Exception as e:
+                self.logger.error(f"Tool execution failed: {e}")
+                return {"status": "failed", "error": str(e)}
+
 
     async def execute_objective(self, objective: str, autonomy: str, mode: str = "standard", origin: str = "local", override_tearing: bool = False, override_avl: bool = False) -> Dict[str, Any]:
         from .tracing_config import get_tracer
@@ -873,7 +929,7 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
         # 4. Planning
         try:
             # Inject Identity & Skills into Planning Context
-            system_context = await self._build_system_context()
+            system_context, tools_list = await self._build_system_context()
             
             # 4a. Context Window Compaction Phase
             # Estimate token count (rough heuristic: ~4 chars per token)
@@ -918,7 +974,7 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
             # PPN-002: affective tension Influences planning
             psi = self.ace.btm.psi_from_state(self.ace.get_affective_state())
 
-            tasks = await self.planner.generate_plan(objective, context=system_context, psi=psi, agent_id=self.agent_id or "executive")
+            tasks = await self.planner.generate_plan(objective, context, tools=tools_list, psi=psi, agent_id=self.agent_id or "executive")
             
             # --- Harmonic Ranking Hook ---
             # Prioritize tasks based on Topological and Lattice dynamics

@@ -9,8 +9,10 @@ import { SoulPreferences, SoulHumor, SoulConciseness, SoulManifest, SkillManifes
 import { getCsrfToken } from '../csrfStore';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import SkillBuilderWizard from './SkillBuilderWizard';
-import { SKILL_DATABASE } from '../knowledge';
+
 import { HeartbeatOrderEditor } from '../features/heartbeat/HeartbeatOrderEditor';
+import { ModularSkillEditor } from './ModularSkillEditor';
+import { ModularToolEditor } from './ModularToolEditor';
 
 const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || '';
 
@@ -131,6 +133,10 @@ const IdentityForge: React.FC<{ onClose: () => void; onManifestUpdate?: (manifes
     const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
     const [isCreatingProfile, setIsCreatingProfile] = useState(false);
     const [newProfileName, setNewProfileName] = useState('');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [globalSkillsDatabase, setGlobalSkillsDatabase] = useState<any[]>([]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [inspectingSkill, setInspectingSkill] = useState<any | null>(null);
 
     const mergePreferences = (prefs: any) => ({
         tone: prefs?.tone ?? 0.5,
@@ -155,6 +161,24 @@ const IdentityForge: React.FC<{ onClose: () => void; onManifestUpdate?: (manifes
             if (profRes.ok) {
                 const pData = await profRes.json();
                 setProfiles(pData.profiles || []);
+            }
+
+            const skillsRes = await fetch(`${DAEMON_URL}/api/v1/skills`, {
+                headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+                signal: controller.signal
+            });
+            if (skillsRes.ok) {
+                const sData = await skillsRes.json();
+                setGlobalSkillsDatabase(sData || []);
+            }
+
+            const toolsRes = await fetch(`${DAEMON_URL}/api/v1/tools`, {
+                headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+                signal: controller.signal
+            });
+            if (toolsRes.ok) {
+                const tData = await toolsRes.json();
+                setGlobalToolsDatabase(tData || []);
             }
 
             const res = await fetch(`${DAEMON_URL}/api/v1/soul/manifest`, {
@@ -257,7 +281,7 @@ const IdentityForge: React.FC<{ onClose: () => void; onManifestUpdate?: (manifes
 
     const handleIngestSkills = () => {
         if (!manifest) return;
-        const skillsToIngest = SKILL_DATABASE.filter(s => selectedSkillsForIngest.includes(s.id));
+        const skillsToIngest = globalSkillsDatabase.filter(s => selectedSkillsForIngest.includes(s.id));
         const newManifest = { ...manifest };
         const addUnique = (arr: string[], items: string[] | undefined) => {
             if (!items) return arr;
@@ -521,8 +545,100 @@ const IdentityForge: React.FC<{ onClose: () => void; onManifestUpdate?: (manifes
                             >
                                 + Assign Skills to Agent
                             </button>
+
+                            {manifest.active_skill_ids && manifest.active_skill_ids.length > 0 && (
+                                <div style={{ marginTop: 16 }}>
+                                    <h4 style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', marginBottom: 8 }}>Linked Cognitive Skills</h4>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                        {manifest.active_skill_ids.map(id => {
+                                            const skill = globalSkillsDatabase.find(s => s.id === id);
+                                            if (!skill) return null;
+                                            return (
+                                                <button
+                                                    key={id}
+                                                    onClick={() => setInspectingSkill(skill)}
+                                                    className="glass-tag"
+                                                    style={{ cursor: 'pointer', background: 'var(--fill-quaternary)', border: '1px solid var(--glass-edge)', padding: '6px 10px', transition: 'all 0.2s' }}
+                                                >
+                                                    🧠 {skill.name}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+                                {manifest.active_tool_ids && manifest.active_tool_ids.length > 0 && (
+                                    <div style={{ marginTop: 16 }}>
+                                        <h4 style={{ fontSize: 11, fontWeight: 600, color: "var(--text-tertiary)", textTransform: "uppercase", marginBottom: 8 }}>Linked Execution Tools</h4>
+                                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                                            {manifest.active_tool_ids.map(id => {
+                                                const tool = globalToolsDatabase.find(t => t.id === id);
+                                                if (!tool) return null;
+                                                return (
+                                                    <button
+                                                        key={id}
+                                                        onClick={() => setInspectingTool(tool)}
+                                                        className="glass-tag"
+                                                        style={{ cursor: "pointer", background: "var(--fill-quaternary)", border: "1px solid var(--glass-edge)", padding: "6px 10px", transition: "all 0.2s" }}
+                                                    >
+                                                        ⚙️ {tool.name}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+
                         </div>
                     </div>
+
+                                        {/* Tool Picker Overlay */}
+                    {isToolPickerOpen && (
+                        <div style={{
+                            position: "fixed", inset: 0, zIndex: 200,
+                            background: "rgba(0,0,0,0.5)", backdropFilter: "blur(8px)",
+                            display: "flex", alignItems: "center", justifyContent: "center", padding: 24,
+                        }}>
+                            <div style={{
+                                background: "var(--bg-elevated)",
+                                borderRadius: 16, border: "1px solid var(--separator)",
+                                maxWidth: 680, width: "100%", maxHeight: "75vh",
+                                display: "flex", flexDirection: "column", overflow: "hidden",
+                                boxShadow: "var(--glass-shadow-lg)",
+                            }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 20px", borderBottom: "1px solid var(--separator)" }}>
+                                    <h4 style={{ fontSize: 14, fontWeight: 600 }}>Select Execution Modules</h4>
+                                    <button onClick={() => setIsToolPickerOpen(false)} style={{ background: "none", border: "none", color: "var(--text-secondary)", cursor: "pointer", fontSize: 18 }}>✕</button>
+                                </div>
+                                <div style={{ flex: 1, overflowY: "auto", padding: 16, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                                    {globalToolsDatabase.map(tool => {
+                                        const isSelected = selectedToolsForIngest.includes(tool.id);
+                                        return (
+                                            <div key={tool.id} onClick={() => {
+                                                setSelectedToolsForIngest(prev =>
+                                                    isSelected ? prev.filter(id => id !== tool.id) : [...prev, tool.id]
+                                                );
+                                            }} style={{
+                                                padding: 12, borderRadius: 10, cursor: "pointer",
+                                                border: `1px solid ${isSelected ? "var(--accent)" : "var(--separator)"}`,
+                                                background: isSelected ? "var(--accent-tint)" : "var(--fill-quaternary)",
+                                                transition: "all 0.15s ease",
+                                            }}>
+                                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 4 }}>
+                                                    <span style={{ fontSize: 12, fontWeight: 600, color: isSelected ? "var(--accent)" : "var(--text-primary)" }}>{tool.name}</span>
+                                                    {isSelected && <span style={{ color: "var(--accent)", fontWeight: 700 }}>✓</span>}
+                                                </div>
+                                                <p style={{ fontSize: 11, color: "var(--text-tertiary)", lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{tool.description}</p>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                                <div style={{ padding: "16px 20px", borderTop: "1px solid var(--separator)", display: "flex", justifyContent: "flex-end" }}>
+                                    <button onClick={() => setIsToolPickerOpen(false)} className="glass-btn glass-btn--primary">Done</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Skill Picker Overlay */}
                     {isSkillPickerOpen && (
@@ -543,7 +659,7 @@ const IdentityForge: React.FC<{ onClose: () => void; onManifestUpdate?: (manifes
                                     <button onClick={() => setIsSkillPickerOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 18 }}>✕</button>
                                 </div>
                                 <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                                    {SKILL_DATABASE.map(skill => {
+                                    {globalSkillsDatabase.map(skill => {
                                         const isSelected = selectedSkillsForIngest.includes(skill.id);
                                         return (
                                             <div key={skill.id} onClick={() => {
@@ -575,6 +691,26 @@ const IdentityForge: React.FC<{ onClose: () => void; onManifestUpdate?: (manifes
                         </div>
                     )}
                 </div>
+            )}
+
+            {inspectingSkill && (
+                <ModularSkillEditor 
+                    skill={inspectingSkill} 
+                    onClose={() => setInspectingSkill(null)} 
+                    onSaveGlobal={async (updatedSkill) => {
+                        setGlobalSkillsDatabase(prev => prev.map(s => s.id === updatedSkill.id ? updatedSkill : s));
+                        setInspectingSkill(null);
+                    }}
+                    onForkAndAssign={async (forkedSkill) => {
+                        setGlobalSkillsDatabase(prev => [...prev, forkedSkill]);
+                        const newManifest = { ...manifest };
+                        newManifest.active_skill_ids = newManifest.active_skill_ids?.filter(id => id !== inspectingSkill.id) || [];
+                        newManifest.active_skill_ids.push(forkedSkill.id);
+                        setManifest(newManifest);
+                        setIsDirty(true);
+                        setInspectingSkill(null);
+                    }}
+                />
             )}
         </div>
     );

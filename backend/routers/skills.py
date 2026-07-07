@@ -48,6 +48,11 @@ async def get_all_skills():
 @router.put("/skills/{skill_id}")
 async def save_skill(skill_id: str, payload: Dict[str, Any] = Body(...)):
     """Creates or Updates a skill in the local vault."""
+    # Enforce Skill Boundary
+    category = payload.get("category", "FRAMEWORK")
+    if category in ["TOOL", "MCP"]:
+        raise HTTPException(status_code=400, detail="Cannot save TOOL category to Skills endpoint. Use /api/v1/tools")
+        
     os.makedirs(SKILLS_DIR, exist_ok=True)
     
     # Secure the skill ID to prevent path traversal
