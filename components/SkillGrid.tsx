@@ -210,7 +210,7 @@ export const SkillDetailOverlay: React.FC<SkillDetailOverlayProps> = ({ skill, o
                         <section>
                             <h4 style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent)', marginBottom: 8 }}>Mindsets</h4>
                             <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                {skill.mindsets.map((m, i) => (
+                                {skill.mindsets?.map((m, i) => (
                                     <li key={i} style={{ fontSize: 13, fontFamily: 'var(--font-mono)', display: 'flex', gap: 6 }}>
                                         <span style={{ color: 'var(--text-quaternary)' }}>{i + 1}.</span>
                                         <span>{m}</span>
@@ -221,7 +221,7 @@ export const SkillDetailOverlay: React.FC<SkillDetailOverlayProps> = ({ skill, o
                         <section>
                             <h4 style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent-secondary)', marginBottom: 8 }}>Methodologies</h4>
                             <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                {skill.methodologies.map((m, i) => (
+                                {skill.methodologies?.map((m, i) => (
                                     <li key={i} style={{ fontSize: 13, fontFamily: 'var(--font-mono)', display: 'flex', gap: 6 }}>
                                         <span style={{ color: 'var(--text-quaternary)' }}>{i + 1}.</span>
                                         <span>{m}</span>
@@ -240,7 +240,7 @@ export const SkillDetailOverlay: React.FC<SkillDetailOverlayProps> = ({ skill, o
                             display: 'flex', flexDirection: 'column', gap: 10,
                         }}>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-                                {skill.chainsOfThought.map((t, i) => (
+                                {skill.chainsOfThought?.map((t, i) => (
                                     <React.Fragment key={i}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontFamily: 'var(--font-mono)' }}>
                                             <span style={{
@@ -259,7 +259,7 @@ export const SkillDetailOverlay: React.FC<SkillDetailOverlayProps> = ({ skill, o
                             </div>
                             <div style={{ paddingTop: 8, borderTop: '1px solid var(--separator)' }}>
                                 <p style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-quaternary)', textTransform: 'uppercase', marginBottom: 4 }}>Logic</p>
-                                {skill.logic.map((l, i) => (
+                                {skill.logic?.map((l, i) => (
                                     <p key={i} style={{ fontSize: 12, fontFamily: 'var(--font-mono)', fontStyle: 'italic', color: 'var(--text-tertiary)' }}>"{l}"</p>
                                 ))}
                             </div>

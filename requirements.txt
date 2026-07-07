@@ -101,3 +101,5 @@ pywin32==306; sys_platform == "win32"   # Windows Service support (windows_servi
 # ─── Scheduling ──────────────────────────────────────────────────────────────
 croniter==2.0.0
 kuzu==0.11.3
+trafilatura==2.1.0
+duckduckgo-search==8.1.1
