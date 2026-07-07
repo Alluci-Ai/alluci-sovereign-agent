@@ -1150,15 +1150,53 @@ class HLSMManager:
                 .limit(limit)
             ).all()
 
-    async def delete(self, memory_id: str) -> bool:
-        """Legacy compatibility: delete an L1 episodic entry by ID."""
-        try:
-            deleted = await asyncio.to_thread(self._l1_delete_by_id, memory_id)
-            if not deleted:
-                # Try L2
-                await self.l2_delete(memory_id)
+    async def _l0_delete_by_id(self, memory_id: str) -> bool:
+        if self.redis:
+            try:
+                keys = await self.redis.keys("hlsm:working:*")
+                for key in keys:
+                    items = await self.redis.lrange(key, 0, -1)
+                    for item in items:
+                        try:
+                            data = json.loads(item)
+                            if data.get("id") == memory_id:
+                                await self.redis.lrem(key, 1, item)
+                                return True
+                        except json.JSONDecodeError:
+                            continue
+            except Exception as e:
+                logger.error(f"[HLSM L0] Redis delete failed: {e}")
+        # SQL fallback
+        return await asyncio.to_thread(self._l0_sql_delete_by_id, memory_id)
+
+    def _l0_sql_delete_by_id(self, memory_id: str) -> bool:
+        with Session(self.db_engine) as session:
+            entry = session.get(HLSMWorkingEntry, memory_id)
+            if entry:
+                session.delete(entry)
+                session.commit()
                 return True
-            return deleted
+        return False
+
+    async def delete(self, memory_id: str) -> bool:
+        """Fully cascaded memory deletion across all tiers."""
+        try:
+            if memory_id.startswith("l2_"):
+                return await self.l2_delete(memory_id)
+
+            deleted_any = False
+
+            # Try deleting from L0 (Working Memory)
+            if await self._l0_delete_by_id(memory_id):
+                deleted_any = True
+
+            # Try deleting from L1 (Episodic Memory)
+            if await asyncio.to_thread(self._l1_delete_by_id, memory_id):
+                deleted_any = True
+                # Cascade deletion to L2 to prevent orphans
+                await self.l2_delete(f"l2_{memory_id}")
+
+            return deleted_any
         except Exception as e:
             logger.error(f"[HLSM] Delete failed for {memory_id}: {e}")
             return False
