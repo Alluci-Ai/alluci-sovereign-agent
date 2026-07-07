@@ -974,7 +974,7 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
             # PPN-002: affective tension Influences planning
             psi = self.ace.btm.psi_from_state(self.ace.get_affective_state())
 
-            tasks = await self.planner.generate_plan(objective, context, tools=tools_list, psi=psi, agent_id=self.agent_id or "executive")
+            tasks = await self.planner.generate_plan(objective, system_context, tools=tools_list, psi=psi, agent_id=self.agent_id or "executive")
             
             # --- Harmonic Ranking Hook ---
             # Prioritize tasks based on Topological and Lattice dynamics

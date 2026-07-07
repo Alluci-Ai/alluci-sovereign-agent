@@ -73,7 +73,7 @@ class ToolManager:
                                 tool_data["source"] = "disk"
                                 if "verified" not in tool_data:
                                     tool_data["verified"] = True
-                                validated_tool = ToolManifest(**tool_data).dict()
+                                validated_tool = ToolManifest(**tool_data).model_dump()
                                 disk_tools.append(validated_tool)
                                 seen_ids.add(tool_data["id"])
                             except Exception as ve:
@@ -180,7 +180,7 @@ class ToolManager:
     async def save_tool(self, tool: Dict[str, Any]) -> Dict[str, Any]:
         """Create or Update a tool manifest."""
         try:
-            validated_tool = ToolManifest(**tool).dict()
+            validated_tool = ToolManifest(**tool).model_dump()
         except Exception as ve:
             logger.error(f"Failed to save tool: {ve}")
             raise ValueError(f"Invalid Tool Schema: {ve}")

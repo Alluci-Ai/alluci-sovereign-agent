@@ -138,6 +138,13 @@ const IdentityForge: React.FC<{ onClose: () => void; onManifestUpdate?: (manifes
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [inspectingSkill, setInspectingSkill] = useState<any | null>(null);
 
+    const [isToolPickerOpen, setIsToolPickerOpen] = useState(false);
+    const [selectedToolsForIngest, setSelectedToolsForIngest] = useState<string[]>([]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [globalToolsDatabase, setGlobalToolsDatabase] = useState<any[]>([]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [inspectingTool, setInspectingTool] = useState<any | null>(null);
+
     const mergePreferences = (prefs: any) => ({
         tone: prefs?.tone ?? 0.5,
         humor: prefs?.humor ?? SoulHumor.DRY,
