@@ -236,12 +236,13 @@ const App: React.FC = () => {
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const res = await fetch(`${DAEMON_URL}/api/v1/skills`, { 
+      const res = await fetch(`${DAEMON_URL}/api/v1/registry/skills`, { 
         headers,
         credentials: 'include' 
       });
       if (res.ok) {
-        const custom = await res.json();
+        const data = await res.json();
+        const custom = data.skills || [];
         // Create a map to prioritize vault over core
         const skillMap = new Map();
         core.forEach((c: SkillManifest) => skillMap.set(c.id, c));
@@ -253,9 +254,32 @@ const App: React.FC = () => {
     // eslint-disable-next-line no-empty
     } catch (e) { }
     setSkills(core);
-  }, [setSkills]);
+  }, [setSkills, accessToken]);
 
-  useEffect(() => { fetchSkills(); }, [fetchSkills]);
+  const fetchTools = useCallback(async () => {
+    try {
+      const token = accessToken || localStorage.getItem('alluci_access_token');
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const res = await fetch(`${DAEMON_URL}/api/v1/registry/tools`, { 
+        headers,
+        credentials: 'include' 
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setTools(data.tools || []);
+      }
+    // eslint-disable-next-line no-empty
+    } catch (e) { }
+  }, [setTools, accessToken]);
+
+  useEffect(() => { 
+    fetchSkills(); 
+    fetchTools();
+  }, [fetchSkills, fetchTools]);
 
   const handleAuthComplete = (alias: string, profileImg?: string) => {
     if (!activeAuth) return;

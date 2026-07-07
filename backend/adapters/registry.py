@@ -13,6 +13,13 @@ from .deep_research import (
     DeepResearchHarvestAdapter,
     DeepResearchEvaluateAdapter
 )
+from .aar_adapter import (
+    AARVerusAdapter, AARANSAdapter, AARA2AAdapter, AAREntraAdapter, AARGCPAdapter
+)
+from .messaging_adapter import MessagingSendAdapter, MessagingReadAdapter
+from .workspace_bridge import WorkspaceSearchAdapter, WorkspaceSyncAdapter
+from .verus_rpc import VerusRPCExecuteAdapter, VerusTransactionAdapter
+from .client_pricing import ClientPricingCalculatorAdapter
 
 class AdapterRegistry:
     def __init__(self, vault_root: Optional[str] = None, memory_manager = None, on_inbound: Callable = None):  # type: ignore
@@ -29,6 +36,25 @@ class AdapterRegistry:
         self.register(DeepResearchQueryExpansionAdapter())
         self.register(DeepResearchHarvestAdapter())
         self.register(DeepResearchEvaluateAdapter())
+        
+        # New Dual Architecture Adapters
+        self.register(AARVerusAdapter())
+        self.register(AARANSAdapter())
+        self.register(AARA2AAdapter())
+        self.register(AAREntraAdapter())
+        self.register(AARGCPAdapter())
+        
+        self.register(MessagingSendAdapter())
+        self.register(MessagingReadAdapter())
+        
+        self.register(WorkspaceSearchAdapter())
+        self.register(WorkspaceSyncAdapter())
+        
+        self.register(VerusRPCExecuteAdapter())
+        self.register(VerusTransactionAdapter())
+        
+        self.register(ClientPricingCalculatorAdapter())
+
         if memory_manager:
             self.register(DocumentIngestAdapter(memory_manager))
         # MemoryAdapter is initialized with the global memory instance in app.py

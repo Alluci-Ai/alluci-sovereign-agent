@@ -104,10 +104,16 @@ class DeepResearchHarvestAdapter(Adapter):
         # As per the plan, the harvested markdown must go through AVL. 
         # The executor executes adapters, so we can import services here to run AVL manually if needed.
         from .. import services
-        if services.orch and hasattr(services.orch, "avl"):
-            is_safe, avl_reason = services.orch.avl.verify(combined_markdown, {})
-            if not is_safe:
-                return {"status": "error", "message": f"Harvested content rejected by AVL: {avl_reason}"}
+        if services.orchestrator and hasattr(services.orchestrator, "avl") and hasattr(services.orchestrator, "_perform_ppn_check"):
+            _, polytope_state = services.orchestrator._perform_ppn_check(
+                objective="DeepResearch Harvest Evaluation",
+                autonomy="RESTRICTED",
+                origin="deep_research_adapter"
+            )
+            if polytope_state is not None:
+                is_safe, avl_reason = services.orchestrator.avl.verify(combined_markdown, polytope_state)
+                if not is_safe:
+                    return {"status": "error", "message": f"Harvested content rejected by AVL: {avl_reason}"}
 
         return {"status": "success", "harvested_content": combined_markdown}
 
