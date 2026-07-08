@@ -102,11 +102,22 @@ async def delete_tool(tool_id: str):
         return {"status": "SUCCESS"}
     raise HTTPException(status_code=404, detail="Tool not found")
 
+@router.put("/tools/{tool_id}/toggle")
+async def toggle_tool(tool_id: str, payload: Dict[str, bool] = Body(...)):
+    """Toggles a tool's active state in the toggles.json configuration."""
+    if "enabled" not in payload:
+        raise HTTPException(status_code=400, detail="Missing 'enabled' field in payload")
+    
+    from ..state_manager import StateManager
+    StateManager.set_tool_toggle(tool_id, payload["enabled"])
+    logger.info(f"Tool {tool_id} toggled to {payload['enabled']}")
+    return {"status": "SUCCESS", "tool_id": tool_id, "enabled": payload["enabled"]}
+
 @router.post("/tools/execute/{tool_id}")
 async def execute_tool(tool_id: str, payload: Dict[str, Any] = Body(...)):
     """Executes a tool directly via the Orchestrator's Tool Action pipeline."""
     from .. import services
-    if not services.orch:
+    if not services.orchestrator:
         raise HTTPException(status_code=503, detail="Orchestrator not available")
     
     # Extract args from payload
@@ -116,7 +127,7 @@ async def execute_tool(tool_id: str, payload: Dict[str, Any] = Body(...)):
     override_avl = payload.get("override_avl", False)
     
     try:
-        result = await services.orch.execute_tool_action(
+        result = await services.orchestrator.execute_tool_action(
             tool_id=tool_id,
             args=args,
             origin=origin,

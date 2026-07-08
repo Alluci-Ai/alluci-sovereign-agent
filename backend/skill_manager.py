@@ -60,7 +60,16 @@ class SkillManager:
             except Exception as e:
                 logger.error(f"Failed to load skills from disk dir {d}: {e}")
             
-        return vault_skills + disk_skills
+        all_skills = vault_skills + disk_skills
+        from .state_manager import StateManager
+        toggles = StateManager.get_skill_toggles()
+        for skill in all_skills:
+            if skill.get("id") in toggles:
+                skill["verified"] = toggles[skill["id"]]
+            elif "verified" not in skill:
+                skill["verified"] = True
+                
+        return all_skills
 
     async def get_review_queue(self) -> List[Dict[str, Any]]:
         """Retrieve skills pending review."""

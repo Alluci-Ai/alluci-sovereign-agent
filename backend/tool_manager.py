@@ -81,7 +81,16 @@ class ToolManager:
             except Exception as e:
                 logger.error(f"Failed to load tools from disk dir {d}: {e}")
             
-        return vault_tools + disk_tools
+        all_tools = vault_tools + disk_tools
+        from .state_manager import StateManager
+        toggles = StateManager.get_tool_toggles()
+        for tool in all_tools:
+            if tool.get("id") in toggles:
+                tool["enabled"] = toggles[tool["id"]]
+            else:
+                tool["enabled"] = True
+                
+        return all_tools
 
     async def get_review_queue(self) -> List[Dict[str, Any]]:
         """Retrieve tools pending review."""

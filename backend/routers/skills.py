@@ -101,3 +101,17 @@ async def delete_skill(skill_id: str):
     if deleted:
         return {"status": "SUCCESS"}
     raise HTTPException(status_code=404, detail="Skill not found")
+
+@router.put("/skills/{skill_id}/toggle")
+async def toggle_skill(skill_id: str, payload: Dict[str, bool] = Body(...)):
+    """Toggles a skill's active state in the toggles.json configuration."""
+    if "verified" not in payload and "enabled" not in payload:
+        raise HTTPException(status_code=400, detail="Missing 'verified' or 'enabled' field in payload")
+    
+    # Frontend might send 'verified' or 'enabled', handle both
+    is_enabled = payload.get("verified", payload.get("enabled", False))
+    
+    from ..state_manager import StateManager
+    StateManager.set_skill_toggle(skill_id, is_enabled)
+    logger.info(f"Skill {skill_id} toggled to {is_enabled}")
+    return {"status": "SUCCESS", "skill_id": skill_id, "verified": is_enabled}

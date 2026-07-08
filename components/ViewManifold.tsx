@@ -55,6 +55,8 @@ interface ViewManifoldProps {
   removeAttachment: (idx: number) => void;
 }
 
+const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || '';
+
 const ViewManifold: React.FC<ViewManifoldProps> = ({
   geminiServiceRef,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -121,7 +123,20 @@ const ViewManifold: React.FC<ViewManifoldProps> = ({
             <SkillGrid
               skills={skills}
               onSelect={setSelectedSkill}
-              onToggle={(id) => setSkills(prev => prev.map(x => x.id === id ? { ...x, verified: !x.verified } : x))}
+              onToggle={async (id) => {
+                  const target = skills.find(x => x.id === id);
+                  const nextState = !target?.verified;
+                  setSkills(prev => prev.map(x => x.id === id ? { ...x, verified: nextState } : x));
+                  try {
+                      await fetch(`${DAEMON_URL}/api/v1/skills/${id}/toggle`, {
+                          method: 'PUT',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ verified: nextState })
+                      });
+                  } catch (e) {
+                      console.error('Failed to toggle skill', e);
+                  }
+              }}
               onDelete={() => { }}
               onCreate={() => { setSkillToEdit(null); setShowSkillWizard(true); }}
             />
@@ -134,8 +149,19 @@ const ViewManifold: React.FC<ViewManifoldProps> = ({
             <ToolsPanel
               tools={tools || []}
               onSelect={setSelectedTool}
-              onToggle={(id) => {
-                  setTools(prev => prev.map(x => x.id === id ? { ...x, enabled: !x.enabled } : x));
+              onToggle={async (id) => {
+                  const target = tools.find(x => x.id === id);
+                  const nextState = !target?.enabled;
+                  setTools(prev => prev.map(x => x.id === id ? { ...x, enabled: nextState } : x));
+                  try {
+                      await fetch(`${DAEMON_URL}/api/v1/tools/${id}/toggle`, {
+                          method: 'PUT',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ enabled: nextState })
+                      });
+                  } catch (e) {
+                      console.error('Failed to toggle tool', e);
+                  }
               }}
               onDelete={() => { }}
               onCreate={() => { setToolToEdit(null); setShowToolWizard(true); }}
