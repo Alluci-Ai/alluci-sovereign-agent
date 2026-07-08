@@ -147,6 +147,7 @@ class HLSMEpisodicEntry(SQLModel, table=True):
     created_at: float = Field(default_factory=lambda: time.time())
     retention_score: float = Field(default=1.0)
     promoted_to_l2: bool = Field(default=False)
+    promoted_to_l3: bool = Field(default=False)
     extra_metadata: Optional[dict] = Field(sa_column=Column(JSON), default=None)
 
 class HLSMWorkingEntry(SQLModel, table=True):

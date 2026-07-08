@@ -1,6 +1,6 @@
 
 from ..logging_config import get_logger
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from fastapi import APIRouter, HTTPException, Depends, Query, Body, Request
 from ..security.auth import verify_authenticated
 from fastapi_csrf_protect import CsrfProtect
@@ -11,10 +11,10 @@ logger = get_logger("MemoryRouter")
 router = APIRouter(tags=["Sovereign Memory"])
 
 @router.get("/memory", dependencies=[Depends(verify_authenticated)])
-async def list_memory(limit: int = 50, offset: int = 0):
+async def list_memory(limit: int = 50, offset: int = 0, tier: int = Query(None)):
     if not services.memory:
         raise HTTPException(status_code=503, detail="Memory manager not ready")
-    return await services.memory.list_entries(limit=limit, offset=offset)
+    return await services.memory.list_entries(limit=limit, offset=offset, tier=tier)
 
 @router.get("/memory/search", dependencies=[Depends(verify_authenticated)])
 async def search_memory(q: str = Query(...), limit: int = 10):
@@ -67,16 +67,15 @@ async def pin_memory(entry_id: str, request: Request, data: Dict[str, Any] = Bod
     from sqlmodel import Session
     from ..models import HLSMEpisodicEntry
     from ..database import engine
-    import json
     
     with Session(engine) as session:
         entry = session.get(HLSMEpisodicEntry, entry_id)
         if not entry:
             raise HTTPException(status_code=404, detail="Memory not found")
         
-        metadata = json.loads(entry.extra_metadata) if entry.extra_metadata else {}
+        metadata = dict(entry.extra_metadata) if entry.extra_metadata else {}
         metadata["pinned"] = data.get("is_pinned", True)
-        entry.extra_metadata = json.dumps(metadata)
+        entry.extra_metadata = metadata
         session.add(entry)
         session.commit()
     return {"status": "SUCCESS"}
@@ -87,22 +86,21 @@ async def tag_memory(entry_id: str, request: Request, data: Dict[str, Any] = Bod
     from sqlmodel import Session
     from ..models import HLSMEpisodicEntry
     from ..database import engine
-    import json
     
     with Session(engine) as session:
         entry = session.get(HLSMEpisodicEntry, entry_id)
         if not entry:
             raise HTTPException(status_code=404, detail="Memory not found")
         
-        metadata = json.loads(entry.extra_metadata) if entry.extra_metadata else {}
+        metadata = dict(entry.extra_metadata) if entry.extra_metadata else {}
         metadata["tags"] = data.get("tags", [])
-        entry.extra_metadata = json.dumps(metadata)
+        entry.extra_metadata = metadata
         session.add(entry)
         session.commit()
     return {"status": "SUCCESS"}
 
 @router.post("/memory/{entry_id}/promote", dependencies=[Depends(verify_authenticated)])
-async def promote_memory(entry_id: str, request: Request, csrf_protect: CsrfProtect = Depends()):
+async def promote_memory(entry_id: str, request: Request, data: Optional[Dict[str, Any]] = None, csrf_protect: CsrfProtect = Depends()):
     await csrf_protect.validate_csrf(request)
     if not services.hlsm_manager:
         raise HTTPException(status_code=503, detail="H-LSM manager not ready")
@@ -111,12 +109,28 @@ async def promote_memory(entry_id: str, request: Request, csrf_protect: CsrfProt
     from ..models import HLSMEpisodicEntry
     from ..database import engine
     
+    data = data or {}
+    target_tier = data.get("targetTier")
+    
     with Session(engine) as session:
-        entry = session.get(HLSMEpisodicEntry, entry_id)
+        base_uuid = entry_id
+        if base_uuid.startswith("l2_") or base_uuid.startswith("l3_"):
+            base_uuid = base_uuid[3:]
+            
+        entry = session.get(HLSMEpisodicEntry, base_uuid)
         if not entry:
             raise HTTPException(status_code=404, detail="Memory not found")
         
-        if not entry.promoted_to_l2:
+        if target_tier == 3 or (entry.promoted_to_l2 and not getattr(entry, "promoted_to_l3", False)):
+            try:
+                await services.hlsm_manager.l3_store(entry)
+                entry.promoted_to_l3 = True
+                session.add(entry)
+                session.commit()
+            except Exception as e:
+                logger.error(f"Promotion failed: {e}")
+                raise HTTPException(status_code=500, detail="Promotion to L3 failed")
+        elif not entry.promoted_to_l2:
             try:
                 await services.hlsm_manager.l2_store(entry)
                 entry.promoted_to_l2 = True
@@ -126,4 +140,34 @@ async def promote_memory(entry_id: str, request: Request, csrf_protect: CsrfProt
                 logger.error(f"Promotion failed: {e}")
                 raise HTTPException(status_code=500, detail="Promotion to L2 failed")
                 
+    return {"status": "SUCCESS"}
+
+@router.post("/memory/{entry_id}/demote", dependencies=[Depends(verify_authenticated)])
+async def demote_memory(entry_id: str, request: Request, csrf_protect: CsrfProtect = Depends()):
+    await csrf_protect.validate_csrf(request)
+    if not services.hlsm_manager:
+        raise HTTPException(status_code=503, detail="H-LSM manager not ready")
+    
+    from sqlmodel import Session
+    from ..models import HLSMEpisodicEntry
+    from ..database import engine
+    
+    with Session(engine) as session:
+        base_uuid = entry_id
+        if base_uuid.startswith("l3_") or base_uuid.startswith("l2_"):
+            base_uuid = base_uuid[3:]
+            
+        entry = session.get(HLSMEpisodicEntry, base_uuid)
+        if not entry:
+            raise HTTPException(status_code=404, detail="Memory not found")
+            
+        if getattr(entry, "promoted_to_l3", False):
+            await services.hlsm_manager.l3_delete(f"l3_{base_uuid}")
+            entry.promoted_to_l3 = False
+        elif entry.promoted_to_l2:
+            await services.hlsm_manager.l2_delete(f"l2_{base_uuid}")
+            entry.promoted_to_l2 = False
+        
+        session.add(entry)
+        session.commit()
     return {"status": "SUCCESS"}

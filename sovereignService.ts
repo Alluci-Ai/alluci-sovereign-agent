@@ -120,8 +120,12 @@ export class AlluciSovereignService {
         return this._fetch('/memory/stats');
     }
 
-    async listMemories(limit: number = 50, offset: number = 0) {
-        return this._fetch(`/memory?limit=${limit}&offset=${offset}`);
+    async listMemories(limit: number = 50, offset: number = 0, tier?: number | 'All') {
+        let url = `/memory?limit=${limit}&offset=${offset}`;
+        if (tier !== undefined && tier !== 'All') {
+            url += `&tier=${tier}`;
+        }
+        return this._fetch(url);
     }
 
     async consolidateMemory() {
@@ -139,8 +143,15 @@ export class AlluciSovereignService {
         });
     }
 
-    async promoteMemory(id: string) {
-        return this._fetch(`/memory/${id}/promote`, { method: 'POST' });
+    async promoteMemory(id: string, targetTier?: number) {
+        return this._fetch(`/memory/${id}/promote`, { 
+            method: 'POST',
+            body: targetTier !== undefined ? JSON.stringify({ targetTier }) : undefined
+        });
+    }
+
+    async demoteMemory(id: string) {
+        return this._fetch(`/memory/${id}/demote`, { method: 'POST' });
     }
 
     async tagMemory(id: string, tags: string[]) {

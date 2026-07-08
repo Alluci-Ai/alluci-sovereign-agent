@@ -15,18 +15,19 @@ export const MemoryPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     const [searchQuery, setSearchQuery] = useState('');
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [loading, setLoading] = useState(false);
+    const [selectedTier, setSelectedTier] = useState<number | 'All'>('All');
 
     const fetchMemories = useCallback(async () => {
         setLoading(true);
         try {
-            const data = await sovereignService.listMemories(50, 0);
+            const data = await sovereignService.listMemories(50, 0, selectedTier);
             setMemories(data.entries || []);
         } catch (e) { 
             console.error("Failed to fetch memories", e); 
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [selectedTier]);
 
     useEffect(() => {
         fetchMemories();
@@ -88,11 +89,18 @@ export const MemoryPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         } catch (e) { console.error("Pin failed", e); }
     };
 
-    const handlePromote = async (id: string) => {
+    const handlePromote = async (id: string, targetTier?: number) => {
         try {
-            await sovereignService.promoteMemory(id);
-            setMemories(prev => prev.map(m => m.id === id ? { ...m, promoted_to_l2: true, tier: 2 } : m));
+            await sovereignService.promoteMemory(id, targetTier);
+            fetchMemories();
         } catch (e) { console.error("Promote failed", e); }
+    };
+
+    const handleDemote = async (id: string) => {
+        try {
+            await sovereignService.demoteMemory(id);
+            fetchMemories();
+        } catch (e) { console.error("Demote failed", e); }
     };
 
     return (
@@ -132,6 +140,19 @@ export const MemoryPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                 </div>
             </div>
 
+            {/* Tier Tabs */}
+            <div className="flex space-x-2 p-1 bg-zinc-900/50 rounded-lg overflow-x-auto custom-scrollbar">
+                {(['All', 0, 1, 2, 3] as const).map(tier => (
+                    <button
+                        key={tier}
+                        onClick={() => setSelectedTier(tier)}
+                        className={`px-4 py-1.5 text-xs font-mono rounded-md whitespace-nowrap transition-all ${selectedTier === tier ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50 border border-transparent'}`}
+                    >
+                        {tier === 'All' ? 'ALL TIERS' : tier === 0 ? 'WORKING (L0)' : tier === 1 ? 'EPISODIC (L1)' : tier === 2 ? 'SEMANTIC (L2)' : 'GRAPH (L3)'}
+                    </button>
+                ))}
+            </div>
+
             {/* Memory Stream */}
             <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
                 {memories.length === 0 ? (
@@ -146,16 +167,18 @@ export const MemoryPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                                 {/* Tier Indicator */}
                                 <div className={`absolute top-0 left-0 w-1 h-full ${
                                     m.tier === 0 ? 'bg-zinc-600' : 
-                                    m.tier === 2 ? 'bg-emerald-500' : 'bg-blue-500'
+                                    m.tier === 3 || m.promoted_to_l3 ? 'bg-purple-500' :
+                                    m.tier === 2 || m.promoted_to_l2 ? 'bg-emerald-500' : 'bg-blue-500'
                                 }`} />
 
                                 <div className="flex justify-between items-start mb-2">
                                     <div className="flex items-center gap-3">
                                         <div className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-tighter ${
                                             m.tier === 0 ? 'bg-zinc-800 text-zinc-400' :
+                                            m.tier === 3 || m.promoted_to_l3 ? 'bg-purple-900/30 text-purple-400' :
                                             m.tier === 2 || m.promoted_to_l2 ? 'bg-emerald-900/30 text-emerald-400' : 'bg-blue-900/30 text-blue-400'
                                         }`}>
-                                            Tier {m.tier ?? 1} {m.tier === 0 ? 'Working' : (m.tier === 2 || m.promoted_to_l2) ? 'Semantic' : 'Episodic'}
+                                            Tier {m.tier ?? 1} {m.tier === 0 ? 'Working' : (m.tier === 3 || m.promoted_to_l3) ? 'Graph' : (m.tier === 2 || m.promoted_to_l2) ? 'Semantic' : 'Episodic'}
                                         </div>
                                         <span className="text-[10px] text-zinc-600 font-mono">
                                             ID: {m.id.substring(0, 12)}...
@@ -175,13 +198,31 @@ export const MemoryPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                                         >
                                             Pin
                                         </button>
-                                        {!m.promoted_to_l2 && m.tier === 1 && (
+                                        {(m.tier === 1 && !m.promoted_to_l2 && !m.promoted_to_l3) && (
                                             <button 
-                                                onClick={() => handlePromote(m.id)} 
+                                                onClick={() => handlePromote(m.id, 2)} 
                                                 className="text-zinc-600 hover:text-emerald-500 p-1 rounded hover:bg-white/5 transition-all text-xs"
-                                                title="Promote to Semantic Memory"
+                                                title="Promote to Semantic Memory (L2)"
                                             >
-                                                Promote
+                                                Promote L2
+                                            </button>
+                                        )}
+                                        {((m.tier === 2 || m.promoted_to_l2) && !m.promoted_to_l3) && (
+                                            <button 
+                                                onClick={() => handlePromote(m.id, 3)} 
+                                                className="text-zinc-600 hover:text-purple-500 p-1 rounded hover:bg-white/5 transition-all text-xs"
+                                                title="Promote to Graph Memory (L3)"
+                                            >
+                                                Promote L3
+                                            </button>
+                                        )}
+                                        {(m.tier === 2 || m.tier === 3 || m.promoted_to_l2 || m.promoted_to_l3) && (
+                                            <button 
+                                                onClick={() => handleDemote(m.id)} 
+                                                className="text-zinc-600 hover:text-orange-500 p-1 rounded hover:bg-white/5 transition-all text-xs"
+                                                title="Demote to lower tier"
+                                            >
+                                                Demote
                                             </button>
                                         )}
                                         <button 

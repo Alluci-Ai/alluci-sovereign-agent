@@ -185,9 +185,17 @@ class HLSMManager:
                 self.kuzu_db = kuzu.Database(kuzu_db_path)
                 self.kuzu_conn = kuzu.Connection(self.kuzu_db)
                 
-                # Ensure the SemanticMemory table exists in Kùzu
                 self.kuzu_conn.execute(
                     "CREATE NODE TABLE IF NOT EXISTS SemanticMemory (id STRING, content STRING, source STRING, session_key STRING, psi_at_encoding DOUBLE, topological_importance DOUBLE, betti_1_support DOUBLE, betti_signature STRING, access_count INT64, created_at DOUBLE, l1_id STRING, PRIMARY KEY (id))"
+                )
+                self.kuzu_conn.execute(
+                    "CREATE NODE TABLE IF NOT EXISTS L3Memory (id STRING, content STRING, source STRING, session_key STRING, l1_id STRING, created_at DOUBLE, PRIMARY KEY (id))"
+                )
+                self.kuzu_conn.execute(
+                    "CREATE NODE TABLE IF NOT EXISTS GraphNode (name STRING, PRIMARY KEY (name))"
+                )
+                self.kuzu_conn.execute(
+                    "CREATE REL TABLE IF NOT EXISTS RELATES_TO (FROM GraphNode TO GraphNode, predicate STRING, source_memory STRING, weight DOUBLE)"
                 )
             except ImportError:
                 logger.warning("[HLSM] kuzu library not installed. L2 Semantic Memory disabled.")
@@ -645,8 +653,138 @@ class HLSMManager:
         except Exception as e:
             logger.error(f"[HLSM L2] Delete failed for {kuzu_id}: {e}")
             return False
+    # ─── L3 Knowledge Graph ───────────────────────────────────────────────────
+
+    async def l3_store(self, entry: HLSMEpisodicEntry) -> Optional[str]:
+        """
+        Promote an L2 entry to L3 Knowledge Graph.
+        Extracts semantic triplets using Executive Core and weights edges via Topological Barcode.
+        """
+        if not self.kuzu_conn:
+            logger.debug("[HLSM L3] KùzuDB not available — skipping L3 promotion")
+            return None
+
+        from backend import services
+        import json
+        
+        # 1. Prompt Executive Core for Triplets
+        prompt = (
+            "Extract semantic triplets (Subject, Predicate, Object) from the following text.\n"
+            "Return ONLY a valid JSON array of arrays, e.g., [[\"User\", \"prefers\", \"dark mode\"]].\n\n"
+            f"Text: {entry.content}"
+        )
+        try:
+            if services.router is None:
+                logger.warning("[HLSM L3] Router is not initialized. Skipping L3 promotion.")
+                return None
+            response = await services.router.get_response(prompt=prompt)
+            # Find the JSON array in the response
+            text = response.strip()
+            if "```json" in text:
+                text = text.split("```json")[1].split("```")[0].strip()
+            elif "```" in text:
+                text = text.split("```")[1].strip()
+            triplets = json.loads(text)
+        except Exception as e:
+            logger.error(f"[HLSM L3] Triplet extraction failed: {e}")
+            return None
+
+        # 2. Get Topological Weight
+        betti_weight = entry.topological_importance if entry.topological_importance else 1.0
+
+        # 3. Insert into KuzuDB
+        try:
+            kuzu_id = f"l3_{entry.id}"
+            for subject, predicate, obj in triplets:
+                s_name = str(subject).replace('"', '').replace("'", "")
+                o_name = str(obj).replace('"', '').replace("'", "")
+                p_type = str(predicate).upper().replace(" ", "_").replace("-", "_")
+                
+                query = (
+                    "MERGE (s:GraphNode {name: $s_name}) "
+                    "MERGE (o:GraphNode {name: $o_name}) "
+                    f"MERGE (s)-[r:RELATES_TO {{predicate: $p_type, source_memory: $l1_id, weight: $weight}}]->(o)"
+                )
+                await asyncio.to_thread(self.kuzu_conn.execute, query, {
+                    "s_name": s_name, 
+                    "o_name": o_name, 
+                    "p_type": p_type,
+                    "l1_id": entry.id,
+                    "weight": betti_weight
+                })
+            
+            meta_query = (
+                "MERGE (m:L3Memory {id: $id}) "
+                "SET m.content = $content, m.source = $source, m.l1_id = $l1_id, m.created_at = $created_at"
+            )
+            await asyncio.to_thread(self.kuzu_conn.execute, meta_query, {
+                "id": kuzu_id,
+                "content": json.dumps(triplets),
+                "source": entry.source or "",
+                "l1_id": entry.id,
+                "session_key": entry.session_key or "",
+                "created_at": time.time()
+            })
+            
+            logger.info(f"[HLSM L3] Promoted L2→L3: {entry.id[:8]} → {len(triplets)} triplets")
+            return kuzu_id
+        except Exception as e:
+            logger.error(f"[HLSM L3] KùzuDB store failed: {e}", exc_info=True)
+            return None
+
+    async def l3_search(self, query: str, limit: int = 10) -> List[HLSMRetrievalResult]:
+        """Search L3 Knowledge Graph nodes."""
+        if not self.kuzu_conn:
+            return []
+        try:
+            # Fallback search on L3Memory content for simple retrieval
+            cypher_query = (
+                "MATCH (m:L3Memory) "
+                "RETURN m.id, m.content, m.source, m.l1_id, m.created_at "
+                "LIMIT $limit"
+            )
+            raw_results = await asyncio.to_thread(self.kuzu_conn.execute, cypher_query, {"limit": limit})
+            results = []
+            while raw_results.has_next():
+                row = raw_results.get_next()
+                kuzu_id, content, source, l1_id, created_at = row
+                results.append(HLSMRetrievalResult(
+                    id=kuzu_id,
+                    content=content,
+                    tier=3,
+                    source=source,
+                    relevance_score=1.0,
+                    retention_score=1.0,
+                ))
+            return results
+        except Exception as e:
+            logger.error(f"[HLSM L3] Search failed: {e}")
+            return []
+
+    async def l3_delete(self, kuzu_id: str) -> bool:
+        """Remove L3 entry and its edges."""
+        if not self.kuzu_conn:
+            return False
+        try:
+            # First get the l1_id from the L3Memory node
+            get_query = "MATCH (m:L3Memory {id: $id}) RETURN m.l1_id"
+            raw_results = await asyncio.to_thread(self.kuzu_conn.execute, get_query, {"id": kuzu_id})
+            if raw_results.has_next():
+                l1_id = raw_results.get_next()[0]
+                # Delete relationships that were sourced from this memory
+                rel_query = "MATCH ()-[r:RELATES_TO {source_memory: $l1_id}]->() DELETE r"
+                await asyncio.to_thread(self.kuzu_conn.execute, rel_query, {"l1_id": l1_id})
+                
+            query = "MATCH (m:L3Memory {id: $id}) DELETE m"
+            await asyncio.to_thread(self.kuzu_conn.execute, query, {"id": kuzu_id})
+            logger.info(f"[HLSM L3] Pruned decayed entry: {kuzu_id}")
+            return True
+        except Exception as e:
+            logger.error(f"[HLSM L3] Delete failed for {kuzu_id}: {e}")
+            return False
 
     # ─── Unified Retrieval ────────────────────────────────────────────────────
+
 
     async def retrieve_context(
         self,
@@ -1057,14 +1195,20 @@ class HLSMManager:
         l1_count = await asyncio.to_thread(self._count_l1)
         l0_count_sql = await asyncio.to_thread(self._count_l0_sql)
         l2_count = 0
+        l3_count = 0
 
         if self.kuzu_conn:
             try:
                 raw_results = await asyncio.to_thread(self.kuzu_conn.execute, "MATCH (n:SemanticMemory) RETURN COUNT(n)")
                 if raw_results.has_next():
                     l2_count = raw_results.get_next()[0]
+                
+                raw_results_l3 = await asyncio.to_thread(self.kuzu_conn.execute, "MATCH (n:L3Memory) RETURN COUNT(n)")
+                if raw_results_l3.has_next():
+                    l3_count = raw_results_l3.get_next()[0]
             except Exception:
                 l2_count = -1
+                l3_count = -1
 
         return {
             "hlsm_version": "1.0",
@@ -1085,6 +1229,10 @@ class HLSMManager:
                     "backend": "KùzuDB" if self.kuzu_conn else "disabled",
                     "entries": l2_count,
                     "prune_threshold": L2_PRUNE_THRESHOLD,
+                },
+                "L3_knowledge_graph": {
+                    "backend": "KùzuDB" if self.kuzu_conn else "disabled",
+                    "entries": l3_count if self.kuzu_conn else 0,
                 },
             },
             "consolidation_interval_minutes": CONSOLIDATION_INTERVAL_SECONDS / 60,
@@ -1125,21 +1273,76 @@ class HLSMManager:
             })
         return results[:limit]
 
-    async def list_entries(self, limit: int = 50, offset: int = 0) -> Dict:
-        """Legacy compatibility: list_entries() for the memory router."""
-        entries = await asyncio.to_thread(self._l1_paginate, limit, offset)
-        return {
-            "entries": [
-                {"id": e.id, "content": e.content, "source": e.source,
-                 "tier": 1, "access_count": e.access_count,
-                 "retention_score": e.retention_score,
-                 "created_at": e.created_at}
+    async def list_entries(self, limit: int = 50, offset: int = 0, tier: Optional[int] = None) -> Dict:
+        """Unified fetch across specified tier or all tiers."""
+        import json
+        entries = []
+        total = 0
+        
+        if tier == 0:
+            entries = await asyncio.to_thread(self._l0_paginate_sql, limit, offset)
+            total = await asyncio.to_thread(self._count_l0_sql)
+            formatted = [
+                {"id": e.id, "content": e.content, "source": e.source, "tier": 0, "created_at": e.created_at, "extra_metadata": None, "promoted_to_l2": False}
                 for e in entries
-            ],
-            "total": await asyncio.to_thread(self._count_l1),
+            ]
+        elif tier == 1:
+            entries = await asyncio.to_thread(self._l1_paginate, limit, offset)
+            total = await asyncio.to_thread(self._count_l1)
+            formatted = [
+                {"id": e.id, "content": e.content, "source": e.source, "tier": 1, "access_count": e.access_count, "retention_score": e.retention_score, "created_at": e.created_at, "promoted_to_l2": e.promoted_to_l2, "promoted_to_l3": getattr(e, 'promoted_to_l3', False), "extra_metadata": json.dumps(e.extra_metadata) if e.extra_metadata else None}
+                for e in entries
+            ]
+        elif tier == 2:
+            if not self.kuzu_conn:
+                formatted = []
+            else:
+                query = "MATCH (m:SemanticMemory) RETURN m.id, m.content, m.source, m.created_at SKIP $offset LIMIT $limit"
+                count_query = "MATCH (m:SemanticMemory) RETURN COUNT(m)"
+                raw_results = await asyncio.to_thread(self.kuzu_conn.execute, query, {"offset": offset, "limit": limit})
+                raw_count = await asyncio.to_thread(self.kuzu_conn.execute, count_query)
+                total = raw_count.get_next()[0] if raw_count.has_next() else 0
+                formatted = []
+                while raw_results.has_next():
+                    row = raw_results.get_next()
+                    formatted.append({"id": row[0], "content": row[1], "source": row[2], "tier": 2, "created_at": row[3], "promoted_to_l2": True})
+        elif tier == 3:
+            if not self.kuzu_conn:
+                formatted = []
+            else:
+                query = "MATCH (m:L3Memory) RETURN m.id, m.content, m.source, m.created_at SKIP $offset LIMIT $limit"
+                count_query = "MATCH (m:L3Memory) RETURN COUNT(m)"
+                raw_results = await asyncio.to_thread(self.kuzu_conn.execute, query, {"offset": offset, "limit": limit})
+                raw_count = await asyncio.to_thread(self.kuzu_conn.execute, count_query)
+                total = raw_count.get_next()[0] if raw_count.has_next() else 0
+                formatted = []
+                while raw_results.has_next():
+                    row = raw_results.get_next()
+                    formatted.append({"id": row[0], "content": row[1], "source": row[2], "tier": 3, "created_at": row[3], "promoted_to_l3": True})
+        else:
+            # Fallback for all
+            entries = await asyncio.to_thread(self._l1_paginate, limit, offset)
+            total = await asyncio.to_thread(self._count_l1)
+            formatted = [
+                {"id": e.id, "content": e.content, "source": e.source, "tier": 1, "access_count": e.access_count, "retention_score": e.retention_score, "created_at": e.created_at, "promoted_to_l2": e.promoted_to_l2, "promoted_to_l3": getattr(e, 'promoted_to_l3', False), "extra_metadata": json.dumps(e.extra_metadata) if e.extra_metadata else None}
+                for e in entries
+            ]
+
+        return {
+            "entries": formatted,
+            "total": total,
             "limit": limit,
             "offset": offset,
         }
+
+    def _l0_paginate_sql(self, limit: int, offset: int) -> List[HLSMWorkingEntry]:
+        with Session(self.db_engine) as session:
+            return session.exec(  # type: ignore
+                select(HLSMWorkingEntry)
+                .order_by(col(HLSMWorkingEntry.created_at).desc())
+                .offset(offset)
+                .limit(limit)
+            ).all()
 
     def _l1_paginate(self, limit: int, offset: int) -> List[HLSMEpisodicEntry]:
         with Session(self.db_engine) as session:
@@ -1181,20 +1384,30 @@ class HLSMManager:
     async def delete(self, memory_id: str) -> bool:
         """Fully cascaded memory deletion across all tiers."""
         try:
-            if memory_id.startswith("l2_"):
-                return await self.l2_delete(memory_id)
+            # Strip tier prefixes if present to find the base L1/L0 UUID
+            base_uuid = memory_id
+            if base_uuid.startswith("l3_"):
+                base_uuid = base_uuid[3:]
+            elif base_uuid.startswith("l2_"):
+                base_uuid = base_uuid[3:]
 
             deleted_any = False
 
-            # Try deleting from L0 (Working Memory)
-            if await self._l0_delete_by_id(memory_id):
+            # Delete from L3
+            if await self.l3_delete(f"l3_{base_uuid}"):
                 deleted_any = True
 
-            # Try deleting from L1 (Episodic Memory)
-            if await asyncio.to_thread(self._l1_delete_by_id, memory_id):
+            # Delete from L2
+            if await self.l2_delete(f"l2_{base_uuid}"):
                 deleted_any = True
-                # Cascade deletion to L2 to prevent orphans
-                await self.l2_delete(f"l2_{memory_id}")
+
+            # Delete from L1 (Episodic Memory)
+            if await asyncio.to_thread(self._l1_delete_by_id, base_uuid):
+                deleted_any = True
+
+            # Delete from L0 (Working Memory)
+            if await self._l0_delete_by_id(base_uuid):
+                deleted_any = True
 
             return deleted_any
         except Exception as e:
