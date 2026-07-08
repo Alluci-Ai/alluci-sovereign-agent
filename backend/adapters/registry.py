@@ -16,6 +16,7 @@ from .deep_research import (
 from .aar_adapter import (
     AARVerusAdapter, AARANSAdapter, AARA2AAdapter, AAREntraAdapter, AARGCPAdapter
 )
+from .agentic_registration import AgenticRegistrationAdapter
 from .messaging_adapter import MessagingSendAdapter, MessagingReadAdapter
 from .workspace_bridge import WorkspaceSearchAdapter, WorkspaceSyncAdapter
 from .verus_rpc import VerusRPCExecuteAdapter, VerusTransactionAdapter
@@ -54,6 +55,7 @@ class AdapterRegistry:
         self.register(VerusTransactionAdapter())
         
         self.register(ClientPricingCalculatorAdapter())
+        self.register(AgenticRegistrationAdapter())
 
         if memory_manager:
             self.register(DocumentIngestAdapter(memory_manager))

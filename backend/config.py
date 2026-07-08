@@ -143,6 +143,15 @@ class Settings(BaseSettings):
     AUTH_COOKIE_SECURE: bool = False  # Should be False for local Electron apps
     AUTH_COOKIE_SAMESITE: Literal["lax", "none", "strict"] = "lax"
     
+    # Agentic Identity / Auth.md
+    AGENT_IDENTITY_ISSUER: str = "https://identity.alluci-ai.internal"
+    AGENT_USER_EMAIL: str = "query@alluci.ai"
+    AGENT_CLIENT_ID: str = "https://registry.alluci-ai.internal/profiles/agent-v4"
+    AGENT_CLIENT_NAME: str = "Alluci Sovereign Assistant"
+    AGENT_CLIENT_URI: str = "https://alluci.ai"
+    AGENT_LOGO_URI: str = "https://alluci.ai/logo.png"
+    AGENT_TOS_URI: str = "https://alluci.ai/tos"
+    
     # WebAuthn
     WEBAUTHN_RP_ID: Optional[str] = None
     WEBAUTHN_ORIGIN: Optional[str] = None

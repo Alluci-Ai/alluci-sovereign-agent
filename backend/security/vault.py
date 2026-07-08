@@ -391,7 +391,15 @@ class VaultManager:
         except OSError:
             return []
 
-    async def delete_connection_secret(self, bridge_id: str, account_id: str) -> bool:
+    async def delete_connection_secret(self, bridge_id: str, account_id: str, skip_revoke: bool = False) -> bool:
+        if bridge_id == "agent_registration" and not skip_revoke:
+            try:
+                from backend.adapters.agentic_revocation import AgenticRevocationAdapter
+                adapter = AgenticRevocationAdapter()
+                await adapter.execute({"target_domain": account_id})
+            except Exception as e:
+                logger.error(f"Failed to auto-revoke token for {account_id}: {e}")
+                
         rel_path = f"connections/{bridge_id}/{account_id}.vault"
         return await asyncio.to_thread(self._delete_secret_by_path_sync, rel_path)
 
@@ -726,6 +734,55 @@ class VaultManager:
         os.chmod(pub_path, 0o600)
 
         logger.info("[ JWT ] Generated new RS256 keypair for JWT signing.")
+        return private_key, private_key.public_key()
+
+    async def get_web_idp_keypair(self) -> tuple:
+        """
+        Retrieves or generates a dedicated RSA-4096 keypair strictly for Web IdP / ID-JAG signing.
+        Cryptographically isolated from the core Verus blockchain keypairs.
+        """
+        return await asyncio.to_thread(self._get_web_idp_keypair_sync)
+
+    def _get_web_idp_keypair_sync(self):
+        key_path = os.path.join(self.vault_root, "web_idp_signing.pem")
+        pub_path  = os.path.join(self.vault_root, "web_idp_signing_pub.pem")
+
+        if os.path.exists(key_path):
+            try:
+                with open(key_path, "rb") as f:
+                    private_key = serialization.load_pem_private_key(
+                        f.read(),
+                        password=bytes(self.master_key),
+                        backend=default_backend()
+                    )
+                return private_key, private_key.public_key()
+            except Exception as e:
+                logger.error(f"Failed to load Web IdP keypair: {e}")
+
+        # Generate new keypair
+        private_key = rsa.generate_private_key(
+            public_exponent=65537,
+            key_size=4096,
+            backend=default_backend()
+        )
+        pem = private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.BestAvailableEncryption(
+                bytes(self.master_key)
+            )
+        )
+        pub_pem = private_key.public_key().public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo
+        )
+
+        with open(key_path, "wb") as f: f.write(pem)
+        with open(pub_path, "wb") as f: f.write(pub_pem)
+        os.chmod(key_path, 0o600)
+        os.chmod(pub_path, 0o600)
+
+        logger.info("[ JWT ] Generated new RS256 keypair for Web IdP / ID-JAG signing.")
         return private_key, private_key.public_key()
 
     def export_identity_pem(self, export_passphrase: str) -> str:

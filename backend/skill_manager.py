@@ -244,6 +244,39 @@ class SkillManager:
             merged["vectors"]["creativityShift"] += mapping.get("creativityShift", 0)  # type: ignore
             merged["vectors"]["assertivenessShift"] += mapping.get("assertivenessShift", 0)  # type: ignore
             merged["vectors"]["empathyShift"] += mapping.get("empathyShift", 0)  # type: ignore
+
+            # H-LSM Semantic Memory Ingestion for Hybrid RAG-Skills
+            ref_docs = s.get("reference_docs", [])
+            skill_id = s.get("id")
+            if ref_docs and skill_id is not None:
+                try:
+                    import importlib
+                    import hashlib
+                    services = importlib.import_module("backend.services")
+                    hlsm = getattr(services, "hlsm_manager", None)
+                    if hlsm:
+                        for doc_path in ref_docs:
+                            # Resolve path relative to workspace or absolute
+                            full_path = doc_path
+                            if not os.path.isabs(full_path):
+                                full_path = os.path.join(os.path.expanduser("~/Downloads/alluci-sovereign-agent-main"), doc_path)
+                            
+                            if os.path.exists(full_path):
+                                with open(full_path, "r", encoding="utf-8") as f:
+                                    content = f.read()
+                                
+                                doc_hash = hashlib.sha256(content.encode('utf-8')).hexdigest()
+                                cache_key = f"doc_hash_{doc_path}"
+                                cached_hash = await self.get_skill_key(skill_id, cache_key)
+                                
+                                if cached_hash != doc_hash:
+                                    logger.info(f"Ingesting {doc_path} into H-LSM for skill {skill_id}...")
+                                    await hlsm.store(content=content, metadata={"source": doc_path, "skill_id": skill_id, "type": "reference_doc"})
+                                    await self.store_skill_key(skill_id, cache_key, doc_hash)
+                            else:
+                                logger.warning(f"Reference doc not found: {full_path}")
+                except Exception as e:
+                    logger.error(f"Failed to ingest reference_docs for skill {skill_id}: {e}")
             
         return merged
 
@@ -358,3 +391,14 @@ class SkillManager:
             "url": download_url,
             "status": "QUEUED_FOR_REVIEW"
         }
+
+    async def get_skill_key(self, skill_id: str, key: str) -> Optional[str]:
+        cache_id = f"skill_cache_{skill_id}"
+        data = await self.vault.retrieve_secret(cache_id)
+        return data.get(key)
+
+    async def store_skill_key(self, skill_id: str, key: str, value: str) -> None:
+        cache_id = f"skill_cache_{skill_id}"
+        data = await self.vault.retrieve_secret(cache_id)
+        data[key] = value
+        await self.vault.store_secret(cache_id, data)

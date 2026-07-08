@@ -76,9 +76,78 @@ class CronEngine:
             try:
                 await self._evaluate_jobs()
                 await self._check_overnight_dreaming_cycle()
+                await self._refresh_agentic_tokens()
             except Exception as e:
                 logger.error(f"[CronEngine] Tick error: {e}")
             await asyncio.sleep(self._tick_interval)
+
+    async def _refresh_agentic_tokens(self):
+        """
+        Periodically checks agent registrations and uses the refresh token
+        to fetch new access tokens before they expire.
+        """
+        from . import services
+        import httpx
+        from .auth.autonomous_discoverer import AlluciAutonomousDiscoverer
+
+        if not services.vault:
+            return
+
+        domains = await services.vault.list_connections("agent_registration")
+        if not domains:
+            return
+
+        discoverer = AlluciAutonomousDiscoverer()
+
+        for domain in domains:
+            secret = await services.vault.retrieve_connection_secret("agent_registration", domain)
+            if not secret or not secret.get("refresh_token"):
+                continue
+
+            clean_domain = domain.rstrip('/')
+            auth_server_url = clean_domain
+            async with httpx.AsyncClient(timeout=5.0, follow_redirects=True) as client:
+                try:
+                    prm_res = await client.get(f"{clean_domain}/.well-known/oauth-protected-resource")
+                    if prm_res.status_code == 200:
+                        auth_server_url = prm_res.json().get("authorization_server", clean_domain)
+                    else:
+                        auth_md_res = await client.get(f"{clean_domain}/auth.md")
+                        if auth_md_res.status_code == 200:
+                            import re
+                            match = re.search(r'`?authorization_server`?:\s*`?(https?://[^\s`]+)`?', auth_md_res.text, re.IGNORECASE)
+                            if match:
+                                auth_server_url = match.group(1)
+                except Exception:
+                    pass
+
+            token_endpoint = f"{auth_server_url.rstrip('/')}/oauth2/token"
+            
+            try:
+                private_key, _ = await services.vault.get_web_idp_keypair()
+                dpop_proof = discoverer._generate_dpop_proof(private_key, "POST", token_endpoint)
+                
+                payload = {
+                    "grant_type": "refresh_token",
+                    "refresh_token": secret.get("refresh_token"),
+                    "client_id": secret.get("client_id")
+                }
+                headers = {"DPoP": dpop_proof}
+
+                async with httpx.AsyncClient(timeout=10.0) as token_client:
+                    res = await token_client.post(token_endpoint, data=payload, headers=headers)
+                    if res.status_code == 200:
+                        new_data = res.json()
+                        secret["access_token"] = new_data.get("access_token", secret["access_token"])
+                        if "refresh_token" in new_data:
+                            secret["refresh_token"] = new_data["refresh_token"]
+                        if "expires_in" in new_data:
+                            secret["expires_in"] = new_data["expires_in"]
+                        
+                        await services.vault.store_connection_secret("agent_registration", domain, secret)
+                        logger.info(f"[CronEngine] Successfully refreshed token for {domain}")
+            except Exception as e:
+                logger.error(f"[CronEngine] Failed to refresh token for {domain}: {e}")
 
     async def _check_overnight_dreaming_cycle(self):
         """
