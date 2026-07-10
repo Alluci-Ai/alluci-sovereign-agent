@@ -22,6 +22,7 @@ class ToolManifest(BaseModel):
     source: str = "vault"
     last_active: Optional[str] = None
     error: Optional[str] = None
+    reference_docs: Optional[List[str]] = None
 
 class ToolManager:
     def __init__(self, vault: VaultManager, tools_dir: Optional[str] = None, workspace_tools_dir: Optional[str] = "alluci_vault/tools"):
@@ -245,7 +246,111 @@ class ToolManager:
         Retrieves selected tools for injection into the LCE execution (function calling).
         """
         all_tools = await self.registry_list()
-        return [s for s in all_tools if s.get("id") in active_ids]
+        selected = [s for s in all_tools if s.get("id") in active_ids]
+        
+        try:
+            import importlib
+            import asyncio
+            import os
+            services = importlib.import_module("backend.services")
+            hlsm = getattr(services, "hlsm_manager", None)
+            if hlsm:
+                for tool in selected:
+                    ref_docs = tool.get("reference_docs", [])
+                    tool_id = tool.get("id")
+                    if ref_docs and tool_id:
+                        for doc_path in ref_docs:
+                            if doc_path.startswith("http://") or doc_path.startswith("https://"):
+                                asyncio.create_task(self._quarantine_and_ingest_url(doc_path, tool_id, hlsm))
+                            else:
+                                full_path = doc_path
+                                if not os.path.isabs(full_path):
+                                    full_path = os.path.join(os.path.expanduser("~/Downloads/alluci-sovereign-agent-main"), doc_path)
+                                asyncio.create_task(self._quarantine_and_ingest_local(full_path, doc_path, tool_id, hlsm))
+        except Exception as e:
+            logger.error(f"Failed to dispatch reference_docs ingestion for tools: {e}")
+            
+        return selected
+
+    async def _quarantine_and_ingest_url(self, url: str, tool_id: str, hlsm: Any):
+        import httpx
+        try:
+            async with httpx.AsyncClient(follow_redirects=True) as client:
+                resp = await client.get(url, timeout=15.0)
+                resp.raise_for_status()
+                content = resp.text
+            await self._quarantine_and_ingest(url, content, tool_id, hlsm, is_remote=True)
+        except Exception as e:
+            logger.error(f"Failed to fetch remote reference doc {url}: {e}")
+
+    async def _quarantine_and_ingest_local(self, full_path: str, doc_path: str, tool_id: str, hlsm: Any):
+        import os
+        if not os.path.exists(full_path):
+            logger.warning(f"Local reference doc not found: {full_path}")
+            return
+        try:
+            with open(full_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            await self._quarantine_and_ingest(doc_path, content, tool_id, hlsm, is_remote=False)
+        except Exception as e:
+            logger.error(f"Failed to read local reference doc {full_path}: {e}")
+
+    async def _quarantine_and_ingest(self, source_path: str, content: str, component_id: str, hlsm: Any, is_remote: bool):
+        from backend.security.guardrail import GuardrailScanner
+        from backend.inference.router import ModelRouter
+        from backend.config import settings
+        from backend import services
+        import hashlib
+        import os
+        import zlib
+        
+        doc_hash = hashlib.sha256(content.encode('utf-8')).hexdigest()
+        cache_key = f"doc_hash_{source_path}"
+        cached_hash = await self.get_tool_key(component_id, cache_key)
+        
+        if cached_hash == doc_hash:
+            if services.ws_gw:
+                await services.ws_gw.broadcast_event('doc.ingest.status', {'source_path': source_path, 'status': 'Already Ingested', 'component_id': component_id})
+            return  # Already ingested
+
+        if services.ws_gw:
+            await services.ws_gw.broadcast_event('doc.ingest.status', {'source_path': source_path, 'status': 'Quarantined / Scanning...', 'component_id': component_id})
+
+        # 1. Quarantine Buffer Validation
+        scanner = GuardrailScanner(ModelRouter(settings=settings, vault=self.vault))
+        safe, msg = await scanner.scan_input(content[:15000]) # Scan head to prevent OOM
+        if not safe:
+            logger.critical(f"Topological Rupture Detected during ingestion of {source_path}: {msg}")
+            if services.ws_gw:
+                await services.ws_gw.broadcast_event('doc.ingest.status', {'source_path': source_path, 'status': 'Error: Topological Rupture Detected', 'component_id': component_id})
+            return
+            
+        # 2. Store as Blob Cache
+        blob_dir = os.path.expanduser("~/.polytope/alluci_vault/blobs")
+        os.makedirs(blob_dir, mode=0o700, exist_ok=True)
+        blob_path = os.path.join(blob_dir, f"{doc_hash}.blob")
+        
+        with open(blob_path, "wb") as f:
+            f.write(zlib.compress(content.encode('utf-8')))
+            
+        # 3. Embed Topological Barcode Pointer into H-LSM
+        logger.info(f"Ingesting Topological Barcode for {source_path} (Component: {component_id})...")
+        await hlsm.store(
+            content=f"Reference Document Barcode for {source_path}. Contains comprehensive architectural or API integration knowledge.",
+            metadata={
+                "source": source_path,
+                "tool_id": component_id,
+                "type": "reference_doc",
+                "is_barcode": True,
+                "uri": source_path,
+                "blob_path": blob_path,
+                "ttl": 86400.0 if is_remote else 0.0,
+            }
+        )
+        await self.store_tool_key(component_id, cache_key, doc_hash)
+        
+        if services.ws_gw:
+            await services.ws_gw.broadcast_event('doc.ingest.status', {'source_path': source_path, 'status': 'Embedded in H-LSM', 'component_id': component_id})
 
     async def registry_list(self) -> List[Dict[str, Any]]:
         """Internal helper to list tools from registry."""

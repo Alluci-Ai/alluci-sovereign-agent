@@ -5,6 +5,7 @@ import { SkillManifest } from '../types';
 import { useStore } from '../store/useStore';
 import { getCsrfToken } from '../csrfStore';
 import { HeartbeatOrderEditor } from '../features/heartbeat/HeartbeatOrderEditor';
+import { ReferenceDocsWidget } from './ReferenceDocsWidget';
 
 const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || '';
 
@@ -236,6 +237,15 @@ const StepCognition: React.FC<StepProps> = ({ data, update, next, back }) => (
       placeholder="Add knowledge block (e.g. 'Game Theory')..."
     />
 
+    <div className="mt-2">
+      <ReferenceDocsWidget
+        label="REFERENCE_DOCS (.MD PATHS OR URLS)"
+        items={data.reference_docs || []}
+        onChange={(i) => update('reference_docs', i)}
+        placeholder="Add local path or URL to .md file..."
+      />
+    </div>
+
     <div className="flex justify-between mt-4">
       <button onClick={back} className="glass-btn glass-label text-[9px] px-6">← [ BACK ]</button>
       <button onClick={next} className="glass-btn glass-btn--primary glass-label text-[9px] px-6">
@@ -444,7 +454,7 @@ const SkillBuilderWizard: React.FC<{ onClose: () => void, initialData?: SkillMan
             {JSON.stringify(manifest, null, 2)}
           </pre>
           {/* Validation Warnings */}
-          {(manifest.capabilities || manifest.parameters) && (
+          {(manifest.capabilities || (manifest as any).parameters) && (
             <div className="mt-4 p-2 bg-[var(--accent-danger)]/10 border border-[var(--accent-danger)] rounded text-[9px] text-[var(--accent-danger)]">
               ⚠️ WARNING: Execution attributes (capabilities/parameters) found in a Cognitive Skill structure. 
               Skills are for cognition and routing; Execution logic should be built in ToolBuilderWizard.

@@ -81,6 +81,7 @@ export interface SkillManifest {
   chainsOfThought: string[]; // Explicit reasoning steps
   logic: string[];           // Governing axioms (Deductive/Inductive)
   tools?: string[];          // Extrinsic Dependencies (MCPs, APIs, CLIs)
+  reference_docs?: string[]; // Documentation or large MD files
 
   // [ DYNAMIC_BINDING ]
   personalityMapping: SkillPersonalityImpact;
@@ -108,6 +109,7 @@ export interface ToolManifest {
   description: string;
   enabled: boolean;
   params: string;
+  reference_docs?: string[];
 }
 
 export enum SoulHumor {

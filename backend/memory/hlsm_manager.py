@@ -186,7 +186,7 @@ class HLSMManager:
                 self.kuzu_conn = kuzu.Connection(self.kuzu_db)
                 
                 self.kuzu_conn.execute(
-                    "CREATE NODE TABLE IF NOT EXISTS SemanticMemory (id STRING, content STRING, source STRING, session_key STRING, psi_at_encoding DOUBLE, topological_importance DOUBLE, betti_1_support DOUBLE, betti_signature STRING, access_count INT64, created_at DOUBLE, l1_id STRING, PRIMARY KEY (id))"
+                    "CREATE NODE TABLE IF NOT EXISTS SemanticMemory (id STRING, content STRING, source STRING, session_key STRING, psi_at_encoding DOUBLE, topological_importance DOUBLE, betti_1_support DOUBLE, betti_signature STRING, access_count INT64, created_at DOUBLE, l1_id STRING, is_barcode BOOLEAN, uri STRING, blob_path STRING, ttl DOUBLE, PRIMARY KEY (id))"
                 )
                 self.kuzu_conn.execute(
                     "CREATE NODE TABLE IF NOT EXISTS L3Memory (id STRING, content STRING, source STRING, session_key STRING, l1_id STRING, created_at DOUBLE, PRIMARY KEY (id))"
@@ -551,9 +551,11 @@ class HLSMManager:
                 "SET m.content = $content, m.source = $source, m.session_key = $session_key, "
                 "m.psi_at_encoding = $psi_at_encoding, m.topological_importance = $topological_importance, "
                 "m.betti_1_support = $betti_1_support, m.betti_signature = $betti_signature, "
-                "m.access_count = $access_count, m.created_at = $created_at, m.l1_id = $l1_id"
+                "m.access_count = $access_count, m.created_at = $created_at, m.l1_id = $l1_id, "
+                "m.is_barcode = $is_barcode, m.uri = $uri, m.blob_path = $blob_path, m.ttl = $ttl"
             )
             
+            extra = entry.extra_metadata or {}
             params = {
                 "id": kuzu_id,
                 "content": entry.content,
@@ -565,7 +567,11 @@ class HLSMManager:
                 "betti_signature": betti_signature,
                 "access_count": entry.access_count or 0,
                 "created_at": entry.created_at or time.time(),
-                "l1_id": entry.id
+                "l1_id": entry.id,
+                "is_barcode": extra.get("is_barcode", False),
+                "uri": extra.get("uri", ""),
+                "blob_path": extra.get("blob_path", ""),
+                "ttl": extra.get("ttl", 0.0)
             }
             
             await asyncio.to_thread(self.kuzu_conn.execute, query, params)
@@ -591,7 +597,8 @@ class HLSMManager:
             cypher_query = (
                 "MATCH (m:SemanticMemory {betti_signature: $sig}) "
                 "RETURN m.id, m.content, m.source, m.session_key, m.psi_at_encoding, "
-                "m.topological_importance, m.betti_1_support, m.access_count, m.created_at "
+                "m.topological_importance, m.betti_1_support, m.access_count, m.created_at, "
+                "m.is_barcode, m.uri, m.blob_path, m.ttl "
                 "LIMIT $limit"
             )
             
@@ -605,7 +612,19 @@ class HLSMManager:
             
             while raw_results.has_next():
                 row = raw_results.get_next()
-                kuzu_id, content, source, session_key, psi_enc, topo_imp, betti_support, access_count, created_at = row
+                kuzu_id, content, source, session_key, psi_enc, topo_imp, betti_support, access_count, created_at, is_barcode, uri, blob_path, ttl = row
+                
+                if is_barcode:
+                    try:
+                        import os
+                        if blob_path and os.path.exists(blob_path):
+                            with open(blob_path, "r", encoding="utf-8") as f:
+                                content = f.read()
+                        else:
+                            content = f"[Source Blob Unavailable]\n{content}"
+                    except Exception as e:
+                        logger.warning(f"[HLSM L2] Failed to rehydrate barcode {kuzu_id}: {e}")
+                        content = f"[Source Blob Unavailable]\n{content}"
                 
                 # Because it's an exact topological match, similarity is 1.0
                 similarity = 1.0

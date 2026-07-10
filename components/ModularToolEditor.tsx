@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { getCsrfToken } from '../csrfStore';
+import { ReferenceDocsWidget } from './ReferenceDocsWidget';
 
 const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || '';
 
@@ -154,8 +155,15 @@ export const ModularToolEditor: React.FC<ModularToolEditorProps> = ({ tool, onCl
                     {localTool.description}
                 </p>
 
+                <ReferenceDocsWidget 
+                    label="Reference Docs (.md paths or URLs)"
+                    items={localTool.reference_docs || []} 
+                    onChange={v => updateArray('reference_docs', v)} 
+                    placeholder="Add local path or URL to .md file..." 
+                />
+
                 {Object.keys(localTool)
-                    .filter(key => Array.isArray(localTool[key]) && key !== 'dependencies' && key !== 'capabilities')
+                    .filter(key => Array.isArray(localTool[key]) && key !== 'dependencies' && key !== 'capabilities' && key !== 'reference_docs')
                     .map(key => (
                     <EditorList 
                         key={key}

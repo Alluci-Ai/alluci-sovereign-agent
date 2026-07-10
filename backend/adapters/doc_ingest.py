@@ -64,16 +64,17 @@ class DocumentIngestAdapter(Adapter):
                 for para in doc.paragraphs:
                     if para.text.strip():
                         text += para.text + "\n"
-            elif ext == ".txt":
+            elif ext in [".txt", ".md"]:
                 with open(file_path, "r", encoding="utf-8") as f:
                     text = f.read()
             else:
-                return {"status": "error", "message": f"Unsupported file type: {ext}. Supported: .pdf, .docx, .txt"}
+                return {"status": "error", "message": f"Unsupported file type: {ext}. Supported: .pdf, .docx, .txt, .md"}
 
             if not text.strip():
                 return {"status": "error", "message": f"No extractable text found in {file_path}"}
 
-            chunks = self._chunk_text(text)
+
+            chunks = self._chunk_text(text, ext=ext)
             filename = os.path.basename(file_path)
 
             for i, chunk in enumerate(chunks):
@@ -102,10 +103,37 @@ class DocumentIngestAdapter(Adapter):
             self.logger.error(f"Document ingestion failed for '{file_path}': {e}")
             return {"status": "error", "message": str(e)}
 
-    def _chunk_text(self, text: str, chunk_size: int = 1000) -> List[str]:
+    def _chunk_text(self, text: str, chunk_size: int = 1000, ext: str = ".txt") -> List[str]:
         """
         Splits text into manageable chunks.
+        For markdown files, it attempts to split by headers semantically.
         """
+        if ext == ".md":
+            import re
+            # Split by markdown headers
+            chunks = re.split(r'(?m)^#{1,6}\s+.*$', text)
+            headers = re.findall(r'(?m)^#{1,6}\s+.*$', text)
+            
+            result = []
+            if chunks and chunks[0].strip():
+                result.append(chunks[0].strip())
+            
+            for i, header in enumerate(headers):
+                if i + 1 < len(chunks):
+                    chunk_content = header + "\n" + chunks[i + 1].strip()
+                    if chunk_content.strip():
+                        result.append(chunk_content.strip())
+            
+            # If the chunks are too large, fallback to byte-chunking
+            final_chunks = []
+            for c in result:
+                if len(c) > chunk_size * 2:
+                    final_chunks.extend([c[i:i + chunk_size] for i in range(0, len(c), chunk_size)])
+                else:
+                    final_chunks.append(c)
+            if final_chunks:
+                return final_chunks
+                
         return [text[i:i + chunk_size] for i in range(0, len(text), chunk_size)]
 
     def _extract_entities_for_graph(self, chunk: str) -> None:
