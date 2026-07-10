@@ -50,7 +50,7 @@ export const ReferenceDocsWidget: React.FC<{
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
             <label style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>{label}</label>
-            
+
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {items.map((it, i) => (
                     <div key={i} style={{
