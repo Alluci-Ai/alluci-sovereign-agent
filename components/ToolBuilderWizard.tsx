@@ -32,6 +32,7 @@ const ToolBuilderWizard: React.FC<ToolBuilderWizardProps> = ({ onClose }) => {
   );
 
   const [autoConfigUrl, setAutoConfigUrl] = useState('');
+  const [autoConfigUrls, setAutoConfigUrls] = useState<string[]>(['']);
   const [autoConfigType, setAutoConfigType] = useState('openapi');
   const [sandboxResult, setSandboxResult] = useState<any>(null);
   const [userPrompt, setUserPrompt] = useState('');
@@ -100,16 +101,20 @@ const ToolBuilderWizard: React.FC<ToolBuilderWizardProps> = ({ onClose }) => {
   };
 
   const handleAutoConfig = async () => {
-    if (!autoConfigUrl) return;
+    const isSmart = autoConfigType === 'smart_ingest';
+    const smartUrls = autoConfigUrls.map(u => u.trim()).filter(Boolean);
+    
+    if (isSmart && smartUrls.length === 0) return;
+    if (!isSmart && !autoConfigUrl) return;
+    
     setIsIngesting(true);
     setIngestMessages([]);
     try {
       const token = localStorage.getItem('alluci_daemon_token');
       const csrfToken = await getCsrfToken(DAEMON_URL, token);
       
-      const isSmart = autoConfigType === 'smart_ingest';
       const payload = isSmart 
-        ? { urls: autoConfigUrl.split(/[\n,]+/).map(u => u.trim()).filter(Boolean), type: autoConfigType, user_prompt: userPrompt }
+        ? { urls: smartUrls, type: autoConfigType, user_prompt: userPrompt }
         : { url: autoConfigUrl, type: autoConfigType };
 
       const res = await fetch(`${DAEMON_URL}/api/v1/tools/ingest`, {
@@ -329,13 +334,38 @@ const ToolBuilderWizard: React.FC<ToolBuilderWizardProps> = ({ onClose }) => {
                     <option value="smart_ingest">Smart Ingestion (Docs/URL)</option>
                   </select>
                   {autoConfigType === 'smart_ingest' ? (
-                    <textarea
-                      value={autoConfigUrl}
-                      onChange={e => setAutoConfigUrl(e.target.value)}
-                      placeholder="https://github.com/org/repo&#10;https://example.com/docs"
-                      className="flex-1 bg-glass-pressed border border-glass-edge rounded-xl p-3 text-sm text-text-primary focus:border-accent outline-none min-h-[44px]"
-                      rows={2}
-                    />
+                    <div className="flex-1 flex flex-col gap-2">
+                      {autoConfigUrls.map((url, idx) => (
+                        <div key={idx} className="flex gap-2 w-full">
+                          <input
+                            type="text"
+                            value={url}
+                            onChange={e => {
+                              const newUrls = [...autoConfigUrls];
+                              newUrls[idx] = e.target.value;
+                              setAutoConfigUrls(newUrls);
+                            }}
+                            placeholder="https://example.com/docs"
+                            className="flex-1 bg-glass-pressed border border-glass-edge rounded-xl p-3 text-sm text-text-primary focus:border-accent outline-none"
+                          />
+                          <button 
+                            disabled={autoConfigUrls.length === 1}
+                            onClick={() => {
+                              setAutoConfigUrls(autoConfigUrls.filter((_, i) => i !== idx));
+                            }}
+                            className="glass-btn px-3 flex items-center justify-center text-text-secondary hover:text-red-400 disabled:opacity-50"
+                          >
+                            <span className="text-xl font-bold leading-none">&minus;</span>
+                          </button>
+                        </div>
+                      ))}
+                      <button 
+                        onClick={() => setAutoConfigUrls([...autoConfigUrls, ''])}
+                        className="glass-btn self-start px-3 py-1 text-xs mt-1 flex items-center gap-1"
+                      >
+                        <span className="text-lg font-bold leading-none">+</span> Add Link
+                      </button>
+                    </div>
                   ) : (
                     <input
                       type="text"

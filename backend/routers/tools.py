@@ -243,8 +243,8 @@ async def ingest_tool(payload: Dict[str, Any] = Body(...)):
         urls = payload.get("urls", [])
         user_prompt = payload.get("user_prompt", "")
         
-        if not urls:
-            raise HTTPException(status_code=400, detail="Missing urls")
+        if not urls or not isinstance(urls, list) or not all(isinstance(u, str) and u.startswith("http") for u in urls):
+            raise HTTPException(status_code=400, detail="urls must be a non-empty list of valid HTTP strings")
             
         async def event_generator():
             try:
