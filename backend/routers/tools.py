@@ -225,15 +225,45 @@ async def test_sandbox(payload: Dict[str, Any] = Body(...)):
         return {"status": "SUCCESS", "message": f"{tool_type} execution simulated"}
 
 @router.post("/tools/ingest")
-async def ingest_tool(payload: Dict[str, str] = Body(...)):
-    """Ingests an OpenAPI or MCP spec via native httpx without bloated dependencies."""
+async def ingest_tool(payload: Dict[str, Any] = Body(...)):
+    """Ingests an OpenAPI or MCP spec, or uses Smart Ingestion DAG for multi-url docs."""
     import httpx
-    url = payload.get("url")
+    
     ingest_type = payload.get("type", "openapi")
     
+    if ingest_type == "smart_ingest":
+        from sse_starlette.sse import EventSourceResponse
+        from ..services.ingestion_dag import IngestionDAG
+        from ..inference.router import ModelRouter
+        from ..config import settings
+        from .. import services
+        import json
+        import backend.services.scraper as scraper_module
+        
+        urls = payload.get("urls", [])
+        user_prompt = payload.get("user_prompt", "")
+        
+        if not urls:
+            raise HTTPException(status_code=400, detail="Missing urls")
+            
+        async def event_generator():
+            try:
+                router_inst = ModelRouter(settings=settings, vault=services.vault)
+                dag = IngestionDAG(router=router_inst, scraper_service=scraper_module)
+                
+                async for update in dag.run(urls, user_prompt):
+                    yield json.dumps(update)
+            except Exception as e:
+                logger.error(f"DAG execution failed: {e}")
+                yield json.dumps({"type": "error", "message": str(e)})
+
+        return EventSourceResponse(event_generator())
+        
+    # Legacy handling for openapi and mcp_sse
+    url = payload.get("url")
     if not url:
         raise HTTPException(status_code=400, detail="Missing URL")
-        
+            
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             res = await client.get(url)

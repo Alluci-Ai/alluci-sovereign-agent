@@ -4,6 +4,7 @@ import { ToolManifest } from '../types';
 import { Terminal, Save, X, Cpu, ShieldAlert, Link, FileJson, Key, CheckCircle, Trash2 } from 'lucide-react';
 import { ReferenceDocsWidget } from './ReferenceDocsWidget';
 import { SchemaNodeBuilder, JSONSchema } from './SchemaNodeBuilder';
+import { getCsrfToken } from '../csrfStore';
 
 const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || '';
 
@@ -12,7 +13,7 @@ interface ToolBuilderWizardProps {
 }
 
 const ToolBuilderWizard: React.FC<ToolBuilderWizardProps> = ({ onClose }) => {
-  const { tools, setTools, toolToEdit } = useStore();
+  const { tools, setTools, toolToEdit, modelFallbackMessage } = useStore();
   const [step, setStep] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const [isIngesting, setIsIngesting] = useState(false);
@@ -33,6 +34,8 @@ const ToolBuilderWizard: React.FC<ToolBuilderWizardProps> = ({ onClose }) => {
   const [autoConfigUrl, setAutoConfigUrl] = useState('');
   const [autoConfigType, setAutoConfigType] = useState('openapi');
   const [sandboxResult, setSandboxResult] = useState<any>(null);
+  const [userPrompt, setUserPrompt] = useState('');
+  const [ingestMessages, setIngestMessages] = useState<string[]>([]);
   
   // Environment variables UI state
   const [envVarKey, setEnvVarKey] = useState('');
@@ -99,23 +102,60 @@ const ToolBuilderWizard: React.FC<ToolBuilderWizardProps> = ({ onClose }) => {
   const handleAutoConfig = async () => {
     if (!autoConfigUrl) return;
     setIsIngesting(true);
+    setIngestMessages([]);
     try {
       const token = localStorage.getItem('alluci_daemon_token');
+      const csrfToken = await getCsrfToken(DAEMON_URL, token);
+      
+      const isSmart = autoConfigType === 'smart_ingest';
+      const payload = isSmart 
+        ? { urls: autoConfigUrl.split(/[\n,]+/).map(u => u.trim()).filter(Boolean), type: autoConfigType, user_prompt: userPrompt }
+        : { url: autoConfigUrl, type: autoConfigType };
+
       const res = await fetch(`${DAEMON_URL}/api/v1/tools/ingest`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {})
         },
-        body: JSON.stringify({ url: autoConfigUrl, type: autoConfigType })
+        body: JSON.stringify(payload)
       });
       
-      const data = await res.json();
-      if (res.ok && data.manifest) {
-        setFormData(prev => ({ ...prev, ...data.manifest }));
-        setStep(1); // Proceed to metadata to review
+      if (isSmart && res.body) {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let buffer = '';
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n\n');
+          buffer = lines.pop() || '';
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+               try {
+                 const data = JSON.parse(line.replace('data: ', ''));
+                 if (data.type === 'progress') setIngestMessages(prev => [...prev, data.message]);
+                 if (data.type === 'success') {
+                    setFormData(prev => ({ ...prev, ...data.manifest }));
+                    setStep(1);
+                 }
+                 if (data.type === 'error') {
+                    alert('Ingestion error: ' + data.message);
+                 }
+               } catch(e) {}
+            }
+          }
+        }
       } else {
-        alert("Ingestion failed: " + (data.detail || "Unknown error"));
+        const data = await res.json();
+        if (res.ok && data.manifest) {
+          setFormData(prev => ({ ...prev, ...data.manifest }));
+          setStep(1); // Proceed to metadata to review
+        } else {
+          alert("Ingestion failed: " + (data.detail || "Unknown error"));
+        }
       }
     } catch (e) {
       console.error("Ingestion failed", e);
@@ -286,18 +326,57 @@ const ToolBuilderWizard: React.FC<ToolBuilderWizardProps> = ({ onClose }) => {
                   >
                     <option value="openapi">OpenAPI/Swagger</option>
                     <option value="mcp_sse">MCP SSE</option>
+                    <option value="smart_ingest">Smart Ingestion (Docs/URL)</option>
                   </select>
-                  <input
-                    type="text"
-                    value={autoConfigUrl}
-                    onChange={e => setAutoConfigUrl(e.target.value)}
-                    placeholder="https://api.example.com/swagger.json"
-                    className="flex-1 bg-glass-pressed border border-glass-edge rounded-xl p-3 text-sm text-text-primary focus:border-accent outline-none"
-                  />
+                  {autoConfigType === 'smart_ingest' ? (
+                    <textarea
+                      value={autoConfigUrl}
+                      onChange={e => setAutoConfigUrl(e.target.value)}
+                      placeholder="https://github.com/org/repo&#10;https://example.com/docs"
+                      className="flex-1 bg-glass-pressed border border-glass-edge rounded-xl p-3 text-sm text-text-primary focus:border-accent outline-none min-h-[44px]"
+                      rows={2}
+                    />
+                  ) : (
+                    <input
+                      type="text"
+                      value={autoConfigUrl}
+                      onChange={e => setAutoConfigUrl(e.target.value)}
+                      placeholder="https://api.example.com/swagger.json"
+                      className="flex-1 bg-glass-pressed border border-glass-edge rounded-xl p-3 text-sm text-text-primary focus:border-accent outline-none"
+                    />
+                  )}
                   <button onClick={handleAutoConfig} disabled={isIngesting} className="glass-btn px-4">
-                    {isIngesting ? 'Ingesting...' : <><Link className="w-4 h-4" /> Auto-Fill</>}
+                    {isIngesting ? (autoConfigType === 'smart_ingest' ? 'Extracting & Synthesizing...' : 'Ingesting...') : <><Link className="w-4 h-4" /> Auto-Fill</>}
                   </button>
                 </div>
+                
+                {autoConfigType === 'smart_ingest' && (
+                  <div className="mt-2">
+                    <textarea 
+                      value={userPrompt}
+                      onChange={e => setUserPrompt(e.target.value)}
+                      placeholder="Optional: Provide context. e.g. 'I only want the sendMessage endpoint.'"
+                      className="w-full h-16 bg-glass-pressed border border-glass-edge rounded-xl p-3 text-sm text-text-primary outline-none focus:border-accent"
+                    />
+                  </div>
+                )}
+                
+                {modelFallbackMessage && isIngesting && autoConfigType === 'smart_ingest' && (
+                  <div className="mt-2 p-2 bg-yellow-900/20 border border-yellow-700/50 rounded text-yellow-500 text-xs">
+                    {modelFallbackMessage}
+                  </div>
+                )}
+                
+                {isIngesting && autoConfigType === 'smart_ingest' && ingestMessages.length > 0 && (
+                  <div className="mt-2 p-3 bg-glass-pressed border border-glass-edge rounded-xl text-xs space-y-1 font-mono text-text-secondary h-32 overflow-y-auto custom-scrollbar flex flex-col">
+                    {ingestMessages.map((msg, idx) => (
+                      <div key={idx} className={idx === ingestMessages.length - 1 ? "text-accent" : "opacity-70"}>
+                        &gt; {msg}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 <div className="mt-4">
                   <button onClick={() => setStep(1)} className="text-xs text-accent underline">Skip auto-config and build manually</button>
                 </div>
