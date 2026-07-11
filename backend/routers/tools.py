@@ -218,9 +218,69 @@ async def test_sandbox(payload: Dict[str, Any] = Body(...)):
             raise HTTPException(status_code=500, detail=str(e))
             
     elif tool_type == "API":
-        return {"status": "SUCCESS", "message": "API test sandbox execution successful (simulated)"}
+        import httpx
+        import re
+        
+        base_url = execution_config.get("baseUrl", "").rstrip("/")
+        endpoint = execution_config.get("endpoint", "")
+        method = execution_config.get("method", "GET").upper()
+        
+        # Inject path parameters
+        url = base_url + endpoint
+        for k, v in test_params.items():
+            url = re.sub(rf"{{{k}}}", str(v), url)
+            
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            try:
+                req_kwargs = {"headers": env_vars}
+                if method in ("GET", "DELETE"):
+                    req_kwargs["params"] = test_params
+                else:
+                    req_kwargs["json"] = test_params
+                    
+                resp = await client.request(method, url, **req_kwargs)
+                return {
+                    "status": "SUCCESS" if resp.is_success else "ERROR",
+                    "output": resp.text,
+                    "code": resp.status_code
+                }
+            except Exception as e:
+                return {"status": "ERROR", "output": str(e), "code": 500}
+                
     elif tool_type == "MCP":
-        return {"status": "SUCCESS", "message": "MCP test sandbox execution successful (simulated)"}
+        endpoint = execution_config.get("endpoint", "")
+        if not endpoint:
+            return {"status": "ERROR", "output": "Missing MCP endpoint", "code": 400}
+            
+        if endpoint.startswith("http"):
+            import httpx
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                try:
+                    resp = await client.post(endpoint, json=test_params, headers=env_vars)
+                    return {
+                        "status": "SUCCESS" if resp.is_success else "ERROR",
+                        "output": resp.text,
+                        "code": resp.status_code
+                    }
+                except Exception as e:
+                    return {"status": "ERROR", "output": str(e), "code": 500}
+        else:
+            try:
+                import shlex
+                process = subprocess.run(
+                    shlex.split(endpoint),
+                    input=json.dumps(test_params).encode(),
+                    env=env_vars,
+                    capture_output=True,
+                    timeout=10
+                )
+                return {
+                    "status": "SUCCESS" if process.returncode == 0 else "ERROR",
+                    "output": process.stdout.decode() or process.stderr.decode(),
+                    "code": process.returncode
+                }
+            except Exception as e:
+                return {"status": "ERROR", "output": str(e), "code": 500}
     else:
         return {"status": "SUCCESS", "message": f"{tool_type} execution simulated"}
 
@@ -242,6 +302,7 @@ async def ingest_tool(payload: Dict[str, Any] = Body(...)):
         
         urls = payload.get("urls", [])
         user_prompt = payload.get("user_prompt", "")
+        deep_crawl = payload.get("deep_crawl", False)
         
         if not urls or not isinstance(urls, list) or not all(isinstance(u, str) and u.startswith("http") for u in urls):
             raise HTTPException(status_code=400, detail="urls must be a non-empty list of valid HTTP strings")
@@ -251,7 +312,7 @@ async def ingest_tool(payload: Dict[str, Any] = Body(...)):
                 router_inst = ModelRouter(settings=settings, vault=services.vault)
                 dag = IngestionDAG(router=router_inst, scraper_service=scraper_module)
                 
-                async for update in dag.run(urls, user_prompt):
+                async for update in dag.run(urls, user_prompt, deep_crawl=deep_crawl):
                     yield json.dumps(update)
             except Exception as e:
                 logger.error(f"DAG execution failed: {e}")
@@ -304,6 +365,8 @@ async def ingest_tool(payload: Dict[str, Any] = Body(...)):
         logger.error(f"Ingestion failed for {url}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+OAUTH_STATUS_CACHE = {}
+
 @router.post("/tools/oauth2/device-auth")
 async def initiate_device_auth(payload: Dict[str, str] = Body(...)):
     """Initiates RFC 8628 Device Authorization Grant."""
@@ -316,20 +379,30 @@ async def initiate_device_auth(payload: Dict[str, str] = Body(...)):
     
     discoverer = AlluciAutonomousDiscoverer()
     clean_domain = target_domain.rstrip('/')
-    # Simulate autonomous discovery fallback
+    
     async with httpx.AsyncClient(timeout=10.0) as client:
-        # In a real scenario, this probes /.well-known. Here we mock the response for the sake of the endpoint structure without stubs.
-        # Wait, the user said NO STUBS. We must actually call the discoverer.
-        # But we need auth_server. We'll pass target_domain as both resource and auth_server for the sake of demonstration, 
-        # or call execute_user_claimed_fallback directly.
         try:
             result = await discoverer.execute_user_claimed_fallback(client, clean_domain, clean_domain)
             if result.get("status") == "authorization_pending":
-                # Start background polling
+                device_code = result.get("device_code")
+                if device_code:
+                    OAUTH_STATUS_CACHE[device_code] = "pending"
+                    
                 import asyncio
                 from ..adapters.agentic_registration import AgenticRegistrationAdapter
                 adapter = AgenticRegistrationAdapter()
-                asyncio.create_task(adapter._poll_for_token(result, clean_domain))
+                
+                async def poll_wrapper():
+                    try:
+                        await adapter._poll_for_token(result, clean_domain)
+                        if device_code:
+                            OAUTH_STATUS_CACHE[device_code] = "success"
+                    except Exception as e:
+                        logger.error(f"Background polling failed: {e}")
+                        if device_code:
+                            OAUTH_STATUS_CACHE[device_code] = "error"
+                            
+                asyncio.create_task(poll_wrapper())
                 return result
             else:
                 raise HTTPException(status_code=400, detail="Failed to initiate device grant")
@@ -338,11 +411,6 @@ async def initiate_device_auth(payload: Dict[str, str] = Body(...)):
 
 @router.get("/tools/oauth2/status")
 async def check_oauth2_status(device_code: str):
-    """Checks the local vault to see if the background poller succeeded."""
-    from .. import services
-    if not services.vault:
-        return {"status": "pending"}
-        
-    # Check if a token was saved recently. We can check the vault for "agent_registration".
-    # This is slightly simplified; we'd normally track the device_code to a specific domain.
-    return {"status": "pending"} # Real polling implementation requires a small state store tracking device_code -> domain.
+    """Checks the local cache to see if the background poller succeeded."""
+    status = OAUTH_STATUS_CACHE.get(device_code, "pending")
+    return {"status": status}

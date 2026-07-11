@@ -34,6 +34,7 @@ const ToolBuilderWizard: React.FC<ToolBuilderWizardProps> = ({ onClose }) => {
   const [autoConfigUrl, setAutoConfigUrl] = useState('');
   const [autoConfigUrls, setAutoConfigUrls] = useState<string[]>(['']);
   const [autoConfigType, setAutoConfigType] = useState('openapi');
+  const [deepCrawl, setDeepCrawl] = useState(false);
   const [sandboxResult, setSandboxResult] = useState<any>(null);
   const [userPrompt, setUserPrompt] = useState('');
   const [ingestMessages, setIngestMessages] = useState<string[]>([]);
@@ -114,7 +115,7 @@ const ToolBuilderWizard: React.FC<ToolBuilderWizardProps> = ({ onClose }) => {
       const csrfToken = await getCsrfToken(DAEMON_URL, token);
       
       const payload = isSmart 
-        ? { urls: smartUrls, type: autoConfigType, user_prompt: userPrompt }
+        ? { urls: smartUrls, type: autoConfigType, user_prompt: userPrompt, deep_crawl: deepCrawl }
         : { url: autoConfigUrl, type: autoConfigType };
 
       const res = await fetch(`${DAEMON_URL}/api/v1/tools/ingest`, {
@@ -126,6 +127,13 @@ const ToolBuilderWizard: React.FC<ToolBuilderWizardProps> = ({ onClose }) => {
         },
         body: JSON.stringify(payload)
       });
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        alert('Failed to start ingestion: ' + (errorData.detail || errorData.message || res.statusText));
+        setIsIngesting(false);
+        return;
+      }
       
       if (isSmart && res.body) {
         const reader = res.body.getReader();
@@ -359,12 +367,23 @@ const ToolBuilderWizard: React.FC<ToolBuilderWizardProps> = ({ onClose }) => {
                           </button>
                         </div>
                       ))}
-                      <button 
-                        onClick={() => setAutoConfigUrls([...autoConfigUrls, ''])}
-                        className="glass-btn self-start px-3 py-1 text-xs mt-1 flex items-center gap-1"
-                      >
-                        <span className="text-lg font-bold leading-none">+</span> Add Link
-                      </button>
+                      <div className="flex items-center justify-between mt-1">
+                        <button 
+                          onClick={() => setAutoConfigUrls([...autoConfigUrls, ''])}
+                          className="glass-btn self-start px-3 py-1 text-xs flex items-center gap-1"
+                        >
+                          <span className="text-lg font-bold leading-none">+</span> Add Link
+                        </button>
+                        <label className="flex items-center gap-2 text-xs text-text-secondary cursor-pointer hover:text-text-primary transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={deepCrawl}
+                            onChange={(e) => setDeepCrawl(e.target.checked)}
+                            className="w-3.5 h-3.5 rounded bg-glass border-glass-edge text-accent focus:ring-accent focus:ring-offset-background"
+                          />
+                          Deep Crawl (Follow sub-links)
+                        </label>
+                      </div>
                     </div>
                   ) : (
                     <input

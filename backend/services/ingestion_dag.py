@@ -30,18 +30,42 @@ class IngestionDAG:
         self.router = router
         self.scraper_service = scraper_service
 
-    async def run(self, urls: List[str], user_prompt: str) -> AsyncGenerator[Dict[str, Any], None]:
+    async def run(self, urls: List[str], user_prompt: str, deep_crawl: bool = False) -> AsyncGenerator[Dict[str, Any], None]:
         if not urls:
             yield {"type": "error", "message": "No URLs provided"}
             return
 
-        yield {"type": "progress", "message": f"Scraping {len(urls)} links..."}
-        try:
-            markdown_docs = await self.scraper_service.fetch_all_markdown(urls)
-        except Exception as e:
-            logger.error(f"Scraping failed: {e}")
-            yield {"type": "error", "message": f"Scraping failed: {e}"}
-            return
+        yield {"type": "progress", "message": f"Scraping {len(urls)} link(s){' with Deep Crawl' if deep_crawl else ''}..."}
+        
+        import asyncio
+        progress_queue = asyncio.Queue()
+        
+        async def on_progress(msg: str):
+            await progress_queue.put({"type": "progress", "message": msg})
+
+        async def scraper_worker():
+            try:
+                docs = await self.scraper_service.fetch_all_markdown(
+                    urls, deep_crawl=deep_crawl, progress_callback=on_progress
+                )
+                await progress_queue.put({"type": "done", "docs": docs})
+            except Exception as e:
+                await progress_queue.put({"type": "error", "message": f"Scraping failed: {e}"})
+
+        worker_task = asyncio.create_task(scraper_worker())
+        
+        markdown_docs = []
+        while True:
+            msg = await progress_queue.get()
+            if msg["type"] == "done":
+                markdown_docs = msg["docs"]
+                break
+            elif msg["type"] == "error":
+                logger.error(msg["message"])
+                yield msg
+                return
+            else:
+                yield msg
 
         yield {"type": "progress", "message": "Classifying technical paradigms..."}
         classified_docs = []
