@@ -22,10 +22,9 @@ const ToolBuilderWizard: React.FC<ToolBuilderWizardProps> = ({ onClose }) => {
     toolToEdit || {
       id: '',
       name: '',
-      category: 'TOOL',
       description: '',
       enabled: true,
-      execution: { type: 'API', envVarsVaultId: {} },
+      capabilities: {},
       schema: { type: 'object', properties: {}, required: [] },
       permissions: []
     }
@@ -38,6 +37,7 @@ const ToolBuilderWizard: React.FC<ToolBuilderWizardProps> = ({ onClose }) => {
   const [sandboxResult, setSandboxResult] = useState<any>(null);
   const [userPrompt, setUserPrompt] = useState('');
   const [ingestMessages, setIngestMessages] = useState<string[]>([]);
+  const [activeCapTab, setActiveCapTab] = useState<string>('api');
   
   // Environment variables UI state
   const [envVarKey, setEnvVarKey] = useState('');
@@ -55,11 +55,32 @@ const ToolBuilderWizard: React.FC<ToolBuilderWizardProps> = ({ onClose }) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleExecutionChange = (field: string, value: any) => {
-    setFormData(prev => ({
-      ...prev,
-      execution: { ...(prev.execution || { type: 'API' }), [field]: value }
-    }));
+  const handleCapabilityChange = (capKey: string, field: string, value: any) => {
+    setFormData(prev => {
+      const caps = { ...(prev.capabilities || {}) };
+      caps[capKey] = { ...(caps[capKey] || { type: capKey.toUpperCase() }), [field]: value };
+      return { ...prev, capabilities: caps };
+    });
+  };
+
+  const addCapability = (type: string) => {
+    const key = type.toLowerCase();
+    if (!formData.capabilities?.[key]) {
+      handleCapabilityChange(key, 'type', type);
+      setActiveCapTab(key);
+    }
+  };
+
+  const removeCapability = (key: string) => {
+    setFormData(prev => {
+      const caps = { ...prev.capabilities };
+      delete caps[key];
+      const remaining = Object.keys(caps);
+      if (remaining.length > 0 && activeCapTab === key) {
+        setActiveCapTab(remaining[0]);
+      }
+      return { ...prev, capabilities: caps };
+    });
   };
 
   const handleStoreSecret = async (secret: string): Promise<string | null> => {
@@ -85,8 +106,8 @@ const ToolBuilderWizard: React.FC<ToolBuilderWizardProps> = ({ onClose }) => {
     if (!envVarKey || !envVarValue) return;
     const vaultId = await handleStoreSecret(envVarValue);
     if (vaultId) {
-      const existingEnvVars = formData.execution?.envVarsVaultId || {};
-      handleExecutionChange('envVarsVaultId', {
+      const existingEnvVars = formData.capabilities?.[activeCapTab]?.envVarsVaultId || {};
+      handleCapabilityChange(activeCapTab, 'envVarsVaultId', {
         ...existingEnvVars,
         [envVarKey]: vaultId
       });
@@ -96,9 +117,9 @@ const ToolBuilderWizard: React.FC<ToolBuilderWizardProps> = ({ onClose }) => {
   };
 
   const handleRemoveEnvVar = (key: string) => {
-    const existingEnvVars = { ...(formData.execution?.envVarsVaultId || {}) };
+    const existingEnvVars = { ...(formData.capabilities?.[activeCapTab]?.envVarsVaultId || {}) };
     delete existingEnvVars[key];
-    handleExecutionChange('envVarsVaultId', existingEnvVars);
+    handleCapabilityChange(activeCapTab, 'envVarsVaultId', existingEnvVars);
   };
 
   const handleAutoConfig = async () => {
@@ -188,7 +209,7 @@ const ToolBuilderWizard: React.FC<ToolBuilderWizardProps> = ({ onClose }) => {
           'Content-Type': 'application/json',
           ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         },
-        body: JSON.stringify({ target_domain: formData.execution?.baseUrl })
+        body: JSON.stringify({ target_domain: formData.capabilities?.[activeCapTab]?.baseUrl })
       });
       const data = await res.json();
       if (res.ok && data.user_code) {
@@ -221,7 +242,7 @@ const ToolBuilderWizard: React.FC<ToolBuilderWizardProps> = ({ onClose }) => {
         if (data.status === 'success') {
            clearInterval(checkInterval);
            setOauthDeviceState({ status: 'success', message: 'Authorized! Secret stored in Vault.' });
-           handleExecutionChange('authHeadersVaultId', data.vault_id);
+           handleCapabilityChange(activeCapTab, 'authHeadersVaultId', data.vault_id);
         } else if (data.status === 'error') {
            clearInterval(checkInterval);
            setOauthDeviceState({ status: 'error', message: data.message });
@@ -461,7 +482,7 @@ const ToolBuilderWizard: React.FC<ToolBuilderWizardProps> = ({ onClose }) => {
                     value={formData.category}
                     onChange={e => {
                       handleChange('category', e.target.value);
-                      handleExecutionChange('type', e.target.value);
+                      handleCapabilityChange(activeCapTab, 'type', e.target.value);
                     }}
                     className="w-full bg-glass-pressed border border-glass-edge rounded-xl p-3 text-sm text-text-primary"
                   >
@@ -484,155 +505,155 @@ const ToolBuilderWizard: React.FC<ToolBuilderWizardProps> = ({ onClose }) => {
             )}
 
             {step === 2 && (
-              <div className="space-y-4">
-                <h3 className="text-sm font-bold text-accent">2. Connection & Transport</h3>
+              <div className="space-y-6">
+                <h3 className="text-sm font-bold text-accent flex items-center justify-between">
+                  <span>2. Capabilities (Tool Engine)</span>
+                  <div className="flex gap-2">
+                    <button onClick={() => addCapability('API')} className="glass-btn px-2 text-xs">+ API</button>
+                    <button onClick={() => addCapability('CLI')} className="glass-btn px-2 text-xs">+ CLI</button>
+                    <button onClick={() => addCapability('MCP')} className="glass-btn px-2 text-xs">+ MCP</button>
+                  </div>
+                </h3>
                 
-                {formData.execution?.type === 'API' && (
-                  <>
-                    <div className="space-y-2">
-                      <label className="text-[10px] uppercase font-mono tracking-widest text-text-secondary">Base URL</label>
-                      <input
-                        type="text"
-                        value={formData.execution?.baseUrl || ''}
-                        onChange={e => handleExecutionChange('baseUrl', e.target.value)}
-                        className="w-full bg-glass-pressed border border-glass-edge rounded-xl p-3 text-sm text-text-primary"
-                      />
+                {!formData.capabilities || Object.keys(formData.capabilities).length === 0 ? (
+                  <div className="p-8 text-center border border-dashed border-glass-edge rounded-xl text-text-tertiary">
+                    No capabilities configured. Auto-Fill to extract them or add manually above.
+                  </div>
+                ) : (
+                  <div>
+                    {/* Tabs */}
+                    <div className="flex gap-2 mb-4 overflow-x-auto custom-scrollbar pb-2">
+                      {Object.keys(formData.capabilities).map(cap => (
+                        <div key={cap} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border cursor-pointer ${activeCapTab === cap ? 'bg-glass-3 border-accent text-accent' : 'bg-glass border-glass-edge text-text-secondary hover:text-text-primary'}`} onClick={() => setActiveCapTab(cap)}>
+                          <span className="text-xs font-bold uppercase">{cap}</span>
+                          <button onClick={(e) => { e.stopPropagation(); removeCapability(cap); }} className="hover:text-red-400 opacity-50 hover:opacity-100">
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
                     </div>
                     
-                    <div className="space-y-2 mt-4">
-                      <label className="text-[10px] uppercase font-mono tracking-widest text-text-secondary">Authorization Type</label>
-                      <select
-                        value={formData.execution?.authType || 'apikey'}
-                        onChange={e => handleExecutionChange('authType', e.target.value)}
-                        className="w-full bg-glass-pressed border border-glass-edge rounded-xl p-3 text-sm text-text-primary"
-                      >
-                        <option value="apikey">API Key / Bearer Token</option>
-                        <option value="oauth2">OAuth2 (Device Grant)</option>
-                      </select>
-                    </div>
+                    {/* Active Capability Panel */}
+                    {activeCapTab && formData.capabilities[activeCapTab] && (
+                      <div className="p-4 bg-glass border border-glass-edge rounded-xl space-y-4">
+                        {(formData.capabilities[activeCapTab].type === 'API' || formData.capabilities[activeCapTab].type === 'RPC') && (
+                          <>
+                            <div className="flex gap-2">
+                              <div className="w-1/3 space-y-2">
+                                <label className="text-[10px] uppercase font-mono tracking-widest text-text-secondary">Method</label>
+                                <select
+                                  value={formData.capabilities[activeCapTab].method || 'GET'}
+                                  onChange={e => handleCapabilityChange(activeCapTab, 'method', e.target.value)}
+                                  className="w-full bg-glass-pressed border border-glass-edge rounded-xl p-3 text-sm text-text-primary"
+                                >
+                                  <option value="GET">GET</option>
+                                  <option value="POST">POST</option>
+                                  <option value="PUT">PUT</option>
+                                  <option value="DELETE">DELETE</option>
+                                </select>
+                              </div>
+                              <div className="flex-1 space-y-2">
+                                <label className="text-[10px] uppercase font-mono tracking-widest text-text-secondary">Base URL</label>
+                                <input
+                                  type="text"
+                                  value={formData.capabilities[activeCapTab].baseUrl || ''}
+                                  onChange={e => handleCapabilityChange(activeCapTab, 'baseUrl', e.target.value)}
+                                  placeholder="https://api.example.com/v1"
+                                  className="w-full bg-glass-pressed border border-glass-edge rounded-xl p-3 text-sm text-text-primary"
+                                />
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-[10px] uppercase font-mono tracking-widest text-text-secondary">Endpoint Path</label>
+                              <input
+                                type="text"
+                                value={formData.capabilities[activeCapTab].endpoint || ''}
+                                onChange={e => handleCapabilityChange(activeCapTab, 'endpoint', e.target.value)}
+                                placeholder="/users"
+                                className="w-full bg-glass-pressed border border-glass-edge rounded-xl p-3 text-sm text-text-primary font-mono"
+                              />
+                            </div>
+                            
+                            <div className="space-y-2 mt-4">
+                              <label className="text-[10px] uppercase font-mono tracking-widest text-text-secondary">Authorization Type</label>
+                              <select
+                                value={formData.capabilities[activeCapTab].authType || 'apikey'}
+                                onChange={e => handleCapabilityChange(activeCapTab, 'authType', e.target.value)}
+                                className="w-full bg-glass-pressed border border-glass-edge rounded-xl p-3 text-sm text-text-primary"
+                              >
+                                <option value="apikey">API Key / Bearer Token</option>
+                                <option value="oauth2">OAuth2 (Device Grant)</option>
+                              </select>
+                            </div>
+                            
+                            {formData.capabilities[activeCapTab].authType === 'oauth2' ? (
+                              <div className="p-4 bg-glass-pressed border border-glass-edge rounded-xl space-y-4">
+                                <p className="text-xs text-text-secondary">OAuth2 Configuration</p>
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                <label className="text-[10px] uppercase font-mono tracking-widest text-text-secondary">Auth Header Secret (Vault Routed)</label>
+                                <input
+                                  type="password"
+                                  placeholder={formData.capabilities[activeCapTab].authHeadersVaultId ? "•••••••••••••••• (Secured in Vault)" : "Bearer token..."}
+                                  onBlur={async (e) => {
+                                    if (e.target.value && !e.target.value.includes('••••')) {
+                                      const vaultId = await handleStoreSecret(e.target.value);
+                                      if (vaultId) {
+                                          handleCapabilityChange(activeCapTab, 'authHeadersVaultId', vaultId);
+                                          e.target.value = "•••••••••••••••• (Secured in Vault)";
+                                      }
+                                    }
+                                  }}
+                                  className="w-full bg-glass-pressed border border-glass-edge rounded-xl p-3 text-sm text-text-primary"
+                                />
+                              </div>
+                            )}
+                          </>
+                        )}
+                        
+                        {(formData.capabilities[activeCapTab].type === 'MCP' || formData.capabilities[activeCapTab].type === 'CLI') && (
+                          <>
+                            {formData.capabilities[activeCapTab].type === 'MCP' && (
+                              <div className="space-y-2">
+                                <label className="text-[10px] uppercase font-mono tracking-widest text-text-secondary">Transport</label>
+                                <select
+                                  value={formData.capabilities[activeCapTab].transport || 'stdio'}
+                                  onChange={e => handleCapabilityChange(activeCapTab, 'transport', e.target.value)}
+                                  className="w-full bg-glass-pressed border border-glass-edge rounded-xl p-3 text-sm text-text-primary"
+                                >
+                                  <option value="stdio">stdio (Local Command)</option>
+                                  <option value="sse">SSE (Network)</option>
+                                </select>
+                              </div>
+                            )}
 
-                    {formData.execution?.authType === 'oauth2' ? (
-                      <div className="p-4 bg-glass-pressed border border-glass-edge rounded-xl space-y-4">
-                        <p className="text-xs text-text-secondary">
-                          Leveraging RFC 8628 Device Authorization Grant for sovereign, redirection-free authentication.
-                        </p>
-                        {oauthDeviceState.status === 'idle' && (
-                          <button onClick={initiateDeviceAuth} className="glass-btn glass-btn--primary">
-                            Begin Device Authorization
-                          </button>
+                            {(formData.capabilities[activeCapTab].type === 'CLI' || formData.capabilities[activeCapTab].transport === 'stdio') ? (
+                                <div className="space-y-2">
+                                  <label className="text-[10px] uppercase font-mono tracking-widest text-text-secondary">Execution Command</label>
+                                  <input
+                                      type="text"
+                                      value={formData.capabilities[activeCapTab].command || ''}
+                                      onChange={e => handleCapabilityChange(activeCapTab, 'command', e.target.value)}
+                                      className="w-full bg-glass-pressed border border-glass-edge rounded-xl p-3 text-sm text-text-primary font-mono"
+                                  />
+                                </div>
+                            ) : (
+                                <div className="space-y-2">
+                                  <label className="text-[10px] uppercase font-mono tracking-widest text-text-secondary">SSE URL</label>
+                                  <input
+                                      type="text"
+                                      value={formData.capabilities[activeCapTab].url || ''}
+                                      onChange={e => handleCapabilityChange(activeCapTab, 'url', e.target.value)}
+                                      className="w-full bg-glass-pressed border border-glass-edge rounded-xl p-3 text-sm text-text-primary"
+                                  />
+                                </div>
+                            )}
+                          </>
                         )}
-                        {oauthDeviceState.status === 'pending' && (
-                          <div className="space-y-2">
-                            <p className="text-sm text-accent">1. Visit: <a href={oauthDeviceState.verification_uri} target="_blank" rel="noreferrer" className="underline">{oauthDeviceState.verification_uri}</a></p>
-                            <p className="text-sm text-accent">2. Enter Code: <strong className="text-lg text-white">{oauthDeviceState.user_code}</strong></p>
-                            <p className="text-xs text-text-tertiary mt-2">Polling for token...</p>
-                          </div>
-                        )}
-                        {oauthDeviceState.status === 'success' && (
-                          <div className="flex items-center gap-2 text-green-400 text-sm">
-                            <CheckCircle className="w-5 h-5" /> OAuth2 Token Securely Vaulted
-                          </div>
-                        )}
-                        {oauthDeviceState.status === 'error' && (
-                          <div className="text-red-400 text-sm">{oauthDeviceState.message}</div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <label className="text-[10px] uppercase font-mono tracking-widest text-text-secondary">Auth Header Secret (Vault Routed)</label>
-                        <input
-                          type="password"
-                          placeholder={formData.execution?.authHeadersVaultId ? "•••••••••••••••• (Secured in Vault)" : "Bearer token or API Key... (Will be stored securely in Vault)"}
-                          onBlur={async (e) => {
-                            if (e.target.value && !e.target.value.includes('••••')) {
-                              const vaultId = await handleStoreSecret(e.target.value);
-                              if (vaultId) {
-                                  handleExecutionChange('authHeadersVaultId', vaultId);
-                                  e.target.value = "•••••••••••••••• (Secured in Vault)";
-                              }
-                            }
-                          }}
-                          className="w-full bg-glass-pressed border border-glass-edge rounded-xl p-3 text-sm text-text-primary"
-                        />
-                        <p className="text-[8px] text-accent">Secrets never touch the disk in plaintext. They are routed via VaultManager.</p>
                       </div>
                     )}
-                  </>
-                )}
-
-                {(formData.execution?.type === 'MCP' || formData.execution?.type === 'CLI') && (
-                  <>
-                    {formData.execution?.type === 'MCP' && (
-                      <div className="space-y-2">
-                        <label className="text-[10px] uppercase font-mono tracking-widest text-text-secondary">Transport</label>
-                        <select
-                          value={formData.execution?.transport || 'stdio'}
-                          onChange={e => handleExecutionChange('transport', e.target.value)}
-                          className="w-full bg-glass-pressed border border-glass-edge rounded-xl p-3 text-sm text-text-primary"
-                        >
-                          <option value="stdio">stdio (Local Command)</option>
-                          <option value="sse">SSE (Network)</option>
-                        </select>
-                      </div>
-                    )}
-
-                    {(formData.execution?.type === 'CLI' || formData.execution?.transport === 'stdio') ? (
-                        <div className="space-y-2">
-                          <label className="text-[10px] uppercase font-mono tracking-widest text-text-secondary">Execution Command</label>
-                          <input
-                              type="text"
-                              value={formData.execution?.command || ''}
-                              onChange={e => handleExecutionChange('command', e.target.value)}
-                              className="w-full bg-glass-pressed border border-glass-edge rounded-xl p-3 text-sm text-text-primary font-mono"
-                              placeholder="e.g. npx -y @modelcontextprotocol/server-postgres"
-                          />
-                        </div>
-                    ) : (
-                        <div className="space-y-2">
-                          <label className="text-[10px] uppercase font-mono tracking-widest text-text-secondary">SSE URL</label>
-                          <input
-                              type="text"
-                              value={formData.execution?.url || ''}
-                              onChange={e => handleExecutionChange('url', e.target.value)}
-                              className="w-full bg-glass-pressed border border-glass-edge rounded-xl p-3 text-sm text-text-primary"
-                          />
-                        </div>
-                    )}
-
-                    <div className="space-y-2 mt-6">
-                      <label className="text-[10px] uppercase font-mono tracking-widest text-text-secondary flex items-center gap-2">
-                        <Key className="w-3 h-3" /> Environment Variables (Vault Routed)
-                      </label>
-                      <div className="space-y-2">
-                        {Object.entries(formData.execution?.envVarsVaultId || {}).map(([key, vaultId]) => (
-                          <div key={key} className="flex gap-2 items-center">
-                            <span className="bg-glass-3 px-3 py-2 rounded text-xs font-mono text-text-primary">{key}</span>
-                            <span className="bg-glass-pressed px-3 py-2 rounded text-xs text-accent flex-1">•••••••••••••••• (Secured)</span>
-                            <button onClick={() => handleRemoveEnvVar(key)} className="p-2 hover:text-red-400 text-text-tertiary">
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="flex gap-2 mt-2">
-                        <input 
-                          type="text" 
-                          placeholder="ENV_KEY" 
-                          value={envVarKey}
-                          onChange={e => setEnvVarKey(e.target.value)}
-                          className="w-1/3 bg-glass-pressed border border-glass-edge rounded p-2 text-xs text-text-primary font-mono outline-none"
-                        />
-                        <input 
-                          type="password" 
-                          placeholder="Secret Value..." 
-                          value={envVarValue}
-                          onChange={e => setEnvVarValue(e.target.value)}
-                          className="flex-1 bg-glass-pressed border border-glass-edge rounded p-2 text-xs text-text-primary outline-none"
-                        />
-                        <button onClick={handleAddEnvVar} className="bg-glass-3 hover:bg-glass-edge px-3 rounded text-xs text-text-primary">Add</button>
-                      </div>
-                    </div>
-                  </>
+                  </div>
                 )}
               </div>
             )}

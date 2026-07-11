@@ -293,12 +293,12 @@ async def ingest_tool(payload: Dict[str, Any] = Body(...)):
     
     if ingest_type == "smart_ingest":
         from sse_starlette.sse import EventSourceResponse
-        from ..services.ingestion_dag import IngestionDAG
+        from ..ingestion_services.ingestion_dag import IngestionDAG
         from ..inference.router import ModelRouter
         from ..config import settings
         from .. import services
         import json
-        import backend.services.scraper as scraper_module
+        import backend.ingestion_services.scraper as scraper_module
         
         urls = payload.get("urls", [])
         user_prompt = payload.get("user_prompt", "")

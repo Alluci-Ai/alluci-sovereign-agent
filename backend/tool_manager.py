@@ -32,16 +32,16 @@ class ToolManifest(BaseModel):
     id: str
     name: str
     description: Optional[str] = None
-    category: str = Field(default="TOOL")
+    category: str = Field(default="TOOL") # Deprecated, use capabilities keys
     parameters: Optional[Dict[str, Any]] = None
-    capabilities: Optional[List[str]] = None
+    capabilities: Optional[Dict[str, ToolExecution]] = Field(default_factory=dict)
     dependencies: Optional[List[str]] = None
     verified: bool = False
     source: str = "vault"
     last_active: Optional[str] = None
     error: Optional[str] = None
     reference_docs: Optional[List[str]] = None
-    execution: Optional[ToolExecution] = None
+    execution: Optional[ToolExecution] = None # Deprecated, use capabilities dict
     schema: Optional[ToolSchema] = None
     permissions: Optional[List[str]] = None
 
