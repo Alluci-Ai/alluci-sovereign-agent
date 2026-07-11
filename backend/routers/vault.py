@@ -151,4 +151,22 @@ async def get_backup_status():
             status_map[vault_id] = "ERROR"
     return {"vault_status": status_map}
 
+class ToolSecretPayload(BaseModel):
+    secret_value: str
+
+@router.post("/vault/tool-secrets", dependencies=[Depends(verify_authenticated)])
+async def store_tool_secret(payload: ToolSecretPayload):
+    """Securely stores a generic tool secret and returns a Vault reference ID."""
+    if not services.vault:
+        raise HTTPException(status_code=503, detail="Vault not ready")
+    
+    import uuid
+    vault_id = f"vault_ref_{uuid.uuid4().hex}"
+    try:
+        await services.vault.store_secret(vault_id, {"secret": payload.secret_value})
+        return {"status": "SUCCESS", "vault_id": vault_id}
+    except Exception as e:
+        logger.error(f"Failed to store tool secret: {e}")
+        raise HTTPException(status_code=500, detail="Failed to store secret in Vault")
+
 # End of vault router

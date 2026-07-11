@@ -105,11 +105,39 @@ export interface SkillManifest {
 export interface ToolManifest {
   id: string;
   name: string;
-  category: 'BRIDGE' | 'MCP' | 'TOOL' | string;
+  category: 'API' | 'MCP' | 'CLI' | 'RPC' | 'TOOL' | string;
   description: string;
   enabled: boolean;
-  params: string;
+  
+  // Dynamic Execution Routing
+  execution?: {
+    type: 'API' | 'MCP' | 'CLI' | 'RPC';
+    baseUrl?: string;           // API
+    endpoint?: string;          // API
+    method?: string;            // API
+    authType?: string;          // API/OAuth2
+    authHeadersVaultId?: string; // Vault reference ID
+    transport?: 'stdio' | 'sse'; // MCP
+    command?: string;           // MCP/CLI
+    url?: string;               // MCP (SSE)
+    envVarsVaultId?: Record<string, string>;     // Vault reference IDs for Environment Variables
+    sandboxed?: boolean;        // CLI
+  };
+  
+  // Strict Parameter Validation
+  schema?: {
+    type: 'object';
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    properties: Record<string, any>;
+    required: string[];
+  };
+  
+  // Legacy or simplified params
+  params?: string;
   reference_docs?: string[];
+  
+  // Security PCL (Permission Control List)
+  permissions?: string[];
 }
 
 export enum SoulHumor {

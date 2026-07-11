@@ -10,6 +10,24 @@ from .security.vault import VaultManager
 logger = get_logger("ToolManager")
 
 
+class ToolExecution(BaseModel):
+    type: str
+    baseUrl: Optional[str] = None
+    endpoint: Optional[str] = None
+    method: Optional[str] = None
+    authType: Optional[str] = None
+    authHeadersVaultId: Optional[str] = None
+    transport: Optional[str] = None
+    command: Optional[str] = None
+    url: Optional[str] = None
+    envVarsVaultId: Optional[Dict[str, str]] = None
+    sandboxed: Optional[bool] = None
+
+class ToolSchema(BaseModel):
+    type: str = "object"
+    properties: Dict[str, Any]
+    required: List[str]
+
 class ToolManifest(BaseModel):
     id: str
     name: str
@@ -23,6 +41,9 @@ class ToolManifest(BaseModel):
     last_active: Optional[str] = None
     error: Optional[str] = None
     reference_docs: Optional[List[str]] = None
+    execution: Optional[ToolExecution] = None
+    schema: Optional[ToolSchema] = None
+    permissions: Optional[List[str]] = None
 
 class ToolManager:
     def __init__(self, vault: VaultManager, tools_dir: Optional[str] = None, workspace_tools_dir: Optional[str] = "alluci_vault/tools"):

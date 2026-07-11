@@ -7,6 +7,7 @@ interface ToolsPanelProps {
     onToggle: (id: string) => void;
     onDelete: (id: string) => void;
     onCreate: () => void;
+    onImport?: (tool: Partial<ToolManifest>) => void;
 }
 
 export const ToolsPanel: React.FC<ToolsPanelProps> = ({
@@ -14,10 +15,41 @@ export const ToolsPanel: React.FC<ToolsPanelProps> = ({
     onSelect,
     onToggle,
     onDelete,
-    onCreate
+    onCreate,
+    onImport
 }) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
+
+    const handleExport = (tool: ToolManifest) => {
+        const exportable = JSON.parse(JSON.stringify(tool));
+        if (exportable.execution) {
+            delete exportable.execution.authHeadersVaultId;
+            delete exportable.execution.envVarsVaultId;
+        }
+        const blob = new Blob([JSON.stringify(exportable, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${tool.id}_exported.stp`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
+    const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            try {
+                const parsed = JSON.parse(ev.target?.result as string);
+                if (onImport) onImport(parsed);
+            } catch(err) {
+                alert('Invalid .stp package');
+            }
+        };
+        reader.readAsText(file);
+    };
 
     const checkStatus = (tool: ToolManifest) => {
         if (statusFilter === 'all') return true;
@@ -52,6 +84,10 @@ export const ToolsPanel: React.FC<ToolsPanelProps> = ({
                 </div>
 
                 <div className="flex items-center gap-4">
+                    <label className="glass-btn cursor-pointer" style={{ fontSize: 12, padding: '8px 16px', height: '100%', margin: 0 }}>
+                        Import .stp
+                        <input type="file" accept=".stp,.json" style={{ display: 'none' }} onChange={handleImport} />
+                    </label>
                     <button onClick={onCreate} className="glass-btn glass-btn--primary" style={{ fontSize: 12, padding: '8px 16px', height: '100%' }}>
                         + Build Native Tool
                     </button>
@@ -133,6 +169,11 @@ export const ToolsPanel: React.FC<ToolsPanelProps> = ({
                                             <p style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-quaternary)', textTransform: 'uppercase' }}>{tool.category} · {tool.id}</p>
                                         </div>
                                         <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); handleExport(tool); }}
+                                                className="opacity-0 group-hover:opacity-100 transition-opacity bg-transparent border-none text-accent text-sm p-1 hover:bg-accent/10 rounded"
+                                                title="Export Sovereign Package (.stp)"
+                                            >↓</button>
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); onDelete(tool.id); }}
                                                 className="opacity-0 group-hover:opacity-100 transition-opacity bg-transparent border-none text-status-error text-sm p-1 hover:bg-status-error/10 rounded"
