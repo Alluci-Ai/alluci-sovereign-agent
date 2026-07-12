@@ -10,6 +10,12 @@ import {
     ToolManifest
 } from '../types';
 
+export interface AvailableModel {
+    id: string;
+    name: string;
+    category: string;
+}
+
 export type ActiveView =
     | 'chat' | 'soul' | 'skills' | 'tools' | 'bridges' | 'memory'
     | 'api' | 'tasks' | 'files' | 'audit' | 'canvas'
@@ -260,9 +266,14 @@ export interface AppState {
 
     // Hydration
     hydrate: () => Promise<void>;
+
+    // Models
+    availableModels: AvailableModel[];
+    setAvailableModels: (models: AvailableModel[]) => void;
+    loadAvailableModels: (token: string) => Promise<void>;
 }
 
-export const useStore = create<AppState>((set) => ({
+export const useStore = create<AppState>((set, get) => ({
     // Connection & System Status
     isConnected: false,
     daemonStatus: 'OFFLINE',
@@ -493,6 +504,25 @@ export const useStore = create<AppState>((set) => ({
     setAttachments: (val) => set((state) => ({
         attachments: typeof val === 'function' ? val(state.attachments) : val
     })),
+
+    availableModels: [],
+    setAvailableModels: (models) => set({ availableModels: models }),
+    loadAvailableModels: async (token) => {
+        try {
+            const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || '';
+            const res = await fetch(`${DAEMON_URL}/api/v1/models/available`, {
+                headers: { 'Authorization': `Bearer ${token}` },
+                credentials: 'include'
+            });
+            if (res.ok) {
+                const data = await res.json();
+                set({ availableModels: data.models || [] });
+            }
+        } catch (err) {
+            console.error('Failed fetching available models:', err);
+        }
+    },
+
     hydrate: async () => {
         const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || '';
         // Only attempt hydration if the session signal cookie exists
@@ -508,10 +538,15 @@ export const useStore = create<AppState>((set) => ({
                         baseManifest: data.soul,
                         connections: data.connections
                     });
+                    
+                    const token = get().accessToken;
+                    if (token) {
+                        await get().loadAvailableModels(token);
+                    }
                 }
             }
         } catch (e) {
             console.warn("[ HYDRATE ]: Failed to restore session", e);
         }
     },
-}));
+}))

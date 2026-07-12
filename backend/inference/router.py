@@ -76,7 +76,7 @@ class ModelRouter(ExecutiveRouter):
         if self.lce_enabled:
             self.logger.info("Local Cognitive Engine (LCE) via MLX initialized.")
             try:
-                import alluci_core
+                from backend import alluci_core
                 self.secure_proxy = alluci_core.AlluciSovereignRouter()
             except Exception as e:
                 self.logger.error(f"Failed to load C++ proxy: {e}")
@@ -824,7 +824,7 @@ class ModelRouter(ExecutiveRouter):
                 # Check PII Override setting from the DB
                 pii_override = False
                 agent_model = "gpt-4o"
-                agent_fallback = "gemini-flash,claude-haiku"
+                agent_fallback = None
                 engine_manifest = {}
                 
                 try:
@@ -842,6 +842,12 @@ class ModelRouter(ExecutiveRouter):
                                     pass
                 except Exception as e:
                     self.logger.error(f"Failed to load agent record {agent_id}: {e}")
+                    
+                if not agent_fallback:
+                    from ..engine.hardware_scanner import HardwareScanner
+                    # Estimate context size based on character length of the prompt (roughly ~4 chars per token)
+                    context_size = len(str(prompt)) // 4
+                    agent_fallback = HardwareScanner.get_optimal_local_fallback_chain(context_size=context_size)
 
                 if data_region == "EU":
                     self.logger.info("[COMPLIANCE] DATA_REGION=EU. Hard-locking AlluciSecureProxy to mathematically guarantee no PII egress.")

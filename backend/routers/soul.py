@@ -9,6 +9,7 @@ from .. import services
 from ..security.rate_limit import RateLimiter
 from fastapi_csrf_protect import CsrfProtect
 from ..config import settings
+from sqlalchemy.orm.attributes import flag_modified
 
 logger = get_logger("SoulRouter")
 
@@ -102,6 +103,7 @@ async def update_soul_profile(request: Request, profile_id: str, data: dict = Bo
         profile.description = data["description"]
     if "manifest" in data:
         profile.manifest = data["manifest"]
+        flag_modified(profile, "manifest")
         
     session.add(profile)
     session.commit()

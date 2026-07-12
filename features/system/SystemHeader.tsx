@@ -89,7 +89,7 @@ const SystemHeader: React.FC<SystemHeaderProps> = ({
                 <div className="flex items-center gap-2">
                     <AgentContextSelector />
                     
-                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-white/5 border border-white/10" title={
+                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-[var(--fill-quaternary)] border border-[var(--separator)]" title={
                         flowMode === 'DEEP_WORK' ? 'Silencing non-emergency bridge notifications.' :
                         flowMode === 'PEAK_PERFORMANCE' ? 'Accelerated task execution and deep research enabled.' :
                         flowMode === 'RECOVERY_MODE' ? 'Reducing cognitive load. Compacting memories.' :
@@ -128,7 +128,7 @@ const SystemHeader: React.FC<SystemHeaderProps> = ({
                 {/* Theme toggle */}
                 <button
                     onClick={toggleTheme}
-                    className="topbar__theme-btn"
+                    className="topbar__theme-btn rounded-full"
                     title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
                 >
                     {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}

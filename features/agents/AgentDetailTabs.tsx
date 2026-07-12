@@ -21,13 +21,12 @@ interface AgentDetailProps {
 }
 
 export const AgentDetailTabs: React.FC<AgentDetailProps> = ({ agentId, onBack }) => {
-    const { accessToken } = useStore();
+    const { accessToken, availableModels } = useStore();
     const [activeTab, setActiveTab] = useState<'overview' | 'workspace' | 'tools' | 'channels' | 'heartbeat' | 'skills' | 'engine'>('overview');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [agent, setAgent] = useState<any>(null);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [heartbeatHistory, setHeartbeatHistory] = useState<any[]>([]);
-    const [availableModels, setAvailableModels] = useState<{id: string, name: string, category: string}[]>([]);
     const [availableProfiles, setAvailableProfiles] = useState<{id: string, name: string}[]>([]);
     const [saving, setSaving] = useState(false);
     const [showPiiModal, setShowPiiModal] = useState(false);
@@ -63,20 +62,7 @@ export const AgentDetailTabs: React.FC<AgentDetailProps> = ({ agentId, onBack })
                 console.error('Failed fetching agent mapping:', err);
             }
         };
-        const loadModels = async () => {
-            try {
-                const res = await fetch(`${DAEMON_URL}/api/v1/models/available`, {
-                    headers: { 'Authorization': `Bearer ${accessToken}` },
-                    credentials: 'include'
-                });
-                if (res.ok) {
-                    const data = await res.json();
-                    setAvailableModels(data.models || []);
-                }
-            } catch (err) {
-                console.error('Failed fetching available models:', err);
-            }
-        };
+
         const loadProfiles = async () => {
             try {
                 const res = await fetch(`${DAEMON_URL}/api/v1/soul/profiles`, {
@@ -92,7 +78,6 @@ export const AgentDetailTabs: React.FC<AgentDetailProps> = ({ agentId, onBack })
             }
         };
         load();
-        loadModels();
         loadProfiles();
         if (activeTab === 'heartbeat') fetchHeartbeatHistory();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -194,13 +179,28 @@ export const AgentDetailTabs: React.FC<AgentDetailProps> = ({ agentId, onBack })
                                 />
                             </div>
 
-                            <div className="flex flex-col gap-1">
-                                <label className="text-[10px] text-text-tertiary">Designation Description</label>
-                                <input
-                                    className="glass-input text-xs w-full"
-                                    value={agent.description || ''}
-                                    onChange={e => setAgent({ ...agent, description: e.target.value })}
-                                />
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="flex flex-col gap-1">
+                                    <label className="text-[10px] text-text-tertiary">Operational Status</label>
+                                    <select
+                                        className="glass-input text-xs w-full bg-glass-1 border border-glass-edge text-text-primary py-2 px-3 rounded-lg"
+                                        value={agent.status || 'DRAFT'}
+                                        onChange={e => setAgent({ ...agent, status: e.target.value })}
+                                    >
+                                        <option value="DRAFT">Draft (Offline)</option>
+                                        <option value="READY">Ready (Standby)</option>
+                                        <option value="ACTIVE">Active (Online)</option>
+                                        <option value="ERROR">Error (Halted)</option>
+                                    </select>
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                    <label className="text-[10px] text-text-tertiary">Designation Description</label>
+                                    <input
+                                        className="glass-input text-xs w-full h-[34px]"
+                                        value={agent.description || ''}
+                                        onChange={e => setAgent({ ...agent, description: e.target.value })}
+                                    />
+                                </div>
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">

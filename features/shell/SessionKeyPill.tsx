@@ -43,8 +43,8 @@ export const SessionKeyPill: React.FC = () => {
             className="flex items-center gap-1.5 bg-glass-1 hover:bg-glass-hover rounded-full border border-glass-edge px-2.5 h-6 transition-colors shadow-sm"
             title="Active Session Key"
         >
-            <KeyRound size={10} className="text-text-tertiary" />
-            <span className="text-[10px] font-mono tracking-wider text-text-secondary">
+            <KeyRound size={10} className="text-[var(--text-secondary)]" />
+            <span className="text-[10px] font-mono tracking-wider text-[var(--text-primary)]">
                 {activeSessionKey ? activeSessionKey.slice(0, 8) : 'NEW_SESS'}
             </span>
         </button>

@@ -280,7 +280,7 @@ export const HeartbeatOrderEditor: React.FC<Props> = ({ initialOrders, onSave, a
       <div className="pt-6 flex justify-end">
         <button 
           onClick={() => onSave(orders)}
-          className="px-6 py-2 bg-zinc-100 hover:bg-white text-zinc-950 rounded-xl flex items-center gap-2 font-bold transition-all shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:scale-[1.02]"
+          className="identity-update-btn px-6 py-2 rounded-xl flex items-center gap-2 font-bold transition-all hover:scale-[1.02]"
         >
           <Save className="w-4 h-4" />
           Update Identities

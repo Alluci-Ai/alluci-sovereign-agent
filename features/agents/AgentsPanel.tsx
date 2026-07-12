@@ -86,15 +86,16 @@ export const AgentsPanel: React.FC = () => {
                                     <th>Engine Core</th>
                                     <th>Link Status</th>
                                     <th>Active Skills</th>
+                                    <th>Active Tools</th>
                                     <th>Channels / Bridges</th>
                                     <th>Settings</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {loading && agents.length === 0 ? (
-                                    <tr><td colSpan={8} className="text-center py-8 opacity-50 text-[10px] font-mono tracking-widest">BOOTING_AGENT_ARRAY...</td></tr>
+                                    <tr><td colSpan={9} className="text-center py-8 opacity-50 text-[10px] font-mono tracking-widest">BOOTING_AGENT_ARRAY...</td></tr>
                                 ) : agents.length === 0 ? (
-                                    <tr><td colSpan={8} className="text-center py-8 opacity-50">No independent agents initialized.</td></tr>
+                                    <tr><td colSpan={9} className="text-center py-8 opacity-50">No independent agents initialized.</td></tr>
                                 ) : (
                                     agents.map(agent => (
                                         <tr
@@ -121,6 +122,7 @@ export const AgentsPanel: React.FC = () => {
                                                 </span>
                                             </td>
                                             <td className="text-center">{agent.active_skills || 0}</td>
+                                            <td className="text-center">{agent.active_tools || 0}</td>
                                             <td>
                                                 <div className="flex items-center justify-center gap-1 opacity-70">
                                                     <Network size={12} /> {agent.channels || 0}

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Search, X } from 'lucide-react';
+import { useStore } from '../../store/useStore';
 
 export interface TokenFilterState {
     query: string;
@@ -12,6 +13,7 @@ interface TokenFilterBarProps {
 }
 
 export const TokenFilterBar: React.FC<TokenFilterBarProps> = ({ onFilterChange }) => {
+    const { availableModels } = useStore();
     const [query, setQuery] = useState('');
     const [model, setModel] = useState<string>('');
     const [minTokens, setMinTokens] = useState<number | ''>('');
@@ -50,11 +52,11 @@ export const TokenFilterBar: React.FC<TokenFilterBarProps> = ({ onFilterChange }
                     className="glass-input text-xs w-32"
                 >
                     <option value="">All Models</option>
-                    <option value="gemini-1.5-pro">Gemini Pro</option>
-                    <option value="gemini-1.5-flash">Gemini Flash</option>
-                    <option value="claude-3-5-sonnet">Claude 3.5</option>
-                    <option value="gpt-4o">GPT-4o</option>
-                    <option value="deepseek-chat">DeepSeek</option>
+                    {availableModels.map(model => (
+                        <option key={model.id} value={model.id}>
+                            {model.name}
+                        </option>
+                    ))}
                 </select>
 
                 <input

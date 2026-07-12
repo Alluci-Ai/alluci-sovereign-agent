@@ -24,6 +24,7 @@ export const useSovereignConnection = (
     const connections = useStore(state => state.connections);
     const skills = useStore(state => state.skills);
     const accessToken = useStore(state => state.accessToken);
+    const loadAvailableModels = useStore(state => state.loadAvailableModels);
 
     const handleConnect = async () => {
         if (isConnected) {
@@ -35,6 +36,10 @@ export const useSovereignConnection = (
         }
 
         try {
+            if (accessToken) {
+                await loadAvailableModels(accessToken);
+            }
+
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             setAudioStream(stream);
 

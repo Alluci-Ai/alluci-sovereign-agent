@@ -273,7 +273,12 @@ const IdentityForge: React.FC<{ onClose: () => void; onManifestUpdate?: (manifes
                 },
                 body: JSON.stringify(payload)
             });
-            if (res.ok) { setIsDirty(false); }
+            if (res.ok) { 
+                setIsDirty(false); 
+                if (selectedProfileId) {
+                    setProfiles(profiles.map(p => p.id === selectedProfileId ? { ...p, manifest: manifest } : p));
+                }
+            }
             else if (res.status === 429) { alert("Biometric stress detected. Please calm down."); throw new Error("Throttled"); }
             else throw new Error("Backend Error");
         } catch (e) {

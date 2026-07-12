@@ -10,7 +10,7 @@ const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || '';
  * inference parameters bounds explicitly bound to the curren active session footprint.
  */
 export const SessionOverrides: React.FC = () => {
-    const { activeSessionKey, accessToken } = useStore();
+    const { activeSessionKey, accessToken, availableModels } = useStore();
     const [modelOverride, setModelOverride] = useState<string>('auto');
     const [thinkingLevel, setThinkingLevel] = useState<string>('MEDIUM');
     const [isSaving, setIsSaving] = useState(false);
@@ -63,11 +63,11 @@ export const SessionOverrides: React.FC = () => {
                     className="glass-input text-xs w-full"
                 >
                     <option value="auto">Auto (Router Handled)</option>
-                    <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
-                    <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
-                    <option value="claude-3-5-sonnet">Claude 3.5 Sonnet</option>
-                    <option value="gpt-4o">GPT-4o</option>
-                    <option value="deepseek-reasoner">DeepSeek R1</option>
+                    {availableModels.map(model => (
+                        <option key={model.id} value={model.id}>
+                            {model.category === 'Local' ? `💻 ${model.name}` : `☁️ ${model.name}`}
+                        </option>
+                    ))}
                 </select>
             </div>
 

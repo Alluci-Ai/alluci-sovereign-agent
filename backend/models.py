@@ -339,7 +339,7 @@ class AgentRecord(SQLModel, table=True):
     status: str = Field(index=True)
     model: str = Field(default="gpt-4o")
     description: Optional[str] = Field(default=None)
-    fallback_chain: Optional[str] = Field(default="gemini-flash,claude-haiku")
+    fallback_chain: Optional[str] = Field(default=None)
     pii_override_enabled: bool = Field(default=False)
     system_prompt: Optional[str] = Field(default=None)
     # Optional JSON field for heartbeat orders

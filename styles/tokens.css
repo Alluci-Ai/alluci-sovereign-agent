@@ -399,7 +399,7 @@ body {
     border-radius: var(--radius-full);
     font-size: var(--text-caption2);
     font-weight: 500;
-    color: var(--text-tertiary);
+    color: var(--text-secondary);
     background: transparent;
     border: none;
     cursor: pointer;
@@ -1334,6 +1334,30 @@ body {
 .glass-btn--danger:active {
     background: rgba(255, 69, 58, 0.35);
     border-color: rgba(255, 69, 58, 0.50);
+}
+
+/* ── Identity Update Button ── */
+.identity-update-btn {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white;
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.05);
+}
+
+[data-theme="light"] .identity-update-btn {
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    color: rgba(0, 0, 0, 0.9);
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.05);
+}
+
+.identity-update-btn:hover {
+    background: white;
+    color: black;
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
+}
+
+[data-theme="light"] .identity-update-btn:hover {
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.15);
 }
 
 /* 7.3 Glass Input — Liquid Glass Tactile */

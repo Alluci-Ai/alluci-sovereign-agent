@@ -65,3 +65,41 @@ class HardwareScanner:
 
         return f"{prefix}-{variant}"
 
+    @staticmethod
+    def get_optimal_local_fallback_chain(context_size: int = 0) -> str:
+        """
+        Returns a progressive chain of local models formatted for the fallback router (e.g., 'local/xxx,local/yyy').
+        Considers available RAM and context size to prevent OOM.
+        """
+        try:
+            import psutil
+            available_ram_gb = psutil.virtual_memory().available / (1024**3)
+        except ImportError:
+            available_ram_gb = 16.0 # Safe default if psutil is missing
+            
+        from ..config import settings
+        
+        # High context demands more KV cache, reducing model size capacity
+        effective_ram = available_ram_gb
+        if context_size > 32000:
+            effective_ram *= 0.5
+        elif context_size > 8000:
+            effective_ram *= 0.75
+            
+        chain = []
+        if effective_ram >= 32:
+            chain.append(f"local/{settings.LOCAL_MODEL_MAX}")
+        if effective_ram >= 24:
+            chain.append(f"local/{settings.LOCAL_MODEL_STRONG}")
+        if effective_ram >= 16:
+            chain.append(f"local/{settings.LOCAL_MODEL_MEDIUM}")
+        if effective_ram >= 8:
+            chain.append(f"local/{settings.LOCAL_MODEL_LIGHT}")
+            
+        chain.append(f"local/{settings.LOCAL_MODEL_LITE}")
+        
+        # Remove duplicates while preserving order
+        seen = set()
+        deduped = [x for x in chain if not (x in seen or seen.add(x))]
+        
+        return ",".join(deduped)

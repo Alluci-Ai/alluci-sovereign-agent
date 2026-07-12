@@ -93,15 +93,25 @@ async def list_agents():
             else:
                 channels = len(channels_query)
             
+            active_tools = 0
+            if a.tools_manifest:
+                try:
+                    t_manifest = json.loads(a.tools_manifest)
+                    active_tools = sum(1 for v in t_manifest.values() if v.get("enabled"))
+                except Exception:
+                    pass
+
             result.append({
                 "id": a.id,
                 "name": a.name,
                 "model": a.model,
                 "status": a.status,
                 "description": a.description,
-                "fallback_chain": a.fallback_chain,
+                "fallback": a.fallback_chain,
+                "soul_profile_id": a.soul_profile_id,
                 "engine_manifest": json.loads(a.engine_manifest or "{}"),
                 "active_skills": active_skills,
+                "active_tools": active_tools,
                 "channels": channels,
                 "heartbeat_orders": json.loads(a.heartbeat_orders or "[]"),
                 "created_at": a.created_at.isoformat() if a.created_at else None,
@@ -144,8 +154,9 @@ async def get_agent(agent_id: str):
             "model": agent.model,
             "status": agent.status,
             "description": agent.description,
-            "fallback_chain": agent.fallback_chain,
+            "fallback": agent.fallback_chain,
             "system_prompt": agent.system_prompt,
+            "soul_profile_id": agent.soul_profile_id,
             "engine_manifest": json.loads(agent.engine_manifest or "{}"),
             "active_skills": active_skills,
             "channels": channels,
@@ -175,7 +186,7 @@ async def create_agent(request: Request, payload: Dict[str, Any] = Body(...), cs
         name=payload.get("name", "New Agent"),
         description=payload.get("description"),
         model=payload.get("model", "gpt-4o"),
-        fallback_chain=payload.get("fallback_chain", "gemini-flash,claude-haiku"),
+        fallback_chain=payload.get("fallback_chain"),
         pii_override_enabled=payload.get("pii_override_enabled", False),
         status=payload.get("status", "DRAFT"),
         system_prompt=payload.get("system_prompt"),
@@ -223,9 +234,12 @@ async def update_agent(request: Request, agent_id: str, payload: Dict[str, Any] 
         if not agent:
             raise HTTPException(status_code=404, detail="Agent not found")
 
-        for field_name in ("name", "status", "description", "system_prompt", "pii_override_enabled"):
+        for field_name in ("name", "status", "description", "system_prompt", "pii_override_enabled", "soul_profile_id"):
             if field_name in payload:
                 setattr(agent, field_name, payload[field_name])
+                
+        if "fallback" in payload:
+            agent.fallback_chain = payload["fallback"]
 
         # Load existing manifest
         try:
@@ -549,6 +563,17 @@ async def update_agent_skills(request: Request, agent_id: str, payload: Dict[str
             raise HTTPException(status_code=404, detail="Agent not found")
             
         agent.skills_manifest = json.dumps(skills_manifest)
+        
+        # Sync AgentSkillBinding
+        from ..models import AgentSkillBinding
+        existing_bindings = session.exec(select(AgentSkillBinding).where(AgentSkillBinding.agent_id == agent_id)).all()
+        for b in existing_bindings:
+            session.delete(b)
+            
+        for skill_id in skills_manifest.keys():
+            new_binding = AgentSkillBinding(agent_id=agent_id, skill_id=skill_id)
+            session.add(new_binding)
+            
         session.add(agent)
         session.commit()
         

@@ -61,7 +61,7 @@ async def scan_local_models() -> List[Dict[str, str]]:
     local_models = []
     
     # Check common MLX / HF cache or model_forge directories
-    forge_path = os.path.join(os.getcwd(), "model_forge", "mirror_cache")
+    forge_path = os.path.join(os.getcwd(), "mirror_cache")
     if os.path.exists(forge_path):
         for item in os.listdir(forge_path):
             if os.path.isdir(os.path.join(forge_path, item)) and not item.startswith("."):
