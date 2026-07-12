@@ -191,6 +191,11 @@ const ToolBuilderWizard: React.FC<ToolBuilderWizardProps> = ({ onClose }) => {
       const isSSEStream = isSmart || responseContentType.includes('text/event-stream');
       
       if (isSSEStream && res.body) {
+        if (!isSmart) {
+            console.log("[AutoConfig] Backend rerouted to Smart Ingestion. Updating UI view.");
+            setAutoConfigType('smart_ingest');
+            setAutoConfigUrls([effectiveUrl]);
+        }
         const reader = res.body.getReader();
         const decoder = new TextDecoder('utf-8');
         let buffer = '';

@@ -20,7 +20,7 @@ except ImportError:
         chromium = _DummyChromium()
         async def __aenter__(self): return self
         async def __aexit__(self, exc_type, exc, tb): pass
-    async def async_playwright():
+    def async_playwright():
         return _DummyPlaywright()
 
 
@@ -114,9 +114,16 @@ async def fetch_all_markdown(
     Fetches multiple URLs concurrently. If deep_crawl is True, performs a BFS within the same domain.
     """
     if not deep_crawl:
-        tasks = [fetch_and_extract_markdown(url, timeout) for url in urls]
+        async def fetch_with_progress(i, url):
+            if progress_callback:
+                await progress_callback(f"Crawled {i}/{len(urls)} pages: {url}")
+            res = await fetch_and_extract_markdown(url, timeout)
+            if progress_callback:
+                await progress_callback(f"Crawled {i+1}/{len(urls)} pages: {url}")
+            return res
+
+        tasks = [fetch_with_progress(i, url) for i, url in enumerate(urls)]
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        
         valid_results: list[str] = []
         for r in results:
             if isinstance(r, str):
@@ -195,6 +202,10 @@ async def fetch_all_markdown(
                 soup = BeautifulSoup(html, "html.parser")
                 for a_tag in soup.find_all("a", href=True):
                     href = a_tag["href"]
+                    if isinstance(href, list):
+                        href = href[0] if href else ""
+                    href = str(href)
+                    
                     # Ignore mailto, javascript, tel, etc.
                     if href.startswith(("mailto:", "javascript:", "tel:", "#")):
                         continue

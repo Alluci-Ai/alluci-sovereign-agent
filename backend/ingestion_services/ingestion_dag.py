@@ -98,7 +98,7 @@ class IngestionDAG:
             md = doc["content"]
             yield {"type": "progress", "message": f"Extracting {cat} specs for Link {i+1}..."}
             
-            ext_sys_prompt = "Extract dense technical specifications. Discard fluff. Output as JSON."
+            ext_sys_prompt = "Extract dense technical specifications. Discard fluff. Output as strict JSON with double quotes and NO trailing commas."
             if cat in ("REST_API", "JSON_RPC"):
                 ext_sys_prompt += " Focus on endpoints, methods, headers, and payload schemas."
             elif cat == "CLI_COMMAND":
@@ -135,7 +135,8 @@ class IngestionDAG:
             "     \"cli\": {\"type\": \"CLI\", \"sandboxed\": true}\n"
             "  },\n"
             "  \"schema\": {\"type\": \"object\", \"properties\": {...}, \"required\": [...]}\n"
-            "}\n\n"
+            "}\n"
+            "IMPORTANT: Output MUST be strict valid JSON. Use ONLY double quotes and ensure there are NO trailing commas.\n"
         )
         if user_prompt:
             synth_prompt += f"\nUser specifically requested: {user_prompt}\n"

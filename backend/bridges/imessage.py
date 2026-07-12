@@ -288,8 +288,7 @@ class IMessageBridge(BridgeAdapter):
         LEFT JOIN message_attachment_join
                                      ON message_attachment_join.message_id = message.ROWID
         LEFT JOIN attachment         ON attachment.ROWID = message_attachment_join.attachment_id
-        WHERE message.is_from_me = 0
-          AND message.ROWID > {cursor}
+        WHERE message.ROWID > {cursor}
         GROUP BY message.ROWID
         ORDER BY message.ROWID ASC
         LIMIT {limit};

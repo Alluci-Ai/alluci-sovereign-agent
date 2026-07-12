@@ -1076,7 +1076,11 @@ Schema:
                 # Fallback regex if there is extra text
                 json_match = re.search(r'(\{.*\}|\[.*\])', res_clean, re.DOTALL)
                 if json_match:
-                    parsed = json.loads(json_match.group(0))
+                    json_str = json_match.group(0)
+                    # Strip trailing commas
+                    json_str = re.sub(r',\s*\}', '}', json_str)
+                    json_str = re.sub(r',\s*\]', ']', json_str)
+                    parsed = json.loads(json_str)
                     if isinstance(parsed, list):
                         return {"steps": parsed}
                     return parsed
