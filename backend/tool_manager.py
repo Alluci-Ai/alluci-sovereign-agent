@@ -1,8 +1,8 @@
 import yaml  # type: ignore
 import os
 from .logging_config import get_logger
-from typing import List, Dict, Any, Optional
-from pydantic import BaseModel, Field
+from typing import List, Dict, Any, Optional, Union
+from pydantic import BaseModel, Field, field_validator
 
 from datetime import datetime
 from .security.vault import VaultManager
@@ -34,7 +34,7 @@ class ToolManifest(BaseModel):
     description: Optional[str] = None
     category: str = Field(default="TOOL") # Deprecated, use capabilities keys
     parameters: Optional[Dict[str, Any]] = None
-    capabilities: Optional[Dict[str, ToolExecution]] = Field(default_factory=dict)
+    capabilities: Optional[Union[Dict[str, ToolExecution], List[str]]] = Field(default_factory=dict)
     dependencies: Optional[List[str]] = None
     verified: bool = False
     source: str = "vault"
@@ -44,6 +44,15 @@ class ToolManifest(BaseModel):
     execution: Optional[ToolExecution] = None # Deprecated, use capabilities dict
     schema: Optional[ToolSchema] = None
     permissions: Optional[List[str]] = None
+
+    @field_validator('capabilities', mode='before')
+    @classmethod
+    def normalize_capabilities(cls, v: Any) -> Any:
+        """Accept both legacy List[str] format and new Dict format."""
+        if isinstance(v, list):
+            # Legacy format: convert list of capability names to empty dict entries
+            return {name: {'type': name.upper()} for name in v} if v else {}
+        return v
 
 class ToolManager:
     def __init__(self, vault: VaultManager, tools_dir: Optional[str] = None, workspace_tools_dir: Optional[str] = "alluci_vault/tools"):
