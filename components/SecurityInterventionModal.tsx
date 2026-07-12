@@ -51,6 +51,9 @@ export const SecurityInterventionModal: React.FC = () => {
     } else if (pendingSecurityResolution.exception_type === "BUDGET_EXCEEDED") {
         title = "Financial Circuit Breaker";
         icon = "💳";
+    } else if (pendingSecurityResolution.exception_type === "MANIFOLD_TEARING") {
+        title = "Manifold Tearing Detected";
+        icon = "⚠️";
     }
 
     return (
@@ -98,6 +101,16 @@ export const SecurityInterventionModal: React.FC = () => {
                                 disabled={loading}
                             >
                                 Temporarily Increase Budget & Resume
+                            </button>
+                        )}
+
+                        {pendingSecurityResolution.exception_type === "MANIFOLD_TEARING" && (
+                            <button
+                                className="security-btn btn-primary"
+                                onClick={() => handleAction("OVERRIDE_TEARING")}
+                                disabled={loading}
+                            >
+                                Authorize Topology Shift (Discovery Mode)
                             </button>
                         )}
 

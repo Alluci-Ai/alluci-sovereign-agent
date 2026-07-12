@@ -201,7 +201,7 @@ class Executor:
                 if not existing:
                     record = TaskRecord(
                         run_id=run_id,
-                        agent_id=agent_id,
+                        agent_id=task.assignee if hasattr(task, 'assignee') and task.assignee else agent_id,
                         task_dag_id=t_id,
                         action=task.action,
                         args=task.args,

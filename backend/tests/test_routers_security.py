@@ -91,6 +91,23 @@ def test_resolve_ignore_budget_llm(mock_manager):
     assert res.status_code == 200
     assert circuit_breaker.MAX_LLM_API_COST_PER_DAY == initial + 7.0
 
+@patch("backend.routers.security.resolution_manager")
+@patch("backend.routers.security.CalibrationManager")
+def test_resolve_override_tearing(mock_cm_class, mock_manager):
+    mock_cm_instance = mock_cm_class.return_value
+    res = client.post("/security/resolve", json={
+        "task_id": "task1",
+        "resolution_type": "OVERRIDE_TEARING",
+        "metadata": {"topology_shift": 2.5, "origin": "test_agent", "is_tool": True}
+    })
+    
+    assert res.status_code == 200
+    assert res.json()["action"] == "tearing_overridden"
+    
+    # Assert log_approved_trajectory is called with shift / 10.0
+    mock_cm_instance.log_approved_trajectory.assert_called_once_with(0.25, origin="test_agent", is_tool=True)
+    mock_manager.provide_resolution.assert_called_once_with("task1", "OVERRIDE_TEARING")
+
 def test_resolve_unknown():
     res = client.post("/security/resolve", json={
         "task_id": "task1",

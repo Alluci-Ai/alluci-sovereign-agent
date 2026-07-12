@@ -27,14 +27,15 @@ private:
     PolytopeState prev_state;
     bool initialized;
     int max_euler_deviation;
-    float tearing_threshold;
 
 public:
-    DiscreteProjectionKernel() : initialized(false), max_euler_deviation(2), tearing_threshold(0.15f) {
+    DiscreteProjectionKernel() : initialized(false), max_euler_deviation(2) {
         prev_state = PolytopeState();
     }
 
-    bool validate_manifold_integrity(const PolytopeState& current) {
+    bool validate_manifold_integrity(const PolytopeState& current, float dynamic_threshold, float* out_shift) {
+        if (out_shift) *out_shift = 0.0f;
+        
         if (current.hardware_status < 2) {
             // Bypass strict topological checks for synthetic/lite mode manifolds
             return true;
@@ -56,8 +57,9 @@ public:
             for(int i=0; i<4; i++) {
                 topology_shift += std::abs(current.betti[i] - prev_state.betti[i]);
             }
+            if (out_shift) *out_shift = topology_shift;
 
-            if (topology_shift > tearing_threshold * 10.0f) {
+            if (topology_shift > dynamic_threshold * 10.0f) {
                 return false; 
             }
         }
@@ -67,8 +69,8 @@ public:
         return true;
     }
 
-    bool authorize_execution(const PolytopeState& state) {
-        return validate_manifold_integrity(state);
+    bool authorize_execution(const PolytopeState& state, float dynamic_threshold, float* out_shift) {
+        return validate_manifold_integrity(state, dynamic_threshold, out_shift);
     }
 };
 
@@ -82,8 +84,8 @@ extern "C" {
         delete kernel;
     }
 
-    bool dpk_authorize(DiscreteProjectionKernel* kernel, const PolytopeState* state) {
+    bool dpk_authorize_dynamic(DiscreteProjectionKernel* kernel, const PolytopeState* state, float dynamic_threshold, float* out_shift) {
         if (!kernel || !state) return false;
-        return kernel->authorize_execution(*state);
+        return kernel->authorize_execution(*state, dynamic_threshold, out_shift);
     }
 }

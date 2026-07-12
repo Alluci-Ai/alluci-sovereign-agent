@@ -65,7 +65,8 @@ class Planner:
                     "context": objective
                 },
                 dependencies=step.get('dependencies', []),
-                status=TaskStatus.PENDING
+                status=TaskStatus.PENDING,
+                assignee=step.get('assignee', 'executive')
             )
 
         # 2. Dependency Validation

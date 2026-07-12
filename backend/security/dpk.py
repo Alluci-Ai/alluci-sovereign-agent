@@ -64,8 +64,13 @@ class DiscreteProjectionKernel:
             try:
                 self.native_lib.dpk_new.restype = ctypes.c_void_p
                 self.native_lib.dpk_free.argtypes = [ctypes.c_void_p]
-                self.native_lib.dpk_authorize.argtypes = [ctypes.c_void_p, ctypes.POINTER(NativePolytopeState)]
-                self.native_lib.dpk_authorize.restype = ctypes.c_bool
+                self.native_lib.dpk_authorize_dynamic.argtypes = [
+                    ctypes.c_void_p, 
+                    ctypes.POINTER(NativePolytopeState),
+                    ctypes.c_float,
+                    ctypes.POINTER(ctypes.c_float)
+                ]
+                self.native_lib.dpk_authorize_dynamic.restype = ctypes.c_bool
                 self.native_instance = self.native_lib.dpk_new()
                 logger.info("[DPK] Native C++ Kernel Loaded.")
             except Exception as e:
@@ -213,11 +218,37 @@ class DiscreteProjectionKernel:
                 affective_tension_psi=state.affective_tension_psi,
                 hardware_status=state.hardware_status
             )
-            is_valid = self.native_lib.dpk_authorize(self.native_instance, ctypes.byref(native_state))
+            
+            try:
+                dynamic_threshold = self.calibration_manager.get_dynamic_threshold(origin=state.origin, is_tool=state.is_tool_action)
+            except Exception as e:
+                if str(e) == "RBM_FROZEN":
+                    logger.error(f"[DPK] RBM FREEZE: Origin {state.origin} is quarantined.")
+                    return False
+                raise e
+
+            out_shift = ctypes.c_float(0.0)
+            is_valid = self.native_lib.dpk_authorize_dynamic(self.native_instance, ctypes.byref(native_state), ctypes.c_float(dynamic_threshold), ctypes.byref(out_shift))
+            
             if is_valid:
                 logger.info(f"[DPK] STATE VALID (NATIVE). χ={chi}")
+                
+                # Automatically evolve baseline if within bounds (as Python fallback did)
+                if self.initialized and state.affective_tension_psi < 0.8:
+                    if out_shift.value > 0.0:
+                        self.calibration_manager.log_approved_trajectory(out_shift.value / 10.0, origin=state.origin, is_tool=state.is_tool_action)
+                        
+                self.prev_state = state
+                self.initialized = True
                 return True
             else:
+                # If hardware_status >= 2 and it failed due to topological tearing
+                if state.hardware_status >= 2 and self.initialized and state.affective_tension_psi < 0.8:
+                    topology_shift = out_shift.value
+                    if topology_shift > dynamic_threshold * 10.0:
+                        logger.warning(f"[DPK] SAFETY: Native Manifold Tearing Detected. {topology_shift:.4f} > {dynamic_threshold * 10.0:.4f}")
+                        raise TearingException(topology_shift, dynamic_threshold * 10.0, state.origin)
+                
                 logger.error("[DPK] STATE INVALID (NATIVE). Blocking execution.")
                 return False
         

@@ -7,6 +7,7 @@ from typing import Optional, Dict, Any
 from ..security.resolution import resolution_manager
 from ..security.network_policy import EgressFilterTransport
 from ..security.circuit_breaker import circuit_breaker
+from ..security.calibration import CalibrationManager
 from ..logging_config import get_logger
 
 logger = get_logger("SecurityRouter")
@@ -15,7 +16,7 @@ router = APIRouter(prefix="/security", tags=["Security Resolution"])
 
 class SecurityResolutionRequest(BaseModel):
     task_id: str
-    resolution_type: str # ALLOW_DOMAIN_SESSION, ALLOW_DOMAIN_PERMANENT, IGNORE_BUDGET, CANCEL_TASK
+    resolution_type: str # ALLOW_DOMAIN_SESSION, ALLOW_DOMAIN_PERMANENT, IGNORE_BUDGET, CANCEL_TASK, OVERRIDE_TEARING
     metadata: Optional[Dict[str, Any]] = None
 
 @router.post("/resolve")
@@ -65,5 +66,18 @@ async def resolve_security_block(req: SecurityResolutionRequest):
             
         resolution_manager.provide_resolution(req.task_id, req.resolution_type)
         return {"status": "success", "action": "budget_increased"}
+
+    if req.resolution_type == "OVERRIDE_TEARING":
+        cm = CalibrationManager()
+        
+        topology_shift = float(req.metadata.get("topology_shift", 0.0)) if req.metadata else 0.0
+        origin = req.metadata.get("origin", "local") if req.metadata else "local"
+        is_tool = bool(req.metadata.get("is_tool", False)) if req.metadata else False
+        
+        # Log the approved trajectory divided by 10 (as handled inside DPK internally if valid)
+        cm.log_approved_trajectory(topology_shift / 10.0, origin=origin, is_tool=is_tool)
+        
+        resolution_manager.provide_resolution(req.task_id, "OVERRIDE_TEARING")
+        return {"status": "success", "action": "tearing_overridden"}
         
     raise HTTPException(status_code=400, detail=f"Unknown resolution_type: {req.resolution_type}")

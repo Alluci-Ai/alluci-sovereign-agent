@@ -204,8 +204,9 @@ class ExecutiveOrchestrator:
 Analyze this message to determine if it is an ACTIONABLE OBJECTIVE.
 An actionable objective asks you to perform a task (e.g. "send an email", "run a script", "fetch the news", "modify a file").
 A conversational message just asks a question or chats (e.g. "how are you", "what is your name", "explain this to me").
+Also determine if the objective requires extensive or deep research (e.g. "deep web research", "find all articles", "research topics").
 Message: "{body}"
-Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objective": string}}
+Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objective": string, "is_research": boolean}}
 """
             classification_resp = await services.router.get_response(
                 prompt=intent_prompt,
@@ -217,19 +218,22 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
             
             is_objective = False
             extracted_objective = body
+            is_research = False
             
             try:
                 clean_json = classification_resp.replace('```json', '').replace('```', '').strip()
                 intent_data = json.loads(clean_json)
                 is_objective = intent_data.get("is_objective", False)
                 extracted_objective = intent_data.get("extracted_objective", body)
+                is_research = intent_data.get("is_research", False)
             except Exception as e:
                 self.logger.debug(f"[Orchestrator] Intent classification failed to parse: {e}")
 
             if is_objective:
                 self.logger.info(f"[Orchestrator] Chat Auto-Dispatch: Routing '{extracted_objective}' to DAG Planner.")
                 import asyncio
-                task = asyncio.create_task(self.execute_objective(extracted_objective, autonomy="RESTRICTED"))
+                mode = "research" if is_research else "standard"
+                task = asyncio.create_task(self.execute_objective(extracted_objective, autonomy="RESTRICTED", mode=mode))
                 if not hasattr(self, "_bg_tasks"):
                     self._bg_tasks = set()
                 self._bg_tasks.add(task)
@@ -852,10 +856,7 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
             span.set_attribute("mode", mode)
             
             self.logger.info(f"🚀 EXECUTING SOVEREIGN OBJECTIVE ({mode.upper()} MODE): {objective}")
-
-        if mode == "research":
-            return await self.execute_research(objective)
-
+        # Research modes now route through the DAG Planner for sub-agent assignment.
         # Lite Mode Semantic Telemetry Fallback
         if not getattr(self.settings, 'STRICT_BIOMETRIC_GATING', True):
             from .models import SoulPreferences
@@ -869,8 +870,8 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
             self.ace.process_semantic_fallback(objective, preferences=prefs)  # type: ignore
 
         # 1. PPN / DPK Manifold Check
-        # Here we don't necessarily know if it's a tool or skill, but execute_objective is typically a high-level cognitive action.
-        is_manifold_stable, polytope_state = self._perform_ppn_check(objective, autonomy, origin, override_tearing, override_avl, is_tool_action=False)
+        is_tool_action = (mode == "research")
+        is_manifold_stable, polytope_state = self._perform_ppn_check(objective, autonomy, origin, override_tearing, override_avl, is_tool_action=is_tool_action)
         
         # Bypass for development/testing
         if getattr(self.settings, 'APP_ENV', 'development') in ['development', 'testing']:
@@ -880,6 +881,25 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
             if polytope_state and polytope_state.tearing_exception is not None:
                 e = polytope_state.tearing_exception
                 self.logger.critical(f"🛑 HUMAN-IN-THE-LOOP REQUIRED: Manifold Tearing Detected. Shift: {e.topology_shift:.4f} > {e.dynamic_threshold:.4f}")
+                
+                if hasattr(self, 'ws_gateway') and self.ws_gateway:
+                    try:
+                        import asyncio
+                        # We are inside an async function so we can await the broadcast directly.
+                        await self.ws_gateway.broadcast_event('security.resolution_required', {
+                            "task_id": str(getattr(self, "agent_id", "executive")),
+                            "exception_type": "MANIFOLD_TEARING",
+                            "message": f"Manifold Tearing Detected. Shift: {e.topology_shift:.4f} > Threshold: {e.dynamic_threshold:.4f}",
+                            "metadata": {
+                                "objective": objective,
+                                "topology_shift": e.topology_shift,
+                                "origin": e.origin,
+                                "is_tool": is_tool_action
+                            }
+                        })
+                    except Exception as err:
+                        self.logger.error(f"[DPK] Failed to broadcast tearing event: {err}")
+                
                 return {
                     "status": "human_override_required",
                     "reason": "Manifold Tearing Detected",

@@ -321,6 +321,7 @@ class DAGTask(BaseModel):
     dependencies: list[str] = []
     status: TaskStatus = TaskStatus.PENDING
     result: Optional[str] = None
+    assignee: str = "executive"
 
 class SessionConfig(SQLModel, table=True):
     __tablename__ = "session_config"  # type: ignore

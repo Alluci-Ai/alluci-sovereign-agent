@@ -75,6 +75,18 @@ class TestDAGConstruction:
         assert len(tasks) == 1
         assert "solo" in tasks
 
+    @pytest.mark.unit
+    def test_assignee_parsing(self, mock_router):
+        """Task with assignee uses correct assignee, default to executive."""
+        planner = Planner(mock_router)
+        steps = [
+            {"id": "A", "tool": "t", "description": "", "dependencies": [], "assignee": "rocco"},
+            {"id": "B", "tool": "t", "description": "", "dependencies": ["A"]}
+        ]
+        tasks = planner._build_and_validate_dag(steps, "test")
+        assert tasks["A"].assignee == "rocco"
+        assert tasks["B"].assignee == "executive"
+
 
 class TestDAGValidation:
 
