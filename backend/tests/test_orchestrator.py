@@ -12,7 +12,7 @@ async def test_orchestrator_tool_flagging():
     
     orch = ExecutiveOrchestrator(router=mock_router, vault=mock_vault, ace=mock_ace, settings=mock_settings)
     
-    called_with_tool_action = False
+    called_with_tool_action: bool = False
     original_check = orch._perform_ppn_check
     
     def mock_check(*args, **kwargs):
@@ -26,7 +26,7 @@ async def test_orchestrator_tool_flagging():
     orch.executor._execute_adapter.return_value = "Success"
     try:
         await orch.execute_tool_action("test_tool", {"arg": "value"})
-        assert called_with_tool_action is True
+        assert called_with_tool_action
     finally:
         orch._perform_ppn_check = original_check
 

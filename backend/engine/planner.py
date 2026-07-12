@@ -14,7 +14,7 @@ class Planner:
     def __init__(self, router: ModelRouter):
         self.router = router
 
-    async def generate_plan(self, objective: str, context: str = "", tools: list = None, psi: float = 0.0, agent_id: str = "executive") -> Dict[str, DAGTask]:
+    async def generate_plan(self, objective: str, context: str = "", tools: list | None = None, psi: float = 0.0, agent_id: str = "executive") -> Dict[str, DAGTask]:
         """
         Generates a valid DAG from the objective, influenced by the Soul's context and skills.
         """

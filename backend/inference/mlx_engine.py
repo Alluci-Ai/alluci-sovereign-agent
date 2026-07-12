@@ -67,8 +67,17 @@ class MLXEngine(CognitiveEngine):
             
             # mlx_vlm handles the complex Vision/Text alignment schemas automatically
             from mlx_vlm import load
-            self.model, self.tokenizer = load(target_model_path, trust_remote_code=True)
-            self.is_vlm = True
+            
+            try:
+                vlm_res = load(target_model_path, trust_remote_code=True)
+                self.model, self.tokenizer = vlm_res[0], vlm_res[1]
+                self.is_vlm = True
+            except Exception as e:
+                logger.error(f"Failed to load VLM Graph, falling back to MLX-LM LLM loader: {e}")
+                from mlx_lm import load as load_lm
+                lm_res = load_lm(target_model_path)
+                self.model, self.tokenizer = lm_res[0], lm_res[1]
+                self.is_vlm = False
 
             logger.info("MLXEngine: Model and tokenizer loaded successfully.")
         except Exception as e:
