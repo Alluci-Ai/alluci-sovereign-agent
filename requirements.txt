@@ -100,7 +100,7 @@ pywin32==306; sys_platform == "win32"   # Windows Service support (windows_servi
 # piper-python usually handled via subprocess in our case
 
 # ─── Scheduling ──────────────────────────────────────────────────────────────
-croniter==2.0.0
+croniter==6.2.4
 kuzu==0.11.3
 trafilatura==2.1.0
 duckduckgo-search==8.1.1
