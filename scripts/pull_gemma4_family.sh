@@ -22,16 +22,10 @@ def stream_mock_tensors(path, name, shape):
     dummy_tensor = torch.randn(shape, dtype=torch.float16)
     torch.save({"model.embed_tokens.weight": dummy_tensor}, os.path.join(path, "model-00001-of-00001.pt"))
     
-    # Write a standardized config using upstream compatible schemas
+    # Write a config
     with open(os.path.join(path, "config.json"), "w") as f:
-        config_data = {
-            "model_type": "paligemma",
-            "architectures": ["PaliGemmaForConditionalGeneration"],
-            "text_config": {"model_type": "gemma"},
-            "vision_config": {"model_type": "siglip_vision_model"}
-        }
-        import json
-        f.write(json.dumps(config_data))
+        f.write("{\"model_type\": \"gemma4\", \"architectures\": [\"Gemma4ForCausalLM\"]}")
+
 print("[Alluci Storage] Pulling Gemma 4 E2B Model (Ambient/Sensor Footprint)...")
 stream_mock_tensors(os.path.join(RAW_BASE_DIR, "e2b"), "E2B", (2048, 2048))
 
