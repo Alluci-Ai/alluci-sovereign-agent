@@ -204,7 +204,6 @@ async def fetch_all_markdown(
                     href = a_tag["href"]
                     if isinstance(href, list):
                         href = href[0] if href else ""
-                    href = str(href)
                     
                     # Ignore mailto, javascript, tel, etc.
                     if href.startswith(("mailto:", "javascript:", "tel:", "#")):

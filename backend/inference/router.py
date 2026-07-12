@@ -1031,7 +1031,7 @@ class ModelRouter(ExecutiveRouter):
         )
         yield response
 
-    async def get_structured_plan(self, prompt: str, system_instruction: str = "", tools: list = None, agent_id: str = "executive") -> Dict[str, Any]:
+    async def get_structured_plan(self, prompt: str, system_instruction: str = "", tools: Optional[list] = None, agent_id: str = "executive") -> Dict[str, Any]:
         """
         Utility to get a JSON-formatted execution plan from the LLM.
         Forces JSON mode and handles parsing failovers.
@@ -1127,7 +1127,7 @@ You must return a valid JSON object with the following schema:
         return await self.get_structured_plan(prompt, system_instruction="You are a strict objective critic.", agent_id=agent_id)
 
     @retry(reraise=True, stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10), retry=retry_if_exception_type((httpx.HTTPError, Exception)))
-    async def get_fast_tactical_response(self, prompt: str, system_instruction: str = "", tools: list = None, agent_id: str = "executive") -> str:
+    async def get_fast_tactical_response(self, prompt: str, system_instruction: str = "", tools: list[Any] | None = None, agent_id: str = "executive") -> str:
         """Shortcut method directly using Groq for fast, simple tactical decisions.
         
         **Security Guarantee:** Tactical responses are restricted to hardware-accelerated 

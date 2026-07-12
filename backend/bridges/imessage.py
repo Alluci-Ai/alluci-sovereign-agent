@@ -314,13 +314,14 @@ class IMessageBridge(BridgeAdapter):
                 messages.append({
                     "id":          row.get("guid"),
                     "rowid":       row.get("rowid"),
-                    "from":        row.get("sender"),
+                    "from":        row.get("sender") or row.get("chat_id"),
                     "body":        row.get("text") or "",
                     "chat_name":   row.get("chat_name"),
                     "chat_id":     row.get("chat_id"),
                     "destination_account": row.get("destination_account") or "",
                     "attachments": atts,
                     "protocol":    "IMESSAGE",
+                    "is_from_me":  bool(row.get("is_from_me", 0)),
                     "timestamp":   datetime.fromtimestamp(
                         row.get("ts", 0), tz=timezone.utc
                     ).isoformat(),

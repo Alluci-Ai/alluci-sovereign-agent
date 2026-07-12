@@ -83,6 +83,7 @@ class ExecutiveOrchestrator:
         self.heartbeat_task = None
         self._ws_gateway = None
         self._active_runs: Dict[int, asyncio.Task] = {}
+        self._recent_outbound_messages = set()
         
         # Executor
         self.executor = Executor(
@@ -286,6 +287,13 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
             if not body:
                 return
 
+            # Avoid looping on our own outbound responses (where the bridge syncs a sent message)
+            is_from_me = message.get("is_from_me", False)
+            if is_from_me and hasattr(self, "_recent_outbound_messages"):
+                if body.strip() in self._recent_outbound_messages:
+                    self.logger.debug(f"[Orchestrator] Ignoring synced outbound message: {body[:50]}...")
+                    return
+
             import re
             def clean_inbound_text(text: str) -> str:
                 # Remove bracketed/angled URLs
@@ -328,12 +336,14 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
             # All other messages are stored to H-LSM (above) but do NOT generate a response.
             body_lower = body.lower().strip()
             dest_account = message.get("destination_account", "").lower()
+            chat_id = message.get("chat_id", "").lower()
             
             is_addressed_to_alluci = (
                 body_lower.startswith("alluci")
                 or body_lower.startswith("hello alluci")
                 or body_lower.startswith("hi alluci")
                 or "alluci.ai@icloud.com" in dest_account
+                or "alluci.ai@icloud.com" in chat_id
                 or message.get("is_direct", False)
                 or message.get("is_mention", False)
                 or message.get("is_mention_event", False)
