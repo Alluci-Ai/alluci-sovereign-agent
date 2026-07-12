@@ -229,7 +229,19 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
             if is_objective:
                 self.logger.info(f"[Orchestrator] Chat Auto-Dispatch: Routing '{extracted_objective}' to DAG Planner.")
                 import asyncio
-                asyncio.create_task(self.execute_objective(extracted_objective, autonomy="RESTRICTED"))
+                task = asyncio.create_task(self.execute_objective(extracted_objective, autonomy="RESTRICTED"))
+                if not hasattr(self, "_bg_tasks"):
+                    self._bg_tasks = set()
+                self._bg_tasks.add(task)
+                
+                def handle_task_result(t):
+                    self._bg_tasks.discard(t)
+                    try:
+                        t.result()
+                    except Exception as e:
+                        self.logger.error(f"[Orchestrator] Background task failed: {e}", exc_info=True)
+                        
+                task.add_done_callback(handle_task_result)
                 return f"I am dispatching this objective to my Sovereign Execution engine:\n> {extracted_objective}"
                 
             return None
@@ -663,18 +675,22 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
         tools_list = []
         if getattr(self, "tool_manager", None):
             try:
-                session_key = getattr(self, "_current_session_key", "")
-                tools_list = await self.tool_manager.get_tools_for_runtime(session_key)
+                # Retrieve active tool IDs from agent record if available
+                agent_id = getattr(self, "_current_agent_id", "executive")
+                active_tool_ids = []
+                # Fallback to empty list to avoid passing session_key string as active_ids
+                tools_list = await self.tool_manager.get_tools_for_runtime(active_tool_ids)
             except Exception as e:
                 self.logger.error(f"[ TOOLS ] Error scanning for tools: {e}")
-        elif hasattr(self, "adapter_registry"):
+        
+        if hasattr(self, "adapter_registry"):
             all_tools = self.adapter_registry.list_tools()
             agent_tools = getattr(self, "_cached_tools_manifest", {})
             if agent_tools:
                 t_names = [t for t in all_tools if t in agent_tools and agent_tools[t].get("enabled", False)]
             else:
                 t_names = all_tools
-            tools_list = [{"type": "function", "function": {"name": t, "description": "Legacy adapter tool"}} for t in t_names]
+            tools_list.extend([{"type": "function", "function": {"name": t, "description": "Legacy adapter tool"}} for t in t_names])
 
         # 3. H-LSM Memory Context (Hierarchical Long-Short Manifold)
         if self.hlsm and include_memory:
