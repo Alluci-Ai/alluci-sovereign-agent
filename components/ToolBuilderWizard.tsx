@@ -314,11 +314,13 @@ const ToolBuilderWizard: React.FC<ToolBuilderWizardProps> = ({ onClose }) => {
     setIsSaving(true);
     try {
       const token = localStorage.getItem('alluci_daemon_token');
+      const csrfToken2 = await getCsrfToken(DAEMON_URL, token);
       const res = await fetch(`${DAEMON_URL}/api/v1/tools/${formData.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          ...(csrfToken2 ? { 'X-CSRF-Token': csrfToken2 } : {})
         },
         body: JSON.stringify(formData)
       });
