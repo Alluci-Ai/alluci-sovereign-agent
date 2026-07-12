@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useStore } from '../store/useStore';
 import { ToolManifest } from '../types';
-import { Terminal, Save, X, Cpu, ShieldAlert, Link, FileJson, Key, CheckCircle, Trash2 } from 'lucide-react';
+import { X, Cpu, ShieldAlert, FileJson } from 'lucide-react';
 import { ReferenceDocsWidget } from './ReferenceDocsWidget';
 import { SchemaNodeBuilder, JSONSchema } from './SchemaNodeBuilder';
 import { getCsrfToken } from '../csrfStore';
@@ -122,12 +122,42 @@ const ToolBuilderWizard: React.FC<ToolBuilderWizardProps> = ({ onClose }) => {
     handleCapabilityChange(activeCapTab, 'envVarsVaultId', existingEnvVars);
   };
 
+  // Detect URLs that won't return raw JSON (GitHub repos, docs sites, etc.)
+  const isNonJsonUrl = (url: string): boolean => {
+    try {
+      const parsed = new URL(url);
+      const host = parsed.hostname.toLowerCase();
+      const path = parsed.pathname.toLowerCase();
+      // GitHub repos, GitLab, Bitbucket, documentation sites
+      if (['github.com', 'www.github.com', 'gitlab.com', 'bitbucket.org'].includes(host)) return true;
+      // Common documentation domains
+      if (host.includes('docs.') || host.includes('wiki.') || host.includes('readme.')) return true;
+      // If path doesn't end with .json or .yaml, it's likely HTML
+      if (!path.endsWith('.json') && !path.endsWith('.yaml') && !path.endsWith('.yml')) return true;
+      return false;
+    } catch (_e) { return false; }
+  };
+
   const handleAutoConfig = async () => {
-    const isSmart = autoConfigType === 'smart_ingest';
-    const smartUrls = autoConfigUrls.map(u => u.trim()).filter(Boolean);
+    let effectiveType = autoConfigType;
+    let effectiveUrls = autoConfigUrls.map(u => u.trim()).filter(Boolean);
+    let effectiveUrl = autoConfigUrl.trim();
+
+    // Content-type guard: auto-switch to smart_ingest for non-JSON URLs
+    if (effectiveType !== 'smart_ingest' && effectiveUrl && isNonJsonUrl(effectiveUrl)) {
+      console.log(`[AutoConfig] Detected non-JSON URL "${effectiveUrl}", switching to Smart Ingestion`);
+      // Migrate the single URL into the multi-URL smart ingest flow
+      effectiveType = 'smart_ingest';
+      effectiveUrls = [effectiveUrl];
+      // Update UI state so the user sees the switch
+      setAutoConfigType('smart_ingest');
+      setAutoConfigUrls([effectiveUrl]);
+    }
+
+    const isSmart = effectiveType === 'smart_ingest';
     
-    if (isSmart && smartUrls.length === 0) return;
-    if (!isSmart && !autoConfigUrl) return;
+    if (isSmart && effectiveUrls.length === 0) return;
+    if (!isSmart && !effectiveUrl) return;
     
     setIsIngesting(true);
     setIngestMessages([]);
@@ -136,8 +166,8 @@ const ToolBuilderWizard: React.FC<ToolBuilderWizardProps> = ({ onClose }) => {
       const csrfToken = await getCsrfToken(DAEMON_URL, token);
       
       const payload = isSmart 
-        ? { urls: smartUrls, type: autoConfigType, user_prompt: userPrompt, deep_crawl: deepCrawl }
-        : { url: autoConfigUrl, type: autoConfigType };
+        ? { urls: effectiveUrls, type: effectiveType, user_prompt: userPrompt, deep_crawl: deepCrawl }
+        : { url: effectiveUrl, type: effectiveType };
 
       const res = await fetch(`${DAEMON_URL}/api/v1/tools/ingest`, {
         method: 'POST',
@@ -156,7 +186,11 @@ const ToolBuilderWizard: React.FC<ToolBuilderWizardProps> = ({ onClose }) => {
         return;
       }
       
-      if (isSmart && res.body) {
+      // Detect SSE stream: either because we're in smart mode, or the backend rerouted
+      const responseContentType = res.headers.get('content-type') || '';
+      const isSSEStream = isSmart || responseContentType.includes('text/event-stream');
+      
+      if (isSSEStream && res.body) {
         const reader = res.body.getReader();
         const decoder = new TextDecoder('utf-8');
         let buffer = '';
@@ -315,7 +349,7 @@ const ToolBuilderWizard: React.FC<ToolBuilderWizardProps> = ({ onClose }) => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in duration-200">
-      <div className="bg-glass-1 border border-glass-edge rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl relative overflow-hidden">
+      <div className="bg-glass-1 border border-glass-edge rounded-2xl w-full max-w-6xl max-h-[90vh] flex flex-col shadow-2xl relative overflow-hidden">
         
         {/* Header */}
         <div className="p-6 border-b border-glass-edge flex items-center justify-between bg-glass-2 relative z-10">
@@ -364,30 +398,69 @@ const ToolBuilderWizard: React.FC<ToolBuilderWizardProps> = ({ onClose }) => {
                   </select>
                   {autoConfigType === 'smart_ingest' ? (
                     <div className="flex-1 flex flex-col gap-2">
-                      {autoConfigUrls.map((url, idx) => (
-                        <div key={idx} className="flex gap-2 w-full">
-                          <input
-                            type="text"
-                            value={url}
-                            onChange={e => {
-                              const newUrls = [...autoConfigUrls];
-                              newUrls[idx] = e.target.value;
-                              setAutoConfigUrls(newUrls);
-                            }}
-                            placeholder="https://example.com/docs"
-                            className="flex-1 bg-glass-pressed border border-glass-edge rounded-xl p-3 text-sm text-text-primary focus:border-accent outline-none"
-                          />
-                          <button 
-                            disabled={autoConfigUrls.length === 1}
-                            onClick={() => {
-                              setAutoConfigUrls(autoConfigUrls.filter((_, i) => i !== idx));
-                            }}
-                            className="glass-btn px-3 flex items-center justify-center text-text-secondary hover:text-red-400 disabled:opacity-50"
-                          >
-                            <span className="text-xl font-bold leading-none">&minus;</span>
-                          </button>
-                        </div>
-                      ))}
+                      {autoConfigUrls.map((url, idx) => {
+                        let progress = 0;
+                        let activeSubpage = '';
+                        if (isIngesting && url) {
+                            try {
+                                const domain = new URL(url).hostname;
+                                const relatedMsgs = ingestMessages.filter(m => m.includes(domain));
+                                if (relatedMsgs.length > 0) {
+                                    const latest = relatedMsgs[relatedMsgs.length - 1];
+                                    const match = latest.match(/Crawled (\d+)\/(\d+)/);
+                                    if (match) {
+                                        progress = (parseInt(match[1]) / parseInt(match[2])) * 100;
+                                    } else {
+                                        progress = 100; // Synthesis phase or fast fetch
+                                    }
+                                    activeSubpage = latest.split('pages: ')[1] || 'Synthesizing...';
+                                } else if (ingestMessages.length > 0) {
+                                    progress = 10; // Started but no specific message yet
+                                }
+                            } catch(e) {}
+                        }
+
+                        return (
+                          <div key={idx} className="flex flex-col gap-1 w-full">
+                            <div className="flex gap-2 w-full">
+                              <input
+                                type="text"
+                                value={url}
+                                onChange={e => {
+                                  const newUrls = [...autoConfigUrls];
+                                  newUrls[idx] = e.target.value;
+                                  setAutoConfigUrls(newUrls);
+                                }}
+                                placeholder="https://example.com/docs"
+                                className="flex-1 bg-glass-pressed border border-glass-edge rounded-xl p-3 text-sm text-text-primary focus:border-accent outline-none"
+                              />
+                              <button 
+                                disabled={autoConfigUrls.length === 1}
+                                onClick={() => {
+                                  setAutoConfigUrls(autoConfigUrls.filter((_, i) => i !== idx));
+                                }}
+                                className="glass-btn px-3 flex items-center justify-center text-text-secondary hover:text-red-400 disabled:opacity-50"
+                              >
+                                <span className="text-xl font-bold leading-none">&minus;</span>
+                              </button>
+                            </div>
+                            {isIngesting && url && progress > 0 && (
+                              <div className="w-full pl-2 pr-12 mt-1">
+                                <div className="flex justify-between text-[8px] text-accent font-mono mb-1">
+                                    <span className="truncate max-w-[80%]">{activeSubpage || 'Processing...'}</span>
+                                    <span>{Math.round(progress)}%</span>
+                                </div>
+                                <div className="h-1 w-full bg-glass-pressed rounded overflow-hidden">
+                                    <div 
+                                      className={`h-full bg-accent transition-all duration-300 ${progress === 100 ? 'animate-pulse' : ''}`}
+                                      style={{ width: `${progress}%` }} 
+                                    />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                       <div className="flex items-center justify-between mt-1">
                         <button 
                           onClick={() => setAutoConfigUrls([...autoConfigUrls, ''])}
@@ -415,9 +488,10 @@ const ToolBuilderWizard: React.FC<ToolBuilderWizardProps> = ({ onClose }) => {
                       className="flex-1 bg-glass-pressed border border-glass-edge rounded-xl p-3 text-sm text-text-primary focus:border-accent outline-none"
                     />
                   )}
-                  <button onClick={handleAutoConfig} disabled={isIngesting} className="glass-btn px-4">
-                    {isIngesting ? (autoConfigType === 'smart_ingest' ? 'Extracting & Synthesizing...' : 'Ingesting...') : <><Link className="w-4 h-4" /> Auto-Fill</>}
-                  </button>
+                  <button onClick={handleAutoConfig} disabled={isIngesting} className="glass-btn glass-btn--primary relative overflow-hidden group">
+                        {isIngesting ? 'Processing Neural Engine...' : 'Auto-Fill Configuration'}
+                        {isIngesting && <div className="absolute inset-0 bg-white/10 animate-pulse" />}
+                      </button>
                 </div>
                 
                 {autoConfigType === 'smart_ingest' && (
@@ -724,7 +798,7 @@ const ToolBuilderWizard: React.FC<ToolBuilderWizardProps> = ({ onClose }) => {
           </div>
 
           {/* Right Sidebar - JSON Preview */}
-          <div className="w-1/3 pl-6 hidden md:block">
+          <div className="w-2/5 pl-6 hidden md:block">
             <h4 className="text-[10px] uppercase tracking-widest text-text-tertiary mb-4 flex items-center gap-2">
                 <FileJson className="w-3 h-3" /> Live Manifest Preview
             </h4>

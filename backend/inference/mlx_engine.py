@@ -106,7 +106,7 @@ class MLXEngine(CognitiveEngine):
                 
         return prompt, system_instruction, temperature
 
-    async def generate(self, prompt: str, system_instruction: str = "", max_tokens: int = 1024, temperature: float = 0.7, agent_id: Optional[str] = None) -> str:
+    async def generate(self, prompt: str, system_instruction: str = "", max_tokens: int = 1024, temperature: float = 0.7, agent_id: Optional[str] = None, **kwargs) -> str:
         """Generates a complete response via the native MLX model."""
         await self.ensure_loaded()
         model = self.model
@@ -143,7 +143,7 @@ class MLXEngine(CognitiveEngine):
             # Run synchronously on the main thread to avoid MLX Stream GPU thread mismatch
         return _sync_gen()
 
-    async def generate_stream(self, prompt: str, system_instruction: str = "", max_tokens: int = 1024, temperature: float = 0.75, agent_id: Optional[str] = None) -> AsyncGenerator[str, None]:
+    async def generate_stream(self, prompt: str, system_instruction: str = "", max_tokens: int = 1024, temperature: float = 0.75, agent_id: Optional[str] = None, **kwargs) -> AsyncGenerator[str, None]:
         """Streams response token-by-token natively using mlx_lm.stream_generate."""
         await self.ensure_loaded()
         model = self.model

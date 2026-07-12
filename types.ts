@@ -109,7 +109,22 @@ export interface ToolManifest {
   description: string;
   enabled: boolean;
   
-  // Dynamic Execution Routing
+  // Multi-capability Tool Engine
+  capabilities?: Record<string, {
+    type: string;
+    baseUrl?: string;
+    endpoint?: string;
+    method?: string;
+    authType?: string;
+    authHeadersVaultId?: string;
+    transport?: 'stdio' | 'sse';
+    command?: string;
+    url?: string;
+    envVarsVaultId?: Record<string, string>;
+    sandboxed?: boolean;
+  }>;
+
+  // Dynamic Execution Routing (Legacy single-capability)
   execution?: {
     type: 'API' | 'MCP' | 'CLI' | 'RPC';
     baseUrl?: string;           // API

@@ -4,6 +4,26 @@ from urllib.parse import urlparse
 import logging
 import asyncio
 
+try:
+    from playwright.async_api import async_playwright
+except ImportError:
+    class _DummyPage:
+        async def goto(self, url, wait_until=None): pass
+        async def content(self): return ""
+        async def close(self): pass
+    class _DummyBrowser:
+        async def new_page(self): return _DummyPage()
+        async def close(self): pass
+    class _DummyChromium:
+        async def launch(self, headless=True): return _DummyBrowser()
+    class _DummyPlaywright:
+        chromium = _DummyChromium()
+        async def __aenter__(self): return self
+        async def __aexit__(self, exc_type, exc, tb): pass
+    async def async_playwright():
+        return _DummyPlaywright()
+
+
 logger = logging.getLogger("ScraperService")
 
 async def fetch_and_extract_markdown(url: str, timeout: float = 15.0) -> str:
@@ -29,6 +49,7 @@ async def fetch_and_extract_markdown(url: str, timeout: float = 15.0) -> str:
                 pass # Fall back to normal extraction
 
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+    html = ""
     try:
         async with httpx.AsyncClient(timeout=timeout, follow_redirects=True, headers=headers) as client:
             resp = await client.get(url)
@@ -45,18 +66,43 @@ async def fetch_and_extract_markdown(url: str, timeout: float = 15.0) -> str:
                 include_tables=True
             )
             
+            # Check if extraction succeeded and has sufficient length
+            if markdown and len(markdown.strip()) > 150:
+                return markdown
+                
+    except Exception as e:
+        logger.warning(f"Fast HTTP fetch failed for {url}: {e}")
+    
+    # Fallback to Playwright if httpx failed or returned empty/short content (JS rendered pages)
+    logger.info(f"Using Playwright fallback for {url} to render JavaScript...")
+    try:
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            page = await browser.new_page()
+            await page.goto(url, wait_until="networkidle", timeout=int(timeout*1000))
+            html = await page.content()
+            await browser.close()
+            
+            # Distill again with trafilatura now that JS is rendered
+            markdown = await asyncio.to_thread(
+                trafilatura.extract, 
+                html, 
+                output_format="markdown", 
+                include_links=True,
+                include_images=False,
+                include_tables=True
+            )
             if markdown:
                 return markdown
-            
-            logger.warning(f"Trafilatura failed to extract markdown from {url}. Returning raw text fallback.")
-            # Simple fallback strip tags if trafilatura yields nothing
+                
+            # Ultimate fallback if Trafilatura fails on rendered HTML
             from bs4 import BeautifulSoup
             soup = BeautifulSoup(html, "html.parser")
             return soup.get_text(separator="\n")[:10000]
             
     except Exception as e:
-        logger.error(f"Failed to scrape {url}: {e}")
-        raise ValueError(f"Unable to scrape documentation from {url}. Error: {str(e)}")
+        logger.error(f"Failed to scrape {url} with Playwright: {e}")
+        return "" # Return empty string instead of raising so DAG can skip it smoothly
 
 async def fetch_all_markdown(
     urls: list[str], 
@@ -112,19 +158,32 @@ async def fetch_all_markdown(
                 await progress_callback(f"Crawled {len(visited)}/{MAX_PAGES} pages: {normalized_url}")
             
             try:
+                # We can just call the refactored fetch_and_extract_markdown to handle both the fetch AND the fallback!
+                # Wait, if we do that, we get the markdown, but we still need HTML to extract links for BFS.
+                # So let's keep the client.get, but if it fails/is empty, use Playwright to get HTML.
+                
                 resp = await client.get(normalized_url)
                 resp.raise_for_status()
                 html = resp.text
                 
-                # Extract markdown
                 markdown = await asyncio.to_thread(
-                    trafilatura.extract, 
-                    html, 
-                    output_format="markdown", 
-                    include_links=True,
-                    include_images=False,
-                    include_tables=True
+                    trafilatura.extract, html, output_format="markdown", 
+                    include_links=True, include_images=False, include_tables=True
                 )
+                
+                if not markdown or len(markdown.strip()) < 150:
+                    logger.info(f"Deep crawl fallback to Playwright for {normalized_url}")
+                    async with async_playwright() as p:
+                        browser = await p.chromium.launch(headless=True)
+                        page = await browser.new_page()
+                        await page.goto(normalized_url, wait_until="networkidle", timeout=int(timeout*1000))
+                        html = await page.content()
+                        await browser.close()
+                        
+                        markdown = await asyncio.to_thread(
+                            trafilatura.extract, html, output_format="markdown", 
+                            include_links=True, include_images=False, include_tables=True
+                        )
                 
                 if markdown:
                     valid_results.append(markdown)

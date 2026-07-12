@@ -160,10 +160,11 @@ class JsonRpcGateway:
 
     # ── WebSocket Lifecycle ───────────────────────────────────────────────
 
-    async def handle_connection(self, websocket: WebSocket):
+    async def handle_connection(self, websocket: WebSocket, already_accepted: bool = False):
         """Main entry point for a new WebSocket connection."""
         logger.error(f"!!! WS CONNECTION ARRIVED !!! headers: {websocket.headers}")
-        await websocket.accept()
+        if not already_accepted:
+            await websocket.accept()
         
         client, auth_msg_id = await self._authenticate(websocket)
         if client is None:

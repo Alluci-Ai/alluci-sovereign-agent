@@ -326,10 +326,46 @@ async def ingest_tool(payload: Dict[str, Any] = Body(...)):
         raise HTTPException(status_code=400, detail="Missing URL")
             
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
             res = await client.get(url)
             res.raise_for_status()
-            data = res.json()
+            
+            # Content-Type guard: detect non-JSON responses and reroute to Smart Ingestion
+            content_type = res.headers.get("content-type", "")
+            is_json = "application/json" in content_type or "application/openapi" in content_type
+            
+            # Also try to parse as JSON — some servers don't set Content-Type correctly
+            if not is_json:
+                try:
+                    data = res.json()
+                    is_json = True
+                except Exception:
+                    is_json = False
+            else:
+                data = res.json()
+            
+            if not is_json:
+                # Reroute to Smart Ingestion DAG automatically
+                logger.info(f"Non-JSON response from {url} (Content-Type: {content_type}). Rerouting to Smart Ingestion DAG.")
+                from sse_starlette.sse import EventSourceResponse
+                from ..ingestion_services.ingestion_dag import IngestionDAG
+                from ..inference.router import ModelRouter
+                from ..config import settings
+                from .. import services
+                import json as json_mod
+                import backend.ingestion_services.scraper as scraper_module
+                
+                async def event_generator_reroute():
+                    try:
+                        router_inst = ModelRouter(settings=settings, vault=services.vault)
+                        dag = IngestionDAG(router=router_inst, scraper_service=scraper_module)
+                        async for update in dag.run([url], "", deep_crawl=False):
+                            yield json_mod.dumps(update)
+                    except Exception as e:
+                        logger.error(f"Rerouted DAG execution failed: {e}")
+                        yield json_mod.dumps({"type": "error", "message": str(e)})
+                
+                return EventSourceResponse(event_generator_reroute())
             
             manifest = {
                 "name": data.get("info", {}).get("title", "Auto Ingested Tool"),
