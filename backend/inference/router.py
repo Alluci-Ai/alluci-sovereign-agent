@@ -770,7 +770,7 @@ class ModelRouter(ExecutiveRouter):
             # ── Step 1: Local Inference (Highest Priority) ───────────────────
             # Try LCE (Native MLX Gemma 4), then LM Studio.
             local_providers = []
-            if inference_mode in ["HYBRID", "LOCAL", "FAST"]:
+            if inference_mode in ["HYBRID", "LOCAL", "FAST", "TACTICAL"]:
                 if self.lce_enabled:
                     local_providers.append(("Native LCE (MLX)", lambda p: self._lce_request(p, system_instruction=system_instruction, tools=tools, agent_id=agent_id)))
                 if self.lm_studio_client:
@@ -1055,6 +1055,14 @@ Schema:
   ]
 }
 """
+
+        if tools:
+            import json as _json
+            try:
+                tools_str = _json.dumps([{"name": t.get("name"), "description": t.get("description")} if isinstance(t, dict) else str(t) for t in tools], indent=2)
+                system_instruction += f"\n\nAVAILABLE TOOLS:\n{tools_str}\n\nCRITICAL: You MUST ONLY use tools from this list. For each step in your JSON, set the 'tool' field to the EXACT 'name' of the tool from this list."
+            except Exception:
+                pass
 
         try:
             res = await self.get_response(prompt, system_instruction=system_instruction, tools=tools, agent_id=agent_id)

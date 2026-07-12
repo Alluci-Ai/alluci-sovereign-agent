@@ -114,7 +114,7 @@ class Executor:
                 span.set_attribute("action", task.action)
                 
                 task.status = TaskStatus.RUNNING
-                self._update_task_record(run_id, task.id, status="running", start_time=datetime.now(timezone.utc))
+                self._update_task_record(run_id, task.id, status="running")
                 
                 # Context Injection
                 raw_dep_context = {
