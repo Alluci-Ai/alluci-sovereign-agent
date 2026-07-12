@@ -846,7 +846,7 @@ class ModelRouter(ExecutiveRouter):
                 if not agent_fallback:
                     from ..engine.hardware_scanner import HardwareScanner
                     # Estimate context size based on character length of the prompt (roughly ~4 chars per token)
-                    context_size = len(str(prompt)) // 4
+                    context_size = len(prompt) // 4
                     agent_fallback = HardwareScanner.get_optimal_local_fallback_chain(context_size=context_size)
 
                 if data_region == "EU":

@@ -28,7 +28,7 @@ async def get_current_session():
     """Returns the current user context (soul manifest + bridge connections) for frontend hydration."""
     try:
         from .. import services
-        soul = services.orchestrator.base_manifest if hasattr(services, "orchestrator") and services.orchestrator else None
+        soul = getattr(services.orchestrator, "_cached_soul", None) if hasattr(services, "orchestrator") and services.orchestrator else None
         # We return an empty connections array so the frontend uses INITIAL_CONNECTIONS
         # and then relies on ChannelHealthDashboard to fetch /api/v1/channels/status.
         connections = []
