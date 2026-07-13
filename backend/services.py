@@ -74,9 +74,7 @@ async def init_services(app_instance):
     if settings.REDIS_URL:
         try:
             redis_client = redis.from_url(settings.REDIS_URL, encoding="utf-8")
-            from fastapi_limiter import FastAPILimiter
-            await FastAPILimiter.init(redis_client)
-            logger.info(f"[ CACHE ]: Redis distributed rate limiter online: {settings.REDIS_URL}")
+            logger.info(f"[ CACHE ]: Redis initialized: {settings.REDIS_URL}")
 
             # Wire Redis into VerusID auth for persistent challenge storage
             from backend.security.verusid_auth import verus_auth as _verus_auth

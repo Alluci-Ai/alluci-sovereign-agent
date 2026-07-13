@@ -32,7 +32,7 @@ async def get_detailed_health():
     db_status = "healthy"
     try:
         with Session(db_engine) as session:
-            session.execute(text("SELECT 1"))
+            session.exec(select(1))
     except Exception:
         db_status = "unhealthy"
  
@@ -76,7 +76,7 @@ async def readiness_check():
     }
     try:
         with Session(db_engine) as session:
-            session.execute(text("SELECT 1"))
+            session.exec(select(1))
         checks["database"] = "stable"
     except Exception as e:
         logger.error(f"[ HEALTH ]: Database integrity check failed: {e}")

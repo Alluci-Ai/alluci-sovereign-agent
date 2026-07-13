@@ -86,3 +86,26 @@ class TestCronEngineMultiAgent:
         # Assert agent_id="sub_agent_99" was passed as kwarg
         _, kwargs = mock_task_mgr.add_task.call_args
         assert kwargs.get("agent_id") == "sub_agent_99"
+
+    @pytest.mark.asyncio
+    async def test_cron_schedule_parsing(self, temp_db):
+        """Validate that ScheduleType.CRON correctly utilizes the updated croniter."""
+        engine = CronEngine(db_engine=temp_db)
+        
+        # Test CRON execution with an every-minute schedule
+        now = datetime.datetime.now(datetime.timezone.utc)
+        
+        job = CronJob(
+            name="cron_job",
+            agent_id="test_agent",
+            schedule_type=ScheduleType.CRON,
+            schedule_value="* * * * *",
+            last_run_at=now - datetime.timedelta(minutes=2)
+        )
+        
+        # Since last_run_at is 2 mins ago and schedule is every minute, it should be due
+        assert engine._is_due(job, now) is True
+        
+        # Test when last_run_at was 10 seconds ago (should not be due yet)
+        job.last_run_at = now - datetime.timedelta(seconds=10)
+        assert engine._is_due(job, now) is False

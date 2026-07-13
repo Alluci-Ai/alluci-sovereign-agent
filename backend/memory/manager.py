@@ -82,7 +82,8 @@ class MemoryManager:
                 emb_fn = None # Uses Chroma default CPU engine
                 coll_name = "polytope_memories_pc"
 
-            self.client = chromadb.PersistentClient(path=self.persist_directory)
+            from chromadb.config import Settings
+            self.client = chromadb.PersistentClient(path=self.persist_directory, settings=Settings(migrations="apply"))
             self.collection = self.client.get_or_create_collection(
                 name=coll_name,
                 embedding_function=emb_fn,

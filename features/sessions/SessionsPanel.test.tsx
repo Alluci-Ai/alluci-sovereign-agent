@@ -19,7 +19,8 @@ describe('SessionsPanel', () => {
             sessions: [],
             setSessions: mockSetSessions,
             setActiveSessionKey: mockSetActiveSessionKey,
-            accessToken: 'test-token'
+            accessToken: 'test-token',
+            availableModels: []
         });
 
         // Mock fetch

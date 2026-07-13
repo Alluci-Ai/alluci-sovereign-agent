@@ -487,10 +487,16 @@ class CronEngine:
         elif job.schedule_type == ScheduleType.CRON:
             try:
                 from croniter import croniter  # type: ignore
-                cron = croniter(job.schedule_value, job.last_run_at or now - timedelta(days=1))
+                start_time = job.last_run_at or (now - timedelta(days=1))
+                if now.tzinfo is not None and start_time.tzinfo is None:
+                    start_time = start_time.replace(tzinfo=now.tzinfo)
+                elif now.tzinfo is None and start_time.tzinfo is not None:
+                    start_time = start_time.replace(tzinfo=None)
+                
+                cron = croniter(job.schedule_value, start_time)
                 next_run = cron.get_next(datetime)
-                if next_run.tzinfo is None:
-                    next_run = next_run.replace(tzinfo=timezone.utc)
+                if next_run.tzinfo is None and now.tzinfo is not None:
+                    next_run = next_run.replace(tzinfo=now.tzinfo)
                 return now >= next_run
             except ImportError:
                 logger.warning("[CronEngine] croniter not installed, skipping cron-type jobs")

@@ -64,11 +64,11 @@ export interface EnterpriseEvent {
 export interface AppState {
     // Connection & System Status
     isConnected: boolean;
-    daemonStatus: 'ONLINE' | 'OFFLINE';
+    daemonStatus: 'ONLINE' | 'OFFLINE' | 'INITIALIZING';
     harmonicStatus: string;
     isCameraActive: boolean;
     setIsConnected: (val: boolean) => void;
-    setDaemonStatus: (val: 'ONLINE' | 'OFFLINE') => void;
+    setDaemonStatus: (val: 'ONLINE' | 'OFFLINE' | 'INITIALIZING') => void;
     setHarmonicStatus: (val: string) => void;
     setIsCameraActive: (val: boolean) => void;
     accessToken: string | null;

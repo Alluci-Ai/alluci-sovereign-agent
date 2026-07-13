@@ -26,19 +26,7 @@ def _pad(s: str) -> str:
 
 
 
-try:
-    from fastapi_csrf_protect import CsrfProtect
-except ImportError:
-    # Minimal stub for CsrfProtect when the package is not installed
-    class CsrfProtect:
-        def __init__(self, *args, **kwargs):
-            pass
-        def generate_csrf_tokens(self):
-            # Return placeholder tokens
-            return ("dummy_csrf_token", "dummy_signed_token")
-        async def validate_csrf(self, request):
-            # No validation performed in stub
-            return None
+from fastapi_csrf_protect import CsrfProtect
 router = APIRouter(tags=["Authentication"])
 
 @router.get("/auth/csrf-token")

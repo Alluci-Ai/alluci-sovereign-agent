@@ -1,13 +1,6 @@
 from fastapi import Request, Response, HTTPException
-try:
-    from fastapi_limiter.depends import RateLimiter as FastAPIRateLimiter
-except ImportError:
-    # Define a minimal stub that simply passes through the response
-    class FastAPIRateLimiter:
-        def __init__(self, *args, **kwargs):
-            pass
-        async def __call__(self, request: Request, response: Response):
-            return response
+from pyrate_limiter import Limiter, Rate
+from fastapi_limiter.depends import RateLimiter as FastAPIRateLimiter
 from .rate_limiter import get_fallback_limiter
 import logging
 
@@ -27,15 +20,13 @@ class RateLimiter:
         self.minutes = minutes
         self.hours = hours
         
-        # Initialize the underlying FastAPIRateLimiter
-        # Note: 'days' is not supported by FastAPIRateLimiter
-        self._limiter = FastAPIRateLimiter(
-            times=times, 
-            milliseconds=milliseconds, 
-            seconds=seconds, 
-            minutes=minutes, 
-            hours=hours
-        )
+        # Calculate total milliseconds for pyrate_limiter
+        duration_ms = int(milliseconds + seconds * 1000 + minutes * 60 * 1000 + hours * 3600 * 1000)
+        if duration_ms == 0:
+            duration_ms = 60000
+            
+        rate = Rate(times, duration_ms)
+        self._limiter = FastAPIRateLimiter(limiter=Limiter(rate))
 
     async def __call__(self, request: Request, response: Response):
         try:
