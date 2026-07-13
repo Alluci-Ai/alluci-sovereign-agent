@@ -79,7 +79,7 @@ const SystemHeader: React.FC<SystemHeaderProps> = ({
                 <PolytopeIdentity color={accentColor} size={22} active={isConnected} />
                 <div className="topbar__brand">
                     <h1 className="topbar__title">POLYTOPE</h1>
-                    <span className="topbar__subtitle">Sovereign OS Beta v0.1.1.1</span>
+                    <span className="topbar__subtitle">Sovereign OS Beta v1.1.1</span>
                 </div>
             </div>
 
