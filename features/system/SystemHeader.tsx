@@ -123,7 +123,7 @@ const SystemHeader: React.FC<SystemHeaderProps> = ({
                     <PresenceCountBadge />
                 </div>
 
-                <HeartbeatIndicator active={daemonStatus === 'ONLINE'} />
+                <HeartbeatIndicator status={daemonStatus} />
 
                 {/* Theme toggle */}
                 <button

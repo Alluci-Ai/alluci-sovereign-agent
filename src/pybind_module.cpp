@@ -33,12 +33,14 @@ PYBIND11_MODULE(alluci_core, m) {
   // Bind the C++ class to Python
   py::class_<alluci::AlluciCognitiveEngine>(m, "AlluciCognitiveEngine")
       // Expose the constructor taking the model directory
-      .def(py::init<const std::string &>(), py::arg("model_dir"))
+      .def(py::init<const std::string &>(), py::arg("model_dir"),
+           py::call_guard<py::gil_scoped_release>())
 
       // Expose the dynamic LoRA injection method
       .def("inject_lora_adapters",
            &alluci::AlluciCognitiveEngine::inject_lora_adapters,
            py::arg("lora_path"),
+           py::call_guard<py::gil_scoped_release>(),
            "Hot-swaps LoRA Polytope adapters from the Dream Cycle into the "
            "neural network")
 
@@ -46,5 +48,6 @@ PYBIND11_MODULE(alluci_core, m) {
       .def("evaluate_intent", &alluci::AlluciCognitiveEngine::evaluate_intent,
            py::arg("prompt"), py::arg("max_tokens") = 1024,
            py::arg("temperature") = 0.7f,
+           py::call_guard<py::gil_scoped_release>(),
            "Executes the prompt on the Apple Silicon Neural Engine");
 }

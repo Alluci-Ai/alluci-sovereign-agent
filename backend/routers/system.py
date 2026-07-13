@@ -254,11 +254,15 @@ async def get_system_providers():
 async def get_system_status():
     """High-level system status and resource metrics."""
     import psutil
+    from ..inference.mlx_engine import MLXEngine
+    engine = MLXEngine()
+    
     cpu = psutil.cpu_percent()
     mem = psutil.virtual_memory().percent
     
     return {
         "status": "active",
+        "engine_status": "INITIALIZING" if engine.is_loading else "NOMINAL",
         "environment": settings.APP_ENV,
         "resources": {
             "cpu": f"{cpu}%",

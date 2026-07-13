@@ -278,34 +278,52 @@ export const MobileMenu: React.FC<{ isOpen: boolean; onClose: () => void; onActi
     );
 };
 
-export const HeartbeatIndicator: React.FC<{ active: boolean }> = ({ active }) => {
+export const HeartbeatIndicator: React.FC<{ status?: string }> = ({ status }) => {
     const [pulse, setPulse] = useState(false);
+    
+    // Fallback for backwards compatibility if old 'active' prop is passed
+    const isActive = status === 'ONLINE' || status === 'INITIALIZING';
+    const isInitializing = status === 'INITIALIZING';
+    
+    const color = isInitializing ? '#FF9F0A' : '#30D158';
+    const colorRgb = isInitializing ? '255, 159, 10' : '48, 209, 88';
+    
     useEffect(() => {
-        if (!active) return;
-        const interval = setInterval(() => { setPulse(true); setTimeout(() => setPulse(false), 200); }, 2000);
+        if (!isActive) return;
+        const interval = setInterval(() => { setPulse(true); setTimeout(() => setPulse(false), isInitializing ? 400 : 200); }, isInitializing ? 1500 : 2000);
         return () => clearInterval(interval);
-    }, [active]);
-    if (!active) return null;
+    }, [isActive, isInitializing]);
+    
+    if (!isActive) return null;
     return (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, opacity: 0.8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, opacity: 0.8, transition: 'all 0.5s var(--lg-spring)' }}>
             <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 10, height: 10 }}>
                 <div style={{
-                    position: 'absolute', inset: 0, borderRadius: '50%', background: 'rgba(48, 209, 88, 0.35)',
+                    position: 'absolute', inset: 0, borderRadius: '50%', background: `rgba(${colorRgb}, 0.35)`,
                     pointerEvents: 'none',
-                    // Liquid Glass spring for pulse expansion
                     transition: `transform var(--lg-dur-release) var(--lg-spring), opacity 0.5s ease`,
                     transform: pulse ? 'scale(1.5)' : 'scale(1)',
-                    opacity: pulse ? 0.3 : 0,
+                    opacity: pulse ? 0.4 : 0,
                 }} />
                 <div style={{
-                    width: 5, height: 5, borderRadius: '50%',
-                    background: 'rgba(48, 209, 88, 0.65)', flexShrink: 0, zIndex: 1,
-                    // Subtle liquid compress on pulse
-                    transition: `transform var(--lg-dur-release) var(--lg-spring)`,
-                    transform: pulse ? 'scale(0.85)' : 'scale(1)',
+                    position: 'absolute', inset: 3, borderRadius: '50%', background: color,
+                    boxShadow: `0 0 8px ${pulse ? `rgba(${colorRgb}, 0.8)` : `rgba(${colorRgb}, 0.4)`}`,
+                    transition: 'background 0.5s ease, box-shadow 0.5s ease'
                 }} />
             </div>
-            <span className="glass-tag glass-tag--connected" style={{ fontSize: 9, padding: '1px 6px' }}>Active</span>
+            <span style={{ 
+                fontSize: 10, 
+                fontWeight: 700, 
+                color: color, 
+                letterSpacing: '0.05em', 
+                textTransform: 'uppercase', 
+                background: `rgba(${colorRgb}, 0.1)`, 
+                padding: '2px 6px', 
+                borderRadius: 4,
+                transition: 'color 0.5s ease, background 0.5s ease'
+            }}>
+                {isInitializing ? 'Loading Engine' : 'Active'}
+            </span>
         </div>
     );
 };

@@ -25,7 +25,11 @@ export const useDaemonStatus = () => {
                 if (mounted) {
                     if (res.ok) {
                         const data = await res.json();
-                        setDaemonStatus('ONLINE');
+                        if (data.engine_status === 'INITIALIZING') {
+                            setDaemonStatus('INITIALIZING');
+                        } else {
+                            setDaemonStatus('ONLINE');
+                        }
                         if (data.harmonic_status) setHarmonicStatus(data.harmonic_status);
                         if (data.update_available !== undefined) setUpdateAvailable(data.update_available);
                         if (data.latest_version !== undefined) setLatestVersion(data.latest_version);

@@ -508,7 +508,7 @@ const IdentityForge: React.FC<{ onClose: () => void; onManifestUpdate?: (manifes
                                         <option value="af_sky">af_sky (Feminine / Calm)</option>
                                     </select>
                                 </div>
-                                <TagInput label="Prime Directives" items={manifest.directives} onChange={i => updateManifest('directives', i)} placeholder="Add directive..." />
+                                <TagInput label="Prime Directives" items={manifest.directives || []} onChange={i => updateManifest('directives', i)} placeholder="Add directive..." />
                             </div>
                         </section>
                     </div>
@@ -525,8 +525,8 @@ const IdentityForge: React.FC<{ onClose: () => void; onManifestUpdate?: (manifes
                             <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', display: 'block', marginBottom: 4, textTransform: 'uppercase' }}>Reasoning Style</label>
                             <textarea className="glass-input" value={manifest.reasoningStyle} onChange={e => updateManifest('reasoningStyle', e.target.value)} style={{ minHeight: 56, resize: 'vertical', fontSize: 13 }} />
                         </div>
-                        <TagInput label="Frameworks" items={manifest.frameworks} onChange={i => updateManifest('frameworks', i)} placeholder="Add mental model..." />
-                        <TagInput label="Mindsets" items={manifest.mindsets} onChange={i => updateManifest('mindsets', i)} placeholder="Add attitude..." />
+                        <TagInput label="Frameworks" items={manifest.frameworks || []} onChange={i => updateManifest('frameworks', i)} placeholder="Add mental model..." />
+                        <TagInput label="Mindsets" items={manifest.mindsets || []} onChange={i => updateManifest('mindsets', i)} placeholder="Add attitude..." />
                         <TagInput label="Methodologies" items={manifest.methodologies || []} onChange={i => updateManifest('methodologies', i)} placeholder="Add template..." />
                         <TagInput label="Cognitive Chains" items={manifest.chainsOfThought || []} onChange={i => updateManifest('chainsOfThought', i)} placeholder="Add chain step..." />
                         <TagInput label="Logic Axioms" items={manifest.logic || []} onChange={i => updateManifest('logic', i)} placeholder="Add axiom..." />
@@ -543,7 +543,7 @@ const IdentityForge: React.FC<{ onClose: () => void; onManifestUpdate?: (manifes
                             padding: 20,
                             display: 'flex', flexDirection: 'column', gap: 14, flex: 1,
                         }}>
-                            <TagInput label="Active Domains" items={manifest.knowledgeGraph} onChange={i => updateManifest('knowledgeGraph', i)} placeholder="Add domain..." />
+                            <TagInput label="Active Domains" items={manifest.knowledgeGraph || []} onChange={i => updateManifest('knowledgeGraph', i)} placeholder="Add domain..." />
                             <button
                                 onClick={() => setIsSkillPickerOpen(true)}
                                 className="glass-btn"
