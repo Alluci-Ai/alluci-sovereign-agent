@@ -21,7 +21,7 @@ class RateLimiter:
         self.hours = hours
         
         # Calculate total milliseconds for pyrate_limiter
-        duration_ms = int(milliseconds + seconds * 1000 + minutes * 60 * 1000 + hours * 3600 * 1000)
+        duration_ms: int = milliseconds + (seconds * 1000) + (minutes * 60 * 1000) + (hours * 3600 * 1000)
         if duration_ms == 0:
             duration_ms = 60000
             
