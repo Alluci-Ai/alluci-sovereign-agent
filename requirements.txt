@@ -33,7 +33,7 @@ secure==0.3.0
 greenlet==3.2.2              # Fixed conflict between playwright and gevent
 
 # ─── LLM Providers ────────────────────────────────────────────────────────────
-google-generativeai==0.8.3
+google-generativeai==0.8.6
 google-auth==2.34.0
 mlx>=0.29.0; sys_platform == "darwin"
 mlx-lm>=0.29.0; sys_platform == "darwin"
