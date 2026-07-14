@@ -15,7 +15,7 @@ pydantic==2.12.5
 pydantic-settings==2.4.0
 
 # ─── Database & Migrations ────────────────────────────────────────────────────
-sqlmodel==0.0.21
+sqlmodel==0.0.39
 alembic==1.13.2
 psycopg2-binary==2.9.11       # PostgreSQL sync driver (Alembic migrations)
 asyncpg==0.29.0              # PostgreSQL async driver (runtime)
