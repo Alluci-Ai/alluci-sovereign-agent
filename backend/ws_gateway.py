@@ -162,7 +162,7 @@ class JsonRpcGateway:
 
     async def handle_connection(self, websocket: WebSocket, already_accepted: bool = False):
         """Main entry point for a new WebSocket connection."""
-        logger.error(f"!!! WS CONNECTION ARRIVED !!! headers: {websocket.headers}")
+        logger.debug(f"[WS] Connection arrived: {websocket.client}")
         if not already_accepted:
             await websocket.accept()
         
@@ -236,9 +236,15 @@ class JsonRpcGateway:
         except JWTError:
             await websocket.close(code=4003, reason="Invalid token")
             return None, None
+        except WebSocketDisconnect:
+            # Client disconnected during auth sequence (e.g. Vite HMR or fast navigation)
+            return None, None
         except Exception as e:
             logger.warning(f"[WS] Auth error: {e}")
-            await websocket.close(code=4000, reason="Auth failed")
+            try:
+                await websocket.close(code=4000, reason="Auth failed")
+            except Exception:
+                pass
             return None, None
 
     # ── Dispatch ──────────────────────────────────────────────────────────

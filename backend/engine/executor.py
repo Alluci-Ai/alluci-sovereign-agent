@@ -124,7 +124,11 @@ class Executor:
                 }
                 
                 # Condense verbose dependency outputs via SupervisorAgent to save tokens
-                dep_context = self.supervisor.condense_context(raw_dep_context)
+                if task.action == "deep_research_evaluate":
+                    # Bypass truncation for deep research evaluation to prevent massive data loss
+                    dep_context = raw_dep_context
+                else:
+                    dep_context = self.supervisor.condense_context(raw_dep_context)
                 task.args["dependency_output"] = dep_context
 
                 from ..security.exceptions import SecurityException

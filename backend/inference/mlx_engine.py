@@ -89,9 +89,18 @@ class MLXEngine:
                 
         return prompt, temperature
 
-    async def generate(self, prompt: str, max_tokens: int = 1024, temperature: float = 0.7) -> str:
+    async def generate(
+        self,
+        prompt: str,
+        system_instruction: str = "",
+        max_tokens: int = 1024,
+        temperature: float = 0.7,
+        agent_id: Optional[str] = None
+    ) -> str:
         """Generates a complete response via the Native C++ Engine."""
         await self.ensure_loaded()
+        if system_instruction:
+            prompt = f"{system_instruction}\n\n{prompt}"
         prompt, temperature = self._apply_ace_logic(prompt, temperature)
         
         def _sync_gen():
@@ -99,17 +108,34 @@ class MLXEngine:
             
         return await asyncio.to_thread(_sync_gen)
 
-    async def generate_stream(self, prompt: str, max_tokens: int = 1024, temperature: float = 0.7) -> AsyncGenerator[str, None]:
+    async def generate_stream(
+        self,
+        prompt: str,
+        system_instruction: str = "",
+        max_tokens: int = 1024,
+        temperature: float = 0.7,
+        agent_id: Optional[str] = None
+    ) -> AsyncGenerator[str, None]:
         """
         Streams response via the Native C++ Engine. 
         Note: C++ PyBind11 evaluate_intent is synchronous currently, so it yields the full response immediately.
         """
-        response = await self.generate(prompt, max_tokens, temperature)
+        response = await self.generate(
+            prompt,
+            system_instruction=system_instruction,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            agent_id=agent_id
+        )
         # Yield the response in chunks to simulate streaming for the UI
         chunk_size = 20
         for i in range(0, len(response), chunk_size):
             yield response[i:i+chunk_size]
             await asyncio.sleep(0.01)
+
+    async def apply_lora_adapter(self, agent_id: str) -> None:
+        """Alias for apply_context_moat to comply with CognitiveEngine protocol."""
+        await self.apply_context_moat(agent_id)
 
     async def apply_context_moat(self, agent_id: str):
         """Injects LoRA adapters directly into the C++ Engine"""
