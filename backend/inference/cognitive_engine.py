@@ -24,7 +24,8 @@ class CognitiveEngine(ABC):
         system_instruction: str = "",
         max_tokens: int = 1024,
         temperature: float = 0.7,
-        agent_id: Optional[str] = None
+        agent_id: Optional[str] = None,
+        tools: Optional[list] = None
     ) -> str:
         """Generates a complete response natively."""
         pass
@@ -36,7 +37,8 @@ class CognitiveEngine(ABC):
         system_instruction: str = "",
         max_tokens: int = 1024,
         temperature: float = 0.7,
-        agent_id: Optional[str] = None
+        agent_id: Optional[str] = None,
+        tools: Optional[list] = None
     ) -> AsyncGenerator[str, None]:
         """Generates a stream of text tokens."""
         yield ""

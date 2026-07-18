@@ -2,6 +2,7 @@ import asyncio
 import logging
 import sys
 import os
+import json
 from typing import AsyncGenerator, Optional, Dict, Any
 
 # Dynamically append the CMake build path to load the native C++ PyBind11 module
@@ -52,10 +53,11 @@ class MLXEngine:
             if not self.hardware_profile:
                 raise RuntimeError("Hardware profile not initialized.")
             target_model_id = self.hardware_profile["recommended_model"]
-            logger.info(f"MLXEngine: Initializing Native Apple Silicon Engine with {target_model_id}...")
+            model_name = target_model_id.split("/")[-1]
+            logger.info(f"MLXEngine: Initializing Native Apple Silicon Engine with {model_name}...")
             
             # Load the compiled native C++ engine
-            model_dir = os.path.abspath(f"alluci_vault/raw_family/{target_model_id}")
+            model_dir = os.path.abspath(f"mirror_cache/{model_name}")
             self.engine = alluci_core.AlluciCognitiveEngine(model_dir)
             logger.info("MLXEngine: Native Engine allocated successfully.")
         except Exception as e:
@@ -95,10 +97,21 @@ class MLXEngine:
         system_instruction: str = "",
         max_tokens: int = 1024,
         temperature: float = 0.7,
-        agent_id: Optional[str] = None
+        agent_id: Optional[str] = None,
+        tools: Optional[list] = None
     ) -> str:
         """Generates a complete response via the Native C++ Engine."""
         await self.ensure_loaded()
+        
+        if tools:
+            serialized_tools = json.dumps(tools, indent=2)
+            tool_directive = (
+                f"You are an autonomous agent. You have access to the following tools:\n{serialized_tools}\n"
+                "To use a tool, you MUST output a raw JSON object exactly matching the schema. "
+                "Do not output conversational text when using a tool."
+            )
+            system_instruction = f"{tool_directive}\n\n{system_instruction}" if system_instruction else tool_directive
+            
         if system_instruction:
             prompt = f"{system_instruction}\n\n{prompt}"
         prompt, temperature = self._apply_ace_logic(prompt, temperature)
@@ -114,7 +127,8 @@ class MLXEngine:
         system_instruction: str = "",
         max_tokens: int = 1024,
         temperature: float = 0.7,
-        agent_id: Optional[str] = None
+        agent_id: Optional[str] = None,
+        tools: Optional[list] = None
     ) -> AsyncGenerator[str, None]:
         """
         Streams response via the Native C++ Engine. 
@@ -125,7 +139,8 @@ class MLXEngine:
             system_instruction=system_instruction,
             max_tokens=max_tokens,
             temperature=temperature,
-            agent_id=agent_id
+            agent_id=agent_id,
+            tools=tools
         )
         # Yield the response in chunks to simulate streaming for the UI
         chunk_size = 20

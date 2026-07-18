@@ -21,17 +21,30 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(pybind11)
 
-# Include directories (Placeholder for mlx/c/mlx.h)
+# Find MLX locally
+find_package(mlx REQUIRED)
+
+# Find SentencePiece library manually since brew might not provide CMake config
+find_library(SENTENCEPIECE_LIB sentencepiece PATHS /opt/homebrew/lib REQUIRED)
+
+# Include directories
 include_directories(${CMAKE_SOURCE_DIR}/src)
+# Homebrew automatically includes header paths, but let's be explicit if needed
+include_directories(/opt/homebrew/include)
 
 # Define the Python extension module
-pybind11_add_module(alluci_core src/pybind_module.cpp)
+pybind11_add_module(alluci_core 
+    src/pybind_module.cpp
+    src/tokenizer_mlx.cpp
+)
 
 # Link Apple Silicon Frameworks
 target_link_libraries(alluci_core PRIVATE 
     ${ACCELERATE_FRAMEWORK} 
     ${METAL_FRAMEWORK} 
     ${FOUNDATION_FRAMEWORK}
+    mlx
+    ${SENTENCEPIECE_LIB}
 )
 
 # Compiler flags for maximum Apple Silicon optimization
