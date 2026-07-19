@@ -40,6 +40,13 @@ class Planner:
                     "description": "Evaluate harvested data and synthesize report",
                     "dependencies": ["task_research_2"],
                     "assignee": agent_id
+                },
+                {
+                    "id": "task_research_4",
+                    "tool": "deep_research_report_chat",
+                    "description": "Condense the final report and send to chat UI",
+                    "dependencies": ["task_research_3"],
+                    "assignee": agent_id
                 }
             ]
         else:

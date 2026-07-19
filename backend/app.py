@@ -66,9 +66,10 @@ configure_logging(app_env=settings.APP_ENV)
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
-    from .core.startup_checks import assert_secrets_are_set, warn_on_stale_model_ids
+    from .core.startup_checks import assert_secrets_are_set, warn_on_stale_model_ids, seed_rocco_agent
     assert_secrets_are_set()
     warn_on_stale_model_ids()
+    seed_rocco_agent()
     
     logger.info("[ POLYTOPE_DAEMON ] # 1. Initialize global system components")
     await services.init_services(app)

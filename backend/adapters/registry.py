@@ -11,7 +11,8 @@ from .doc_ingest import DocumentIngestAdapter
 from .deep_research import (
     DeepResearchQueryExpansionAdapter,
     DeepResearchHarvestAdapter,
-    DeepResearchEvaluateAdapter
+    DeepResearchEvaluateAdapter,
+    DeepResearchChatReportAdapter
 )
 from .aar_adapter import (
     AARVerusAdapter, AARANSAdapter, AARA2AAdapter, AAREntraAdapter, AARGCPAdapter
@@ -37,6 +38,7 @@ class AdapterRegistry:
         self.register(DeepResearchQueryExpansionAdapter())
         self.register(DeepResearchHarvestAdapter())
         self.register(DeepResearchEvaluateAdapter())
+        self.register(DeepResearchChatReportAdapter())
         
         # New Dual Architecture Adapters
         self.register(AARVerusAdapter())

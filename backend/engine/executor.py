@@ -124,7 +124,7 @@ class Executor:
                 }
                 
                 # Condense verbose dependency outputs via SupervisorAgent to save tokens
-                if task.action == "deep_research_evaluate":
+                if task.action in ["deep_research_evaluate", "deep_research_report_chat"]:
                     # Bypass truncation for deep research evaluation to prevent massive data loss
                     dep_context = raw_dep_context
                 else:

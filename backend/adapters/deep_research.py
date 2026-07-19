@@ -239,3 +239,55 @@ class DeepResearchEvaluateAdapter(Adapter):
                     pcl.world_model.recent_learnings = pcl.world_model.recent_learnings[-10:]
         except Exception as e:
             logger.error(f"Failed to ingest deep research into PCL/H-LSM: {e}")
+
+class DeepResearchChatReportAdapter(Adapter):
+    name = "deep_research_report_chat"
+    description = "Condenses the final deep research report into a chat-friendly summary and broadcasts it to the UI chat window."
+    
+    async def execute(self, args: Dict[str, Any]) -> Any:
+        dep_output = args.get("dependency_output", "")
+        report = ""
+        if isinstance(dep_output, dict):
+            report = "\n".join([str(v) for v in dep_output.values()])
+        else:
+            report = str(dep_output)
+            
+        if not report or not report.strip():
+            logger.warning("No deep research report available to summarize for chat.")
+            return "No findings to report."
+
+        summary = "I have completed the deep research objective! The full comprehensive report, along with supporting context, is now available in your side window artifact buffer."
+        
+        # Try to extract a brief tl;dr using the router if available
+        from .. import services
+        if services.router:
+            prompt = f"Provide a very brief 2-3 sentence executive summary of the following research report to be sent in a chat message to the user:\n\n{report[:10000]}"
+            try:
+                llm_summary = await services.router.get_response(
+                    prompt=prompt,
+                    system_instruction="You are an assistant reporting back in chat.",
+                    complexity="LOW",
+                    privacy_level="PUBLIC",
+                    inference_mode="LOCAL"
+                )
+                if llm_summary:
+                    summary += f"\n\n**TL;DR:** {llm_summary}"
+            except Exception as e:
+                logger.error(f"Failed to generate TL;DR for chat: {e}")
+                
+        if services.orchestrator and hasattr(services.orchestrator, "ws_gateway") and services.orchestrator.ws_gateway:
+            import uuid
+            msg_id = str(uuid.uuid4())
+            try:
+                await services.orchestrator.ws_gateway.broadcast_event('chat.message.received', {
+                    "id": msg_id,
+                    "sender": "rocco",
+                    "role": "assistant",
+                    "content": summary,
+                    "channel": "local"
+                })
+                logger.info("Successfully broadcasted deep research chat report to UI.")
+            except Exception as e:
+                logger.error(f"Failed to broadcast chat message: {e}")
+                
+        return {"status": "success", "chat_summary": summary}

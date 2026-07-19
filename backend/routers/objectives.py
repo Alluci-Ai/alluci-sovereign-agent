@@ -20,6 +20,7 @@ policy_engine = AutonomyPolicyEngine()
 class ObjectiveRequest(BaseModel):
     objective: str
     autonomy_level: str = "SEMI_AUTONOMOUS"
+    mode: str = "standard"
     override_tearing: bool = False
     override_avl: bool = False
 
@@ -129,15 +130,28 @@ async def execute_objective(
                 logger.warning(f"[ GUARDRAIL_BLOCK ]: Objective from {user_id} rejected: {reason}")
                 raise HTTPException(status_code=400, detail=f"Objective rejected by safety gate: {reason}")
 
+        # 3.5 Intent Classification for Deep Research
+        mode = request.mode
+        target_agent = agent_id
+        
+        # Auto-detect deep research intent if mode is not explicitly passed
+        if mode == "standard":
+            obj_lower = request.objective.lower()
+            if any(keyword in obj_lower for keyword in ["deep research", "comprehensive analysis", "investigate deeply", "research report"]):
+                mode = "research"
+                target_agent = "rocco"
+                logger.info(f"Auto-classified objective as Deep Research mode for agent {target_agent}")
+
         # 4. Execution (Proxy to Orchestrator)
         logger.info(f"[ EXEC ]: Starting objective for {user_id}: {request.objective[:50]}...")
-        if agent_id != "executive":
-            res = await services.orchestrator.multi_agent_delegate(agent_id, request.objective)
+        if target_agent != "executive":
+            res = await services.orchestrator.multi_agent_delegate(target_agent, request.objective, mode=mode)
             return {"status": "accepted", "run_id": None, "detail": res}
             
         result = await services.orchestrator.execute_objective(
             request.objective,
             autonomy=manifest.autonomy_level,  # type: ignore
+            mode=mode,
             origin=external_origin if external_origin else "local",
             override_tearing=request.override_tearing,
             override_avl=request.override_avl

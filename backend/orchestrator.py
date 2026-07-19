@@ -164,6 +164,21 @@ class ExecutiveOrchestrator:
             if ".ts" in title: lang = "typescript"
             await self.broadcast_artifact(title=title, content=content, language=lang)
             
+            # Physical File Persistence for Deep Research
+            if task.action == "deep_research_evaluate":
+                try:
+                    import os
+                    from .routers.sessions import WORKSPACE_DIR
+                    agent_id = getattr(task, "assignee", "rocco")
+                    artifacts_dir = os.path.join(WORKSPACE_DIR, agent_id, "artifacts")
+                    os.makedirs(artifacts_dir, exist_ok=True)
+                    file_path = os.path.join(artifacts_dir, "deep_research_report.md")
+                    with open(file_path, "w", encoding="utf-8") as f:
+                        f.write(content)
+                    self.logger.info(f"Physically saved deep research report to {file_path}")
+                except Exception as e:
+                    self.logger.error(f"Failed to persist physical artifact: {e}")
+            
         elif len(str(task.result)) > 200:
             # Broadcast large outputs natively as markdown reports
             await self.broadcast_artifact(
@@ -252,8 +267,7 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
                 mode = "research" if is_research else "standard"
                 
                 if mode == "research":
-                    import time
-                    agent_id = f"researcher_{int(time.time())}"
+                    agent_id = "rocco"
                     task = asyncio.create_task(self.multi_agent_delegate(agent_id, extracted_objective, mode="research"))
                     msg = f"I am dispatching a dedicated Deep Research SubAgent ({agent_id}) to work on this in the background:\n> {extracted_objective}"
                 else:

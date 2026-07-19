@@ -73,3 +73,54 @@ def warn_on_stale_model_ids() -> None:
                 "Update KNOWN_VALID_MODEL_IDS in startup_checks.py if this is intentional.",
                 model_id,
             )
+
+def seed_rocco_agent() -> None:
+    """
+    Seeds the 'rocco' sub-agent into the database if it does not exist,
+    pre-configuring its tools_manifest for deep research tasks.
+    """
+    import json
+    from sqlmodel import Session
+    from ..database import db_engine
+    from ..models import AgentRecord
+
+    # Deep research tools to enable for rocco
+    research_tools = {
+        "deep_research_query_expansion": {"enabled": True},
+        "deep_research_harvest": {"enabled": True},
+        "deep_research_evaluate": {"enabled": True}
+    }
+
+    with Session(db_engine) as session:
+        rocco = session.get(AgentRecord, "rocco")
+        if not rocco:
+            rocco = AgentRecord(
+                id="rocco",
+                name="Rocco (Deep Research Agent)",
+                system_prompt="You are Rocco, an advanced deep research agent. Your sole purpose is to execute comprehensive research workflows, gather extensive data from the web, evaluate the findings, and synthesize detailed reports.",
+                tools_manifest=json.dumps(research_tools),
+                llm_model="gemini-2.0-flash",
+                autonomy_level="SEMI_AUTONOMOUS"
+            )
+            session.add(rocco)
+            session.commit()
+            import logging
+            logging.getLogger(__name__).info("Successfully seeded 'rocco' deep research agent.")
+        else:
+            # Ensure tools manifest has deep research tools enabled if already exists
+            manifest = {}
+            if rocco.tools_manifest:
+                try:
+                    manifest = json.loads(rocco.tools_manifest)
+                except:
+                    manifest = {}
+            updated = False
+            for tool, config in research_tools.items():
+                if tool not in manifest or not manifest[tool].get("enabled"):
+                    manifest[tool] = config
+                    updated = True
+            
+            if updated:
+                rocco.tools_manifest = json.dumps(manifest)
+                session.add(rocco)
+                session.commit()
