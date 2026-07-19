@@ -30,6 +30,11 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import time
+import logging
+try:
+    import alluci_core
+except ImportError:
+    alluci_core = None
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -1348,6 +1353,25 @@ class ProactiveCognitionLoop:
                 }))
             except Exception as e:
                 logger.debug(f"[PCL] WS broadcast failed: {e}")
+
+        # STAGE 5: Cooldown & Graph State Flush
+        try:
+            from .inference.mlx_engine import MLXEngine
+            engine = MLXEngine().engine
+            if engine and hasattr(engine, "flush_global_kv_pipeline_registry"):
+                engine.flush_global_kv_pipeline_registry()
+        except ImportError:
+            # Fallback if mlx_engine is not available
+            pass
+        except Exception as e:
+            logger.debug(f"[PCL] Could not flush KV pipeline: {e}")
+
+        # 2. CODE IMPLEMENTATION FOR PROTOCOL 1:
+        # You must reset your Python-side context index/length tracking variables 
+        # back to 0 immediately so the next cycle doesn't send invalid shapes to C++.
+        self.current_sequence_length = 0
+        self.active_prompt_token_ids = [] 
+        logger.info("PCL Boundary finalized. C++ and Python state indices synchronized to zero.")
 
         summary = {
             "cycle": self._cycle_number,

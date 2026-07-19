@@ -6,10 +6,9 @@ namespace alluci {
 
 Tokenizer::Tokenizer(const std::string& model_path) {
     processor = std::make_unique<sentencepiece::SentencePieceProcessor>();
-    try {
-        processor->LoadOrDie(model_path);
-    } catch (...) {
-        throw std::runtime_error("Failed to load SentencePiece model: " + model_path);
+    auto status = processor->Load(model_path);
+    if (!status.ok()) {
+        throw std::runtime_error("Failed to load SentencePiece model: " + model_path + " (" + status.ToString() + ")");
     }
     bos_id = processor->bos_id();
     eos_id = processor->eos_id();

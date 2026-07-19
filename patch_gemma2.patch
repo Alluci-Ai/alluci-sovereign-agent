@@ -1,0 +1,12 @@
+--- .venv/lib/python3.11/site-packages/mlx_lm/models/gemma2.py
++++ .venv/lib/python3.11/site-packages/mlx_lm/models/gemma2.py
+@@ -140,6 +140,10 @@
+ 
+         for layer, c in zip(self.layers, cache):
+             h = layer(h, mask, c)
++            if layer == self.layers[0] or layer == self.layers[59]:
++                import mlx.core as mx
++                print(f"Layer output var: {mx.var(h).item()}")
+ 
+         return self.norm(h)
+ 

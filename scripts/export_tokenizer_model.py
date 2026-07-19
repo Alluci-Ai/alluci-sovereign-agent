@@ -39,7 +39,10 @@ def convert_tokenizer(cache_dir):
     print(f"   Found {len(vocab_dict)} total tokens and {len(added_tokens)} custom added/special tokens.")
 
     print("4. Injecting custom vocabulary into binary protobuf...")
-    # Resize pieces array if necessary
+    # Clear existing pieces to prevent leftover base model tokens
+    del m.pieces[:]
+    
+    # Resize pieces array
     while len(m.pieces) <= max_id:
         m.pieces.add()
         

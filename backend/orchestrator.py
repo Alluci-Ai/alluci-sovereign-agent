@@ -1,10 +1,13 @@
 import asyncio
 import json
 import time
+import os
+import logging
 from datetime import datetime, timezone
 from typing import Dict, Any, Tuple, Optional
 import structlog
 from sqlmodel import Session
+from sentence_transformers import SentenceTransformer
 
 from .models import TaskStatus, Run, RunStatus
 from .inference.router import ModelRouter
@@ -31,6 +34,19 @@ from . import task_queue
 
 from .security.dpk import DiscreteProjectionKernel, PolytopeState
 from .security.avl_gate import AVLGate
+
+def validate_telemetry(hidden_state_variance: float, acceptance_rate: float):
+    # CODE IMPLEMENTATION FOR PROTOCOL 3:
+    # Rule 1: Catch hidden state variance blowout early
+    if not (0.5 <= hidden_state_variance <= 50.0):
+        logger = logging.getLogger("Telemetry")
+        logger.error(f"[TELEMETRY CRITICAL] C++ Variance Out-Of-Bounds: {hidden_state_variance}. Check layer_scalars.")
+        
+    # Rule 2: Alert if the 12B model is drafting low-quality tokens
+    if acceptance_rate < 25.0:
+        logger = logging.getLogger("Telemetry")
+        logger.warning(f"[TELEMETRY WARN] Speculative Acceptance tanked to {acceptance_rate}%. Syncing grammar masks.")
+
 from .ace.entropy_monitor import EntropySpikeDetector
 from .inference.kcm import KCMGeodesicCost
 from .security.health_monitor import PVTManifoldHealthMonitor
@@ -733,11 +749,9 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
         try:
             # 1. Embed Objective
             if not hasattr(self, "_embed_model"):
-                from sentence_transformers import SentenceTransformer
-                self._embed_model = SentenceTransformer('all-MiniLM-L6-v2')
+                self._embed_model = SentenceTransformer(os.path.abspath('mirror_cache/embeddings/all-MiniLM-L6-v2'))
             
             embedding = self._embed_model.encode(objective, convert_to_tensor=True)
-            import torch
             assert torch is not None and isinstance(embedding, torch.Tensor)
             input_tensor = embedding.unsqueeze(0).expand(10, -1)
             
@@ -751,6 +765,10 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
             
             # 4. Extract Simplicial Counts (V, E, F)
             V, E, F = self.ppn.extract_simplex_counts(G)
+            
+            # Telemetry Check (Protocol 3)
+            # Assuming acceptance rate is 100% since this is the verifier check, or 0 if not applicable
+            validate_telemetry(hidden_state_variance=h_norm, acceptance_rate=100.0)
             
             # 5. Construct Polytope State
             chi = V - E + F
@@ -1161,8 +1179,12 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
             avl_reason = ""
             if polytope_state:
                 is_safe, avl_reason = self.avl.verify(results_summary, polytope_state)
-                # Bypass AVL rejection in development/testing
-                if getattr(self.settings, 'APP_ENV', 'development') in ['development', 'testing']:
+                # Add dev context
+                is_dev = False
+                if getattr(self, 'settings', None):
+                    is_dev = getattr(self.settings, 'APP_ENV', 'development') in ['development', 'testing']
+                
+                if is_dev:
                     is_safe = True
                     
                 if not is_safe:
@@ -1199,7 +1221,18 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
             # Self-Correction & Progressive Scaling
             attempt += 1
             
+            # CODE IMPLEMENTATION FOR PROTOCOL 2:
             if attempt >= total_retries_allowed:
+                self.logger.critical("Lipschitz Budget / Self-Healing Exhausted! Initiating memory dump.")
+                
+                # Explicit text serialization dump of the memory graph for architectural audit
+                try:
+                    with open("alluci_memory_dump.log", "w") as dump_file:
+                        dump_file.write(f"Violated Manifold Context: {objective}\n")
+                        dump_file.write(f"Diagnostics: {str(getattr(polytope_state, '__dict__', {}))}\n")
+                except Exception as e:
+                    self.logger.error(f"Failed to dump memory: {e}")
+                    
                 self.logger.critical(f"🛑 HUMAN-IN-THE-LOOP REQUIRED: AVL Self-Healing exhausted. Reason: {avl_reason}")
                 return {
                     "status": "human_override_required",

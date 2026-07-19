@@ -37,6 +37,9 @@ def download_models():
     if settings.LOCAL_MODEL_MAX not in models_to_download:
         models_to_download.append(settings.LOCAL_MODEL_MAX)
         
+    # Always download the embedding model for the PPN checks (Air-Gapped Sovereignty)
+    models_to_download.append("sentence-transformers/all-MiniLM-L6-v2")
+    
     cache_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'mirror_cache'))
     os.makedirs(cache_dir, exist_ok=True)
     
@@ -50,6 +53,11 @@ def download_models():
         
         logger.info(f"Starting download for {repo_id}...")
         try:
+            # Special case for the embedding model to put it in an embeddings subfolder
+            if repo_id == "sentence-transformers/all-MiniLM-L6-v2":
+                local_path = os.path.join(cache_dir, "embeddings", "all-MiniLM-L6-v2")
+                os.makedirs(local_path, exist_ok=True)
+                
             snapshot_download(
                 repo_id=repo_id,
                 local_dir=local_path

@@ -176,7 +176,15 @@ The new **Sovereignty Level Wizard** makes onboarding seamless. Choose between C
 
 ---
 
-### 1. Running locally
+### 1. The Air-Gap Boundary
+End users need to understand the lifecycle of the setup for absolute data sovereignty.
+Step 1 (`install.sh` or `install.ps1`) requires a **high-bandwidth internet connection** to pull the multi-gigabyte models and embedding `.safetensors` from HuggingFace into your local `mirror_cache/`. 
+
+Once the terminal outputs `[ INFO ]: Setup Complete.`, the setup is finalized. You can now **physically sever the ethernet cable or disable Wi-Fi**, and the Sovereign Agent will run indefinitely offline without ever pinging an external server again.
+
+---
+
+### 2. Running locally
 
 **Automated Stack Setup**
 Run the setup script to install local binaries and pull the required models:
@@ -199,7 +207,7 @@ Open `http://localhost:5173` to access the Alluci Sovereign Gateway. Upon first 
 
 ---
 
-### 2. Configuring vault secrets
+### 3. Configuring vault secrets
 
 The Sovereign Agent uses a strictly local `.env` file to seed its Verus Vault and configuration parameters. 
 
@@ -215,7 +223,7 @@ Fill in your critical environment variables:
 
 ---
 
-### 3. Running the test suite
+### 4. Running the test suite
 
 We enforce a rigorous zero-trust testing philosophy. To validate your local deployment, run the full quality gate:
 

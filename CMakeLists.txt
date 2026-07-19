@@ -4,6 +4,7 @@ project(AlluciSovereignCore VERSION 1.0)
 # We are building a Python Extension module via PyBind11
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Find MLX
 # Assumes MLX C++ headers are installed locally or pulled via FetchContent

@@ -44,10 +44,17 @@ PYBIND11_MODULE(alluci_core, m) {
            "Hot-swaps LoRA Polytope adapters from the Dream Cycle into the "
            "neural network")
 
+      // Expose the KV Cache Flush method
+      .def("flush_global_kv_pipeline_registry",
+           &alluci::AlluciCognitiveEngine::flush_global_kv_pipeline_registry,
+           py::call_guard<py::gil_scoped_release>(),
+           "Flushes the unified memory KV cache traces for clean context switching")
+
       // Expose the primary evaluation loop
       .def("evaluate_intent", &alluci::AlluciCognitiveEngine::evaluate_intent,
            py::arg("prompt"), py::arg("max_tokens") = 1024,
            py::arg("temperature") = 0.7f,
+           py::arg("allowed_token_ids") = std::vector<int>{},
            py::call_guard<py::gil_scoped_release>(),
            "Executes the prompt on the Apple Silicon Neural Engine");
 }
