@@ -89,6 +89,24 @@ class DeepResearchHarvestAdapter(Adapter):
                     markdown = await asyncio.to_thread(_extract)
                     if markdown:
                         return f"--- SOURCE: {url} ---\n<inert_web_data>\n{markdown}\n</inert_web_data>\n"
+                        
+                    # Playwright fallback for JS-heavy sites
+                    try:
+                        from playwright.async_api import async_playwright
+                        async with async_playwright() as p:
+                            browser = await p.chromium.launch(headless=True)
+                            page = await browser.new_page()
+                            await page.goto(url, wait_until="domcontentloaded", timeout=15000)
+                            await page.wait_for_timeout(2000)
+                            text_content = await page.evaluate("document.body.innerText")
+                            await browser.close()
+                            if text_content and text_content.strip():
+                                return f"--- SOURCE: {url} (PLAYWRIGHT FALLBACK) ---\n<inert_web_data>\n{text_content.strip()}\n</inert_web_data>\n"
+                    except ImportError:
+                        logger.warning(f"Playwright not installed, skipping fallback for {url}")
+                    except Exception as pe:
+                        logger.warning(f"Playwright fallback failed for {url}: {pe}")
+                        
                     return ""
                 except Exception as e:
                     logger.warning(f"Failed to harvest {url}: {e}")
@@ -146,20 +164,78 @@ class DeepResearchEvaluateAdapter(Adapter):
             else:
                 report = str(dependency_output)
             
-        # Push to PCL (Proactive Cognitive Loop)
         from .. import services
+        if services.router:
+            chunk_size = 32000
+            chunks = [report[i:i + chunk_size] for i in range(0, len(report), chunk_size)]
+            
+            if len(chunks) > 1:
+                logger.info(f"Report is large. Chunking into {len(chunks)} pieces for Map-Reduce evaluation.")
+                summaries = []
+                for idx, chunk in enumerate(chunks):
+                    map_prompt = f"Summarize the following research data chunk ({idx+1}/{len(chunks)}). Extract key insights, facts, and conclusions.\n\n{chunk}"
+                    try:
+                        summary = await services.router.get_response(
+                            prompt=map_prompt,
+                            system_instruction="You are a meticulous research analyst.",
+                            complexity="MEDIUM",
+                            privacy_level="PUBLIC",
+                            inference_mode="TACTICAL"
+                        )
+                        summaries.append(summary)
+                    except Exception as e:
+                        logger.error(f"Failed to summarize chunk {idx+1}: {e}")
+                        summaries.append(f"[Failed to process chunk {idx+1}]")
+                
+                combined_summaries = "\n\n---\n\n".join(summaries)
+                reduce_prompt = f"Synthesize the following chunk summaries into a single, cohesive, comprehensive final deep research report.\n\n{combined_summaries}"
+                try:
+                    final_report = await services.router.get_response(
+                        prompt=reduce_prompt,
+                        system_instruction="You are a senior research analyst. Produce a well-structured, detailed final report.",
+                        complexity="HIGH",
+                        privacy_level="PUBLIC",
+                        inference_mode="LOCAL"
+                    )
+                    report = final_report
+                except Exception as e:
+                    logger.error(f"Failed to reduce summaries: {e}")
+                    report = combined_summaries
+            else:
+                reduce_prompt = f"Synthesize the following raw research data into a cohesive, comprehensive final deep research report.\n\n{report}"
+                try:
+                    final_report = await services.router.get_response(
+                        prompt=reduce_prompt,
+                        system_instruction="You are a senior research analyst. Produce a well-structured, detailed final report.",
+                        complexity="HIGH",
+                        privacy_level="PUBLIC",
+                        inference_mode="LOCAL"
+                    )
+                    report = final_report
+                except Exception as e:
+                    logger.error(f"Failed to synthesize single chunk: {e}")
+
+        # Push to PCL (Proactive Cognitive Loop)
         if services.pcl:
-            # We asynchronously notify the PCL about this recent learning
             asyncio.create_task(self._notify_pcl(services.pcl, report))
             
         return report
 
     async def _notify_pcl(self, pcl, report: str):
         try:
-            # Limit the size for the world model
-            summary = report[:1000] + ("..." if len(report) > 1000 else "")
-            pcl.world_model.recent_learnings.append(f"Deep Research Insight: {summary}")
-            if len(pcl.world_model.recent_learnings) > 10:
-                pcl.world_model.recent_learnings = pcl.world_model.recent_learnings[-10:]
+            from .. import services
+            if services.hlsm_manager:
+                await services.hlsm_manager.encode_message(
+                    content=report,
+                    source="deep_research",
+                    session_key="background_research",
+                    psi=0.5
+                )
+                logger.info("Successfully ingested deep research report into H-LSM semantic memory.")
+            else:
+                summary = report[:1000] + ("..." if len(report) > 1000 else "")
+                pcl.world_model.recent_learnings.append(f"Deep Research Insight: {summary}")
+                if len(pcl.world_model.recent_learnings) > 10:
+                    pcl.world_model.recent_learnings = pcl.world_model.recent_learnings[-10:]
         except Exception as e:
-            logger.error(f"Failed to ingest deep research into PCL: {e}")
+            logger.error(f"Failed to ingest deep research into PCL/H-LSM: {e}")

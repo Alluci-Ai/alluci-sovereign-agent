@@ -123,7 +123,8 @@ class ExecutiveOrchestrator:
             async def execute(self, args: Dict[str, Any]) -> Any:
                 agent_id = args.get("agent_id", "sub_agent")
                 objective = args.get("objective", "")
-                return await self.delegate_func(agent_id, objective)
+                mode = args.get("mode", "standard")
+                return await self.delegate_func(agent_id, objective, mode=mode)
                 
         self.adapter_registry.register(SubAgentAdapter(self.multi_agent_delegate))
 
@@ -249,7 +250,16 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
                 self.logger.info(f"[Orchestrator] Chat Auto-Dispatch: Routing '{extracted_objective}' to DAG Planner.")
                 import asyncio
                 mode = "research" if is_research else "standard"
-                task = asyncio.create_task(self.execute_objective(extracted_objective, autonomy="RESTRICTED", mode=mode))
+                
+                if mode == "research":
+                    import time
+                    agent_id = f"researcher_{int(time.time())}"
+                    task = asyncio.create_task(self.multi_agent_delegate(agent_id, extracted_objective, mode="research"))
+                    msg = f"I am dispatching a dedicated Deep Research SubAgent ({agent_id}) to work on this in the background:\n> {extracted_objective}"
+                else:
+                    task = asyncio.create_task(self.execute_objective(extracted_objective, autonomy="RESTRICTED", mode=mode))
+                    msg = f"I am dispatching this objective to my Sovereign Execution engine:\n> {extracted_objective}"
+                    
                 if not hasattr(self, "_bg_tasks"):
                     self._bg_tasks = set()
                 self._bg_tasks.add(task)
@@ -262,7 +272,7 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
                         self.logger.error(f"[Orchestrator] Background task failed: {e}", exc_info=True)
                         
                 task.add_done_callback(handle_task_result)
-                return f"I am dispatching this objective to my Sovereign Execution engine:\n> {extracted_objective}"
+                return msg
                 
             return None
         except Exception as e:
@@ -1038,7 +1048,7 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
             # PPN-002: affective tension Influences planning
             psi = self.ace.btm.psi_from_state(self.ace.get_affective_state())
 
-            tasks = await self.planner.generate_plan(objective, system_context, tools=tools_list, psi=psi, agent_id=self.agent_id or "executive")
+            tasks = await self.planner.generate_plan(objective, system_context, tools=tools_list, psi=psi, agent_id=self.agent_id or "executive", mode=mode)
             
             # --- Harmonic Ranking Hook ---
             # Prioritize tasks based on Topological and Lattice dynamics
@@ -1341,7 +1351,7 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
             self.queue.record_result(task_id, error_payload, error=str(e))
             self.logger.error(f"Research task {task_id} failed: {e}")
 
-    async def multi_agent_delegate(self, agent_id: str, task: str) -> Dict[str, Any]:
+    async def multi_agent_delegate(self, agent_id: str, task: str, mode: str = "standard") -> Dict[str, Any]:
         """
         Delegates a task to a virtual sub-agent in the constellation.
         M-3a: Instantiates a truly isolated orchestrator to avoid persona bleed.
@@ -1367,7 +1377,7 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
         
         # [Phase 9] Multi-Threaded Spawning: Create a background task for the execution!
         # This achieves asynchronous swarm delegation without blocking the parent DAG.
-        task_handle = asyncio.create_task(sub_orchestrator.execute_objective(task, autonomy="autonomous"))
+        task_handle = asyncio.create_task(sub_orchestrator.execute_objective(task, autonomy="autonomous", mode=mode))
         
         return {
             "status": "spawned",

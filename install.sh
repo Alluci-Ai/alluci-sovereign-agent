@@ -15,6 +15,9 @@ fi
 echo "[ INFO ]: Installing Python dependencies..."
 python3 -m pip install -r requirements.txt
 
+echo "[ INFO ]: Installing Playwright browser binaries..."
+python3 -m playwright install chromium
+
 # 3. Initialize .env
 if [ ! -f ".env" ]; then
     echo "[ INFO ]: Creating .env from template..."

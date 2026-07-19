@@ -34,7 +34,8 @@ FROM python:3.12-slim AS production
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PATH="/opt/venv/bin:$PATH"
+    PATH="/opt/venv/bin:$PATH" \
+    PLAYWRIGHT_BROWSERS_PATH="/ms-playwright"
 
 WORKDIR /app
 
@@ -47,12 +48,20 @@ COPY HEARTBEAT.md ./
 # Ensure it is executable
 RUN chmod +x ./backend/entrypoint.sh
 
+# Install playwright OS dependencies
+RUN playwright install-deps chromium && \
+    mkdir -p /ms-playwright && \
+    chmod -R 777 /ms-playwright
+
 # Create non-root user for security
 RUN useradd -m -r appuser && \
     mkdir -p /home/appuser/.appuser/vaults && \
-    chown -R appuser:appuser /app /home/appuser
+    chown -R appuser:appuser /app /home/appuser /ms-playwright
 
 USER appuser
+
+# Install Playwright browser binaries as the appuser
+RUN playwright install chromium
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
