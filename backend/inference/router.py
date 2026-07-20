@@ -701,6 +701,9 @@ class ModelRouter(ExecutiveRouter):
             "   - Adaptive Visualization: ONLY generate a Mermaid diagram or markdown table if the user explicitly asks for a diagram/table (using words like 'diagram', 'mermaid', 'table', 'visualize', 'chart'). NEVER generate diagrams or tables for casual, humorous, greeting, or simple conversational messages.\n"
         )
 
+        if isinstance(system_instruction, tuple):
+            system_instruction = "\n".join(str(x) for x in system_instruction)
+            
         if not system_instruction:
             system_instruction = polytope_system_core
         elif "Alluci" not in system_instruction:
@@ -1005,6 +1008,9 @@ class ModelRouter(ExecutiveRouter):
             "   - Structural Formatting: ONLY use markdown headers, sections, and bullet lists for complex queries, technical analysis, coding tasks, or multi-step execution plans where they are functionally necessary for legibility.\n"
             "   - Adaptive Visualization: ONLY generate a Mermaid diagram or markdown table if the user explicitly asks for a diagram/table (using words like 'diagram', 'mermaid', 'table', 'visualize', 'chart'). NEVER generate diagrams or tables for casual, humorous, greeting, or simple conversational messages.\n"
         )
+
+        if isinstance(system_instruction, tuple):
+            system_instruction = "\n".join(str(x) for x in system_instruction)
 
         if not system_instruction:
             system_instruction = polytope_system_core

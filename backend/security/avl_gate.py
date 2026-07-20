@@ -74,7 +74,7 @@ class AVLGate:
 
         # Pillar 3: Topological Continuity Check
         chi = state.vertices_V - state.edges_E + state.faces_F
-        betti_chi = round(state.betti[0] - state.betti[1] + state.betti[2] - state.betti[3]) if len(state.betti) >= 4 else 0
+        betti_chi = round(state.betti[0] - state.betti[1] + state.betti[2]) if len(state.betti) >= 3 else 0
             
         if abs(chi - betti_chi) > dynamic_euler:
             logger.error(f"[AVL] Topological rupture: χ={chi} vs β_chi={betti_chi}")
@@ -135,7 +135,7 @@ class AVLGate:
 
         # Pillar 3: Topological Continuity
         chi = state.vertices_V - state.edges_E + state.faces_F
-        betti_chi = round(state.betti[0] - state.betti[1] + state.betti[2] - state.betti[3]) if len(state.betti) >= 4 else 0
+        betti_chi = round(state.betti[0] - state.betti[1] + state.betti[2]) if len(state.betti) >= 3 else 0
 
         if abs(chi - betti_chi) > dynamic_euler:
             logger.error(f"[AVL] Topological rupture: χ={chi} vs β_chi={betti_chi}")

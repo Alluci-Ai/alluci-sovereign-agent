@@ -91,15 +91,39 @@ inline std::pair<mlx::core::array, mlx::core::array> orchestrate_kv_allocation(
         layer_buffer.is_preallocated = true;
     }
 
-    std::vector<int> indices_raw(incoming_len);
-    for (int i = 0; i < incoming_len; ++i) {
-        indices_raw[i] = (layer_buffer.head_index + i) % window;
-    }
-    
-    auto scatter_indices = mlx::core::array(indices_raw.data(), {incoming_len}, mlx::core::int32);
+    int first_chunk_len = window - layer_buffer.head_index;
 
-    layer_buffer.k_cache = mlx::core::scatter(layer_buffer.k_cache, scatter_indices, new_k, /*axis=*/2);
-    layer_buffer.v_cache = mlx::core::scatter(layer_buffer.v_cache, scatter_indices, new_v, /*axis=*/2);
+    if (incoming_len <= first_chunk_len) {
+        // 1. Fits perfectly in the current window (Standard Autoregressive Step)
+        layer_buffer.k_cache = mlx::core::slice_update(layer_buffer.k_cache, new_k, 
+            {0, 0, layer_buffer.head_index, 0}, 
+            {batch, kv_heads, layer_buffer.head_index + incoming_len, head_dim});
+            
+        layer_buffer.v_cache = mlx::core::slice_update(layer_buffer.v_cache, new_v, 
+            {0, 0, layer_buffer.head_index, 0}, 
+            {batch, kv_heads, layer_buffer.head_index + incoming_len, head_dim});
+    } else {
+        // 2. Wraps around the sliding window (Heavy Prompt Ingestion Step)
+        int second_chunk_len = incoming_len - first_chunk_len;
+        
+        // Split the incoming tokens into two blocks
+        auto new_k_first = mlx::core::slice(new_k, {0, 0, 0, 0}, {batch, kv_heads, first_chunk_len, head_dim});
+        auto new_k_second = mlx::core::slice(new_k, {0, 0, first_chunk_len, 0}, {batch, kv_heads, incoming_len, head_dim});
+        
+        auto new_v_first = mlx::core::slice(new_v, {0, 0, 0, 0}, {batch, kv_heads, first_chunk_len, head_dim});
+        auto new_v_second = mlx::core::slice(new_v, {0, 0, first_chunk_len, 0}, {batch, kv_heads, incoming_len, head_dim});
+        
+        // Slice update the edge of the window, then loop back and slice update the beginning
+        layer_buffer.k_cache = mlx::core::slice_update(layer_buffer.k_cache, new_k_first, 
+            {0, 0, layer_buffer.head_index, 0}, {batch, kv_heads, window, head_dim});
+        layer_buffer.k_cache = mlx::core::slice_update(layer_buffer.k_cache, new_k_second, 
+            {0, 0, 0, 0}, {batch, kv_heads, second_chunk_len, head_dim});
+            
+        layer_buffer.v_cache = mlx::core::slice_update(layer_buffer.v_cache, new_v_first, 
+            {0, 0, layer_buffer.head_index, 0}, {batch, kv_heads, window, head_dim});
+        layer_buffer.v_cache = mlx::core::slice_update(layer_buffer.v_cache, new_v_second, 
+            {0, 0, 0, 0}, {batch, kv_heads, second_chunk_len, head_dim});
+    }
 
     layer_buffer.head_index = (layer_buffer.head_index + incoming_len) % window;
     layer_buffer.cumulative_tokens += incoming_len;
@@ -297,8 +321,15 @@ private:
             // Explicit Type Casting: Ensure bfloat16
             auto w_shifted = mlx::core::astype(w, mlx::core::bfloat16);
             
-            // Apply weight directly (Weights are already statically shifted in the checkpoint!)
-            auto res = mlx::core::multiply(mlx::core::astype(x_norm, mlx::core::bfloat16), w_shifted);
+            // Apply 1.0f + weight shift
+            auto constant_one = mlx::core::array(1.0f, w_shifted.dtype());
+            auto true_multipliers = mlx::core::add(constant_one, w_shifted);
+            
+            // Cast activations cleanly before applying the absolute trained weights
+            auto res = mlx::core::multiply(
+                mlx::core::astype(x_norm, mlx::core::bfloat16), 
+                true_multipliers
+            );
             res = mlx::core::reshape(res, orig_shape);
             return mlx::core::astype(res, x.dtype());
         }
@@ -402,8 +433,8 @@ private:
         std::optional<float> base = current_rope_theta;
         std::optional<mlx::core::array> freqs = std::nullopt;
         
-        q = mlx::core::fast::rope(q, rope_dims, false, base, 1.0f, offset, freqs);
-        k = mlx::core::fast::rope(k, rope_dims, false, base, 1.0f, offset, freqs);
+        q = mlx::core::fast::rope(q, rope_dims, true, base, 1.0f, offset, freqs);
+        k = mlx::core::fast::rope(k, rope_dims, true, base, 1.0f, offset, freqs);
         
         mlx::core::eval({q, k});
         q = mlx::core::contiguous(q);
@@ -461,13 +492,37 @@ private:
         }
         
         mlx::core::array attn_out = mlx::core::zeros({1}, mlx::core::float32);
+        
+        // Gemma 2/4 absolutely requires Attention Logit Softcapping (50.0)
+        // fast::scaled_dot_product_attention does not support softcapping, so we use manual attention.
+        
+        // 1. Repeat K and V to match Q's heads (GQA)
+        int group_ratio = q_heads / kv_heads; 
+        auto k_expanded = mlx::core::repeat(k_per_head, group_ratio, /*axis=*/1);
+        auto v_expanded = mlx::core::repeat(v_per_head, group_ratio, /*axis=*/1);
+        
+        auto k_transposed = mlx::core::transpose(k_expanded, {0, 1, 3, 2});
+        
+        // 2. Q @ K.T
+        auto scores = mlx::core::matmul(q_per_head, k_transposed);
+        
+        // 3. Scale by 1/sqrt(head_dim) = 0.0625f
+        scores = mlx::core::multiply(scores, mlx::core::array(0.0625f, scores.dtype()));
+        
+        // 4. Logit Softcap (50.0)
+        float cap = 50.0f;
+        scores = mlx::core::divide(scores, mlx::core::array(cap, scores.dtype()));
+        scores = mlx::core::tanh(scores);
+        scores = mlx::core::multiply(scores, mlx::core::array(cap, scores.dtype()));
+        
+        // 5. Apply Mask
         if (layer_mask.has_value()) {
-            attn_out = mlx::core::fast::scaled_dot_product_attention(
-                q_per_head, k_per_head, v_per_head, 0.0625f, "", layer_mask.value());
-        } else {
-            attn_out = mlx::core::fast::scaled_dot_product_attention(
-                q_per_head, k_per_head, v_per_head, 0.0625f);
+            scores = mlx::core::add(scores, layer_mask.value());
         }
+        
+        // 6. Softmax and Matmul with V
+        auto probs = mlx::core::softmax(scores, std::vector<int>{-1});
+        attn_out = mlx::core::matmul(probs, v_expanded);
         attn_out = mlx::core::transpose(attn_out, {0, 2, 1, 3});
         attn_out = mlx::core::reshape(attn_out, {B, L, q_heads * head_dim});
         
@@ -700,12 +755,14 @@ public:
         
         // Preserve batch dimension for final output: (1, L, D)
         
-        // Final norm WITH NO +1.0f (Weights are already shifted in checkpoint)
+        // Final norm with 1.0f shift
         std::string norm_key = prefix.empty() ? "language_model.model.norm.weight" : prefix + ".model.norm.weight";
         auto w = weights.at(norm_key);
         auto w_bf16 = mlx::core::astype(w, mlx::core::bfloat16);
         
-        h = mlx::core::fast::rms_norm(h, w_bf16, 1e-6f);
+        auto constant_one = mlx::core::array(1.0f, w_bf16.dtype());
+        auto true_multipliers = mlx::core::add(constant_one, w_bf16);
+        h = mlx::core::fast::rms_norm(h, true_multipliers, 1e-6f);
         
         mlx::core::eval({h});
         mlx::core::synchronize();

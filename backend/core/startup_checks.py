@@ -81,7 +81,7 @@ def seed_rocco_agent() -> None:
     """
     import json
     from sqlmodel import Session
-    from ..database import db_engine
+    from ..database import engine
     from ..models import AgentRecord
 
     # Deep research tools to enable for rocco
@@ -91,16 +91,16 @@ def seed_rocco_agent() -> None:
         "deep_research_evaluate": {"enabled": True}
     }
 
-    with Session(db_engine) as session:
+    with Session(engine) as session:
         rocco = session.get(AgentRecord, "rocco")
         if not rocco:
             rocco = AgentRecord(
                 id="rocco",
                 name="Rocco (Deep Research Agent)",
+                status="active",
+                model="gemini-2.0-flash",
                 system_prompt="You are Rocco, an advanced deep research agent. Your sole purpose is to execute comprehensive research workflows, gather extensive data from the web, evaluate the findings, and synthesize detailed reports.",
-                tools_manifest=json.dumps(research_tools),
-                llm_model="gemini-2.0-flash",
-                autonomy_level="SEMI_AUTONOMOUS"
+                tools_manifest=json.dumps(research_tools)
             )
             session.add(rocco)
             session.commit()

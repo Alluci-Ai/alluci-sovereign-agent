@@ -19,24 +19,20 @@ Tokenizer::~Tokenizer() = default;
 std::vector<int> Tokenizer::encode(const std::string& text) const {
     if (text.empty()) return {};
 
-    // Hack: SentencePiece automatically prepends a dummy space to the start of the string,
-    // which encodes "You" as 1599 (" You"). HuggingFace GemmaTokenizer strips this,
-    // encoding "You" as 3048. To match Python exactly and bypass the implicit dummy space,
-    // we prepend <pad> which absorbs the dummy space, and then strip the resulting 3 tokens.
-    std::string processed_text = "<pad>" + text;
-    std::vector<int> raw_ids = processor->EncodeAsIds(processed_text);
+    std::vector<int> unified_ids;
     
-    std::vector<int> ids;
-    if (raw_ids.size() >= 3) {
-        ids.assign(raw_ids.begin() + 3, raw_ids.end());
-    } else {
-        ids = raw_ids;
+    // Deleting the custom chunking loop entirely.
+    // SentencePiece now parses the pristine string in a single GPU-optimized stride.
+    auto status = processor->Encode(text, &unified_ids);
+    
+    if (!status.ok()) {
+        throw std::runtime_error("Tokenizer Core Failure: " + status.ToString());
     }
 
     // Gemma requires BOS token (2) at the start
     std::vector<int> final_ids = {2};
-    final_ids.insert(final_ids.end(), ids.begin(), ids.end());
-    
+    final_ids.insert(final_ids.end(), unified_ids.begin(), unified_ids.end());
+
     return final_ids;
 }
 

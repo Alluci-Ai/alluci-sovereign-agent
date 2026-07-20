@@ -145,7 +145,7 @@ class DiscreteProjectionKernel:
             return True
 
         chi = current.vertices_V - current.edges_E + current.faces_F
-        betti_chi = round(current.betti[0] - current.betti[1] + current.betti[2] - current.betti[3])
+        betti_chi = round(current.betti[0] - current.betti[1] + current.betti[2])
 
         if abs(chi - betti_chi) > self.MAX_EULER_DEVIATION:
             logger.error(f"[DPK] TOPOLOGY ERROR: Euler Mismatch. {chi} vs {betti_chi}")
@@ -202,7 +202,7 @@ class DiscreteProjectionKernel:
             
         # 2. Euler Characteristic Check
         chi = state.vertices_V - state.edges_E + state.faces_F
-        betti_chi = round(state.betti[0] - state.betti[1] + state.betti[2] - state.betti[3])
+        betti_chi = round(state.betti[0] - state.betti[1] + state.betti[2])
         if abs(chi - betti_chi) > self.MAX_EULER_DEVIATION:
             logger.error(f"[DPK] TOPOLOGY ERROR: Euler Mismatch ({chi} vs {betti_chi}). Blocking execution.")
             return False

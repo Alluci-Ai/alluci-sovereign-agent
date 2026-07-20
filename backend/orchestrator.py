@@ -101,6 +101,8 @@ class ExecutiveOrchestrator:
         self._active_runs: Dict[int, asyncio.Task] = {}
         self._recent_outbound_messages = set()
         
+        self.max_healing_attempts = 3
+        
         # Executor
         self.executor = Executor(
             self.adapter_registry, 
@@ -1106,7 +1108,7 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
         start_time = time.time()
         
         attempt = 0
-        current_retry_tier = 3
+        current_retry_tier = self.max_healing_attempts
         total_retries_allowed = current_retry_tier
         
         # Variables to track self-healing for the LoRA Forge delta

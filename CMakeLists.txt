@@ -27,6 +27,10 @@ find_package(mlx REQUIRED)
 
 # Find SentencePiece library manually since brew might not provide CMake config
 find_library(SENTENCEPIECE_LIB sentencepiece PATHS /opt/homebrew/lib REQUIRED)
+find_library(ABSL_STATUS_LIB absl_status PATHS /opt/homebrew/lib REQUIRED)
+find_library(ABSL_STATUSOR_LIB absl_statusor PATHS /opt/homebrew/lib REQUIRED)
+find_library(ABSL_STRINGS_LIB absl_strings PATHS /opt/homebrew/lib REQUIRED)
+find_library(ABSL_RAW_LOGGING_LIB absl_raw_logging_internal PATHS /opt/homebrew/lib REQUIRED)
 
 # Include directories
 include_directories(${CMAKE_SOURCE_DIR}/src)
@@ -39,6 +43,12 @@ pybind11_add_module(alluci_core
     src/tokenizer_mlx.cpp
 )
 
+set_target_properties(alluci_core PROPERTIES
+    PREFIX ""
+    SUFFIX ".cpython-311-darwin.so"
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
+)
+
 # Link Apple Silicon Frameworks
 target_link_libraries(alluci_core PRIVATE 
     ${ACCELERATE_FRAMEWORK} 
@@ -46,6 +56,10 @@ target_link_libraries(alluci_core PRIVATE
     ${FOUNDATION_FRAMEWORK}
     mlx
     ${SENTENCEPIECE_LIB}
+    ${ABSL_STATUS_LIB}
+    ${ABSL_STATUSOR_LIB}
+    ${ABSL_STRINGS_LIB}
+    ${ABSL_RAW_LOGGING_LIB}
 )
 
 # Compiler flags for maximum Apple Silicon optimization

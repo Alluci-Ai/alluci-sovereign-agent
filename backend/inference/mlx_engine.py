@@ -4,12 +4,13 @@ import sys
 import os
 import json
 from typing import AsyncGenerator, Optional, Dict, Any
+from concurrent.futures import ThreadPoolExecutor
 
 # Dynamically append the CMake build path to load the native C++ PyBind11 module
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../build")))
 
 try:
-    import alluci_core
+    import alluci_core # type: ignore
     ALLUCI_CORE_AVAILABLE = True
 except ImportError as e:
     ALLUCI_CORE_AVAILABLE = False
@@ -28,6 +29,7 @@ class MLXEngine:
     current_lora: Optional[str] = None
     is_loading: bool = False
     hardware_profile: Optional[Dict[str, Any]] = None
+    executor: Optional[ThreadPoolExecutor] = None
     _instance = None
 
     def __new__(cls, *args, **kwargs):
@@ -37,6 +39,7 @@ class MLXEngine:
             cls._instance.current_lora = None
             cls._instance.is_loading = False
             cls._instance.hardware_profile = HardwareProfiler.get_system_profile()
+            cls._instance.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="mlx_compute")
         return cls._instance
 
     def load_model_sync(self):
@@ -58,7 +61,7 @@ class MLXEngine:
             
             # Load the compiled native C++ engine
             model_dir = os.path.abspath(f"mirror_cache/{model_name}")
-            self.engine = alluci_core.AlluciCognitiveEngine(model_dir)
+            self.engine = alluci_core.AlluciCognitiveEngine(model_dir) # type: ignore
             logger.info("MLXEngine: Native Engine allocated successfully.")
         except Exception as e:
             logger.error(f"MLXEngine Load Error: {e}")
@@ -69,7 +72,7 @@ class MLXEngine:
     async def ensure_loaded(self):
         """Asynchronously ensures the model is loaded."""
         if self.engine is None and not self.is_loading:
-            await asyncio.to_thread(self.load_model_sync)
+            await asyncio.get_running_loop().run_in_executor(self.executor, self.load_model_sync)
         while self.is_loading:
             await asyncio.sleep(0.1)
 
@@ -116,10 +119,13 @@ class MLXEngine:
             prompt = f"{system_instruction}\n\n{prompt}"
         prompt, temperature = self._apply_ace_logic(prompt, temperature)
         
+        # Explicitly enforce the structural attention keys the model was trained on
+        prompt = f"<start_of_turn>user\n{prompt}<end_of_turn>\n<start_of_turn>model\n"
+        
         def _sync_gen():
             return self.engine.evaluate_intent(prompt, max_tokens, temperature)  # type: ignore
             
-        return await asyncio.to_thread(_sync_gen)
+        return await asyncio.get_running_loop().run_in_executor(self.executor, _sync_gen)
 
     async def generate_stream(
         self,
@@ -163,7 +169,7 @@ class MLXEngine:
             logger.info(f"Injecting Native Polytope Adapters for Context Moat: {lora_path}")
             def _sync_inject():
                 self.engine.inject_lora_adapters(lora_path)  # type: ignore
-            await asyncio.to_thread(_sync_inject)
+            await asyncio.get_running_loop().run_in_executor(self.executor, _sync_inject)
             self.current_lora = lora_path
 
 engine = MLXEngine()
