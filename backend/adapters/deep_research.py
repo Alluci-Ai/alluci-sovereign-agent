@@ -315,7 +315,7 @@ class DeepResearchEvaluateAdapter(Adapter):
                 except ImportError:
                     mx = None
 
-                from .routers.sessions import WORKSPACE_DIR
+                from ..routers.sessions import WORKSPACE_DIR
                 agent_id = getattr(task, "assignee", "rocco")
                 scratch_dir = os.path.join(WORKSPACE_DIR, agent_id, "scratch")
                 os.makedirs(scratch_dir, exist_ok=True)
