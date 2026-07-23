@@ -40,9 +40,29 @@ async def get_memory_stats():
 @router.delete("/memory/{entry_id}", dependencies=[Depends(verify_authenticated)])
 async def delete_memory_entry(request: Request, entry_id: str, csrf_protect: CsrfProtect = Depends()):
     await csrf_protect.validate_csrf(request)
-    if not services.memory:
+    mgr = services.hlsm_manager or services.memory
+    if not mgr:
         raise HTTPException(status_code=503, detail="Memory manager not ready")
-    success = await services.memory.delete(entry_id)
+        
+    success = await mgr.delete(entry_id)
+    
+    # Fallback deletion if entry_id is partial or in L1 working/episodic tables
+    from sqlmodel import Session, select, col
+    from ..models import HLSMEpisodicEntry, HLSMWorkingEntry
+    from ..database import engine
+    
+    with Session(engine) as session:
+        base_id = entry_id.replace("l2_", "").replace("l3_", "")
+        entries = session.exec(select(HLSMEpisodicEntry).where((col(HLSMEpisodicEntry.id) == base_id) | (col(HLSMEpisodicEntry.id).like(f"%{base_id}%")))).all()
+        for e in entries:
+            session.delete(e)
+        work_entries = session.exec(select(HLSMWorkingEntry).where((col(HLSMWorkingEntry.id) == base_id) | (col(HLSMWorkingEntry.id).like(f"%{base_id}%")))).all()
+        for w in work_entries:
+            session.delete(w)
+        session.commit()
+        if entries or work_entries:
+            success = True
+
     if not success:
         raise HTTPException(status_code=404, detail="Entry not found")
     return {"status": "SUCCESS"}
