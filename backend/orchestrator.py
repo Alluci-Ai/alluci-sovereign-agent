@@ -159,15 +159,14 @@ class ExecutiveOrchestrator:
     async def _handle_task_complete(self, task):
         """Hook from the executor when a DAG task completes."""
         if task.action in ["write_file", "generate_code", "create_markdown", "write_artifact", "deep_research_evaluate"]:
-            # Depending on the adapter, the result or arguments might contain the artifact text
-            content = task.result if len(str(task.result)) > 20 else str(task.args)
+            content = str(task.result) if len(str(task.result)) > 20 else str(task.args)
             title = task.args.get("filename", task.action)
-            lang = "markdown" if "markdown" in task.action else "plaintext"
+            lang = "markdown" if "markdown" in task.action or task.action == "deep_research_evaluate" else "plaintext"
             if ".py" in title: lang = "python"
             if ".ts" in title: lang = "typescript"
             await self.broadcast_artifact(title=title, content=content, language=lang)
             
-            # Physical File Persistence for Deep Research
+            # Physical File Persistence for Deep Research Report
             if task.action == "deep_research_evaluate":
                 try:
                     import os
@@ -269,7 +268,7 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
                 mode = "research" if is_research else "standard"
                 
                 if mode == "research":
-                    agent_id = "a32eb383"
+                    agent_id = "rocco"
                     try:
                         from sqlmodel import select, col
                         with Session(db_engine) as session:
@@ -277,10 +276,22 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
                             rec = session.exec(stmt).first()
                             if rec:
                                 agent_id = rec.id
-                    except Exception:
-                        pass
+                            else:
+                                rocco_rec = AgentRecord(
+                                    id="rocco",
+                                    name="Rocco",
+                                    status="ACTIVE",
+                                    description="Dedicated Sovereign Deep Research Sub-Agent",
+                                    system_prompt="You are Rocco, an elite autonomous Deep Research Sub-Agent specialized in searching, scraping, evaluating, and synthesizing web, video, and audio intelligence into structured technical reports."
+                                )
+                                session.add(rocco_rec)
+                                session.commit()
+                                agent_id = "rocco"
+                    except Exception as e:
+                        self.logger.warning(f"[Orchestrator] Rocco AgentRecord resolution fallback: {e}")
+                        agent_id = "rocco"
                     task = asyncio.create_task(self.multi_agent_delegate(agent_id, extracted_objective, mode="research"))
-                    msg = f"I am dispatching a dedicated Deep Research SubAgent ({agent_id}) to work on this in the background:\n> {extracted_objective}"
+                    msg = f"I am dispatching dedicated Deep Research SubAgent **Rocco** (ID: `{agent_id}`) to work on this in the background:\n> {extracted_objective}"
                 else:
                     task = asyncio.create_task(self.execute_objective(extracted_objective, autonomy="RESTRICTED", mode=mode))
                     msg = f"I am dispatching this objective to my Sovereign Execution engine:\n> {extracted_objective}"

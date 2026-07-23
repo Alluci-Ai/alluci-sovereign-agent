@@ -10,20 +10,20 @@ logger = get_logger("DeepResearchAdapters")
 
 class DeepResearchQueryExpansionAdapter(Adapter):
     name = "deep_research_query_expansion"
-    description = "Uses DuckDuckGo Search to fetch initial URLs based on expanded queries."
+    description = "Uses DuckDuckGo Search to fetch initial URLs based on expanded queries across web, YouTube, and Podcasts."
     
     async def execute(self, args: Dict[str, Any]) -> Any:
         queries = args.get("queries", [])
+        raw_objective = args.get("query", "") or args.get("context", "") or args.get("objective", "")
         if not queries:
-            query = args.get("query", "") or args.get("context", "") or args.get("objective", "")
-            if query:
+            if raw_objective:
                 from .. import services
                 if services.router:
                     try:
-                        exp_prompt = f"Deconstruct this research objective into 3-5 specific search queries for web search: {query}. Return ONLY a JSON list of strings, e.g. [\"query 1\", \"query 2\"]"
+                        exp_prompt = f"Deconstruct this research objective into 3-5 specific search queries for web articles, YouTube videos, and podcasts: {raw_objective}. Return ONLY a JSON list of strings, e.g. [\"query 1\", \"query 2\"]"
                         resp = await services.router.get_response(
                             prompt=exp_prompt,
-                            system_instruction="You are a research query expansion engine.",
+                            system_instruction="You are a specialized multi-media research query expansion engine.",
                             complexity="MEDIUM",
                             privacy_level="PUBLIC",
                             inference_mode="TACTICAL"
@@ -36,31 +36,57 @@ class DeepResearchQueryExpansionAdapter(Adapter):
                     except Exception as e:
                         logger.warning(f"Query expansion via LLM failed: {e}. Falling back to objective query.")
                 if not queries:
-                    queries = [query]
+                    queries = [raw_objective, f"{raw_objective} youtube", f"{raw_objective} podcast"]
             else:
                 return {"status": "error", "message": "No queries provided."}
                 
         max_results = args.get("max_results_per_query", 5)
         urls = set()
         
-        # Note: DDGS is blocking, but we run it via asyncio.to_thread to prevent blocking the event loop
-        def _search():
+        def _search(search_queries):
             local_urls = []
             with DDGS() as ddgs:
-                for q in queries:
+                for q in search_queries:
                     try:
                         results = list(ddgs.text(q, max_results=max_results))
                         for r in results:
-                            if 'href' in r:
-                                local_urls.append(r['href'])
+                            href = r.get('href') or r.get('url') or r.get('link')
+                            if href:
+                                local_urls.append(href)
                     except Exception as e:
                         logger.error(f"DDGS error for query '{q}': {e}")
             return local_urls
 
         try:
-            results = await asyncio.to_thread(_search)
+            results = await asyncio.to_thread(_search, queries)
             for url in results:
                 urls.add(url)
+                
+            # Fallback 1: If site-restricted queries yielded 0 results, retry unconstrained plain text queries
+            if not urls and raw_objective:
+                plain_queries = [raw_objective, f"{raw_objective} youtube", f"{raw_objective} podcast"]
+                logger.info(f"Site-restricted queries yielded 0 URLs. Retrying plain queries: {plain_queries}")
+                fallback_results = await asyncio.to_thread(_search, plain_queries)
+                for url in fallback_results:
+                    urls.add(url)
+                    
+            # Fallback 2: Direct DuckDuckGo HTML scraper fallback if DDGS library returns empty
+            if not urls and raw_objective:
+                logger.info("DDGS library returned 0 URLs. Executing direct HTML scraper fallback...")
+                headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"}
+                async with httpx.AsyncClient(timeout=10.0, headers=headers) as client:
+                    try:
+                        search_url = f"https://html.duckduckgo.com/html/?q={httpx.URL(raw_objective).raw_path.decode('utf-8') if hasattr(httpx.URL(raw_objective), 'raw_path') else raw_objective}"
+                        resp = await client.post("https://html.duckduckgo.com/html/", data={"q": raw_objective})
+                        if resp.status_code == 200:
+                            import re
+                            found = re.findall(r'href="(https?://[^"]+)"', resp.text)
+                            for u in found:
+                                if "duckduckgo.com" not in u:
+                                    urls.add(u)
+                    except Exception as he:
+                        logger.warning(f"HTML scraper fallback failed: {he}")
+
             logger.info(f"Query expansion found {len(urls)} unique URLs for queries: {queries}")
             return {"status": "success", "queries": queries, "urls": list(urls)}
         except Exception as e:
@@ -69,47 +95,118 @@ class DeepResearchQueryExpansionAdapter(Adapter):
 
 class DeepResearchHarvestAdapter(Adapter):
     name = "deep_research_harvest"
-    description = "Asynchronously harvests and distills URLs into Markdown."
+    description = "Asynchronously harvests web pages, YouTube transcripts, and Podcast metadata into Markdown."
     
     async def execute(self, args: Dict[str, Any]) -> Any:
-        # Expecting urls from the previous task's output
-        # If dependency_output is passed by executor, it might be in args
         dependency_output = args.get("dependency_output", "")
         urls = args.get("urls", [])
         
-        # If urls are not explicitly passed, try to parse from dependency_output
+        if not urls and isinstance(dependency_output, dict):
+            for v in dependency_output.values():
+                if isinstance(v, dict) and "urls" in v:
+                    urls.extend(v["urls"])
+                elif isinstance(v, list):
+                    urls.extend(v)
+        
         if not urls and dependency_output:
-            if isinstance(dependency_output, dict):
-                search_text = " ".join([str(v) for v in dependency_output.values()])
-            else:
-                search_text = str(dependency_output)
             import re
-            # Extract basic http/https URLs
+            search_text = str(dependency_output)
             urls = re.findall(r'https?://[^\s\'"<>]+', search_text)
-            urls = list(set(urls))
             
+        urls = list(set(urls))
         if not urls:
             return {"status": "error", "message": "No URLs provided for harvesting."}
             
-        logger.info(f"Harvesting {len(urls)} URLs asynchronously...")
+        logger.info(f"Harvesting {len(urls)} URLs (Web, YouTube, Podcast)...")
         
         results = []
-        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "cross-site",
+            "Sec-Fetch-User": "?1",
+            "Referer": "https://www.google.com/",
+            "Upgrade-Insecure-Requests": "1"
+        }
+        
+        async def fetch_youtube_transcript(url: str) -> str:
+            import re
+            video_id_match = re.search(r'(?:v=|\/)([0-9A-Za-z_-]{11})', url)
+            if not video_id_match:
+                return ""
+            video_id = video_id_match.group(1)
+            try:
+                from youtube_transcript_api import YouTubeTranscriptApi
+                transcript_list = await asyncio.to_thread(YouTubeTranscriptApi.get_transcript, video_id)
+                transcript_text = " ".join([t['text'] for t in transcript_list])
+                return f"--- SOURCE: YouTube Video ({url}) ---\n<youtube_transcript>\n{transcript_text}\n</youtube_transcript>\n"
+            except Exception as e:
+                logger.warning(f"youtube-transcript-api unavailable/failed for {url}: {e}")
+                return ""
+
+        async def fetch_pdf_text(url: str, content_bytes: bytes) -> str:
+            try:
+                import io
+                pdf_text = ""
+                try:
+                    from pypdf import PdfReader
+                    reader = PdfReader(io.BytesIO(content_bytes))
+                    for page in reader.pages:
+                        t = page.extract_text()
+                        if t: pdf_text += t + "\n"
+                except Exception:
+                    try:
+                        from PyPDF2 import PdfReader
+                        reader = PdfReader(io.BytesIO(content_bytes))
+                        for page in reader.pages:
+                            t = page.extract_text()
+                            if t: pdf_text += t + "\n"
+                    except Exception:
+                        pass
+                if not pdf_text:
+                    import re
+                    text_parts = re.findall(r'\(([^()]{4,})\)', content_bytes.decode('latin1', errors='ignore'))
+                    if text_parts:
+                        pdf_text = " ".join([tp for tp in text_parts if len(tp) > 4 and not tp.startswith('/')])
+                        
+                if pdf_text and len(pdf_text.strip()) > 50:
+                    return f"--- SOURCE: PDF Document ({url}) ---\n<pdf_document_data>\n{pdf_text.strip()}\n</pdf_document_data>\n"
+            except Exception as pe:
+                logger.warning(f"PDF extraction failed for {url}: {pe}")
+            return ""
+
         async with httpx.AsyncClient(timeout=15.0, follow_redirects=True, headers=headers) as client:
             async def fetch_and_distill(url: str):
                 try:
+                    if "youtube.com" in url or "youtu.be" in url:
+                        yt_transcript = await fetch_youtube_transcript(url)
+                        if yt_transcript:
+                            return yt_transcript
+
                     resp = await client.get(url)
                     resp.raise_for_status()
+                    
+                    is_pdf = url.lower().split("?")[0].endswith(".pdf") or "application/pdf" in resp.headers.get("Content-Type", "").lower()
+                    if is_pdf:
+                        pdf_data = await fetch_pdf_text(url, resp.content)
+                        if pdf_data:
+                            return pdf_data
+
                     html = resp.text
                     
-                    # Distill with trafilatura offloaded to thread to prevent blocking event loop
                     def _extract():
                         return trafilatura.extract(html, output_format="markdown", include_links=True)
                     markdown = await asyncio.to_thread(_extract)
+                    
+                    is_podcast = any(k in url.lower() for k in ["podcast", "spotify.com/episode", "apple.com/podcast"]) or "<rss" in html.lower()
+                    prefix = "--- SOURCE: Podcast Feed/Episode" if is_podcast else "--- SOURCE:"
+                    
                     if markdown:
-                        return f"--- SOURCE: {url} ---\n<inert_web_data>\n{markdown}\n</inert_web_data>\n"
+                        return f"{prefix} {url} ---\n<inert_web_data>\n{markdown}\n</inert_web_data>\n"
                         
-                    # Playwright fallback for JS-heavy sites
                     try:
                         from playwright.async_api import async_playwright
                         async with async_playwright() as p:
@@ -120,9 +217,9 @@ class DeepResearchHarvestAdapter(Adapter):
                             text_content = await page.evaluate("document.body.innerText")
                             await browser.close()
                             if text_content and text_content.strip():
-                                return f"--- SOURCE: {url} (PLAYWRIGHT FALLBACK) ---\n<inert_web_data>\n{text_content.strip()}\n</inert_web_data>\n"
+                                return f"{prefix} {url} (PLAYWRIGHT FALLBACK) ---\n<inert_web_data>\n{text_content.strip()}\n</inert_web_data>\n"
                     except ImportError:
-                        logger.warning(f"Playwright not installed, skipping fallback for {url}")
+                        pass
                     except Exception as pe:
                         logger.warning(f"Playwright fallback failed for {url}: {pe}")
                         
@@ -143,10 +240,6 @@ class DeepResearchHarvestAdapter(Adapter):
             
         combined_markdown = "\n".join(results)
         
-        # The executor passes orchestrator services to the DAG tasks if needed, 
-        # but here we rely on the Orchestrator's AVL hook if possible, or we return the markdown directly.
-        # As per the plan, the harvested markdown must go through AVL. 
-        # The executor executes adapters, so we can import services here to run AVL manually if needed.
         from .. import services
         if services.orchestrator and hasattr(services.orchestrator, "avl") and hasattr(services.orchestrator, "_perform_ppn_check"):
             _, polytope_state = services.orchestrator._perform_ppn_check(
@@ -163,36 +256,59 @@ class DeepResearchHarvestAdapter(Adapter):
 
 class DeepResearchEvaluateAdapter(Adapter):
     name = "deep_research_evaluate"
-    description = "Evaluates harvested data, synthesizes report, and triggers artifact broadcast."
+    description = "Evaluates harvested data, synthesizes report via single-pass or dynamic Map-Reduce, and triggers artifact broadcast."
     
     async def execute(self, args: Dict[str, Any]) -> Any:
         dependency_output = args.get("dependency_output", "")
-        if not dependency_output:
-            return "Error: No dependency output provided for evaluation."
-            
-        # The synthesis is normally performed by the LCE (Local Cognitive Engine) generating the args for this task
-        # The args should contain a "synthesis_report" generated by the LCE.
         report = args.get("synthesis_report", "")
+        
         if not report:
             if isinstance(dependency_output, dict):
                 for val in dependency_output.values():
                     if isinstance(val, dict) and "harvested_content" in val:
                         report += val["harvested_content"] + "\n"
-                    else:
-                        report += str(val) + "\n"
-            else:
-                report = str(dependency_output)
+                    elif isinstance(val, str) and "SOURCE:" in val:
+                        report += val + "\n"
+            elif isinstance(dependency_output, str):
+                report = dependency_output
+                
+        # Input Validation Guardrail: Ensure report contains meaningful text before calling LLM
+        clean_report_check = report.strip()
+        if not clean_report_check or "All URL harvesting failed" in clean_report_check or len(clean_report_check) < 50:
+            logger.warning("Harvested data is empty or invalid. Returning structured fallback report without LLM invocation.")
+            return "# Deep Research Analysis Report\n\n> ⚠️ **Notice:** Web harvesting was unable to retrieve external pages for this objective. Please verify search queries or network availability.\n\n### Objective Context\n" + str(args.get("context", "No context provided."))
             
         from .. import services
         if services.router:
-            chunk_size = 32000
-            chunks = [report[i:i + chunk_size] for i in range(0, len(report), chunk_size)]
+            try:
+                import psutil
+                ram_gb = psutil.virtual_memory().total / (1024**3)
+            except Exception:
+                ram_gb = 16.0
+                
+            single_pass_limit = 800000 if ram_gb >= 32 else 360000
             
-            if len(chunks) > 1:
-                logger.info(f"Report is large. Chunking into {len(chunks)} pieces for Map-Reduce evaluation.")
+            if len(report) <= single_pass_limit:
+                logger.info(f"Executing Single-Pass Synthesis on {len(report)} characters (RAM: {ram_gb:.1f}GB)...")
+                single_pass_prompt = f"Synthesize all of the following harvested research data (including articles, YouTube transcripts, and podcast notes) into a single, cohesive, comprehensive final deep research report with clear sections, links, and detailed citations.\n\n{report}"
+                try:
+                    final_report = await services.router.get_response(
+                        prompt=single_pass_prompt,
+                        system_instruction="You are a senior research analyst. Produce a well-structured, detailed final report with links and citations.",
+                        complexity="HIGH",
+                        privacy_level="PUBLIC",
+                        inference_mode="LOCAL"
+                    )
+                    report = final_report
+                except Exception as e:
+                    logger.error(f"Single-pass synthesis failed: {e}")
+            else:
+                chunk_size = 320000  # ~80k tokens per chunk
+                chunks = [report[i:i + chunk_size] for i in range(0, len(report), chunk_size)]
+                logger.info(f"Report exceeds single-pass boundary. Chunking into {len(chunks)} pieces for Map-Reduce evaluation.")
                 summaries = []
                 for idx, chunk in enumerate(chunks):
-                    map_prompt = f"Summarize the following research data chunk ({idx+1}/{len(chunks)}). Extract key insights, facts, and conclusions.\n\n{chunk}"
+                    map_prompt = f"Summarize the following research data chunk ({idx+1}/{len(chunks)}). Extract key insights, facts, quotes, YouTube/podcast links, and conclusions.\n\n{chunk}"
                     try:
                         summary = await services.router.get_response(
                             prompt=map_prompt,
@@ -207,7 +323,7 @@ class DeepResearchEvaluateAdapter(Adapter):
                         summaries.append(f"[Failed to process chunk {idx+1}]")
                 
                 combined_summaries = "\n\n---\n\n".join(summaries)
-                reduce_prompt = f"Synthesize the following chunk summaries into a single, cohesive, comprehensive final deep research report.\n\n{combined_summaries}"
+                reduce_prompt = f"Synthesize the following chunk summaries into a single, cohesive, comprehensive final deep research report with links and citations.\n\n{combined_summaries}"
                 try:
                     final_report = await services.router.get_response(
                         prompt=reduce_prompt,
@@ -220,19 +336,14 @@ class DeepResearchEvaluateAdapter(Adapter):
                 except Exception as e:
                     logger.error(f"Failed to reduce summaries: {e}")
                     report = combined_summaries
-            else:
-                reduce_prompt = f"Synthesize the following raw research data into a cohesive, comprehensive final deep research report.\n\n{report}"
-                try:
-                    final_report = await services.router.get_response(
-                        prompt=reduce_prompt,
-                        system_instruction="You are a senior research analyst. Produce a well-structured, detailed final report with links and citations.",
-                        complexity="HIGH",
-                        privacy_level="PUBLIC",
-                        inference_mode="HYBRID"
-                    )
-                    report = final_report
-                except Exception as e:
-                    logger.error(f"Failed to synthesize single chunk: {e}")
+
+        # Flush Metal Cache after long context evaluation
+        try:
+            import mlx.core as mx
+            mx.metal.clear_cache()
+            logger.info("Cleared Metal cache after deep research evaluation.")
+        except Exception:
+            pass
 
         # Push to PCL (Proactive Cognitive Loop)
         if services.pcl:

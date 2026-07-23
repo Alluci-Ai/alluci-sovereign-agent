@@ -30,6 +30,8 @@ import { TaskPanel } from './TaskPanel';
 import BridgeCenter from './BridgeCenter';
 import { SkillGrid } from './SkillGrid';
 import { ToolsPanel } from './ToolsPanel';
+import { ModularSkillEditor } from './ModularSkillEditor';
+import { ModularToolEditor } from './ModularToolEditor';
 
 interface ViewManifoldProps {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -80,11 +82,11 @@ const ViewManifold: React.FC<ViewManifoldProps> = ({
     connections,
     showSkillWizard, setShowSkillWizard,
     skills, setSkills,
-    setSelectedSkill,
+    selectedSkill, setSelectedSkill,
     skillToEdit, setSkillToEdit,
     tools, setTools,
-    setSelectedTool,
-    setToolToEdit,
+    selectedTool, setSelectedTool,
+    toolToEdit, setToolToEdit,
     setShowToolWizard,
     apiKeys,
     canvasNodes,
@@ -113,7 +115,7 @@ const ViewManifold: React.FC<ViewManifoldProps> = ({
       );
     case 'skills':
       return (
-        <div className="inline-panel-wrapper">
+        <div className="inline-panel-wrapper" style={{ position: 'relative' }}>
           {showSkillWizard ? (
             <SkillBuilderWizard
                 initialData={skillToEdit || undefined}
@@ -141,11 +143,27 @@ const ViewManifold: React.FC<ViewManifoldProps> = ({
               onCreate={() => { setSkillToEdit(null); setShowSkillWizard(true); }}
             />
           )}
+          {(selectedSkill || skillToEdit) && (
+            <ModularSkillEditor
+              skill={selectedSkill || skillToEdit}
+              onClose={() => { setSelectedSkill(null); setSkillToEdit(null); }}
+              onSaveGlobal={async (updatedSkill) => {
+                setSkills(prev => prev.map(x => x.id === updatedSkill.id ? updatedSkill : x));
+                setSelectedSkill(null);
+                setSkillToEdit(null);
+              }}
+              onForkAndAssign={async (forkedSkill) => {
+                setSkills(prev => [...prev, forkedSkill]);
+                setSelectedSkill(null);
+                setSkillToEdit(null);
+              }}
+            />
+          )}
         </div>
       );
     case 'tools':
       return (
-        <div className="inline-panel-wrapper">
+        <div className="inline-panel-wrapper" style={{ position: 'relative' }}>
             <ToolsPanel
               tools={tools || []}
               onSelect={setSelectedTool}
@@ -166,6 +184,22 @@ const ViewManifold: React.FC<ViewManifoldProps> = ({
               onDelete={() => { }}
               onCreate={() => { setToolToEdit(null); setShowToolWizard(true); }}
             />
+            {(selectedTool || toolToEdit) && (
+              <ModularToolEditor
+                tool={selectedTool || toolToEdit}
+                onClose={() => { setSelectedTool(null); setToolToEdit(null); }}
+                onSaveGlobal={async (updatedTool) => {
+                  setTools(prev => prev.map(x => x.id === updatedTool.id ? updatedTool : x));
+                  setSelectedTool(null);
+                  setToolToEdit(null);
+                }}
+                onForkAndAssign={async (forkedTool) => {
+                  setTools(prev => [...prev, forkedTool]);
+                  setSelectedTool(null);
+                  setToolToEdit(null);
+                }}
+              />
+            )}
         </div>
       );
     case 'bridges':

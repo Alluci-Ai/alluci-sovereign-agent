@@ -63,6 +63,14 @@ export const useAdminEvents = () => {
             }
           } else if (method === 'manifold.rupture') {
             setPvtHealth({ isRuptured: true });
+          } else if (method === 'chat.message.received') {
+            setTranscriptions(prev => [...prev, {
+              id: params.id || `msg_${Date.now()}`,
+              text: params.content || params.summary || '',
+              isUser: false,
+              sender: params.sender || 'rocco',
+              timestamp: new Date().toISOString()
+            }]);
           } else if (method === 'security.resolution_required') {
             const { setPendingSecurityResolution } = useStore.getState();
             setPendingSecurityResolution(params);

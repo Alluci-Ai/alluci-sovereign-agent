@@ -44,6 +44,14 @@ class Executor:
             self._semaphore = asyncio.Semaphore(self._max_concurrent)
         return self._semaphore
 
+    async def _broadcast_dag_event(self, event_type: str, data: dict):
+        try:
+            from .. import services
+            if services.orchestrator and hasattr(services.orchestrator, "ws_gateway") and services.orchestrator.ws_gateway:
+                await services.orchestrator.ws_gateway.broadcast_event(event_type, data)
+        except Exception as e:
+            logger.debug(f"DAG event broadcast failed: {e}")
+
     async def execute_dag(self, run_id: int, tasks: Dict[str, DAGTask]) -> Dict[str, DAGTask]:
         """
         Main execution loop.
@@ -57,6 +65,21 @@ class Executor:
             
             # Sync initial task records to DB
             self._init_task_records(run_id, tasks)
+
+        # Broadcast initial DAG structure to frontend UI
+        asyncio.create_task(self._broadcast_dag_event('dag.plan.updated', {
+            "run_id": run_id,
+            "tasks": [
+                {
+                    "id": t.id,
+                    "action": t.action,
+                    "assignee": getattr(t, "assignee", "rocco"),
+                    "dependencies": t.dependencies,
+                    "status": t.status.value if hasattr(t.status, "value") else str(t.status)
+                }
+                for t in tasks.values()
+            ]
+        }))
 
         completed_ids: Set[str] = {t_id for t_id, t in tasks.items() if t.status == TaskStatus.COMPLETED}
         failed_ids: Set[str] = set()
@@ -80,6 +103,12 @@ class Executor:
                     task.result = "Upstream dependency failed."
                     self._update_task_record(run_id, t_id, status="failed", error="Dependency failed")
                     failed_ids.add(t_id)
+                    asyncio.create_task(self._broadcast_dag_event('dag.task.status', {
+                        "run_id": run_id,
+                        "task_id": t_id,
+                        "status": "failed",
+                        "error": "Upstream dependency failed"
+                    }))
                 elif deps_met and task.status == TaskStatus.PENDING:
                     executable.append(t_id)
 
@@ -115,16 +144,31 @@ class Executor:
                 
                 task.status = TaskStatus.RUNNING
                 self._update_task_record(run_id, task.id, status="running")
+                asyncio.create_task(self._broadcast_dag_event('dag.task.status', {
+                    "run_id": run_id,
+                    "task_id": task.id,
+                    "action": task.action,
+                    "status": "running"
+                }))
                 
                 # Context Injection
-                raw_dep_context = {
-                    dep: all_tasks[dep].result 
-                    for dep in task.dependencies 
-                    if all_tasks[dep].status == TaskStatus.COMPLETED
-                }
+                raw_dep_context = {}
+                for dep in task.dependencies:
+                    if all_tasks[dep].status == TaskStatus.COMPLETED:
+                        raw_result = all_tasks[dep].result
+                        raw_dep_context[dep] = raw_result
+                        # Structured parameter passing for deep research adapters
+                        if isinstance(raw_result, str) and raw_result.startswith("{") and raw_result.endswith("}"):
+                            try:
+                                import json
+                                parsed_res = json.loads(raw_result)
+                                if isinstance(parsed_res, dict) and "urls" in parsed_res:
+                                    task.args["urls"] = parsed_res["urls"]
+                            except Exception:
+                                pass
                 
                 # Condense verbose dependency outputs via SupervisorAgent to save tokens
-                if task.action in ["deep_research_evaluate", "deep_research_report_chat"]:
+                if task.action in ["deep_research_harvest", "deep_research_evaluate", "deep_research_report_chat"]:
                     # Bypass truncation for deep research evaluation to prevent massive data loss
                     dep_context = raw_dep_context
                 else:
@@ -146,6 +190,13 @@ class Executor:
                         task.status = TaskStatus.COMPLETED
                         self._update_task_record(run_id, task.id, status="completed", result=str(result), end_time=datetime.now(timezone.utc))
                         logger.info(f"Task {task.id} ({task.action}) ✅")
+                        asyncio.create_task(self._broadcast_dag_event('dag.task.status', {
+                            "run_id": run_id,
+                            "task_id": task.id,
+                            "action": task.action,
+                            "status": "completed",
+                            "result": str(result)[:500]
+                        }))
                         
                         # Fire DAG execution hook for real-time artifact streaming
                         if self.on_task_complete:

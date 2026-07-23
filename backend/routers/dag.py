@@ -1,6 +1,6 @@
 from typing import Optional
 from fastapi import APIRouter, Depends
-from sqlmodel import Session, select, desc
+from sqlmodel import Session, select, desc, col, or_
 from ..database import engine as db_engine
 from ..models import Run, TaskRecord as TaskRecordModel
 from ..security.auth import verify_authenticated
@@ -16,22 +16,32 @@ async def list_dag_runs(
     limit: int = 20,
     offset: int = 0,
     agent_id: str = "executive",
+    include_subagents: bool = True,
 ):
     with Session(db_engine) as session:
-        stmt = select(Run).where(Run.agent_id == agent_id).order_by(desc(Run.created_at)).offset(offset).limit(limit)
+        stmt = select(Run)
+        if agent_id != "all":
+            if include_subagents:
+                stmt = stmt.where(col(Run.agent_id).in_([agent_id, "rocco", "a32eb383"]))
+            else:
+                stmt = stmt.where(col(Run.agent_id) == agent_id)
+                
         if status:
-            stmt = stmt.where(Run.status == status)
+            stmt = stmt.where(col(Run.status) == status)
+            
+        stmt = stmt.order_by(desc(col(Run.created_at))).offset(offset).limit(limit)
         runs = session.exec(stmt).all()
 
         result = []
         for run in runs:
-            task_stmt = select(TaskRecordModel).where(TaskRecordModel.run_id == run.id)
+            task_stmt = select(TaskRecordModel).where(col(TaskRecordModel.run_id) == run.id)
             tasks = session.exec(task_stmt).all()
             result.append({
                 "id": run.id,
                 "objective": run.objective,
                 "status": run.status,
                 "created_at": run.created_at,
+                "agent_id": run.agent_id,
                 "task_count": len(tasks),
                 "tasks": [
                     {"id": t.id, "dag_id": t.task_dag_id, "status": t.status}
@@ -39,9 +49,14 @@ async def list_dag_runs(
                 ],
             })
         # Get total count for pagination
-        count_stmt = select(Run).where(Run.agent_id == agent_id)
+        count_stmt = select(Run)
+        if agent_id != "all":
+            if include_subagents:
+                count_stmt = count_stmt.where(col(Run.agent_id).in_([agent_id, "rocco", "a32eb383"]))
+            else:
+                count_stmt = count_stmt.where(col(Run.agent_id) == agent_id)
         if status:
-            count_stmt = count_stmt.where(Run.status == status)
+            count_stmt = count_stmt.where(col(Run.status) == status)
         total = len(session.exec(count_stmt).all())
 
         return {"runs": result, "total": total}
