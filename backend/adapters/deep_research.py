@@ -286,16 +286,12 @@ class DeepResearchEvaluateAdapter(Adapter):
             
         from .. import services
         if services.router:
-            try:
-                import psutil
-                ram_gb = psutil.virtual_memory().total / (1024**3)
-            except Exception:
-                ram_gb = 16.0
-                
-            single_pass_limit = 800000 if ram_gb >= 32 else 360000
+            # 5-Layer Metal GPU Protection Parameters (~2.5k tokens per serial batch)
+            single_pass_limit = 10000
+            chunk_size = 10000
             
             if len(report) <= single_pass_limit:
-                logger.info(f"Executing Single-Pass Synthesis on {len(report)} characters (RAM: {ram_gb:.1f}GB)...")
+                logger.info(f"[Metal GPU Guard] Executing Single-Pass Synthesis on {len(report)} characters...")
                 single_pass_prompt = f"Synthesize all of the following harvested research data (including articles, YouTube transcripts, and podcast notes) into a single, cohesive, comprehensive final deep research report with clear sections, links, and detailed citations.\n\n{report}"
                 try:
                     final_report = await services.router.get_response(
@@ -309,10 +305,21 @@ class DeepResearchEvaluateAdapter(Adapter):
                 except Exception as e:
                     logger.error(f"Single-pass synthesis failed: {e}")
             else:
-                chunk_size = 320000  # ~80k tokens per chunk
                 chunks = [report[i:i + chunk_size] for i in range(0, len(report), chunk_size)]
-                logger.info(f"Report exceeds single-pass boundary. Chunking into {len(chunks)} pieces for Map-Reduce evaluation.")
+                logger.info(f"[Metal GPU Guard] Research context is {len(report)} chars. Executing serial Map-Reduce batching across {len(chunks)} chunks.")
+                
                 summaries = []
+                import os, gc
+                try:
+                    import mlx.core as mx
+                except ImportError:
+                    mx = None
+
+                from .routers.sessions import WORKSPACE_DIR
+                agent_id = getattr(task, "assignee", "rocco")
+                scratch_dir = os.path.join(WORKSPACE_DIR, agent_id, "scratch")
+                os.makedirs(scratch_dir, exist_ok=True)
+
                 for idx, chunk in enumerate(chunks):
                     map_prompt = f"Summarize the following research data chunk ({idx+1}/{len(chunks)}). Extract key insights, facts, quotes, YouTube/podcast links, and conclusions.\n\n{chunk}"
                     try:
@@ -324,10 +331,25 @@ class DeepResearchEvaluateAdapter(Adapter):
                             inference_mode="TACTICAL"
                         )
                         summaries.append(summary)
+                        
+                        # Layer 4: Disk-staged intermediate summary logging
+                        chunk_file = os.path.join(scratch_dir, f"chunk_summary_{idx+1}.md")
+                        with open(chunk_file, "w", encoding="utf-8") as f:
+                            f.write(summary)
+                            
                     except Exception as e:
                         logger.error(f"Failed to summarize chunk {idx+1}: {e}")
                         summaries.append(f"[Failed to process chunk {idx+1}]")
-                
+
+                    # Layer 2 & Layer 5: Metal GPU memory purge & kernel driver pacing
+                    if mx:
+                        try:
+                            mx.metal.clear_cache()
+                        except Exception:
+                            pass
+                    gc.collect()
+                    await asyncio.sleep(0.1)
+
                 combined_summaries = "\n\n---\n\n".join(summaries)
                 reduce_prompt = f"Synthesize the following chunk summaries into a single, cohesive, comprehensive final deep research report with links and citations.\n\n{combined_summaries}"
                 try:
@@ -343,7 +365,7 @@ class DeepResearchEvaluateAdapter(Adapter):
                     logger.error(f"Failed to reduce summaries: {e}")
                     report = combined_summaries
 
-        # Flush Metal Cache after long context evaluation
+        # Flush Metal Cache after complete evaluation
         try:
             import mlx.core as mx
             mx.metal.clear_cache()
