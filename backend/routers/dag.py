@@ -96,11 +96,11 @@ async def list_dag_run_tasks(run_id: int):
                     "action": t.action,
                     "assignee": getattr(t, "assignee", "rocco") or "rocco",
                     "status": t.status,
-                    "dependencies": t.dependencies or [],
+                    "dependencies": getattr(t, "dependencies", []),
                     "args": t.args or {},
                     "result": t.result,
                     "error": t.error,
-                    "start_time": t.start_time,
+                    "start_time": getattr(t, "start_time", t.updated_at),
                     "end_time": t.end_time
                 }
                 for t in tasks
