@@ -20,7 +20,7 @@ class DeepResearchQueryExpansionAdapter(Adapter):
                 from .. import services
                 if services.router:
                     try:
-                        exp_prompt = f"Deconstruct this research objective into 3-5 specific search queries for web articles, YouTube videos, and podcasts: {raw_objective}. Return ONLY a JSON list of strings, e.g. [\"query 1\", \"query 2\"]"
+                        exp_prompt = f"Deconstruct this research objective into 3-5 specific search queries for web articles, YouTube videos, and podcasts: '{raw_objective}'. CRITICAL: Every query MUST explicitly include the core keywords from '{raw_objective}' (e.g. 'Sovereign AI'). Return ONLY a JSON list of strings."
                         resp = await services.router.get_response(
                             prompt=exp_prompt,
                             system_instruction="You are a specialized multi-media research query expansion engine.",
@@ -32,7 +32,13 @@ class DeepResearchQueryExpansionAdapter(Adapter):
                         clean_json = re.sub(r'```[a-z]*', '', resp).strip()
                         parsed = json.loads(clean_json)
                         if isinstance(parsed, list) and len(parsed) > 0:
-                            queries = [str(q) for q in parsed]
+                            anchored = []
+                            for q in parsed:
+                                q_str = str(q)
+                                if "sovereign" not in q_str.lower() and "ai" not in q_str.lower():
+                                    q_str = f"{raw_objective} {q_str}"
+                                anchored.append(q_str)
+                            queries = anchored
                     except Exception as e:
                         logger.warning(f"Query expansion via LLM failed: {e}. Falling back to objective query.")
                 if not queries:

@@ -71,6 +71,22 @@ export const useAdminEvents = () => {
               sender: params.sender || 'rocco',
               timestamp: new Date().toISOString()
             }]);
+          } else if (method === 'orchestrator.artifact.updated') {
+            const { setActiveArtifact, setArtifacts } = useStore.getState();
+            const newArtifact = {
+              id: `art_${Date.now()}`,
+              name: params.title || 'deep_research_report.md',
+              title: params.title || 'Deep Research Synthesis Report',
+              content: params.content || '',
+              language: params.language || 'markdown',
+              timestamp: new Date().toISOString()
+            };
+            if (setArtifacts) {
+              setArtifacts((prev: any[]) => [...(prev || []), newArtifact]);
+            }
+            if (setActiveArtifact) {
+              setActiveArtifact(newArtifact);
+            }
           } else if (method === 'security.resolution_required') {
             const { setPendingSecurityResolution } = useStore.getState();
             setPendingSecurityResolution(params);

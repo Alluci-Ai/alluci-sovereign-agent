@@ -166,7 +166,7 @@ class ExecutiveOrchestrator:
             if ".ts" in title: lang = "typescript"
             await self.broadcast_artifact(title=title, content=content, language=lang)
             
-            # Physical File Persistence for Deep Research Report
+            # Physical File Persistence & Chat Message Broadcast for Deep Research Report
             if task.action == "deep_research_evaluate":
                 try:
                     import os
@@ -180,6 +180,19 @@ class ExecutiveOrchestrator:
                     self.logger.info(f"Physically saved deep research report to {file_path}")
                 except Exception as e:
                     self.logger.error(f"Failed to persist physical artifact: {e}")
+                    
+                # Broadcast final executive report directly to Chat Window stream
+                if self._ws_gateway:
+                    try:
+                        await self._ws_gateway.broadcast_event('chat.message.received', {
+                            "id": f"msg_rocco_{int(datetime.now(timezone.utc).timestamp())}",
+                            "content": f"### 📊 Deep Research Synthesis Report Completed by Rocco\n\n{content}",
+                            "summary": "Deep Research Synthesis Report Completed.",
+                            "sender": "rocco",
+                            "timestamp": datetime.now(timezone.utc).isoformat()
+                        })
+                    except Exception as e:
+                        self.logger.error(f"Failed to broadcast chat completion message: {e}")
             
         elif len(str(task.result)) > 200:
             # Broadcast large outputs natively as markdown reports

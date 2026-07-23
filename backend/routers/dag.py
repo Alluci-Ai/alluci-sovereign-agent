@@ -60,3 +60,49 @@ async def list_dag_runs(
         total = len(session.exec(count_stmt).all())
 
         return {"runs": result, "total": total}
+
+@router.get("/dag/runs/{run_id}", dependencies=[Depends(verify_authenticated)])
+async def get_dag_run(run_id: int):
+    with Session(db_engine) as session:
+        run = session.get(Run, run_id)
+        if not run:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=404, detail="Run not found")
+        task_stmt = select(TaskRecordModel).where(col(TaskRecordModel.run_id) == run.id)
+        tasks = session.exec(task_stmt).all()
+        return {
+            "id": run.id,
+            "objective": run.objective,
+            "status": run.status,
+            "created_at": run.created_at,
+            "agent_id": run.agent_id,
+            "task_count": len(tasks),
+            "tasks": [
+                {"id": t.id, "dag_id": t.task_dag_id, "status": t.status}
+                for t in tasks
+            ]
+        }
+
+@router.get("/dag/runs/{run_id}/tasks", dependencies=[Depends(verify_authenticated)])
+async def list_dag_run_tasks(run_id: int):
+    with Session(db_engine) as session:
+        task_stmt = select(TaskRecordModel).where(col(TaskRecordModel.run_id) == run_id)
+        tasks = session.exec(task_stmt).all()
+        return {
+            "tasks": [
+                {
+                    "id": t.id,
+                    "task_dag_id": t.task_dag_id,
+                    "action": t.action,
+                    "assignee": getattr(t, "assignee", "rocco") or "rocco",
+                    "status": t.status,
+                    "dependencies": t.dependencies or [],
+                    "args": t.args or {},
+                    "result": t.result,
+                    "error": t.error,
+                    "start_time": t.start_time,
+                    "end_time": t.end_time
+                }
+                for t in tasks
+            ]
+        }

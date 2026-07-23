@@ -101,23 +101,32 @@ export const RunListSidebar: React.FC<Props> = ({
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
               <StatusBadge status={run.status} />
               <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                {run.task_counts && (
+                {run.tasks && run.tasks.length > 0 && (
                   <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--text-tertiary)' }}>
-                    {run.task_counts.completed}/{run.task_counts.total}
+                    {run.tasks.filter(t => t.status === 'completed').length}/{run.tasks.length} ({Math.round((run.tasks.filter(t => t.status === 'completed').length / run.tasks.length) * 100)}%)
                   </span>
                 )}
                 <span style={{ fontSize: 9, color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)' }}>
-                  {formatRelativeTime(run.started_at)}
+                  {formatRelativeTime(run.created_at || run.started_at)}
                 </span>
               </div>
             </div>
-            {isActive && (
+            {run.tasks && run.tasks.length > 0 ? (
+              <div style={{ marginTop: 6, width: '100%', height: 3, background: 'rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden' }}>
+                <div style={{
+                  height: '100%',
+                  width: `${Math.round((run.tasks.filter(t => t.status === 'completed').length / run.tasks.length) * 100)}%`,
+                  background: run.status === 'completed' ? 'var(--status-good)' : 'var(--accent-warm)',
+                  transition: 'width 0.3s ease'
+                }} />
+              </div>
+            ) : isActive ? (
               <div style={{
                 marginTop: 6, height: 2, borderRadius: 2,
                 background: 'var(--accent-warm)',
                 animation: 'pulse-width 2s ease-in-out infinite',
               }} />
-            )}
+            ) : null}
           </div>
         );
       })}
