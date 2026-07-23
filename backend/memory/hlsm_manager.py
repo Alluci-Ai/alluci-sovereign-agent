@@ -808,10 +808,27 @@ class HLSMManager:
         """
         deleted = False
         base_id = entry_id
-        if base_id.startswith("l2_") or base_id.startswith("l3_"):
+        if base_id.startswith("l2_") or base_id.startswith("l3_") or base_id.startswith("l0_"):
             base_id = base_id[3:]
 
-        # 1. Delete from L1 SQL database
+        # 0. Delete from L0 SQL database (Working Memory)
+        def _delete_l0():
+            with Session(self.db_engine) as session:
+                w_entry = session.get(HLSMWorkingEntry, base_id)
+                if w_entry:
+                    session.delete(w_entry)
+                    session.commit()
+                    return True
+                return False
+
+        try:
+            if await asyncio.to_thread(_delete_l0):
+                deleted = True
+                logger.info(f"[HLSM] Deleted L0 working memory entry: {base_id}")
+        except Exception as e:
+            logger.error(f"[HLSM] L0 delete error: {e}")
+
+        # 1. Delete from L1 SQL database (Episodic Memory)
         def _delete_l1():
             with Session(self.db_engine) as session:
                 from sqlalchemy import text as sa_text
@@ -846,7 +863,7 @@ class HLSMManager:
             except Exception as e:
                 logger.debug(f"[HLSM] KùzuDB delete error: {e}")
 
-        return deleted or True
+        return True
 
     # ─── Unified Retrieval ────────────────────────────────────────────────────
 
@@ -1446,38 +1463,6 @@ class HLSMManager:
                 return True
         return False
 
-    async def delete(self, memory_id: str) -> bool:
-        """Fully cascaded memory deletion across all tiers."""
-        try:
-            # Strip tier prefixes if present to find the base L1/L0 UUID
-            base_uuid = memory_id
-            if base_uuid.startswith("l3_"):
-                base_uuid = base_uuid[3:]
-            elif base_uuid.startswith("l2_"):
-                base_uuid = base_uuid[3:]
-
-            deleted_any = False
-
-            # Delete from L3
-            if await self.l3_delete(f"l3_{base_uuid}"):
-                deleted_any = True
-
-            # Delete from L2
-            if await self.l2_delete(f"l2_{base_uuid}"):
-                deleted_any = True
-
-            # Delete from L1 (Episodic Memory)
-            if await asyncio.to_thread(self._l1_delete_by_id, base_uuid):
-                deleted_any = True
-
-            # Delete from L0 (Working Memory)
-            if await self._l0_delete_by_id(base_uuid):
-                deleted_any = True
-
-            return deleted_any
-        except Exception as e:
-            logger.error(f"[HLSM] Delete failed for {memory_id}: {e}")
-            return False
 
     def _l1_delete_by_id(self, memory_id: str) -> bool:
         with Session(self.db_engine) as session:

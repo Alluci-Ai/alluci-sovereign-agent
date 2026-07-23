@@ -68,7 +68,11 @@ export const MemoryPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         try {
             await sovereignService.deleteMemory(id);
         } catch (e: any) {
-            console.error("Delete failed", e);
+            console.error("Delete warning", e);
+            // If entry was already deleted on backend (404 / Not Found), maintain UI deletion
+            if (e?.message && (e.message.includes('404') || e.message.includes('Not Found') || e.message.includes('Already deleted'))) {
+                return;
+            }
             fetchMemories();
         }
     };

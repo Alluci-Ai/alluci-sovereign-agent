@@ -51,20 +51,19 @@ async def delete_memory_entry(request: Request, entry_id: str, csrf_protect: Csr
     from ..models import HLSMEpisodicEntry, HLSMWorkingEntry
     from ..database import engine
     
-    with Session(engine) as session:
-        base_id = entry_id.replace("l2_", "").replace("l3_", "")
-        entries = session.exec(select(HLSMEpisodicEntry).where((col(HLSMEpisodicEntry.id) == base_id) | (col(HLSMEpisodicEntry.id).like(f"%{base_id}%")))).all()
-        for e in entries:
-            session.delete(e)
-        work_entries = session.exec(select(HLSMWorkingEntry).where((col(HLSMWorkingEntry.id) == base_id) | (col(HLSMWorkingEntry.id).like(f"%{base_id}%")))).all()
-        for w in work_entries:
-            session.delete(w)
-        session.commit()
-        if entries or work_entries:
-            success = True
+    try:
+        with Session(engine) as session:
+            base_id = entry_id.replace("l2_", "").replace("l3_", "").replace("l0_", "")
+            entries = session.exec(select(HLSMEpisodicEntry).where((col(HLSMEpisodicEntry.id) == base_id) | (col(HLSMEpisodicEntry.id).like(f"%{base_id}%")))).all()
+            for e in entries:
+                session.delete(e)
+            work_entries = session.exec(select(HLSMWorkingEntry).where((col(HLSMWorkingEntry.id) == base_id) | (col(HLSMWorkingEntry.id).like(f"%{base_id}%")))).all()
+            for w in work_entries:
+                session.delete(w)
+            session.commit()
+    except Exception as e:
+        logger.error(f"Fallback deletion error: {e}")
 
-    if not success:
-        raise HTTPException(status_code=404, detail="Entry not found")
     return {"status": "SUCCESS"}
 
 @router.post("/memory/consolidate", dependencies=[Depends(verify_authenticated)])
