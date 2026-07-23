@@ -7,8 +7,16 @@ export interface DAGRun {
   id:           number;
   objective:    string;
   status:       RunStatus;
-  started_at:   string;
-  completed_at: string | null;
+  started_at?:  string;
+  created_at?:  string;
+  completed_at?: string | null;
+  agent_id?:    string;
+  task_count?:  number;
+  tasks?: Array<{
+    id: string | number;
+    dag_id?: string;
+    status: string;
+  }>;
   task_counts?: {
     total:     number;
     completed: number;
