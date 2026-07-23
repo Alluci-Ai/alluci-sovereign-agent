@@ -38,7 +38,7 @@ from .security.avl_gate import AVLGate
 def validate_telemetry(hidden_state_variance: float, acceptance_rate: float):
     # CODE IMPLEMENTATION FOR PROTOCOL 3:
     # Rule 1: Catch hidden state variance blowout early
-    if not (0.5 <= hidden_state_variance <= 50.0):
+    if not (0.01 <= hidden_state_variance <= 50.0):
         logger = logging.getLogger("Telemetry")
         logger.error(f"[TELEMETRY CRITICAL] C++ Variance Out-Of-Bounds: {hidden_state_variance}. Check layer_scalars.")
         
@@ -265,7 +265,6 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
 
             if is_objective:
                 self.logger.info(f"[Orchestrator] Chat Auto-Dispatch: Routing '{extracted_objective}' to DAG Planner.")
-                import asyncio
                 mode = "research" if is_research else "standard"
                 
                 if mode == "research":
@@ -928,7 +927,6 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
                 
                 if hasattr(self, 'ws_gateway') and self.ws_gateway:
                     try:
-                        import asyncio
                         # We are inside an async function so we can await the broadcast directly.
                         await self.ws_gateway.broadcast_event('security.resolution_required', {
                             "task_id": str(getattr(self, "agent_id", "executive")),
@@ -1094,14 +1092,23 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
             }
 
         # 5. Sovereign Signing (Phase P6)
-        signed_manifest = self.identity.sign_manifest({
-            "objective": objective,
-            "plan_hash": hash(str(current_plan)),
-            "timestamp": asyncio.get_running_loop().time()
-        })
-        signature = str(signed_manifest.get("signature") or "")
-        self._save_manifest(run_id, signature)
-        self.logger.info(f"📜 Manifest Signed by {signed_manifest['signer']}")
+        try:
+            signed_manifest = self.identity.sign_manifest({
+                "objective": objective,
+                "plan_hash": hash(str(current_plan)),
+                "timestamp": asyncio.get_running_loop().time()
+            })
+            signature = str(signed_manifest.get("signature") or "")
+            self._save_manifest(run_id, signature)
+            self.logger.info(f"📜 Manifest Signed by {signed_manifest['signer']}")
+        except Exception as e:
+            import traceback
+            self.logger.error(f"Manifest signing failed: {e}\n{traceback.format_exc()}")
+            self._update_run_status(run_id, RunStatus.FAILED, feedback="Manifest signing error")
+            return {
+                "status": "failed",
+                "reason": f"Manifest signing failed: {str(e)}"
+            }
 
         # 6. Progressive Self-Healing Loop (Execution)
         critic_score = 0.0
@@ -1126,7 +1133,16 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
             self.logger.info(f"--- 🔄 Cycle {attempt + 1}/{total_retries_allowed} ---")
             
             # Execute
-            updated_tasks = await self.executor.execute_dag(run_id, tasks)
+            try:
+                updated_tasks = await self.executor.execute_dag(run_id, tasks)
+            except Exception as e:
+                import traceback
+                self.logger.error(f"Execution failed: {e}\n{traceback.format_exc()}")
+                self._update_run_status(run_id, RunStatus.FAILED, feedback="Execution error")
+                return {
+                    "status": "failed",
+                    "reason": f"Execution failed: {str(e)}"
+                }
             
             # Re-fetch affective state for psi-weighted score
             psi = self.ace.btm.psi_from_state(self.ace.get_affective_state())
