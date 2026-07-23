@@ -75,12 +75,7 @@ class ModelRouter(ExecutiveRouter):
         self.ws_gateway: Optional[Any] = None
         if self.lce_enabled:
             self.logger.info("Local Cognitive Engine (LCE) via MLX initialized.")
-            try:
-                from backend import alluci_core
-                self.secure_proxy = alluci_core.AlluciSovereignRouter()
-            except Exception as e:
-                self.logger.error(f"Failed to load C++ proxy: {e}")
-                self.secure_proxy = NoOpSecureProxy()
+            self.secure_proxy = NoOpSecureProxy()
 
         # ── LOCAL: LM Studio (LOCAL FALLBACK) ─────────────────────────────────
         self.lm_studio_client = None
