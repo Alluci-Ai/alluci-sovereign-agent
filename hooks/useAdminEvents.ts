@@ -72,7 +72,9 @@ export const useAdminEvents = () => {
               timestamp: new Date().toISOString()
             }]);
           } else if (method === 'orchestrator.artifact.updated') {
-            const { setActiveArtifact, setArtifacts } = useStore.getState();
+            const storeState = useStore.getState() as any;
+            const setActiveArtifact = storeState.setActiveArtifact;
+            const setArtifacts = storeState.setArtifacts;
             const newArtifact = {
               id: `art_${Date.now()}`,
               name: params.title || 'deep_research_report.md',
