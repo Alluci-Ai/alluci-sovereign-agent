@@ -9,7 +9,7 @@ import structlog
 from sqlmodel import Session
 from sentence_transformers import SentenceTransformer
 
-from .models import TaskStatus, Run, RunStatus
+from .models import TaskStatus, Run, RunStatus, AgentRecord
 from .inference.router import ModelRouter
 from .security.vault import VaultManager
 from .ace.engine import AffectiveEngine
@@ -271,9 +271,9 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
                 if mode == "research":
                     agent_id = "a32eb383"
                     try:
-                        from sqlmodel import select
+                        from sqlmodel import select, col
                         with Session(db_engine) as session:
-                            stmt = select(AgentRecord).where(AgentRecord.name.ilike("%rocco%"))
+                            stmt = select(AgentRecord).where(col(AgentRecord.name).ilike("%rocco%"))
                             rec = session.exec(stmt).first()
                             if rec:
                                 agent_id = rec.id

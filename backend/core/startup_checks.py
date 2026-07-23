@@ -80,7 +80,7 @@ def seed_rocco_agent() -> None:
     and removes any legacy auto-seeded 'rocco' duplicate.
     """
     import json
-    from sqlmodel import Session, select
+    from sqlmodel import Session, select, col
     from ..database import engine
     from ..models import AgentRecord
 
@@ -94,7 +94,7 @@ def seed_rocco_agent() -> None:
         # Delete duplicate id="rocco" if a custom Rocco agent exists
         custom_rocco = session.get(AgentRecord, "a32eb383")
         if not custom_rocco:
-            stmt = select(AgentRecord).where(AgentRecord.name.ilike("%rocco%"), AgentRecord.id != "rocco")
+            stmt = select(AgentRecord).where(col(AgentRecord.name).ilike("%rocco%"), AgentRecord.id != "rocco")
             custom_rocco = session.exec(stmt).first()
 
         dup_rocco = session.get(AgentRecord, "rocco")
