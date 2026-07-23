@@ -108,6 +108,7 @@ class ExecutiveOrchestrator:
             self.adapter_registry, 
             session_factory=lambda: db_engine,
             max_concurrent=settings.MAX_CONCURRENT_TASKS,
+            task_timeout=3600.0,
             approval_manager=self.approval_manager,
             ace=self.ace,
             on_task_complete=self._handle_task_complete
@@ -268,7 +269,16 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
                 mode = "research" if is_research else "standard"
                 
                 if mode == "research":
-                    agent_id = "rocco"
+                    agent_id = "a32eb383"
+                    try:
+                        from sqlmodel import select
+                        with Session(db_engine) as session:
+                            stmt = select(AgentRecord).where(AgentRecord.name.ilike("%rocco%"))
+                            rec = session.exec(stmt).first()
+                            if rec:
+                                agent_id = rec.id
+                    except Exception:
+                        pass
                     task = asyncio.create_task(self.multi_agent_delegate(agent_id, extracted_objective, mode="research"))
                     msg = f"I am dispatching a dedicated Deep Research SubAgent ({agent_id}) to work on this in the background:\n> {extracted_objective}"
                 else:
@@ -1410,6 +1420,19 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
         # [Phase 9] Multi-Threaded Spawning: Create a background task for the execution!
         # This achieves asynchronous swarm delegation without blocking the parent DAG.
         task_handle = asyncio.create_task(sub_orchestrator.execute_objective(task, autonomy="autonomous", mode=mode))
+        
+        if not hasattr(self, "_bg_tasks"):
+            self._bg_tasks = set()
+        self._bg_tasks.add(task_handle)
+        
+        def handle_subagent_result(t):
+            self._bg_tasks.discard(t)
+            try:
+                t.result()
+            except Exception as e:
+                self.logger.error(f"[Orchestrator] Sub-agent task failed: {e}", exc_info=True)
+                
+        task_handle.add_done_callback(handle_subagent_result)
         
         return {
             "status": "spawned",

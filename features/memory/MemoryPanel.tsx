@@ -63,15 +63,13 @@ export const MemoryPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     };
 
     const handleDelete = async (id: string) => {
+        // Optimistic UI update: remove item immediately for single-click responsiveness
+        setMemories(prev => prev.filter(m => m.id !== id));
         try {
-            const res = await sovereignService.deleteMemory(id);
-            alert("Delete response: " + JSON.stringify(res));
-            if (res.status === "SUCCESS") {
-                setMemories(prev => prev.filter(m => m.id !== id));
-            }
+            await sovereignService.deleteMemory(id);
         } catch (e: any) {
             console.error("Delete failed", e);
-            alert("Delete failed: " + (e.message || e.toString()));
+            fetchMemories();
         }
     };
 

@@ -21,7 +21,7 @@ interface AgentDetailProps {
 }
 
 export const AgentDetailTabs: React.FC<AgentDetailProps> = ({ agentId, onBack }) => {
-    const { accessToken, availableModels } = useStore();
+    const { accessToken, availableModels, loadAvailableModels } = useStore();
     const [activeTab, setActiveTab] = useState<'overview' | 'workspace' | 'tools' | 'channels' | 'heartbeat' | 'skills' | 'engine'>('overview');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [agent, setAgent] = useState<any>(null);
@@ -31,6 +31,12 @@ export const AgentDetailTabs: React.FC<AgentDetailProps> = ({ agentId, onBack })
     const [saving, setSaving] = useState(false);
     const [showPiiModal, setShowPiiModal] = useState(false);
     const [pendingPiiState, setPendingPiiState] = useState(false);
+
+    useEffect(() => {
+        if (accessToken) {
+            loadAvailableModels(accessToken);
+        }
+    }, [accessToken, loadAvailableModels]);
 
     const fetchHeartbeatHistory = async () => {
         try {

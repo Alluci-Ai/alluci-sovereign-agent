@@ -76,15 +76,14 @@ def warn_on_stale_model_ids() -> None:
 
 def seed_rocco_agent() -> None:
     """
-    Seeds the 'rocco' sub-agent into the database if it does not exist,
-    pre-configuring its tools_manifest for deep research tasks.
+    Ensures the user's configured Rocco agent has deep research tools enabled,
+    and removes any legacy auto-seeded 'rocco' duplicate.
     """
     import json
-    from sqlmodel import Session
+    from sqlmodel import Session, select
     from ..database import engine
     from ..models import AgentRecord
 
-    # Deep research tools to enable for rocco
     research_tools = {
         "deep_research_query_expansion": {"enabled": True},
         "deep_research_harvest": {"enabled": True},
@@ -92,27 +91,38 @@ def seed_rocco_agent() -> None:
     }
 
     with Session(engine) as session:
-        rocco = session.get(AgentRecord, "rocco")
-        if not rocco:
-            rocco = AgentRecord(
-                id="rocco",
-                name="Rocco (Deep Research Agent)",
-                status="active",
-                model="gemini-2.0-flash",
-                system_prompt="You are Rocco, an advanced deep research agent. Your sole purpose is to execute comprehensive research workflows, gather extensive data from the web, evaluate the findings, and synthesize detailed reports.",
-                tools_manifest=json.dumps(research_tools)
-            )
-            session.add(rocco)
+        # Delete duplicate id="rocco" if a custom Rocco agent exists
+        custom_rocco = session.get(AgentRecord, "a32eb383")
+        if not custom_rocco:
+            stmt = select(AgentRecord).where(AgentRecord.name.ilike("%rocco%"), AgentRecord.id != "rocco")
+            custom_rocco = session.exec(stmt).first()
+
+        dup_rocco = session.get(AgentRecord, "rocco")
+        if dup_rocco and custom_rocco:
+            session.delete(dup_rocco)
             session.commit()
             import logging
-            logging.getLogger(__name__).info("Successfully seeded 'rocco' deep research agent.")
+            logging.getLogger(__name__).info("Removed duplicate 'rocco' agent record from database.")
+
+        target_agent = custom_rocco or dup_rocco
+        if not target_agent:
+            target_agent = AgentRecord(
+                id="a32eb383",
+                name="Rocco",
+                status="active",
+                description="Deep Research Agent",
+                model="local/alluci-polytope-gemma-4-31b-it-bf16",
+                system_prompt="You are Rocco, an advanced deep research agent. Your sole purpose is to execute comprehensive research workflows, gather extensive data from the web, evaluate findings, and synthesize detailed reports.",
+                tools_manifest=json.dumps(research_tools)
+            )
+            session.add(target_agent)
+            session.commit()
         else:
-            # Ensure tools manifest has deep research tools enabled if already exists
             manifest = {}
-            if rocco.tools_manifest:
+            if target_agent.tools_manifest:
                 try:
-                    manifest = json.loads(rocco.tools_manifest)
-                except:
+                    manifest = json.loads(target_agent.tools_manifest)
+                except Exception:
                     manifest = {}
             updated = False
             for tool, config in research_tools.items():
@@ -121,6 +131,6 @@ def seed_rocco_agent() -> None:
                     updated = True
             
             if updated:
-                rocco.tools_manifest = json.dumps(manifest)
-                session.add(rocco)
+                target_agent.tools_manifest = json.dumps(manifest)
+                session.add(target_agent)
                 session.commit()

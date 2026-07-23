@@ -15,13 +15,32 @@ class DeepResearchQueryExpansionAdapter(Adapter):
     async def execute(self, args: Dict[str, Any]) -> Any:
         queries = args.get("queries", [])
         if not queries:
-            query = args.get("query", "")
+            query = args.get("query", "") or args.get("context", "") or args.get("objective", "")
             if query:
-                queries = [query]
+                from .. import services
+                if services.router:
+                    try:
+                        exp_prompt = f"Deconstruct this research objective into 3-5 specific search queries for web search: {query}. Return ONLY a JSON list of strings, e.g. [\"query 1\", \"query 2\"]"
+                        resp = await services.router.get_response(
+                            prompt=exp_prompt,
+                            system_instruction="You are a research query expansion engine.",
+                            complexity="MEDIUM",
+                            privacy_level="PUBLIC",
+                            inference_mode="TACTICAL"
+                        )
+                        import json, re
+                        clean_json = re.sub(r'```[a-z]*', '', resp).strip()
+                        parsed = json.loads(clean_json)
+                        if isinstance(parsed, list) and len(parsed) > 0:
+                            queries = [str(q) for q in parsed]
+                    except Exception as e:
+                        logger.warning(f"Query expansion via LLM failed: {e}. Falling back to objective query.")
+                if not queries:
+                    queries = [query]
             else:
                 return {"status": "error", "message": "No queries provided."}
                 
-        max_results = args.get("max_results_per_query", 3)
+        max_results = args.get("max_results_per_query", 5)
         urls = set()
         
         # Note: DDGS is blocking, but we run it via asyncio.to_thread to prevent blocking the event loop
@@ -36,14 +55,14 @@ class DeepResearchQueryExpansionAdapter(Adapter):
                                 local_urls.append(r['href'])
                     except Exception as e:
                         logger.error(f"DDGS error for query '{q}': {e}")
-                        raise RuntimeError(f"DuckDuckGo search failed for query '{q}': {e}")
             return local_urls
 
         try:
             results = await asyncio.to_thread(_search)
             for url in results:
                 urls.add(url)
-            return {"status": "success", "urls": list(urls)}
+            logger.info(f"Query expansion found {len(urls)} unique URLs for queries: {queries}")
+            return {"status": "success", "queries": queries, "urls": list(urls)}
         except Exception as e:
             logger.error(f"Query expansion failed: {e}")
             return {"status": "error", "message": str(e)}
@@ -206,10 +225,10 @@ class DeepResearchEvaluateAdapter(Adapter):
                 try:
                     final_report = await services.router.get_response(
                         prompt=reduce_prompt,
-                        system_instruction="You are a senior research analyst. Produce a well-structured, detailed final report.",
+                        system_instruction="You are a senior research analyst. Produce a well-structured, detailed final report with links and citations.",
                         complexity="HIGH",
                         privacy_level="PUBLIC",
-                        inference_mode="LOCAL"
+                        inference_mode="HYBRID"
                     )
                     report = final_report
                 except Exception as e:

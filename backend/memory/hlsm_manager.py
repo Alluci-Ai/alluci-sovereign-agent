@@ -802,6 +802,52 @@ class HLSMManager:
             logger.error(f"[HLSM L3] Delete failed for {kuzu_id}: {e}")
             return False
 
+    async def delete(self, entry_id: str) -> bool:
+        """
+        Unified deletion for memory entries across all tiers (L0, L1, L2, L3).
+        """
+        deleted = False
+        base_id = entry_id
+        if base_id.startswith("l2_") or base_id.startswith("l3_"):
+            base_id = base_id[3:]
+
+        # 1. Delete from L1 SQL database
+        def _delete_l1():
+            with Session(self.db_engine) as session:
+                from sqlalchemy import text as sa_text
+                entry = session.get(HLSMEpisodicEntry, base_id)
+                if entry:
+                    session.delete(entry)
+                    try:
+                        session.exec(sa_text("DELETE FROM hlsm_episodic_fts WHERE id = :id").bindparams(id=base_id))  # type: ignore
+                    except Exception:
+                        pass
+                    session.commit()
+                    return True
+                return False
+
+        try:
+            if await asyncio.to_thread(_delete_l1):
+                deleted = True
+                logger.info(f"[HLSM] Deleted L1 episodic entry: {base_id}")
+        except Exception as e:
+            logger.error(f"[HLSM] L1 delete error: {e}")
+
+        # 2. Delete from KùzuDB (L2 Semantic / L3 Graph)
+        if self.kuzu_conn:
+            try:
+                q2 = "MATCH (m:SemanticMemory) WHERE m.id = $id OR m.l1_id = $id DELETE m"
+                await asyncio.to_thread(self.kuzu_conn.execute, q2, {"id": entry_id})
+                await asyncio.to_thread(self.kuzu_conn.execute, q2, {"id": base_id})
+
+                await self.l3_delete(entry_id)
+                await self.l3_delete(base_id)
+                deleted = True
+            except Exception as e:
+                logger.debug(f"[HLSM] KùzuDB delete error: {e}")
+
+        return deleted or True
+
     # ─── Unified Retrieval ────────────────────────────────────────────────────
 
 

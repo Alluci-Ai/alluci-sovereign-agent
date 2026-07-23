@@ -32,6 +32,7 @@ class MLXEngine:
     current_lora: Optional[str] = None
     is_loading: bool = False
     hardware_profile: Optional[Dict[str, Any]] = None
+    executor: ThreadPoolExecutor
     
     # Strictly one inference operation at a time to prevent MLX Graph Panics
     _inference_lock: asyncio.Lock = asyncio.Lock()
@@ -174,6 +175,7 @@ class MLXEngine:
                 try:
                     sampler = make_sampler(temp=temperature)
                     sync_buffer = ""
+                    assert self.engine is not None and self.tokenizer is not None, "Model not loaded"
                     for response in stream_generate(
                         self.engine,
                         self.tokenizer,
@@ -267,6 +269,7 @@ class MLXEngine:
         if os.path.exists(lora_path) and self.current_lora != lora_path:
             logger.info(f"Injecting Native Polytope Adapters for Context Moat: {lora_path}")
             def _sync_inject():
+                assert self.engine is not None, "Engine not loaded"
                 load_adapters(self.engine, adapter_path=lora_path)
             await asyncio.get_running_loop().run_in_executor(self.executor, _sync_inject)
             self.current_lora = lora_path

@@ -873,21 +873,21 @@ class ModelRouter(ExecutiveRouter):
                     return False
                 
                 # Gemini Failover (Vault-aware lazy loading)
-                if GEMINI_AVAILABLE and (self.vault or self.gemini_flash):
+                if GEMINI_AVAILABLE and self.gemini_flash:
                     if not allowed_llms or "googleCloud" in allowed_llms:
                         cloud_sequence.append(("Gemini", lambda p: self._gemini_request(p, use_pro=use_strong, json_mode=json_mode, system_instruction=system_instruction, session_id=session_id)))
                     else:
                         _trigger_intervention("Google Cloud")
                 
                 # OpenAI Failover
-                if OPENAI_AVAILABLE and (self.vault or self.openai_client):
+                if OPENAI_AVAILABLE and self.openai_client:
                     if not allowed_llms or "openai" in allowed_llms:
                         cloud_sequence.append(("OpenAI", lambda p: self._openai_request(p, use_strong=use_strong, json_mode=json_mode, system_instruction=system_instruction, session_id=session_id)))
                     else:
                         _trigger_intervention("OpenAI")
                 
                 # Anthropic Failover
-                if ANTHROPIC_AVAILABLE and (self.vault or self.anthropic_client):
+                if ANTHROPIC_AVAILABLE and self.anthropic_client:
                     if not allowed_llms or "anthropic" in allowed_llms:
                         cloud_sequence.append(("Anthropic", lambda p: self._anthropic_request(p, use_strong=use_strong, system_instruction=system_instruction)))
                     else:
@@ -966,6 +966,14 @@ class ModelRouter(ExecutiveRouter):
                             return res
                         except Exception as e:
                             errors.append(f"{name}: {e}")
+
+            # Safe Fallback to Native LCE if all cloud providers failed or were unconfigured
+            if self.lce_enabled:
+                self.logger.info("[ROUTER] All cloud sequence providers failed or were unconfigured. Falling back to Native LCE (MLX)...")
+                try:
+                    return await self._lce_request(prompt, system_instruction=system_instruction, tools=tools, agent_id=agent_id)
+                except Exception as lce_err:
+                    errors.append(f"Native LCE (MLX): {lce_err}")
 
             error_msg = "All inference providers failed: " + "; ".join(errors)
             span.set_status(trace.Status(trace.StatusCode.ERROR, error_msg))
