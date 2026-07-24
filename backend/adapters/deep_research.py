@@ -8,6 +8,41 @@ from ..logging_config import get_logger
 
 logger = get_logger("DeepResearchAdapters")
 
+def _sanitize_regex_topic(topic: str) -> str:
+    import re
+    cleaned = re.sub(r'^(?:please\s+)?(?:perform|conduct|do|run|generate|create|write|find|search\s+for|look\s+into|investigate|explore)\s+(?:a\s+)?(?:deep\s+)?(?:web\s+)?(?:research|analysis|study)\s+(?:on|about|for|into)\s+', '', topic, flags=re.IGNORECASE)
+    cleaned = re.sub(r'\s+and\s+(?:provide|generate|write|create|output|produce)\s+(?:a\s+)?(?:detailed|comprehensive|full)\s+(?:report|analysis|summary).*$', '', cleaned, flags=re.IGNORECASE)
+    cleaned = cleaned.strip(" .'\":;")
+    return cleaned if len(cleaned) > 2 else topic
+
+async def _extract_semantic_topic(raw_objective: str) -> str:
+    from .. import services
+    if not services.router:
+        return _sanitize_regex_topic(raw_objective)
+    try:
+        system_prompt = (
+            "You are a precision research topic isolation engine. "
+            "Your sole job is to extract the exact core subject/entity from any user prompt, "
+            "stripping away ALL conversational filler, command verbs, framing instructions, and output format requests.\n"
+            "Examples:\n"
+            "- Input: 'perform deep web research on Sovereign Ai and provide a detailed report' -> 'Sovereign AI'\n"
+            "- Input: 'Can you do a deep dive study on supply chain vulnerabilities in semiconductor manufacturing?' -> 'Supply chain vulnerabilities in semiconductor manufacturing'\n"
+            "Return ONLY the plain text core subject. Do not include quotes or conversational text."
+        )
+        res = await services.router.get_response(
+            prompt=f"Extract core subject: '{raw_objective}'",
+            system_instruction=system_prompt,
+            complexity="LOW",
+            privacy_level="PUBLIC",
+            inference_mode="TACTICAL"
+        )
+        cleaned = res.strip(" .'\":;\n")
+        cleaned = _sanitize_regex_topic(cleaned)
+        return cleaned if len(cleaned) > 2 else _sanitize_regex_topic(raw_objective)
+    except Exception as e:
+        logger.warning(f"Semantic topic extraction failed: {e}. Falling back to regex sanitizer.")
+        return _sanitize_regex_topic(raw_objective)
+
 class DeepResearchQueryExpansionAdapter(Adapter):
     name = "deep_research_query_expansion"
     description = "Uses DuckDuckGo Search to fetch initial URLs based on expanded queries across web, YouTube, and Podcasts."
@@ -15,12 +50,13 @@ class DeepResearchQueryExpansionAdapter(Adapter):
     async def execute(self, args: Dict[str, Any]) -> Any:
         queries = args.get("queries", [])
         raw_objective = args.get("query", "") or args.get("context", "") or args.get("objective", "")
+        core_topic = await _extract_semantic_topic(raw_objective) if raw_objective else ""
         if not queries:
             if raw_objective:
                 from .. import services
                 if services.router:
                     try:
-                        exp_prompt = f"Deconstruct this research objective into 3-5 specific search queries for web articles, YouTube videos, and podcasts: '{raw_objective}'. CRITICAL: Every query MUST explicitly include the core keywords from '{raw_objective}' (e.g. 'Sovereign AI'). Return ONLY a JSON list of strings."
+                        exp_prompt = f"Deconstruct this research objective for '{core_topic}' into 3-5 specific search queries for web articles, YouTube videos, and podcasts. CRITICAL: Every query MUST explicitly include '{core_topic}' and MUST NOT include command verbs like 'perform' or 'provide a report'. Return ONLY a JSON list of strings."
                         resp = await services.router.get_response(
                             prompt=exp_prompt,
                             system_instruction="You are a specialized multi-media research query expansion engine.",
@@ -34,15 +70,15 @@ class DeepResearchQueryExpansionAdapter(Adapter):
                         if isinstance(parsed, list) and len(parsed) > 0:
                             anchored = []
                             for q in parsed:
-                                q_str = str(q)
-                                if "sovereign" not in q_str.lower() and "ai" not in q_str.lower():
-                                    q_str = f"{raw_objective} {q_str}"
+                                q_str = _sanitize_regex_topic(str(q))
+                                if core_topic.lower() not in q_str.lower():
+                                    q_str = f"{core_topic} {q_str}"
                                 anchored.append(q_str)
                             queries = anchored
                     except Exception as e:
-                        logger.warning(f"Query expansion via LLM failed: {e}. Falling back to objective query.")
+                        logger.warning(f"Query expansion via LLM failed: {e}. Falling back to core topic query.")
                 if not queries:
-                    queries = [raw_objective, f"{raw_objective} youtube", f"{raw_objective} podcast"]
+                    queries = [core_topic, f"{core_topic} youtube", f"{core_topic} podcast"]
             else:
                 return {"status": "error", "message": "No queries provided."}
                 
@@ -424,7 +460,14 @@ class DeepResearchChatReportAdapter(Adapter):
             logger.warning("No deep research report available to summarize for chat.")
             return "No findings to report."
 
-        summary = "I have completed the deep research objective! The full comprehensive report, along with supporting context, is now available in your side window artifact buffer."
+        import os
+        from ..routers.sessions import WORKSPACE_DIR
+        task_obj = args.get("task")
+        agent_id = args.get("assignee") or args.get("agent_id") or (getattr(task_obj, "assignee", "rocco") if task_obj else "rocco")
+        file_path = os.path.join(WORKSPACE_DIR, agent_id, "artifacts", "deep_research_report.md")
+        file_url = f"file://{os.path.abspath(file_path)}"
+
+        summary = f"I have completed the deep research objective! The full comprehensive report is now available in your side window and via direct file link: [{os.path.basename(file_path)}]({file_url})."
         
         # Try to extract a brief tl;dr using the router if available
         from .. import services

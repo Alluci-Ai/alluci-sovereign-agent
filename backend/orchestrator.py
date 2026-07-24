@@ -159,7 +159,13 @@ class ExecutiveOrchestrator:
     async def _handle_task_complete(self, task):
         """Hook from the executor when a DAG task completes."""
         if task.action in ["write_file", "generate_code", "create_markdown", "write_artifact", "deep_research_evaluate"]:
-            content = str(task.result) if len(str(task.result)) > 20 else str(task.args)
+            raw_res = task.result
+            if isinstance(raw_res, dict) and "harvested_content" in raw_res:
+                content = str(raw_res["harvested_content"])
+            elif isinstance(raw_res, dict) and "content" in raw_res:
+                content = str(raw_res["content"])
+            else:
+                content = str(raw_res) if len(str(raw_res)) > 20 else str(task.args)
             title = task.args.get("filename", task.action)
             lang = "markdown" if "markdown" in task.action or task.action == "deep_research_evaluate" else "plaintext"
             if ".py" in title: lang = "python"
