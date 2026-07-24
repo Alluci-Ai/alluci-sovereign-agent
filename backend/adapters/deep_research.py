@@ -106,7 +106,8 @@ class DeepResearchQueryExpansionAdapter(Adapter):
                 
             # Fallback 1: If site-restricted queries yielded 0 results, retry unconstrained plain text queries
             if not urls and raw_objective:
-                plain_queries = [raw_objective, f"{raw_objective} youtube", f"{raw_objective} podcast"]
+                search_term = core_topic if core_topic else _sanitize_regex_topic(raw_objective)
+                plain_queries = [search_term, f"{search_term} youtube", f"{search_term} podcast"]
                 logger.info(f"Site-restricted queries yielded 0 URLs. Retrying plain queries: {plain_queries}")
                 fallback_results = await asyncio.to_thread(_search, plain_queries)
                 for url in fallback_results:
@@ -114,12 +115,12 @@ class DeepResearchQueryExpansionAdapter(Adapter):
                     
             # Fallback 2: Direct DuckDuckGo HTML scraper fallback if DDGS library returns empty
             if not urls and raw_objective:
+                search_term = core_topic if core_topic else _sanitize_regex_topic(raw_objective)
                 logger.info("DDGS library returned 0 URLs. Executing direct HTML scraper fallback...")
                 headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"}
                 async with httpx.AsyncClient(timeout=10.0, headers=headers) as client:
                     try:
-                        search_url = f"https://html.duckduckgo.com/html/?q={httpx.URL(raw_objective).raw_path.decode('utf-8') if hasattr(httpx.URL(raw_objective), 'raw_path') else raw_objective}"
-                        resp = await client.post("https://html.duckduckgo.com/html/", data={"q": raw_objective})
+                        resp = await client.post("https://html.duckduckgo.com/html/", data={"q": search_term})
                         if resp.status_code == 200:
                             import re
                             found = re.findall(r'href="(https?://[^"]+)"', resp.text)
@@ -342,6 +343,16 @@ class DeepResearchEvaluateAdapter(Adapter):
                     logger.error(f"Single-pass synthesis failed: {e}")
             else:
                 chunks = [report[i:i + chunk_size] for i in range(0, len(report), chunk_size)]
+                max_chunks = 8
+                if len(chunks) > max_chunks:
+                    logger.info(f"[Metal GPU Guard] Consolidating {len(chunks)} research chunks into {max_chunks} high-density chunks...")
+                    step = len(chunks) / max_chunks
+                    consolidated = []
+                    for i in range(max_chunks):
+                        group = chunks[int(i * step):int((i + 1) * step)]
+                        consolidated.append("\n\n".join(group))
+                    chunks = consolidated
+
                 logger.info(f"[Metal GPU Guard] Research context is {len(report)} chars. Executing serial Map-Reduce batching across {len(chunks)} chunks.")
                 
                 summaries = []

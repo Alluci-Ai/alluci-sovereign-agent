@@ -101,8 +101,10 @@ class FinancialCircuitBreaker:
     def record_verus_spend(self, amount: float):
         self.verus_spent_today += amount
         
-    def check_llm_spend(self, estimated_cost: float):
+    def check_llm_spend(self, estimated_cost: float, provider: str = ""):
         self._check_reset()
+        if estimated_cost <= 0.0 or (provider and provider.lower() in ["local", "lce", "mlx"]):
+            return
         if self.llm_cost_today + estimated_cost > self.MAX_LLM_API_COST_PER_DAY:
             logger.error(f"[SECURITY] CIRCUIT BREAKER TRIPPED: Max LLM API cost exceeded (${self.llm_cost_today + estimated_cost} > ${self.MAX_LLM_API_COST_PER_DAY}). Agent paused.")
             raise SecurityException(
@@ -111,8 +113,13 @@ class FinancialCircuitBreaker:
                 metadata={"budget_type": "LLM", "amount": estimated_cost, "limit": self.MAX_LLM_API_COST_PER_DAY}
             )
             
-    def record_llm_spend(self, cost: float):
+    def record_llm_spend(self, cost: float, provider: str = ""):
+        if cost <= 0.0 or (provider and provider.lower() in ["local", "lce", "mlx"]):
+            return
         self.llm_cost_today += cost
+
+    def reset_llm_spend(self):
+        self.llm_cost_today = 0.0
 
 class VerusCircuitBreaker:
     """Circuit breaker for Verus RPC calls to prevent blocking and allow graceful degradation."""

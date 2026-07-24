@@ -108,7 +108,7 @@ class ExecutiveOrchestrator:
             self.adapter_registry, 
             session_factory=lambda: db_engine,
             max_concurrent=settings.MAX_CONCURRENT_TASKS,
-            task_timeout=3600.0,
+            task_timeout=getattr(settings, "TASK_TIMEOUT_SECONDS", 3600.0),
             approval_manager=self.approval_manager,
             ace=self.ace,
             on_task_complete=self._handle_task_complete

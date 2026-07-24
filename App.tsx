@@ -425,7 +425,16 @@ const App: React.FC = () => {
                     <div className="artifact-pane__body flex-1 overflow-y-auto p-4 md:p-6 bg-transparent">
                       {activeArtifact ? (
                         <div className="markdown-body text-xs leading-relaxed font-sans text-text-primary select-text whitespace-pre-wrap font-mono opacity-90">
-                          {activeArtifact.content}
+                          {(() => {
+                            let clean = String(activeArtifact.content || '');
+                            if (clean.startsWith("{'") || clean.startsWith('{"')) {
+                              const match = clean.match(/'(?:harvested_content|content)':\s*'(.*)'/s) || clean.match(/"(?:harvested_content|content)":\s*"(.*)"/s);
+                              if (match && match[1]) {
+                                clean = match[1].replace(/\\n/g, '\n').replace(/\\'/g, "'");
+                              }
+                            }
+                            return clean.replace(/\u001b\[\d+m/g, '').replace(/\x1B\[[0-9;]*[a-zA-Z]/g, '');
+                          })()}
                         </div>
                       ) : (
                         <div className="p-10 opacity-20 text-center select-none pointer-events-none mt-20">

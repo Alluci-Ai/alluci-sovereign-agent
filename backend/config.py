@@ -118,6 +118,7 @@ class Settings(BaseSettings):
     MAX_CONCURRENT_TASKS: int = 5
     MAX_CONCURRENCY: int = 5  # Controls inference concurrency, can be overridden via env var
     MAX_AUTONOMY_RETRIES: int = 3
+    TASK_TIMEOUT_SECONDS: float = 3600.0  # Configurable task execution timeout in seconds
     CRITIC_THRESHOLD: float = 0.75
     HEARTBEAT_INTERVAL: int = 30
     

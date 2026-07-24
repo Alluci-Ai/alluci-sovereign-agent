@@ -38,6 +38,7 @@ class ConfigEditor:
         "MAX_AUTONOMY_RETRIES",
         "CRITIC_THRESHOLD",
         "MAX_CONCURRENT_TASKS",
+        "TASK_TIMEOUT_SECONDS",
         "RATE_LIMIT_PER_MINUTE",
         "LOCAL_LCE_URL",
         "PIPER_PATH",
