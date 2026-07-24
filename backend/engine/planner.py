@@ -63,18 +63,27 @@ class Planner:
         logger.info(f"Generated Plan with {len(tasks)} steps for objective: '{objective[:50]}...'")
         return tasks
 
-    async def refine_plan(self, objective: str, original_plan: List[Dict], results: str, feedback: str, failed_tasks: List[str], agent_id: str = "executive") -> Dict[str, DAGTask]:
+    async def refine_plan(self, objective: str, original_plan: List[Dict], results: str, feedback: str, failed_tasks: List[str], agent_id: str = "executive", mode: str = "standard") -> Dict[str, DAGTask]:
         """
         Self-Correction: Asks the LLM to fix the plan based on failure context.
         """
         logger.info("Initiating Plan Refinement Protocol...")
-        raw_plan = await self.router.refine_plan(objective, original_plan, results, feedback, failed_tasks, agent_id=agent_id)
-        steps = raw_plan.get("steps", [])
-        
-        if not steps:
-            raise ValueError("Refinement output contained no steps.")
-
-        return self._build_and_validate_dag(steps, objective)
+        if mode == "research" or "research" in objective.lower():
+            logger.info("Preserving research pipeline structure during refinement fallback.")
+            return await self.generate_plan(objective, agent_id=agent_id, mode="research")
+        try:
+            raw_plan = await self.router.refine_plan(objective, original_plan, results, feedback, failed_tasks, agent_id=agent_id)
+            steps = raw_plan.get("steps", [])
+            if not steps:
+                if "research" in objective.lower():
+                    return await self.generate_plan(objective, agent_id=agent_id, mode="research")
+                raise ValueError("Refinement output contained no steps.")
+            return self._build_and_validate_dag(steps, objective)
+        except Exception as e:
+            logger.warning(f"Refinement error: {e}. Falling back to research pipeline generator.")
+            if "research" in objective.lower():
+                return await self.generate_plan(objective, agent_id=agent_id, mode="research")
+            raise
 
     def _build_and_validate_dag(self, steps: List[Dict[str, Any]], objective: str) -> Dict[str, DAGTask]:
         """

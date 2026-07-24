@@ -1083,32 +1083,28 @@ Schema:
         try:
             res = await self.get_response(prompt, system_instruction=system_instruction, tools=tools, agent_id=agent_id)
             import re
-            # Extract JSON from potential markdown blocks or extra text
-            res_clean = res.strip()
-            if res_clean.startswith("```json"):
-                res_clean = res_clean.replace("```json", "", 1)
-            if res_clean.endswith("```"):
-                res_clean = res_clean[::-1].replace("```", "", 1)[::-1]
-            res_clean = res_clean.strip()
+            # Purge affective engine tags and markdown codeblocks
+            res_clean = re.sub(r'<A_C>.*?</A_C>', '', res, flags=re.DOTALL).strip()
+            res_clean = re.sub(r'```(?:json)?', '', res_clean).strip()
             
-            try:
-                parsed = json.loads(res_clean)
-                if isinstance(parsed, list):
-                    return {"steps": parsed}
-                return parsed
-            except json.JSONDecodeError:
-                # Fallback regex if there is extra text
-                json_match = re.search(r'(\{.*\}|\[.*\])', res_clean, re.DOTALL)
-                if json_match:
-                    json_str = json_match.group(0)
-                    # Strip trailing commas
-                    json_str = re.sub(r',\s*\}', '}', json_str)
-                    json_str = re.sub(r',\s*\]', ']', json_str)
+            # Extract inner JSON structure via regex
+            match = re.search(r'(\{[\s\S]*\}|\[[\s\S]*\])', res_clean)
+            if match:
+                json_str = match.group(0)
+                # Strip trailing commas before closing braces/brackets
+                json_str = re.sub(r',\s*([\}\]])', r'\1', json_str)
+                try:
                     parsed = json.loads(json_str)
                     if isinstance(parsed, list):
                         return {"steps": parsed}
                     return parsed
-                raise
+                except json.JSONDecodeError:
+                    pass
+
+            parsed = json.loads(res_clean)
+            if isinstance(parsed, list):
+                return {"steps": parsed}
+            return parsed
         except Exception as e:
             import traceback
             res_str = res if 'res' in locals() else "No response generated"
