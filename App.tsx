@@ -11,6 +11,7 @@ import {
 } from './types';
 import { INITIAL_CONNECTIONS } from './components/constants';
 import { getCsrfToken } from './csrfStore';
+import { X, ChevronLeft } from 'lucide-react';
 
 // Layout Components
 import SystemHeader from './features/system/SystemHeader';
@@ -80,7 +81,11 @@ const App: React.FC = () => {
     activeNudges,
     setActiveNudges,
     operatingMode,
-    setOperatingMode
+    setOperatingMode,
+    isArtifactPaneCollapsed,
+    setIsArtifactPaneCollapsed,
+    activeArtifact,
+    artifacts
   } = useStore();
 
   // Core Refs
@@ -382,18 +387,55 @@ const App: React.FC = () => {
 
           {activeView === 'chat' && (
             <>
-              <div className={`pane-resizer ${isResizing ? 'active' : ''}`} onMouseDown={startResizing} />
-              <aside className="artifact-pane" style={{ width: artifactWidth }}>
-                <div className="artifact-pane__header">
-                  <h3 className="artifact-pane__title">Alluci Artifacts</h3>
-                  <div className="artifact-pane__subtitle">COGNITIVE_OUTPUT_BUFFER</div>
-                </div>
-                <div className="artifact-pane__body">
-                  <div className="p-10 opacity-20 text-center select-none pointer-events-none mt-20">
-                    <p className="text-[10px] glass-label tracking-widest">Awaiting Artifact</p>
-                  </div>
-                </div>
-              </aside>
+              {isArtifactPaneCollapsed ? (
+                <button
+                  onClick={() => setIsArtifactPaneCollapsed(false)}
+                  className="absolute top-3 right-3 z-30 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-glass-2 border border-glass-edge text-text-secondary hover:text-accent hover:border-accent shadow-xl backdrop-blur-xl transition-all cursor-pointer text-[10px] font-mono tracking-wider uppercase group"
+                  title="Expand Artifact Pane"
+                  aria-label="Expand Artifact Pane"
+                >
+                  <ChevronLeft size={14} className="group-hover:-translate-x-0.5 transition-transform" />
+                  <span>Artifacts</span>
+                  {artifacts && artifacts.length > 0 && (
+                    <span className="ml-1 px-1.5 py-0.5 text-[9px] bg-accent/20 text-accent rounded-full font-bold">
+                      {artifacts.length}
+                    </span>
+                  )}
+                </button>
+              ) : (
+                <>
+                  <div className={`pane-resizer ${isResizing ? 'active' : ''}`} onMouseDown={startResizing} />
+                  <aside className="artifact-pane relative transition-all duration-300 flex flex-col h-full overflow-hidden" style={{ width: artifactWidth }}>
+                    <div className="artifact-pane__header flex justify-between items-center px-4 py-3 border-b border-glass-edge bg-bg-elevated backdrop-blur-md">
+                      <div>
+                        <h3 className="artifact-pane__title text-[11px] font-bold tracking-wider uppercase text-text-primary truncate max-w-[200px]">
+                          {activeArtifact?.title || activeArtifact?.name || 'Alluci Artifacts'}
+                        </h3>
+                        <div className="artifact-pane__subtitle text-[8px] font-mono text-text-tertiary">COGNITIVE_OUTPUT_BUFFER</div>
+                      </div>
+                      <button
+                        onClick={() => setIsArtifactPaneCollapsed(true)}
+                        className="p-1.5 rounded-md text-text-tertiary hover:text-text-primary hover:bg-glass-hover transition-all cursor-pointer flex items-center justify-center"
+                        title="Collapse Artifact Pane (X)"
+                        aria-label="Collapse Artifact Pane"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                    <div className="artifact-pane__body flex-1 overflow-y-auto p-4 md:p-6 bg-transparent">
+                      {activeArtifact ? (
+                        <div className="markdown-body text-xs leading-relaxed font-sans text-text-primary select-text whitespace-pre-wrap font-mono opacity-90">
+                          {activeArtifact.content}
+                        </div>
+                      ) : (
+                        <div className="p-10 opacity-20 text-center select-none pointer-events-none mt-20">
+                          <p className="text-[10px] glass-label tracking-widest">Awaiting Artifact</p>
+                        </div>
+                      )}
+                    </div>
+                  </aside>
+                </>
+              )}
             </>
           )}
         </main>

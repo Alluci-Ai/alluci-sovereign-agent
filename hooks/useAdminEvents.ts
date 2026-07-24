@@ -75,6 +75,7 @@ export const useAdminEvents = () => {
             const storeState = useStore.getState() as any;
             const setActiveArtifact = storeState.setActiveArtifact;
             const setArtifacts = storeState.setArtifacts;
+            const setIsArtifactPaneCollapsed = storeState.setIsArtifactPaneCollapsed;
             const newArtifact = {
               id: `art_${Date.now()}`,
               name: params.title || 'deep_research_report.md',
@@ -88,6 +89,9 @@ export const useAdminEvents = () => {
             }
             if (setActiveArtifact) {
               setActiveArtifact(newArtifact);
+            }
+            if (setIsArtifactPaneCollapsed) {
+              setIsArtifactPaneCollapsed(false);
             }
           } else if (method === 'security.resolution_required') {
             const { setPendingSecurityResolution } = useStore.getState();

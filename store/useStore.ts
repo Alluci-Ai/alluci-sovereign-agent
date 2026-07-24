@@ -214,6 +214,18 @@ export interface AppState {
     modelFallbackMessage: string | null;
     setModelFallbackMessage: (val: string | null) => void;
 
+    // Artifact Pane State
+    isArtifactPaneCollapsed: boolean;
+    setIsArtifactPaneCollapsed: (val: boolean) => void;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    artifacts: any[];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    setArtifacts: (val: any) => void;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    activeArtifact: any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    setActiveArtifact: (val: any) => void;
+
     // Sprint B: Sessions
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     sessions: any[];
@@ -453,6 +465,14 @@ export const useStore = create<AppState>((set, get) => ({
     setFocusMode: (val) => set({ focusMode: val }),
     modelFallbackMessage: null,
     setModelFallbackMessage: (val) => set({ modelFallbackMessage: val }),
+
+    // Artifact Pane State
+    isArtifactPaneCollapsed: false,
+    setIsArtifactPaneCollapsed: (val) => set({ isArtifactPaneCollapsed: val }),
+    artifacts: [],
+    setArtifacts: (val) => set((state) => ({ artifacts: typeof val === 'function' ? val(state.artifacts) : val })),
+    activeArtifact: null,
+    setActiveArtifact: (val) => set({ activeArtifact: val }),
 
     // Sprint B: Sessions
     sessions: [],
