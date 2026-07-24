@@ -321,6 +321,7 @@ class DeepResearchEvaluateAdapter(Adapter):
                 scratch_dir = os.path.join(WORKSPACE_DIR, agent_id, "scratch")
                 os.makedirs(scratch_dir, exist_ok=True)
 
+                failed_chunk_count = 0
                 for idx, chunk in enumerate(chunks):
                     map_prompt = f"Summarize the following research data chunk ({idx+1}/{len(chunks)}). Extract key insights, facts, quotes, YouTube/podcast links, and conclusions.\n\n{chunk}"
                     try:
@@ -331,6 +332,8 @@ class DeepResearchEvaluateAdapter(Adapter):
                             privacy_level="PUBLIC",
                             inference_mode="TACTICAL"
                         )
+                        if "[Failed to process chunk" in summary or "Gemini not configured" in summary:
+                            failed_chunk_count += 1
                         summaries.append(summary)
                         
                         # Layer 4: Disk-staged intermediate summary logging
@@ -339,6 +342,7 @@ class DeepResearchEvaluateAdapter(Adapter):
                             f.write(summary)
                             
                     except Exception as e:
+                        failed_chunk_count += 1
                         logger.error(f"Failed to summarize chunk {idx+1}: {e}")
                         summaries.append(f"[Failed to process chunk {idx+1}]")
 
@@ -350,6 +354,11 @@ class DeepResearchEvaluateAdapter(Adapter):
                             pass
                     gc.collect()
                     await asyncio.sleep(0.1)
+
+                if failed_chunk_count > 0 and failed_chunk_count >= len(chunks) // 2:
+                    error_msg = f"Deep Research evaluation failed: {failed_chunk_count}/{len(chunks)} research chunks could not be processed by inference engine."
+                    logger.error(f"[DeepResearch] {error_msg}")
+                    raise RuntimeError(error_msg)
 
                 combined_summaries = "\n\n---\n\n".join(summaries)
                 reduce_prompt = f"Synthesize the following chunk summaries into a single, cohesive, comprehensive final deep research report with links and citations.\n\n{combined_summaries}"
