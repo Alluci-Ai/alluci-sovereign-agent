@@ -26,6 +26,38 @@ def _sanitize_regex_topic(topic: str) -> str:
     cleaned = _deduplicate_phrase(cleaned)
     return cleaned if len(cleaned) > 2 else _deduplicate_phrase(topic)
 
+def _clean_harvested_markdown(text: str) -> str:
+    import re
+    if not text:
+        return ""
+    # 1. Remove XML/HTML tags like <inert_web_data>
+    text = re.sub(r'</?(?:inert_web_data|youtube_transcript|pdf_document_data)[^>]*>', '', text)
+    # 2. Strip affiliate/buy buttons & player links
+    text = re.sub(r'\[(?:View on Amazon|Subscribe|Log in|Download Now|Listen on [^\]]+|Share [^\]]+)\]\([^\)]+\)', '', text, flags=re.IGNORECASE)
+    # 3. Strip corporate/legal footers & copyright disclaimers
+    text = re.sub(r'(?:As an Amazon Associate|Registered in England|Copyright \d+|All rights reserved).*$', '', text, flags=re.IGNORECASE | re.MULTILINE)
+    # 4. Strip image badges and icons
+    text = re.sub(r'!\[[^\]]*\]\([^\)]+\)', '', text)
+    # 5. Remove repeated navigation lines
+    lines = text.split('\n')
+    cleaned_lines = []
+    seen = set()
+    for line in lines:
+        l_strip = line.strip()
+        if not l_strip:
+            cleaned_lines.append("")
+            continue
+        if l_strip.lower() in ["home", "menu", "search", "skip navigation", "terms of use", "privacy policy", "cookie policy", "legal", "careers"]:
+            continue
+        if len(l_strip) < 40 and l_strip in seen:
+            continue
+        seen.add(l_strip)
+        cleaned_lines.append(line)
+    text = "\n".join(cleaned_lines)
+    # 6. Collapse multi-newline whitespace
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    return text.strip()
+
 def _sanitize_url(raw_url: str) -> str:
     import re
     if not raw_url:
@@ -265,10 +297,27 @@ class DeepResearchHarvestAdapter(Adapter):
                     # Layer 2: Crawl4AI AI-Native Markdown Extraction
                     try:
                         from crawl4ai import AsyncWebCrawler
+                        from crawl4ai.markdown_generation_strategy import DefaultMarkdownGenerator
+                        from crawl4ai.content_filter_strategy import PruningContentFilter
+
+                        md_gen = DefaultMarkdownGenerator(
+                            content_filter=PruningContentFilter(threshold=0.45, min_word_threshold=10)
+                        )
                         async with AsyncWebCrawler() as crawler:
-                            c_res = await crawler.arun(url=url)
-                            if c_res and c_res.markdown and len(c_res.markdown.strip()) > 100:
-                                return f"{prefix} {url} (CRAWL4AI) ---\n<inert_web_data>\n{c_res.markdown.strip()}\n</inert_web_data>\n"
+                            c_res = await crawler.arun(
+                                url=url,
+                                markdown_generator=md_gen,
+                                excluded_tags=['nav', 'footer', 'header', 'aside', 'form', 'script', 'style', 'noscript', 'iframe']
+                            )
+                            raw_md = ""
+                            if c_res and hasattr(c_res, 'markdown_v2') and c_res.markdown_v2 and c_res.markdown_v2.fit_markdown:
+                                raw_md = c_res.markdown_v2.fit_markdown
+                            elif c_res and c_res.markdown:
+                                raw_md = c_res.markdown
+                                
+                            cleaned_md = _clean_harvested_markdown(raw_md)
+                            if cleaned_md and len(cleaned_md.strip()) > 100:
+                                return f"{prefix} {url} (CRAWL4AI) ---\n{cleaned_md.strip()}\n"
                     except Exception as ce:
                         logger.warning(f"Crawl4AI extraction notice for {url}: {ce}")
 
@@ -279,8 +328,9 @@ class DeepResearchHarvestAdapter(Adapter):
                             page = StealthyFetcher.fetch(target_url, headless=True)
                             return page.text or ""
                         scrapling_text = await asyncio.to_thread(_scrapling_fetch, url)
-                        if scrapling_text and len(scrapling_text.strip()) > 100:
-                            return f"{prefix} {url} (SCRAPLING STEALTH FALLBACK) ---\n<inert_web_data>\n{scrapling_text.strip()}\n</inert_web_data>\n"
+                        cleaned_scrapling = _clean_harvested_markdown(scrapling_text)
+                        if cleaned_scrapling and len(cleaned_scrapling.strip()) > 100:
+                            return f"{prefix} {url} (SCRAPLING STEALTH FALLBACK) ---\n{cleaned_scrapling.strip()}\n"
                     except Exception as se:
                         logger.warning(f"Scrapling stealth fetcher notice for {url}: {se}")
 
@@ -298,9 +348,10 @@ class DeepResearchHarvestAdapter(Adapter):
                     def _extract():
                         return trafilatura.extract(html, output_format="markdown", include_links=True)
                     markdown = await asyncio.to_thread(_extract)
+                    cleaned_traf = _clean_harvested_markdown(markdown or "")
                     
-                    if markdown:
-                        return f"{prefix} {url} ---\n<inert_web_data>\n{markdown}\n</inert_web_data>\n"
+                    if cleaned_traf:
+                        return f"{prefix} {url} ---\n{cleaned_traf}\n"
                         
                     return ""
                 except Exception as e:
@@ -491,11 +542,13 @@ class DeepResearchEvaluateAdapter(Adapter):
                 combined_summaries = "\n\n---\n\n".join(summaries)
                 reduce_prompt = (
                     "You are Senior Research Analyst Rocco. Synthesize the following research chunk summaries into an executive, highly detailed deep research report.\n"
-                    "CRITICAL FORMATTING INSTRUCTIONS:\n"
-                    "1. Include an Executive Summary, Key Findings, Market/Technical Analysis, Media Coverage (YouTube/Podcasts), and Strategic Outlook.\n"
-                    "2. Cross-reference facts across independent sources.\n"
-                    "3. Every claim, company, or tool MUST include itemized bullet points and clickable Markdown links ([Title](URL)).\n"
-                    "4. End with a complete 'Sources & Citation Index'.\n\n"
+                    "STRICT HUMAN-READABLE FORMATTING INSTRUCTIONS:\n"
+                    "1. Structure the document with clear Bold Main Headers (# Executive Summary, # Key Findings, # Technical Analysis, # Media & Podcasts, # Strategic Outlook).\n"
+                    "2. Use Semi-Bold Titles for companies, tools, podcasts, and hardware (**NVIDIA Jetson**, **Aurora IaaS**, **Isambard-AI**).\n"
+                    "3. Write in clean, highly readable paragraphs with itemized bullet points where appropriate.\n"
+                    "4. Every claim, company, tool, or episode referenced MUST include a clickable Markdown link ([Title](URL)).\n"
+                    "5. Exclude raw DOM tags, website menus, cookies, or affiliate clutter.\n"
+                    "6. End with a complete 'Sources & Citation Index'.\n\n"
                     f"RESEARCH SUMMARIES:\n{combined_summaries}"
                 )
                 try:
