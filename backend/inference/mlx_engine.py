@@ -147,7 +147,9 @@ class MLXEngine:
             prompt, system_instruction, max_tokens, temperature, agent_id, tools
         ):
             result += chunk
-        return result.strip()
+        import re
+        result = re.sub(r'<A_C>.*?</A_C>', '', result).strip()
+        return result
 
     async def generate_stream(
         self,
@@ -164,8 +166,8 @@ class MLXEngine:
         """
         await self.ensure_loaded()
         
-        full_prompt = self._format_prompt(prompt, system_instruction=system_instruction, tools=tools)
-        full_prompt, temperature = self._apply_ace_logic(full_prompt, temperature)
+        prompt_with_ace, temperature = self._apply_ace_logic(prompt, temperature)
+        full_prompt = self._format_prompt(prompt_with_ace, system_instruction=system_instruction, tools=tools)
         
         loop = asyncio.get_running_loop()
         queue: asyncio.Queue[Optional[str]] = asyncio.Queue()

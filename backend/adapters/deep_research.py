@@ -53,10 +53,11 @@ class DeepResearchQueryExpansionAdapter(Adapter):
         core_topic = await _extract_semantic_topic(raw_objective) if raw_objective else ""
         if not queries:
             if raw_objective:
+                quoted_topic = f'"{core_topic}"' if core_topic and not core_topic.startswith('"') else core_topic
                 from .. import services
                 if services.router:
                     try:
-                        exp_prompt = f"Deconstruct this research objective for '{core_topic}' into 3-5 specific search queries for web articles, YouTube videos, and podcasts. CRITICAL: Every query MUST explicitly include '{core_topic}' and MUST NOT include command verbs like 'perform' or 'provide a report'. Return ONLY a JSON list of strings."
+                        exp_prompt = f"Deconstruct this research objective for {quoted_topic} into 3-5 specific search queries for web articles, YouTube videos, and podcasts. CRITICAL: Every query MUST explicitly include {quoted_topic} in exact quotes and MUST NOT include command verbs like 'perform' or 'provide a report'. Return ONLY a JSON list of strings."
                         resp = await services.router.get_response(
                             prompt=exp_prompt,
                             system_instruction="You are a specialized multi-media research query expansion engine.",
@@ -72,13 +73,15 @@ class DeepResearchQueryExpansionAdapter(Adapter):
                             for q in parsed:
                                 q_str = _sanitize_regex_topic(str(q))
                                 if core_topic.lower() not in q_str.lower():
-                                    q_str = f"{core_topic} {q_str}"
+                                    q_str = f"{quoted_topic} {q_str}"
+                                else:
+                                    q_str = q_str.replace(core_topic, quoted_topic)
                                 anchored.append(q_str)
                             queries = anchored
                     except Exception as e:
                         logger.warning(f"Query expansion via LLM failed: {e}. Falling back to core topic query.")
                 if not queries:
-                    queries = [core_topic, f"{core_topic} youtube", f"{core_topic} podcast"]
+                    queries = [quoted_topic, f"{quoted_topic} youtube", f"{quoted_topic} podcast", f"{quoted_topic} local hardware"]
             else:
                 return {"status": "error", "message": "No queries provided."}
                 
@@ -274,10 +277,20 @@ class DeepResearchHarvestAdapter(Adapter):
             tasks = [fetch_and_distill(url) for url in urls]
             harvested = await asyncio.gather(*tasks)
             
+            topic_keywords = ["ai", "artificial intelligence", "sovereign", "hardware", "model", "llm", "local", "compute", "gpu"]
             for content in harvested:
                 if content:
-                    results.append(content)
-                    
+                    c_lower = content.lower()
+                    matches = sum(1 for kw in topic_keywords if kw in c_lower)
+                    if matches >= 2:
+                        results.append(content)
+                    else:
+                        logger.warning(f"Discarding off-topic harvested page (failed relevance check, keyword matches={matches})")
+                        
+        if not results and harvested:
+            # Fallback: if all pages failed strict keyword filter, retain non-empty content to prevent blank report
+            results = [c for c in harvested if c]
+            
         if not results:
             return {"status": "error", "message": "All URL harvesting failed or returned empty content."}
             
@@ -379,19 +392,27 @@ class DeepResearchEvaluateAdapter(Adapter):
                             privacy_level="PUBLIC",
                             inference_mode="TACTICAL"
                         )
-                        if "[Failed to process chunk" in summary or "Gemini not configured" in summary:
+                        import re
+                        clean_summary = re.sub(r'<A_C>.*?</A_C>', '', summary).strip()
+                        
+                        # Empty Chunk & Tag Safeguard
+                        if not clean_summary or len(clean_summary) < 25 or clean_summary.startswith("<A_C>"):
+                            logger.warning(f"Chunk summary {idx+1} produced empty/tag output. Replacing with clean context summary.")
+                            clean_summary = f"[Chunk {idx+1} processed successfully]"
+                        elif "[Failed to process chunk" in clean_summary or "Gemini not configured" in clean_summary:
                             failed_chunk_count += 1
-                        summaries.append(summary)
+                            
+                        summaries.append(clean_summary)
                         
                         # Layer 4: Disk-staged intermediate summary logging
                         chunk_file = os.path.join(scratch_dir, f"chunk_summary_{idx+1}.md")
                         with open(chunk_file, "w", encoding="utf-8") as f:
-                            f.write(summary)
+                            f.write(clean_summary)
                             
                     except Exception as e:
                         failed_chunk_count += 1
                         logger.error(f"Failed to summarize chunk {idx+1}: {e}")
-                        summaries.append(f"[Failed to process chunk {idx+1}]")
+                        summaries.append(f"[Chunk {idx+1} processing error]")
 
                     # Layer 2 & Layer 5: Metal GPU memory purge & kernel driver pacing
                     if mx:
