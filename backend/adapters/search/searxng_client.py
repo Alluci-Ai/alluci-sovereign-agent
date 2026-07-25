@@ -1,11 +1,17 @@
 import logging
 import httpx
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 logger = logging.getLogger("SearXNGClient")
 
 class SearXNGClient:
-    def __init__(self, base_url: str = "http://localhost:8080"):
+    def __init__(self, base_url: Optional[str] = None):
+        if not base_url:
+            try:
+                from ...config import settings
+                base_url = getattr(settings, "SEARXNG_URL", "http://localhost:8080")
+            except Exception:
+                base_url = "http://localhost:8080"
         self.base_url = base_url.rstrip("/")
 
     async def search(self, queries: List[str], max_results_per_query: int = 5) -> Dict[str, Any]:

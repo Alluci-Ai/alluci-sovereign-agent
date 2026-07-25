@@ -122,6 +122,12 @@ class Settings(BaseSettings):
     CRITIC_THRESHOLD: float = 0.75
     HEARTBEAT_INTERVAL: int = 30
     
+    # Tandem Deep Research Pipeline
+    SEARXNG_URL: str = "http://localhost:8080"
+    RESEARCH_MAX_RESULTS_PER_QUERY: int = 5
+    RESEARCH_MAX_CONSOLIDATED_CHUNKS: int = 8
+    CRAWL4AI_HEADLESS: bool = True
+    
     # Verus Core
     VERUS_RPC_HOST: str = "localhost"
     VERUS_RPC_PORT: int = 27486

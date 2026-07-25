@@ -102,7 +102,8 @@ class DeepResearchQueryExpansionAdapter(Adapter):
             else:
                 return {"status": "error", "message": "No queries provided."}
                 
-        max_results = args.get("max_results_per_query", 5)
+        from ..config import settings
+        max_results = args.get("max_results_per_query") or getattr(settings, "RESEARCH_MAX_RESULTS_PER_QUERY", 5)
         urls = set()
         
         # True Parallel Tandem Aggregation across SearXNG, Scrapling Stealth Scraper, and DDGS
@@ -372,7 +373,8 @@ class DeepResearchEvaluateAdapter(Adapter):
                     logger.error(f"Single-pass synthesis failed: {e}")
             else:
                 chunks = [report[i:i + chunk_size] for i in range(0, len(report), chunk_size)]
-                max_chunks = 8
+                from ..config import settings
+                max_chunks = getattr(settings, "RESEARCH_MAX_CONSOLIDATED_CHUNKS", 8)
                 if len(chunks) > max_chunks:
                     logger.info(f"[Metal GPU Guard] Consolidating {len(chunks)} research chunks into {max_chunks} high-density chunks...")
                     step = len(chunks) / max_chunks
