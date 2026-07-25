@@ -77,6 +77,7 @@ async def _extract_semantic_topic(raw_objective: str) -> str:
     # 1. Perform deterministic regex topic extraction FIRST
     regex_topic = _sanitize_regex_topic(raw_objective)
     if regex_topic and len(regex_topic) > 2 and regex_topic.lower() != raw_objective.lower():
+        logger.info(f"Regex fast-path successfully extracted core topic: '{regex_topic}'")
         return regex_topic
 
     from .. import services
