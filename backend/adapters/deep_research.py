@@ -15,6 +15,14 @@ def _sanitize_regex_topic(topic: str) -> str:
     cleaned = cleaned.strip(" .'\":;")
     return cleaned if len(cleaned) > 2 else topic
 
+def _sanitize_url(raw_url: str) -> str:
+    import re
+    if not raw_url:
+        return ""
+    clean = str(raw_url).replace('%5C', '').replace('%5c', '').replace('\\', '')
+    clean = clean.rstrip("/'\"").strip()
+    return clean
+
 async def _extract_semantic_topic(raw_objective: str) -> str:
     from .. import services
     if not services.router:
@@ -159,9 +167,15 @@ class DeepResearchHarvestAdapter(Adapter):
             search_text = str(dependency_output)
             urls = re.findall(r'https?://[^\s\'"<>]+', search_text)
             
-        urls = list(set(urls))
+        sanitized_urls = []
+        for u in urls:
+            clean_u = _sanitize_url(str(u))
+            if clean_u and clean_u.startswith("http"):
+                sanitized_urls.append(clean_u)
+
+        urls = list(set(sanitized_urls))
         if not urls:
-            return {"status": "error", "message": "No URLs provided for harvesting."}
+            return {"status": "error", "message": "No valid URLs provided for harvesting."}
             
         logger.info(f"Harvesting {len(urls)} URLs (Web, YouTube, Podcast)...")
         

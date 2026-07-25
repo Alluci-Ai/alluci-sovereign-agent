@@ -160,12 +160,23 @@ class ExecutiveOrchestrator:
         """Hook from the executor when a DAG task completes."""
         if task.action in ["write_file", "generate_code", "create_markdown", "write_artifact", "deep_research_evaluate"]:
             raw_res = task.result
-            if isinstance(raw_res, dict) and "harvested_content" in raw_res:
-                content = str(raw_res["harvested_content"])
-            elif isinstance(raw_res, dict) and "content" in raw_res:
-                content = str(raw_res["content"])
-            else:
-                content = str(raw_res) if len(str(raw_res)) > 20 else str(task.args)
+            content = ""
+            if isinstance(raw_res, dict):
+                content = str(raw_res.get("content") or raw_res.get("harvested_content") or raw_res.get("result") or "")
+            elif isinstance(raw_res, str):
+                if raw_res.startswith("{'") or raw_res.startswith('{"'):
+                    try:
+                        import json, ast
+                        parsed_res = ast.literal_eval(raw_res) if raw_res.startswith("{'") else json.loads(raw_res)
+                        if isinstance(parsed_res, dict):
+                            content = str(parsed_res.get("content") or parsed_res.get("harvested_content") or parsed_res.get("result") or "")
+                    except Exception:
+                        content = raw_res
+                else:
+                    content = raw_res
+            if not content:
+                content = str(raw_res)
+
             title = task.args.get("filename", task.action)
             lang = "markdown" if "markdown" in task.action or task.action == "deep_research_evaluate" else "plaintext"
             if ".py" in title: lang = "python"
