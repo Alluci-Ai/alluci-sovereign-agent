@@ -8,12 +8,23 @@ from ..logging_config import get_logger
 
 logger = get_logger("DeepResearchAdapters")
 
+def _deduplicate_phrase(text: str) -> str:
+    import re
+    if not text:
+        return ""
+    clean = re.sub(r'\b(\w+(?:\s+\w+)*)\s+\1\b', r'\1', text, flags=re.IGNORECASE)
+    half = len(clean) // 2
+    if len(clean) >= 4 and clean[:half].lower() == clean[half:].lower():
+        clean = clean[:half]
+    return clean.strip()
+
 def _sanitize_regex_topic(topic: str) -> str:
     import re
     cleaned = re.sub(r'^(?:please\s+)?(?:perform|conduct|do|run|generate|create|write|find|search\s+for|look\s+into|investigate|explore)\s+(?:a\s+)?(?:deep\s+)?(?:web\s+)?(?:research|analysis|study)\s+(?:on|about|for|into)\s+', '', topic, flags=re.IGNORECASE)
     cleaned = re.sub(r'\s+and\s+(?:provide|generate|write|create|output|produce)\s+(?:a\s+)?(?:detailed|comprehensive|full)\s+(?:report|analysis|summary).*$', '', cleaned, flags=re.IGNORECASE)
     cleaned = cleaned.strip(" .'\":;")
-    return cleaned if len(cleaned) > 2 else topic
+    cleaned = _deduplicate_phrase(cleaned)
+    return cleaned if len(cleaned) > 2 else _deduplicate_phrase(topic)
 
 def _sanitize_url(raw_url: str) -> str:
     import re
@@ -31,9 +42,14 @@ def _sanitize_url(raw_url: str) -> str:
     return clean
 
 async def _extract_semantic_topic(raw_objective: str) -> str:
+    # 1. Perform deterministic regex topic extraction FIRST
+    regex_topic = _sanitize_regex_topic(raw_objective)
+    if regex_topic and len(regex_topic) > 2 and regex_topic.lower() != raw_objective.lower():
+        return regex_topic
+
     from .. import services
     if not services.router:
-        return _sanitize_regex_topic(raw_objective)
+        return regex_topic
     try:
         system_prompt = (
             "You are a precision research topic isolation engine. "
@@ -53,10 +69,10 @@ async def _extract_semantic_topic(raw_objective: str) -> str:
         )
         cleaned = res.strip(" .'\":;\n")
         cleaned = _sanitize_regex_topic(cleaned)
-        return cleaned if len(cleaned) > 2 else _sanitize_regex_topic(raw_objective)
+        return cleaned if len(cleaned) > 2 else regex_topic
     except Exception as e:
         logger.warning(f"Semantic topic extraction failed: {e}. Falling back to regex sanitizer.")
-        return _sanitize_regex_topic(raw_objective)
+        return regex_topic
 
 class DeepResearchQueryExpansionAdapter(Adapter):
     name = "deep_research_query_expansion"
@@ -132,7 +148,7 @@ class DeepResearchQueryExpansionAdapter(Adapter):
 
         # Query Term Relaxation Fallback if exact-quote queries yielded 0 URLs
         if not urls and raw_objective:
-            clean_core = core_topic.strip('"\x27 ') if core_topic else _sanitize_regex_topic(raw_objective)
+            clean_core = _sanitize_regex_topic(raw_objective)
             relaxed_queries = [clean_core, f"{clean_core} local hardware", f"{clean_core} youtube", f"{clean_core} podcast"]
             logger.info(f"Exact-quote queries yielded 0 URLs. Retrying with relaxed terms: {relaxed_queries}")
             relaxed_res = await engine_scraper.search(relaxed_queries, max_results_per_query=max_results)
