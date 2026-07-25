@@ -418,10 +418,12 @@ class DeepResearchEvaluateAdapter(Adapter):
                             pass
 
             if isinstance(dependency_output, dict):
+                if "harvested_content" in dependency_output:
+                    report += str(dependency_output["harvested_content"]) + "\n"
                 for val in dependency_output.values():
                     if isinstance(val, dict) and "harvested_content" in val:
                         report += str(val["harvested_content"]) + "\n"
-                    elif isinstance(val, str) and ("SOURCE:" in val or "---" in val):
+                    elif isinstance(val, str) and ("SOURCE:" in val or "---" in val) and val != dependency_output.get("harvested_content"):
                         report += val + "\n"
             elif isinstance(dependency_output, str):
                 report = dependency_output
