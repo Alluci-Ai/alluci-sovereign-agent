@@ -96,56 +96,33 @@ class DeepResearchQueryExpansionAdapter(Adapter):
         max_results = args.get("max_results_per_query", 5)
         urls = set()
         
-        def _search(search_queries):
-            local_urls = []
-            with DDGS() as ddgs:
-                for q in search_queries:
-                    try:
-                        results = list(ddgs.text(q, max_results=max_results))
-                        for r in results:
-                            href = r.get('href') or r.get('url') or r.get('link')
-                            if href:
-                                local_urls.append(href)
-                    except Exception as e:
-                        logger.error(f"DDGS error for query '{q}': {e}")
-            return local_urls
-
+        # 1. Primary Query Expansion SERP: Local SearXNG JSON Endpoint
         try:
-            results = await asyncio.to_thread(_search, queries)
-            for url in results:
-                urls.add(url)
-                
-            # Fallback 1: If site-restricted queries yielded 0 results, retry unconstrained plain text queries
-            if not urls and raw_objective:
-                search_term = core_topic if core_topic else _sanitize_regex_topic(raw_objective)
-                plain_queries = [search_term, f"{search_term} youtube", f"{search_term} podcast"]
-                logger.info(f"Site-restricted queries yielded 0 URLs. Retrying plain queries: {plain_queries}")
-                fallback_results = await asyncio.to_thread(_search, plain_queries)
-                for url in fallback_results:
-                    urls.add(url)
-                    
-            # Fallback 2: Direct DuckDuckGo HTML scraper fallback if DDGS library returns empty
-            if not urls and raw_objective:
-                search_term = core_topic if core_topic else _sanitize_regex_topic(raw_objective)
-                logger.info("DDGS library returned 0 URLs. Executing direct HTML scraper fallback...")
-                headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"}
-                async with httpx.AsyncClient(timeout=10.0, headers=headers) as client:
-                    try:
-                        resp = await client.post("https://html.duckduckgo.com/html/", data={"q": search_term})
-                        if resp.status_code == 200:
-                            import re
-                            found = re.findall(r'href="(https?://[^"]+)"', resp.text)
-                            for u in found:
-                                if "duckduckgo.com" not in u:
-                                    urls.add(u)
-                    except Exception as he:
-                        logger.warning(f"HTML scraper fallback failed: {he}")
+            from .search import SearXNGClient
+            sx_client = SearXNGClient()
+            sx_res = await sx_client.search(queries, max_results_per_query=max_results)
+            if sx_res.get("status") == "success" and sx_res.get("urls"):
+                for u in sx_res["urls"]:
+                    urls.add(u)
+                logger.info(f"SearXNG query expansion retrieved {len(urls)} URLs")
+        except Exception as se:
+            logger.warning(f"SearXNG client failed/unreachable: {se}")
 
-            logger.info(f"Query expansion found {len(urls)} unique URLs for queries: {queries}")
-            return {"status": "success", "queries": queries, "urls": list(urls)}
-        except Exception as e:
-            logger.error(f"Query expansion failed: {e}")
-            return {"status": "error", "message": str(e)}
+        # 2. In-Process Multi-Engine Scraper Fallback if SearXNG returned 0 URLs
+        if not urls:
+            try:
+                from .search import NativeMultiEngineScraper
+                engine_scraper = NativeMultiEngineScraper()
+                fallback_res = await engine_scraper.search(queries, max_results_per_query=max_results)
+                if fallback_res.get("urls"):
+                    for u in fallback_res["urls"]:
+                        urls.add(u)
+                    logger.info(f"NativeMultiEngineScraper retrieved {len(urls)} URLs")
+            except Exception as me:
+                logger.warning(f"NativeMultiEngineScraper fallback failed: {me}")
+
+        logger.info(f"Query expansion found {len(urls)} unique URLs for queries: {queries}")
+        return {"status": "success", "queries": queries, "urls": list(urls)}
 
 class DeepResearchHarvestAdapter(Adapter):
     name = "deep_research_harvest"
@@ -246,6 +223,32 @@ class DeepResearchHarvestAdapter(Adapter):
                         if yt_transcript:
                             return yt_transcript
 
+                    is_podcast = any(k in url.lower() for k in ["podcast", "spotify.com/episode", "apple.com/podcast"])
+                    prefix = "--- SOURCE: Podcast Feed/Episode" if is_podcast else "--- SOURCE:"
+
+                    # Layer 2: Crawl4AI AI-Native Markdown Extraction
+                    try:
+                        from crawl4ai import AsyncWebCrawler
+                        async with AsyncWebCrawler() as crawler:
+                            c_res = await crawler.arun(url=url)
+                            if c_res and c_res.markdown and len(c_res.markdown.strip()) > 100:
+                                return f"{prefix} {url} (CRAWL4AI) ---\n<inert_web_data>\n{c_res.markdown.strip()}\n</inert_web_data>\n"
+                    except Exception as ce:
+                        logger.warning(f"Crawl4AI extraction notice for {url}: {ce}")
+
+                    # Layer 3: Scrapling Stealth Evasion Fallback (Thread-wrapped to protect async loop)
+                    try:
+                        from scrapling.fetchers import StealthyFetcher
+                        def _scrapling_fetch(target_url):
+                            page = StealthyFetcher.fetch(target_url, headless=True)
+                            return page.text or ""
+                        scrapling_text = await asyncio.to_thread(_scrapling_fetch, url)
+                        if scrapling_text and len(scrapling_text.strip()) > 100:
+                            return f"{prefix} {url} (SCRAPLING STEALTH FALLBACK) ---\n<inert_web_data>\n{scrapling_text.strip()}\n</inert_web_data>\n"
+                    except Exception as se:
+                        logger.warning(f"Scrapling stealth fetcher notice for {url}: {se}")
+
+                    # Fallback Standard HTTP + Trafilatura Parsing
                     resp = await client.get(url)
                     resp.raise_for_status()
                     
@@ -256,32 +259,12 @@ class DeepResearchHarvestAdapter(Adapter):
                             return pdf_data
 
                     html = resp.text
-                    
                     def _extract():
                         return trafilatura.extract(html, output_format="markdown", include_links=True)
                     markdown = await asyncio.to_thread(_extract)
                     
-                    is_podcast = any(k in url.lower() for k in ["podcast", "spotify.com/episode", "apple.com/podcast"]) or "<rss" in html.lower()
-                    prefix = "--- SOURCE: Podcast Feed/Episode" if is_podcast else "--- SOURCE:"
-                    
                     if markdown:
                         return f"{prefix} {url} ---\n<inert_web_data>\n{markdown}\n</inert_web_data>\n"
-                        
-                    try:
-                        from playwright.async_api import async_playwright
-                        async with async_playwright() as p:
-                            browser = await p.chromium.launch(headless=True)
-                            page = await browser.new_page()
-                            await page.goto(url, wait_until="domcontentloaded", timeout=15000)
-                            await page.wait_for_timeout(2000)
-                            text_content = await page.evaluate("document.body.innerText")
-                            await browser.close()
-                            if text_content and text_content.strip():
-                                return f"{prefix} {url} (PLAYWRIGHT FALLBACK) ---\n<inert_web_data>\n{text_content.strip()}\n</inert_web_data>\n"
-                    except ImportError:
-                        pass
-                    except Exception as pe:
-                        logger.warning(f"Playwright fallback failed for {url}: {pe}")
                         
                     return ""
                 except Exception as e:
