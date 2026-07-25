@@ -60,7 +60,7 @@ async def _extract_semantic_topic(raw_objective: str) -> str:
 
 class DeepResearchQueryExpansionAdapter(Adapter):
     name = "deep_research_query_expansion"
-    description = "Uses DuckDuckGo Search to fetch initial URLs based on expanded queries across web, YouTube, and Podcasts."
+    description = "Parallel True Tandem Multi-Engine Search across SearXNG, Scrapling Stealth Scraper, and DuckDuckGo."
     
     async def execute(self, args: Dict[str, Any]) -> Any:
         queries = args.get("queries", [])
@@ -68,7 +68,8 @@ class DeepResearchQueryExpansionAdapter(Adapter):
         core_topic = await _extract_semantic_topic(raw_objective) if raw_objective else ""
         if not queries:
             if raw_objective:
-                quoted_topic = f'"{core_topic}"' if core_topic and not core_topic.startswith('"') else core_topic
+                clean_core = core_topic.strip('"\x27 ')
+                quoted_topic = f'"{clean_core}"' if clean_core else ""
                 from .. import services
                 if services.router:
                     try:
@@ -86,11 +87,12 @@ class DeepResearchQueryExpansionAdapter(Adapter):
                         if isinstance(parsed, list) and len(parsed) > 0:
                             anchored = []
                             for q in parsed:
-                                q_str = _sanitize_regex_topic(str(q))
-                                if core_topic.lower() not in q_str.lower():
-                                    q_str = f"{quoted_topic} {q_str}"
+                                q_str = _sanitize_regex_topic(str(q)).strip('"\x27 ')
+                                if clean_core.lower() not in q_str.lower():
+                                    q_str = f'"{clean_core}" {q_str}'
                                 else:
-                                    q_str = q_str.replace(core_topic, quoted_topic)
+                                    if f'"{clean_core}"' not in q_str:
+                                        q_str = q_str.replace(clean_core, f'"{clean_core}"')
                                 anchored.append(q_str)
                             queries = anchored
                     except Exception as e:
@@ -103,32 +105,42 @@ class DeepResearchQueryExpansionAdapter(Adapter):
         max_results = args.get("max_results_per_query", 5)
         urls = set()
         
-        # 1. Primary Query Expansion SERP: Local SearXNG JSON Endpoint
-        try:
-            from .search import SearXNGClient
-            sx_client = SearXNGClient()
-            sx_res = await sx_client.search(queries, max_results_per_query=max_results)
-            if sx_res.get("status") == "success" and sx_res.get("urls"):
-                for u in sx_res["urls"]:
-                    urls.add(u)
-                logger.info(f"SearXNG query expansion retrieved {len(urls)} URLs")
-        except Exception as se:
-            logger.warning(f"SearXNG client failed/unreachable: {se}")
+        # True Parallel Tandem Aggregation across SearXNG, Scrapling Stealth Scraper, and DDGS
+        from .search import SearXNGClient, NativeMultiEngineScraper
+        sx_client = SearXNGClient()
+        engine_scraper = NativeMultiEngineScraper()
 
-        # 2. In-Process Multi-Engine Scraper Fallback if SearXNG returned 0 URLs
-        if not urls:
+        async def _fetch_searxng():
             try:
-                from .search import NativeMultiEngineScraper
-                engine_scraper = NativeMultiEngineScraper()
-                fallback_res = await engine_scraper.search(queries, max_results_per_query=max_results)
-                if fallback_res.get("urls"):
-                    for u in fallback_res["urls"]:
-                        urls.add(u)
-                    logger.info(f"NativeMultiEngineScraper retrieved {len(urls)} URLs")
-            except Exception as me:
-                logger.warning(f"NativeMultiEngineScraper fallback failed: {me}")
+                return await sx_client.search(queries, max_results_per_query=max_results)
+            except Exception:
+                return {"urls": []}
 
-        logger.info(f"Query expansion found {len(urls)} unique URLs for queries: {queries}")
+        async def _fetch_stealth():
+            try:
+                return await engine_scraper.search(queries, max_results_per_query=max_results)
+            except Exception:
+                return {"urls": []}
+
+        res_sx, res_stealth = await asyncio.gather(_fetch_searxng(), _fetch_stealth())
+
+        for u in res_sx.get("urls", []) + res_stealth.get("urls", []):
+            sanitized = _sanitize_url(u)
+            if sanitized:
+                urls.add(sanitized)
+
+        # Query Term Relaxation Fallback if exact-quote queries yielded 0 URLs
+        if not urls and raw_objective:
+            clean_core = core_topic.strip('"\x27 ') if core_topic else _sanitize_regex_topic(raw_objective)
+            relaxed_queries = [clean_core, f"{clean_core} local hardware", f"{clean_core} youtube", f"{clean_core} podcast"]
+            logger.info(f"Exact-quote queries yielded 0 URLs. Retrying with relaxed terms: {relaxed_queries}")
+            relaxed_res = await engine_scraper.search(relaxed_queries, max_results_per_query=max_results)
+            for u in relaxed_res.get("urls", []):
+                sanitized = _sanitize_url(u)
+                if sanitized:
+                    urls.add(sanitized)
+
+        logger.info(f"Parallel True Tandem expansion found {len(urls)} unique organic URLs for queries: {queries}")
         return {"status": "success", "queries": queries, "urls": list(urls)}
 
 class DeepResearchHarvestAdapter(Adapter):
@@ -433,11 +445,19 @@ class DeepResearchEvaluateAdapter(Adapter):
                     raise RuntimeError(error_msg)
 
                 combined_summaries = "\n\n---\n\n".join(summaries)
-                reduce_prompt = f"Synthesize the following chunk summaries into a single, cohesive, comprehensive final deep research report with links and citations.\n\n{combined_summaries}"
+                reduce_prompt = (
+                    "You are Senior Research Analyst Rocco. Synthesize the following research chunk summaries into an executive, highly detailed deep research report.\n"
+                    "CRITICAL FORMATTING INSTRUCTIONS:\n"
+                    "1. Include an Executive Summary, Key Findings, Market/Technical Analysis, Media Coverage (YouTube/Podcasts), and Strategic Outlook.\n"
+                    "2. Cross-reference facts across independent sources.\n"
+                    "3. Every claim, company, or tool MUST include itemized bullet points and clickable Markdown links ([Title](URL)).\n"
+                    "4. End with a complete 'Sources & Citation Index'.\n\n"
+                    f"RESEARCH SUMMARIES:\n{combined_summaries}"
+                )
                 try:
                     final_report = await services.router.get_response(
                         prompt=reduce_prompt,
-                        system_instruction="You are a senior research analyst. Produce a well-structured, detailed final report.",
+                        system_instruction="You are Rocco, a senior research analyst. Produce a well-structured, itemized final report with clickable links.",
                         complexity="HIGH",
                         privacy_level="PUBLIC",
                         inference_mode="LOCAL"

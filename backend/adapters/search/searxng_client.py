@@ -14,7 +14,7 @@ class SearXNGClient:
         Returns a normalized dict payload: {"status": "success", "queries": queries, "urls": List[str]}
         """
         urls = set()
-        async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=2.0, follow_redirects=True) as client:
             for q in queries:
                 try:
                     resp = await client.get(
