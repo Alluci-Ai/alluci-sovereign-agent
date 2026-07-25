@@ -1179,13 +1179,13 @@ You must return a valid JSON object with the following schema:
                 await prompt_cache.set(prompt, system_instruction, "TACTICAL", content)
                 return content
             except Exception as e:
-                self.logger.warning(f"[KCM] Tactical Groq request failed: {e}. Falling back to Local LCE.")
+                self.logger.warning(f"[KCM] Tactical Groq request failed: {e}. Falling back directly to Local LCE.")
                 if self.lce_enabled:
                     try:
                         return await self._lce_request(prompt, system_instruction=system_instruction, tools=tools, agent_id=agent_id)
                     except Exception as lce_err:
                         self.logger.warning(f"[KCM] Local LCE tactical fallback failed: {lce_err}")
-                return await self.get_response(prompt, tools=tools, complexity="LOW", system_instruction=system_instruction, agent_id=agent_id)
+                return await self._local_llm_generate(prompt, system_instruction=system_instruction)
 
     async def generate_speech(self, text: str, voice_id: str = "pNInz6obpgDQGcFmaJgB") -> bytes:
         """
