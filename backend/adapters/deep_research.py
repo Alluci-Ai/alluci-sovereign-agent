@@ -334,20 +334,46 @@ class DeepResearchEvaluateAdapter(Adapter):
     async def execute(self, args: Dict[str, Any]) -> Any:
         dependency_output = args.get("dependency_output", "")
         report = args.get("synthesis_report", "")
-        
-        if not report:
+
+        if not report and dependency_output:
+            import ast, json
+            
+            # Robust Unpacking for Stringified Dictionaries/JSON
+            if isinstance(dependency_output, str):
+                dep_str = dependency_output.strip()
+                if (dep_str.startswith("{") and dep_str.endswith("}")) or (dep_str.startswith("[") and dep_str.endswith("]")):
+                    try:
+                        dependency_output = json.loads(dep_str)
+                    except Exception:
+                        try:
+                            dependency_output = ast.literal_eval(dep_str)
+                        except Exception:
+                            pass
+
             if isinstance(dependency_output, dict):
                 for val in dependency_output.values():
                     if isinstance(val, dict) and "harvested_content" in val:
-                        report += val["harvested_content"] + "\n"
-                    elif isinstance(val, str) and "SOURCE:" in val:
+                        report += str(val["harvested_content"]) + "\n"
+                    elif isinstance(val, str) and ("SOURCE:" in val or "---" in val):
                         report += val + "\n"
             elif isinstance(dependency_output, str):
                 report = dependency_output
-                
-        # Input Validation Guardrail: Ensure report contains meaningful text before calling LLM
+
+        # Extract explicit SOURCE content blocks if available
+        if "--- SOURCE:" in report or "SOURCE:" in report:
+            sources = []
+            for part in report.split("--- SOURCE:"):
+                part_clean = part.strip()
+                if part_clean and not part_clean.startswith("{'status'"):
+                    sources.append("--- SOURCE: " + part_clean)
+            if sources:
+                report = "\n\n".join(sources)
+
+        # Refined Guardrail: Only trigger fallback notice if ZERO valid sources exist
         clean_report_check = report.strip()
-        if not clean_report_check or "All URL harvesting failed" in clean_report_check or len(clean_report_check) < 50:
+        has_valid_sources = "SOURCE:" in clean_report_check
+        
+        if not clean_report_check or (not has_valid_sources and len(clean_report_check) < 50):
             logger.warning("Harvested data is empty or invalid. Returning structured fallback report without LLM invocation.")
             return "# Deep Research Analysis Report\n\n> ⚠️ **Notice:** Web harvesting was unable to retrieve external pages for this objective. Please verify search queries or network availability.\n\n### Objective Context\n" + str(args.get("context", "No context provided."))
             
