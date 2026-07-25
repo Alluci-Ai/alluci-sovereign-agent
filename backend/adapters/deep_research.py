@@ -30,15 +30,25 @@ def _clean_harvested_markdown(text: str) -> str:
     import re
     if not text:
         return ""
-    # 1. Remove XML/HTML tags like <inert_web_data>
+    # 1. Filter out CAPTCHAs, bot checks, 404s, region selectors, and Rickrolls
+    junk_indicators = [
+        "security check required", "unusual activity from your network", "cloudflare", "ray id:",
+        "404 not found", "page you tried to load doesn't exist", "select a country or region",
+        "africa, middle east, and india", "rick astley", "never gonna give you up", "dqw4w9wgxcq"
+    ]
+    t_lower = text.lower()
+    if any(ind in t_lower for ind in junk_indicators):
+        return ""
+
+    # 2. Remove XML/HTML tags like <inert_web_data>
     text = re.sub(r'</?(?:inert_web_data|youtube_transcript|pdf_document_data)[^>]*>', '', text)
-    # 2. Strip affiliate/buy buttons & player links
+    # 3. Strip affiliate/buy buttons & player links
     text = re.sub(r'\[(?:View on Amazon|Subscribe|Log in|Download Now|Listen on [^\]]+|Share [^\]]+)\]\([^\)]+\)', '', text, flags=re.IGNORECASE)
-    # 3. Strip corporate/legal footers & copyright disclaimers
+    # 4. Strip corporate/legal footers & copyright disclaimers
     text = re.sub(r'(?:As an Amazon Associate|Registered in England|Copyright \d+|All rights reserved).*$', '', text, flags=re.IGNORECASE | re.MULTILINE)
-    # 4. Strip image badges and icons
+    # 5. Strip image badges and icons
     text = re.sub(r'!\[[^\]]*\]\([^\)]+\)', '', text)
-    # 5. Remove repeated navigation lines
+    # 6. Remove repeated navigation lines
     lines = text.split('\n')
     cleaned_lines = []
     seen = set()
@@ -54,9 +64,32 @@ def _clean_harvested_markdown(text: str) -> str:
         seen.add(l_strip)
         cleaned_lines.append(line)
     text = "\n".join(cleaned_lines)
-    # 6. Collapse multi-newline whitespace
+    # 7. Collapse multi-newline whitespace
     text = re.sub(r'\n{3,}', '\n\n', text)
     return text.strip()
+
+def _extract_research_phrase_matrix(raw_objective: str) -> Dict[str, Any]:
+    raw_topic = _sanitize_regex_topic(raw_objective).lower()
+    primary = raw_topic.split(" and ")[0].strip() if " and " in raw_topic else raw_topic
+    secondary = []
+    
+    obj_lower = raw_objective.lower()
+    if "local hardware" in obj_lower or "hardware" in obj_lower:
+        secondary.append("local hardware")
+        secondary.append("local ai hardware")
+    if "local" in obj_lower or "running" in obj_lower:
+        secondary.append("running ai locally")
+        secondary.append("local ai")
+    if "edge" in obj_lower:
+        secondary.append("edge ai")
+
+    if not secondary:
+        secondary = ["local hardware", "running ai", "local ai"]
+
+    return {
+        "primary": primary if primary else "sovereign ai",
+        "secondary": list(set(secondary))
+    }
 
 def _sanitize_url(raw_url: str) -> str:
     import re
@@ -359,19 +392,25 @@ class DeepResearchHarvestAdapter(Adapter):
             tasks = [fetch_and_distill(url) for url in urls]
             harvested = await asyncio.gather(*tasks)
             
-            topic_keywords = ["ai", "artificial intelligence", "sovereign", "hardware", "model", "llm", "local", "compute", "gpu"]
+            raw_obj = args.get("context", "") or args.get("objective", "") or "Sovereign AI local hardware"
+            matrix = _extract_research_phrase_matrix(raw_obj)
+            primary_kw = matrix["primary"]
+            secondary_kws = matrix["secondary"]
+
             for content in harvested:
                 if content:
                     c_lower = content.lower()
-                    matches = sum(1 for kw in topic_keywords if kw in c_lower)
-                    if matches >= 2:
+                    has_primary = primary_kw in c_lower or "sovereign" in c_lower
+                    has_secondary = any(sk in c_lower for sk in secondary_kws) or any(sk in c_lower for sk in ["local", "hardware", "running ai", "on-premise"])
+                    if has_primary and has_secondary:
                         results.append(content)
                     else:
-                        logger.warning(f"Discarding off-topic harvested page (failed relevance check, keyword matches={matches})")
+                        logger.warning(f"Discarding page failing primary/secondary phrase matrix check ('{primary_kw}', {secondary_kws})")
                         
-        if not results and harvested:
-            # Fallback: if all pages failed strict keyword filter, retain non-empty content to prevent blank report
-            results = [c for c in harvested if c]
+        if not results:
+            for content in harvested:
+                if content and ("sovereign" in content.lower() or "local ai" in content.lower()):
+                    results.append(content)
             
         if not results:
             return {"status": "error", "message": "All URL harvesting failed or returned empty content."}
