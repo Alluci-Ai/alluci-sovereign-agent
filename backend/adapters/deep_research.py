@@ -116,12 +116,11 @@ class DeepResearchQueryExpansionAdapter(Adapter):
         core_topic = await _extract_semantic_topic(raw_objective) if raw_objective else ""
         if not queries:
             if raw_objective:
-                clean_core = core_topic.strip('"\x27 ')
-                quoted_topic = f'"{clean_core}"' if clean_core else ""
+                clean_core = core_topic.replace('"', '').replace("'", '').strip()
                 from .. import services
                 if services.router:
                     try:
-                        exp_prompt = f"Deconstruct this research objective for {quoted_topic} into 3-5 specific search queries for web articles, YouTube videos, and podcasts. CRITICAL: Every query MUST explicitly include {quoted_topic} in exact quotes and MUST NOT include command verbs like 'perform' or 'provide a report'. Return ONLY a JSON list of strings."
+                        exp_prompt = f"Deconstruct this research objective for {clean_core} into 3-5 specific search queries for web articles, YouTube videos, and podcasts. CRITICAL: Do NOT use surrounding double quotes inside query strings. Return ONLY a JSON list of strings."
                         resp = await services.router.get_response(
                             prompt=exp_prompt,
                             system_instruction="You are a specialized multi-media research query expansion engine.",
@@ -135,18 +134,16 @@ class DeepResearchQueryExpansionAdapter(Adapter):
                         if isinstance(parsed, list) and len(parsed) > 0:
                             anchored = []
                             for q in parsed:
-                                q_str = _sanitize_regex_topic(str(q)).strip('"\x27 ')
+                                q_str = str(q).replace('"', '').replace("'", '').strip()
+                                q_str = _sanitize_regex_topic(q_str)
                                 if clean_core.lower() not in q_str.lower():
-                                    q_str = f'"{clean_core}" {q_str}'
-                                else:
-                                    if f'"{clean_core}"' not in q_str:
-                                        q_str = q_str.replace(clean_core, f'"{clean_core}"')
+                                    q_str = f"{clean_core} {q_str}"
                                 anchored.append(q_str)
-                            queries = anchored
+                            queries = list(set(anchored))
                     except Exception as e:
                         logger.warning(f"Query expansion via LLM failed: {e}. Falling back to core topic query.")
                 if not queries:
-                    queries = [quoted_topic, f"{quoted_topic} youtube", f"{quoted_topic} podcast", f"{quoted_topic} local hardware"]
+                    queries = [clean_core, f"{clean_core} local hardware", f"{clean_core} youtube", f"{clean_core} podcast"]
             else:
                 return {"status": "error", "message": "No queries provided."}
                 
