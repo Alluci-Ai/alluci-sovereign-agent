@@ -21,6 +21,13 @@ def _sanitize_url(raw_url: str) -> str:
         return ""
     clean = str(raw_url).replace('%5C', '').replace('%5c', '').replace('\\', '')
     clean = clean.rstrip("/'\"").strip()
+    
+    clean_lower = clean.lower().split("?")[0]
+    static_extensions = ('.css', '.js', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.woff', '.woff2', '.ttf', '.eot')
+    if any(clean_lower.endswith(ext) for ext in static_extensions):
+        return ""
+    if any(domain in clean_lower for domain in ['r.bing.com', 'th.bing.com', 'google.com/gb']):
+        return ""
     return clean
 
 async def _extract_semantic_topic(raw_objective: str) -> str:

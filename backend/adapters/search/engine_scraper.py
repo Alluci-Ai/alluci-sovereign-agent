@@ -3,14 +3,18 @@ import logging
 import re
 import httpx
 from typing import List, Dict, Any
+from bs4 import BeautifulSoup
 from duckduckgo_search import DDGS
 
 logger = logging.getLogger("NativeMultiEngineScraper")
 
+STATIC_ASSET_EXTENSIONS = ('.css', '.js', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.woff', '.woff2', '.ttf', '.eot')
+EXCLUDED_DOMAINS = ('r.bing.com', 'th.bing.com', 'google.com/gb/', 'bing.com', 'microsoft.com', 'duckduckgo.com')
+
 class NativeMultiEngineScraper:
     """
     Self-contained in-process fallback multi-engine search scraper.
-    Aggregates results across DuckDuckGo, Bing, and Google with User-Agent rotation.
+    Aggregates results across DuckDuckGo, Bing, and Google using structured DOM parsing.
     """
     def __init__(self):
         self.headers = {
@@ -18,6 +22,16 @@ class NativeMultiEngineScraper:
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "en-US,en;q=0.9"
         }
+
+    def _is_valid_organic_url(self, url: str) -> bool:
+        if not url or not url.startswith("http"):
+            return False
+        u_lower = url.lower().split("?")[0]
+        if any(u_lower.endswith(ext) for ext in STATIC_ASSET_EXTENSIONS):
+            return False
+        if any(domain in u_lower for domain in EXCLUDED_DOMAINS):
+            return False
+        return True
 
     async def search(self, queries: List[str], max_results_per_query: int = 5) -> Dict[str, Any]:
         urls = set()
@@ -31,7 +45,7 @@ class NativeMultiEngineScraper:
                         results = list(ddgs.text(q, max_results=max_results_per_query))
                         for r in results:
                             href = r.get('href') or r.get('url') or r.get('link')
-                            if href:
+                            if href and self._is_valid_organic_url(href):
                                 ddg_urls.append(href)
                     except Exception as e:
                         logger.warning(f"Native DDGS warning for query '{q}': {e}")
@@ -44,20 +58,23 @@ class NativeMultiEngineScraper:
         except Exception as e:
             logger.warning(f"DDGS thread execution error: {e}")
 
-        # 2. Secondary In-Process Engine: Bing HTML Scraper Fallback if DDGS yields < 3 URLs
+        # 2. Secondary In-Process Engine: Bing DOM HTML Scraper Fallback
         if len(urls) < 3:
-            async with httpx.AsyncClient(timeout=8.0, headers=self.headers, follow_redirects=True) as client:
+            async with httpx.AsyncClient(timeout=10.0, headers=self.headers, follow_redirects=True) as client:
                 for q in queries:
                     try:
                         resp = await client.get("https://www.bing.com/search", params={"q": q})
                         if resp.status_code == 200:
-                            extracted = re.findall(r'href="(https?://(?!www\.bing\.com|microsoft\.com)[^\s\'"<>]+)"', resp.text)
-                            for u in extracted:
-                                urls.add(u)
-                                if len(urls) >= (len(queries) * max_results_per_query):
-                                    break
+                            soup = BeautifulSoup(resp.text, "html.parser")
+                            # Extract organic link elements specifically
+                            for link in soup.select("li.b_algo h2 a"):
+                                href = link.get("href")
+                                if href and self._is_valid_organic_url(href):
+                                    urls.add(href)
+                                    if len(urls) >= (len(queries) * max_results_per_query):
+                                        break
                     except Exception as e:
-                        logger.warning(f"Bing fallback search error for '{q}': {e}")
+                        logger.warning(f"Bing fallback DOM search error for '{q}': {e}")
 
         return {
             "status": "success",

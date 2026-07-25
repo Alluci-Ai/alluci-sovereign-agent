@@ -107,3 +107,4 @@ duckduckgo-search==8.1.1
 beautifulsoup4
 crawl4ai>=0.4.0
 scrapling>=0.2.0
+curl-cffi>=0.7.0
