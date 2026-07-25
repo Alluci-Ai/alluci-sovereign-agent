@@ -263,8 +263,23 @@ class ExecutiveOrchestrator:
             if not services.router:
                 return None
                 
-            import json
-            intent_prompt = f"""
+            body_lower = body.lower()
+            research_keywords = ["deep research", "deep web research", "research on", "research into", "scour the web", "rocco"]
+            objective_keywords = ["find all", "search for", "generate report", "analyze", "run script", "create file"]
+
+            is_objective = False
+            extracted_objective = body
+            is_research = False
+
+            if any(k in body_lower for k in research_keywords):
+                is_objective = True
+                is_research = True
+            elif any(k in body_lower for k in objective_keywords):
+                is_objective = True
+
+            if not is_objective:
+                import json
+                intent_prompt = f"""
 Analyze this message to determine if it is an ACTIONABLE OBJECTIVE.
 An actionable objective asks you to perform a task (e.g. "send an email", "run a script", "fetch the news", "modify a file").
 A conversational message just asks a question or chats (e.g. "how are you", "what is your name", "explain this to me").
@@ -272,26 +287,21 @@ Also determine if the objective requires extensive or deep research (e.g. "deep 
 Message: "{body}"
 Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objective": string, "is_research": boolean}}
 """
-            classification_resp = await services.router.get_response(
-                prompt=intent_prompt,
-                system_instruction="You are a strict JSON classifier.",
-                complexity="LOW",
-                privacy_level="PUBLIC",
-                inference_mode="TACTICAL"
-            )
-            
-            is_objective = False
-            extracted_objective = body
-            is_research = False
-            
-            try:
-                clean_json = classification_resp.replace('```json', '').replace('```', '').strip()
-                intent_data = json.loads(clean_json)
-                is_objective = intent_data.get("is_objective", False)
-                extracted_objective = intent_data.get("extracted_objective", body)
-                is_research = intent_data.get("is_research", False)
-            except Exception as e:
-                self.logger.debug(f"[Orchestrator] Intent classification failed to parse: {e}")
+                try:
+                    classification_resp = await services.router.get_response(
+                        prompt=intent_prompt,
+                        system_instruction="You are a strict JSON classifier.",
+                        complexity="LOW",
+                        privacy_level="PUBLIC",
+                        inference_mode="TACTICAL"
+                    )
+                    clean_json = classification_resp.replace('```json', '').replace('```', '').strip()
+                    intent_data = json.loads(clean_json)
+                    is_objective = intent_data.get("is_objective", False)
+                    extracted_objective = intent_data.get("extracted_objective", body)
+                    is_research = intent_data.get("is_research", False)
+                except Exception as e:
+                    self.logger.debug(f"[Orchestrator] Intent classification failed to parse: {e}")
 
             if is_objective:
                 self.logger.info(f"[Orchestrator] Chat Auto-Dispatch: Routing '{extracted_objective}' to DAG Planner.")
