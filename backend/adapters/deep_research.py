@@ -113,7 +113,35 @@ def _clean_harvested_markdown(text: str) -> str:
         r'^\s*[\*\-\s]*\[\d+\s+Commits\]',
         r'^\s*[\*\-\s]*\[[^\]]+\]\(https://[a-z0-9\.\-]*wikipedia\.org/wiki/[^\)]+\s+\"[^\"]+\"\)',
         r'^\s*[\*\-\s]*(?:Main menu|Personal tools|Contribute|Jump to content|Jump to navigation|Solutions|Resources|Open Source|Enterprise|Clear|Search syntax tips|Provide feedback|Saved searches|Resetting focus)\b',
-        r'^\s*[\*\-\s]*\[\s*(?:Skip to content|Sign in|Sign up|GitHub Copilot|MCP Registry|Why GitHub|Documentation|Blog|Changelog|Marketplace|Enterprises|Small and medium teams|Startups|Nonprofits|App Modernization|DevSecOps|DevOps|CI/CD|Healthcare|Financial services|Manufacturing|Government|View all|AI|Software Development|Security|Customer stories|Events|Ebooks|Business insights|GitHub Skills|Customer support|Community forum|Trust center|Partners|GitHub Sponsors|Security Lab|Maintainer Community|Accelerator|GitHub Stars|Archive Program|Topics|Trending|Collections|Enterprise platform|Copilot for Business|Premium Support|Pricing|Please reload this page|CODEOWNERS|LICENSE|QUICKSTART|check_setup|Dockerfile|docker-compose)'
+        r'^\s*[\*\-\s]*\[\s*(?:Skip to content|Sign in|Sign up|GitHub Copilot|MCP Registry|Why GitHub|Documentation|Blog|Changelog|Marketplace|Enterprises|Small and medium teams|Startups|Nonprofits|App Modernization|DevSecOps|DevOps|CI/CD|Healthcare|Financial services|Manufacturing|Government|View all|AI|Software Development|Security|Customer stories|Events|Ebooks|Business insights|GitHub Skills|Customer support|Community forum|Trust center|Partners|GitHub Sponsors|Security Lab|Maintainer Community|Accelerator|GitHub Stars|Archive Program|Topics|Trending|Collections|Enterprise platform|Copilot for Business|Premium Support|Pricing|Please reload this page|CODEOWNERS|LICENSE|QUICKSTART|check_setup|Dockerfile|docker-compose)',
+        # Wikipedia Fundraising, Donation Banners & Site Notices
+        r'We owe you an explanation',
+        r'An important update for readers in the United States',
+        r'You deserve an explanation, so please don\'t skip this',
+        r'Wikimedia Foundation',
+        r'How often would you like to donate\?',
+        r'Support Wikipedia year-round',
+        r'Please select an amount',
+        r'The average donation in the United States',
+        r'Preferred Amount',
+        r'I\'ll generously add a little to cover the transaction fees',
+        r'Please select a payment method',
+        r'Online Banking', r'Credit / Debit Card', r'PayPal', r'Venmo', r'Apple Pay', r'Google Pay',
+        r'Donate one time', r'Donate monthly', r'Donate yearly',
+        r'We cannot accept donations greater than',
+        r'Can we follow up and let you know if we need your help again\?',
+        r'Almost done: Please, make it monthly',
+        r'Where your donation goes',
+        r'Accountability and transparency are core values',
+        r'\d+%\s*(?:\$\d+|\.\d+|\d+).*$',
+        r'^\s*[\$\.]?\d+(?:\.\d+)?\s*$',
+        r'^\s*[\*\-\s]*\d+(?:\.\d+)*\s+[A-Z].*$',
+        r'Investment in Technology', r'Support for Volunteers', r'Allocation to Fundraising',
+        r'General and Administrative Expenses',
+        r'Donor-Advised Fund \(DAF\)', r'Individual Retirement Account \(IRA\)', r'Workplace Giving',
+        r'Try Editing Wikipedia', r'Other ways to give',
+        r'Toggle the table of contents',
+        r'^\s*##?\s*Contents\b'
     ]
 
     # 7. Political & unrelated news feed filter
@@ -132,7 +160,7 @@ def _clean_harvested_markdown(text: str) -> str:
             continue
         if "{{" in l_strip and "}}" in l_strip:
             continue
-        if any(ind in l_strip.lower() for ind in ["uh oh!", "there was an error while loading", "please reload this page", "resetting focus", "additional navigation options"]):
+        if any(ind in l_strip.lower() for ind in ["uh oh!", "there was an error while loading", "please reload this page", "resetting focus", "additional navigation options", "we owe you an explanation", "wikimedia foundation", "please select an amount"]):
             continue
         if any(re.search(pat, l_strip, re.IGNORECASE) for pat in ui_noise_patterns):
             continue
@@ -202,7 +230,7 @@ async def _fetch_open_apis(queries: List[str], max_results: int = 5, max_results
     async with httpx.AsyncClient(timeout=10.0, follow_redirects=True, headers={"User-Agent": USER_AGENT_DIRECT}) as client:
         for q in queries:
             clean_q = q.replace('"', '').strip()
-            # 1. ArXiv Academic API
+            # 1. ArXiv Academic API (Tier 2 Primary Academic)
             try:
                 ax_url = f"https://export.arxiv.org/api/query?search_query=all:{clean_q}&max_results={limit}"
                 resp = await client.get(ax_url)
@@ -214,21 +242,9 @@ async def _fetch_open_apis(queries: List[str], max_results: int = 5, max_results
             except Exception as e:
                 logger.debug(f"ArXiv API search failed for {clean_q}: {e}")
 
-            # 2. Wikipedia API
+            # 2. GitHub Search API (Tier 3 Media/Code - Strictly Capped to max 1 per query)
             try:
-                wp_url = f"https://en.wikipedia.org/w/api.php?action=opensearch&search={clean_q}&limit={limit}&format=json"
-                resp = await client.get(wp_url)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    if isinstance(data, list) and len(data) >= 4 and isinstance(data[3], list):
-                        for wurl in data[3]:
-                            urls.add(_sanitize_url(wurl))
-            except Exception as e:
-                logger.debug(f"Wikipedia API search failed for {clean_q}: {e}")
-
-            # 3. GitHub Search API
-            try:
-                gh_url = f"https://api.github.com/search/repositories?q={clean_q}&per_page={limit}"
+                gh_url = f"https://api.github.com/search/repositories?q={clean_q}&per_page=1"
                 resp = await client.get(gh_url)
                 if resp.status_code == 200:
                     data = resp.json()
@@ -239,6 +255,26 @@ async def _fetch_open_apis(queries: List[str], max_results: int = 5, max_results
                 logger.debug(f"GitHub API search failed for {clean_q}: {e}")
 
     return {"urls": [u for u in urls if u]}
+
+async def _fetch_wikipedia_fallback(queries: List[str], max_results: int = 2) -> Dict[str, Any]:
+    """Tier 4 Last-Resort Fallback: Queried ONLY if primary web search yields < 3 URLs."""
+    urls = set()
+    async with httpx.AsyncClient(timeout=8.0, follow_redirects=True, headers={"User-Agent": USER_AGENT_DIRECT}) as client:
+        for q in queries:
+            clean_q = q.replace('"', '').strip()
+            try:
+                wp_url = f"https://en.wikipedia.org/w/api.php?action=opensearch&search={clean_q}&limit={max_results}&format=json"
+                resp = await client.get(wp_url)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if isinstance(data, list) and len(data) >= 4 and isinstance(data[3], list):
+                        for wurl in data[3]:
+                            san = _sanitize_url(wurl)
+                            if san:
+                                urls.add(san)
+            except Exception as e:
+                logger.debug(f"Wikipedia Fallback API failed for {clean_q}: {e}")
+    return {"urls": list(urls)}
 
 async def _extract_semantic_topic(raw_objective: str) -> str:
     # 1. Perform deterministic regex topic extraction FIRST
@@ -354,6 +390,15 @@ class DeepResearchQueryExpansionAdapter(Adapter):
             logger.info(f"Exact-quote queries yielded 0 URLs. Retrying with relaxed terms: {relaxed_queries}")
             relaxed_res = await engine_scraper.search(relaxed_queries, max_results_per_query=max_results)
             for u in relaxed_res.get("urls", []):
+                sanitized = _sanitize_url(u)
+                if sanitized:
+                    urls.add(sanitized)
+
+        # Tier 4 Last-Resort Wikipedia Fallback: Triggered ONLY if primary web & open API search yielded < 3 URLs
+        if len(urls) < 3 and queries:
+            logger.info(f"Primary web search yielded {len(urls)} URLs (< 3). Triggering Tier 4 Last-Resort Wikipedia Fallback.")
+            res_wiki = await _fetch_wikipedia_fallback(queries, max_results=2)
+            for u in res_wiki.get("urls", []):
                 sanitized = _sanitize_url(u)
                 if sanitized:
                     urls.add(sanitized)
@@ -484,8 +529,11 @@ class DeepResearchHarvestAdapter(Adapter):
 
                     # DOM Container Exclusions & Main Body Isolation
                     excluded_tags_list = ['nav', 'footer', 'header', 'aside', 'form', 'script', 'style', 'noscript', 'iframe']
-                    excluded_selectors = "aside, nav, footer, header, .sidebar, .trending, .skybox, .recommended, .related-posts, .ad-wrapper, .popup, .modal, .Header, .js-header-wrapper, .AppHeader, #vector-main-menu, #vector-toc, #p-lang-btn, .mw-portlet-lang, .navbox, .catlinks, .footer-navigation, .js-site-footer"
+                    excluded_selectors = "aside, nav, footer, header, .sidebar, .trending, .skybox, .recommended, .related-posts, .ad-wrapper, .popup, .modal, .Header, .js-header-wrapper, .AppHeader, #vector-main-menu, #vector-toc, #p-lang-btn, .mw-portlet-lang, .navbox, .catlinks, .footer-navigation, .js-site-footer, #siteNotice, #centralNotice, .cn-fundraising, .frbanner, #mw-dismissable-notice"
                     css_selector_body = "article.markdown-body, #readme, .mw-parser-output, main, article, #content, .content, .post-content"
+                    if "wikipedia.org" in url.lower():
+                        excluded_selectors = "#siteNotice, #centralNotice, .cn-fundraising, .frbanner, #mw-dismissable-notice, .navbox, .catlinks, #vector-main-menu, #vector-toc, #p-lang-btn, .mw-portlet-lang, .mw-editsection, .noprint, .portal, .ambox, .reflist, #mw-navigation, #footer"
+                        css_selector_body = ".mw-parser-output > p, .mw-parser-output > h2, .mw-parser-output > h3"
 
                     # Layer 2: Crawl4AI AI-Native Markdown Extraction
                     try:
