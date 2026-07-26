@@ -134,14 +134,15 @@ def _sanitize_url(raw_url: str) -> str:
         return ""
     return clean
 
-async def _fetch_open_apis(queries: List[str], max_results: int = 5) -> Dict[str, Any]:
+async def _fetch_open_apis(queries: List[str], max_results: int = 5, max_results_per_query: int = 5, **kwargs) -> Dict[str, Any]:
+    limit = max_results_per_query or max_results or 5
     urls = set()
     async with httpx.AsyncClient(timeout=10.0, follow_redirects=True, headers={"User-Agent": USER_AGENT_DIRECT}) as client:
         for q in queries:
             clean_q = q.replace('"', '').strip()
             # 1. ArXiv Academic API
             try:
-                ax_url = f"https://export.arxiv.org/api/query?search_query=all:{clean_q}&max_results={max_results}"
+                ax_url = f"https://export.arxiv.org/api/query?search_query=all:{clean_q}&max_results={limit}"
                 resp = await client.get(ax_url)
                 if resp.status_code == 200 and "<id>" in resp.text:
                     import re
@@ -153,7 +154,7 @@ async def _fetch_open_apis(queries: List[str], max_results: int = 5) -> Dict[str
 
             # 2. Wikipedia API
             try:
-                wp_url = f"https://en.wikipedia.org/w/api.php?action=opensearch&search={clean_q}&limit={max_results}&format=json"
+                wp_url = f"https://en.wikipedia.org/w/api.php?action=opensearch&search={clean_q}&limit={limit}&format=json"
                 resp = await client.get(wp_url)
                 if resp.status_code == 200:
                     data = resp.json()
@@ -165,7 +166,7 @@ async def _fetch_open_apis(queries: List[str], max_results: int = 5) -> Dict[str
 
             # 3. GitHub Search API
             try:
-                gh_url = f"https://api.github.com/search/repositories?q={clean_q}&per_page={max_results}"
+                gh_url = f"https://api.github.com/search/repositories?q={clean_q}&per_page={limit}"
                 resp = await client.get(gh_url)
                 if resp.status_code == 200:
                     data = resp.json()
