@@ -99,24 +99,21 @@ def _clean_harvested_markdown(text: str) -> str:
 
     # 6. GitHub UI & Wikipedia Navigation Matrix Noise Filter
     ui_noise_patterns = [
-        r'^\s*##\s*Navigation Menu\b',
+        r'^\s*##?\s*Navigation Menu\b',
         r'^\s*Toggle navigation\b',
         r'^\s*Appearance settings\b',
-        r'^\s*\*?\s*(?:Platform|AI CODE CREATION|DEVELOPER WORKFLOWS|APPLICATION SECURITY|EXPLORE|BY COMPANY SIZE|BY USE CASE|BY INDUSTRY|EXPLORE BY TOPIC|EXPLORE BY TYPE|SUPPORT & SERVICES|PROGRAMS|REPOSITORIES|ENTERPRISE SOLUTIONS|AVAILABLE ADD-ONS)\b',
-        r'^\s*Search or jump to\b',
-        r'^\s*#\s*Saved searches\b',
+        r'^\s*[\*\-\s]*(?:Platform|AI CODE CREATION|DEVELOPER WORKFLOWS|APPLICATION SECURITY|EXPLORE|BY COMPANY SIZE|BY USE CASE|BY INDUSTRY|EXPLORE BY TOPIC|EXPLORE BY TYPE|SUPPORT & SERVICES|PROGRAMS|REPOSITORIES|ENTERPRISE SOLUTIONS|AVAILABLE ADD-ONS)\b',
+        r'^\s*#?\s*(?:Search or jump to|Search code|Saved searches)\b',
         r'^\s*You signed in with another tab or window\b',
-        r'^\s*\*?\s*Additional navigation options\b',
-        r'^\s*##\s*Folders and files\b',
-        r'^\s*##\s*Repository files navigation\b',
-        r'^\s*\*?\s*Footer navigation\b',
-        r'^\s*Do not share my personal information\b',
-        r'^\s*Manage cookies\b',
-        r'^\s*You can’t perform that action at this time\b',
-        r'^\s*\d+\s+languages\b',
-        r'^\s*\*?\s*\[[^\]]+\]\(https://[a-z0-9\.\-]*wikipedia\.org/wiki/[^\)]+\s+\"[^\"]+\"\)',
-        r'^\s*(?:Main menu|Personal tools|Contribute|Jump to content|Jump to navigation)\b',
-        r'^\s*[\*\-\s]*\[\s*(?:Sign in|Sign up|GitHub Copilot|ActionsAutomate|CodespacesInstant|IssuesPlan|Code ReviewManage|Code QualityEnforce)'
+        r'^\s*[\*\-\s]*Additional navigation options\b',
+        r'^\s*##?\s*(?:Folders and files|Repository files navigation|Footer navigation|Latest commit|History)\b',
+        r'^\s*(?:#+\s*)?(?:Do not share my personal information|Manage cookies|You can’t perform that action at this time|Resetting focus|\{\{\s*message\s*\}\}|Uh oh!.*|There was an error while loading|Clear)\b',
+        r'^\s*[\*\-\s]*\[\s*\]\(https://github\.com/?\)',
+        r'^\s*[\*\-\s]*\d+\s+(?:languages|commits|Branches|Tags|stars|watching|forks|Commits)\b',
+        r'^\s*[\*\-\s]*\[\d+\s+Commits\]',
+        r'^\s*[\*\-\s]*\[[^\]]+\]\(https://[a-z0-9\.\-]*wikipedia\.org/wiki/[^\)]+\s+\"[^\"]+\"\)',
+        r'^\s*[\*\-\s]*(?:Main menu|Personal tools|Contribute|Jump to content|Jump to navigation|Solutions|Resources|Open Source|Enterprise|Clear|Search syntax tips|Provide feedback|Saved searches|Resetting focus)\b',
+        r'^\s*[\*\-\s]*\[\s*(?:Skip to content|Sign in|Sign up|GitHub Copilot|MCP Registry|Why GitHub|Documentation|Blog|Changelog|Marketplace|Enterprises|Small and medium teams|Startups|Nonprofits|App Modernization|DevSecOps|DevOps|CI/CD|Healthcare|Financial services|Manufacturing|Government|View all|AI|Software Development|Security|Customer stories|Events|Ebooks|Business insights|GitHub Skills|Customer support|Community forum|Trust center|Partners|GitHub Sponsors|Security Lab|Maintainer Community|Accelerator|GitHub Stars|Archive Program|Topics|Trending|Collections|Enterprise platform|Copilot for Business|Premium Support|Pricing|Please reload this page|CODEOWNERS|LICENSE|QUICKSTART|check_setup|Dockerfile|docker-compose)'
     ]
 
     # 7. Political & unrelated news feed filter
@@ -132,6 +129,10 @@ def _clean_harvested_markdown(text: str) -> str:
         l_strip = line.strip()
         if not l_strip:
             cleaned_lines.append("")
+            continue
+        if "{{" in l_strip and "}}" in l_strip:
+            continue
+        if any(ind in l_strip.lower() for ind in ["uh oh!", "there was an error while loading", "please reload this page", "resetting focus", "additional navigation options"]):
             continue
         if any(re.search(pat, l_strip, re.IGNORECASE) for pat in ui_noise_patterns):
             continue
@@ -188,7 +189,8 @@ def _sanitize_url(raw_url: str) -> str:
         return ""
     serp_domains = [
         'r.bing.com', 'th.bing.com', 'google.com/gb', 'google.com/search', 'google.com/sorry',
-        'bing.com/search', 'duckduckgo.com/sorry', 'list_of_sovereign_states', 'sovereign_state'
+        'bing.com/search', 'duckduckgo.com/sorry', 'list_of_sovereign_states', 'sovereign_state',
+        'sovereign_citizen', 'sovereign-citizen', 'sovereign_individual'
     ]
     if any(domain in clean_lower for domain in serp_domains):
         return ""
@@ -576,7 +578,14 @@ class DeepResearchHarvestAdapter(Adapter):
             for content in harvested:
                 if content:
                     c_lower = content.lower()
-                    has_primary = primary_kw in c_lower or "sovereign" in c_lower
+                    
+                    # Reject political sovereign citizen movement / tax protester pages
+                    is_political_sovcit = any(k in c_lower for k in ["sovereign citizen", "sovcit", "tax protester", "pseudolegal", "posse comitatus", "common law court"]) and not any(k in c_lower for k in ["sovereign ai", "local ai", "machine learning", "neural network", "local hardware"])
+                    if is_political_sovcit:
+                        logger.warning("Discarding political sovereign citizen movement page")
+                        continue
+
+                    has_primary = primary_kw in c_lower or "sovereign ai" in c_lower or "sovereign" in c_lower
                     has_secondary = any(sk in c_lower for sk in secondary_kws) or any(sk in c_lower for sk in ["local", "hardware", "running ai", "on-premise"])
                     if has_primary and has_secondary:
                         results.append(content)
@@ -585,8 +594,10 @@ class DeepResearchHarvestAdapter(Adapter):
                         
         if not results:
             for content in harvested:
-                if content and ("sovereign" in content.lower() or "local ai" in content.lower()):
-                    results.append(content)
+                if content and ("sovereign ai" in content.lower() or "local ai" in content.lower()):
+                    c_lower = content.lower()
+                    if not any(k in c_lower for k in ["sovereign citizen", "sovcit", "tax protester"]):
+                        results.append(content)
             
         if not results:
             return {"status": "error", "message": "All URL harvesting failed or returned empty content."}
