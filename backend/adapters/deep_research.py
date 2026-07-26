@@ -769,8 +769,7 @@ class DeepResearchEvaluateAdapter(Adapter):
                         system_instruction=ROCCO_COGNITIVE_SYSTEM_INSTRUCTION,
                         complexity="HIGH",
                         privacy_level="PUBLIC",
-                        inference_mode="LOCAL",
-                        max_tokens=4096
+                        inference_mode="LOCAL"
                     )
                     report = final_report
                 except Exception as e:
@@ -875,8 +874,7 @@ class DeepResearchEvaluateAdapter(Adapter):
                         system_instruction=ROCCO_COGNITIVE_SYSTEM_INSTRUCTION,
                         complexity="HIGH",
                         privacy_level="PUBLIC",
-                        inference_mode="LOCAL",
-                        max_tokens=4096
+                        inference_mode="LOCAL"
                     )
                     report = final_report
                 except Exception as e:
