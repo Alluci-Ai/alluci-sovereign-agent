@@ -97,11 +97,34 @@ def _clean_harvested_markdown(text: str) -> str:
     # 5. Strip image badges and icons
     text = re.sub(r'!\[[^\]]*\]\([^\)]+\)', '', text)
 
-    # 6. Political & unrelated news feed filter
+    # 6. GitHub UI & Wikipedia Navigation Matrix Noise Filter
+    ui_noise_patterns = [
+        r'^\s*##\s*Navigation Menu\b',
+        r'^\s*Toggle navigation\b',
+        r'^\s*Appearance settings\b',
+        r'^\s*\*?\s*(?:Platform|AI CODE CREATION|DEVELOPER WORKFLOWS|APPLICATION SECURITY|EXPLORE|BY COMPANY SIZE|BY USE CASE|BY INDUSTRY|EXPLORE BY TOPIC|EXPLORE BY TYPE|SUPPORT & SERVICES|PROGRAMS|REPOSITORIES|ENTERPRISE SOLUTIONS|AVAILABLE ADD-ONS)\b',
+        r'^\s*Search or jump to\b',
+        r'^\s*#\s*Saved searches\b',
+        r'^\s*You signed in with another tab or window\b',
+        r'^\s*\*?\s*Additional navigation options\b',
+        r'^\s*##\s*Folders and files\b',
+        r'^\s*##\s*Repository files navigation\b',
+        r'^\s*\*?\s*Footer navigation\b',
+        r'^\s*Do not share my personal information\b',
+        r'^\s*Manage cookies\b',
+        r'^\s*You can’t perform that action at this time\b',
+        r'^\s*\d+\s+languages\b',
+        r'^\s*\*?\s*\[[^\]]+\]\(https://[a-z0-9\.\-]*wikipedia\.org/wiki/[^\)]+\s+\"[^\"]+\"\)',
+        r'^\s*(?:Main menu|Personal tools|Contribute|Jump to content|Jump to navigation)\b',
+        r'^\s*[\*\-\s]*\[\s*(?:Sign in|Sign up|GitHub Copilot|ActionsAutomate|CodespacesInstant|IssuesPlan|Code ReviewManage|Code QualityEnforce)'
+    ]
+
+    # 7. Political & unrelated news feed filter
     political_noise = [
         r'\b(?:trump|iranian|dhs breach|motorcade|assassination|election|netanyahu|mamdani|blakeman)\b',
         r'\b(?:winners & losers|campaigns & elections|heard around town)\b'
     ]
+
     lines = text.split('\n')
     cleaned_lines = []
     seen = set()
@@ -110,16 +133,19 @@ def _clean_harvested_markdown(text: str) -> str:
         if not l_strip:
             cleaned_lines.append("")
             continue
+        if any(re.search(pat, l_strip, re.IGNORECASE) for pat in ui_noise_patterns):
+            continue
         if any(re.search(pat, l_strip, re.IGNORECASE) for pat in political_noise):
             continue
-        if l_strip.lower() in ["home", "menu", "search", "skip navigation", "terms of use", "privacy policy", "cookie policy", "legal", "careers"]:
+        if l_strip.lower() in ["home", "menu", "search", "skip navigation", "skip to content", "terms of use", "privacy policy", "cookie policy", "legal", "careers"]:
             continue
         if len(l_strip) < 40 and l_strip in seen:
             continue
         seen.add(l_strip)
         cleaned_lines.append(line)
+
     text = "\n".join(cleaned_lines)
-    # 7. Collapse multi-newline whitespace
+    # 8. Collapse multi-newline whitespace
     text = re.sub(r'\n{3,}', '\n\n', text)
     return text.strip()
 
@@ -128,7 +154,6 @@ def _extract_research_phrase_matrix(raw_objective: str) -> Dict[str, Any]:
     primary = raw_topic.split(" and ")[0].strip() if " and " in raw_topic else raw_topic
     primary = primary.strip(' .\'\":;?“”')
     if len(primary) > 30:
-        # Fallback if primary is still sentence-long
         primary = "sovereign ai"
     
     secondary = []
@@ -161,7 +186,10 @@ def _sanitize_url(raw_url: str) -> str:
     static_extensions = ('.css', '.js', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.woff', '.woff2', '.ttf', '.eot')
     if any(clean_lower.endswith(ext) for ext in static_extensions):
         return ""
-    serp_domains = ['r.bing.com', 'th.bing.com', 'google.com/gb', 'google.com/search', 'google.com/sorry', 'bing.com/search', 'duckduckgo.com/sorry']
+    serp_domains = [
+        'r.bing.com', 'th.bing.com', 'google.com/gb', 'google.com/search', 'google.com/sorry',
+        'bing.com/search', 'duckduckgo.com/sorry', 'list_of_sovereign_states', 'sovereign_state'
+    ]
     if any(domain in clean_lower for domain in serp_domains):
         return ""
     return clean
@@ -454,8 +482,8 @@ class DeepResearchHarvestAdapter(Adapter):
 
                     # DOM Container Exclusions & Main Body Isolation
                     excluded_tags_list = ['nav', 'footer', 'header', 'aside', 'form', 'script', 'style', 'noscript', 'iframe']
-                    excluded_selectors = "aside, nav, footer, header, .sidebar, .trending, .skybox, .recommended, .related-posts, .ad-wrapper, .popup, .modal"
-                    css_selector_body = "main, article, #content, .content, .post-content"
+                    excluded_selectors = "aside, nav, footer, header, .sidebar, .trending, .skybox, .recommended, .related-posts, .ad-wrapper, .popup, .modal, .Header, .js-header-wrapper, .AppHeader, #vector-main-menu, #vector-toc, #p-lang-btn, .mw-portlet-lang, .navbox, .catlinks, .footer-navigation, .js-site-footer"
+                    css_selector_body = "article.markdown-body, #readme, .mw-parser-output, main, article, #content, .content, .post-content"
 
                     # Layer 2: Crawl4AI AI-Native Markdown Extraction
                     try:
