@@ -1085,21 +1085,35 @@ Schema:
             import re
             # Purge affective engine tags and markdown codeblocks
             res_clean = re.sub(r'<A_C>.*?</A_C>', '', res, flags=re.DOTALL).strip()
-            res_clean = re.sub(r'```(?:json)?', '', res_clean).strip()
+            res_clean = re.sub(r'```[a-z]*', '', res_clean).replace('```', '').strip()
             
-            # Extract inner JSON structure via regex
+            # Attempt 1: Direct json.loads
+            try:
+                parsed = json.loads(res_clean)
+                return {"steps": parsed} if isinstance(parsed, list) else parsed
+            except Exception:
+                pass
+
+            # Attempt 2: Candidate non-greedy JSON object extraction
+            candidates = re.findall(r'(\{[\s\S]*?\}|\[[\s\S]*?\])', res_clean)
+            for cand in candidates:
+                cand_clean = re.sub(r',\s*([\}\]])', r'\1', cand)
+                try:
+                    parsed = json.loads(cand_clean)
+                    return {"steps": parsed} if isinstance(parsed, list) else parsed
+                except Exception:
+                    continue
+
+            # Attempt 3: Truncate at last closing brace/bracket and parse
             match = re.search(r'(\{[\s\S]*\}|\[[\s\S]*\])', res_clean)
             if match:
                 json_str = match.group(0)
-                # Strip trailing commas before closing braces/brackets
                 json_str = re.sub(r',\s*([\}\]])', r'\1', json_str)
-                try:
-                    parsed = json.loads(json_str)
-                    if isinstance(parsed, list):
-                        return {"steps": parsed}
-                    return parsed
-                except json.JSONDecodeError:
-                    pass
+                last_brace = max(json_str.rfind('}'), json_str.rfind(']'))
+                if last_brace != -1:
+                    json_str = json_str[:last_brace+1]
+                parsed = json.loads(json_str)
+                return {"steps": parsed} if isinstance(parsed, list) else parsed
 
             parsed = json.loads(res_clean)
             if isinstance(parsed, list):
