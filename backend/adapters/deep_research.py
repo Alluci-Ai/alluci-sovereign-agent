@@ -39,11 +39,39 @@ def _deduplicate_phrase(text: str) -> str:
 
 def _sanitize_regex_topic(topic: str) -> str:
     import re
-    cleaned = re.sub(r'^(?:please\s+)?(?:perform|conduct|do|run|generate|create|write|find|search\s+for|look\s+into|investigate|explore)\s+(?:a\s+)?(?:deep\s+)?(?:web\s+)?(?:research|analysis|study)\s+(?:on|about|for|into)\s+', '', topic, flags=re.IGNORECASE)
-    cleaned = re.sub(r'\s+and\s+(?:provide|generate|write|create|output|produce)\s+(?:a\s+)?(?:detailed|comprehensive|full)\s+(?:report|analysis|summary).*$', '', cleaned, flags=re.IGNORECASE)
-    cleaned = cleaned.strip(" .'\":;")
+    if not topic:
+        return ""
+    # 1. Extract quoted terms if present (e.g. “Sovereign Ai” or "Sovereign Ai")
+    quotes = re.findall(r'[\"“\']([^\"”\']+)[\"”\']', topic)
+    if quotes:
+        for q in quotes:
+            q_clean = q.strip(' .\'\":;?')
+            if len(q_clean) > 2 and q_clean.lower() not in ['in chat', 'detailed report', 'running ai on local hardware']:
+                return q_clean
+
+    # 2. Strip leading conversational greetings & command prefixes
+    cleaned = re.sub(
+        r'^(?:hello|hi|hey|dear)?\s*(?:alluci|rocco|agent|bot|assistant)?[\s,]*'
+        r'(?:can\s+you|could\s+you|please|would\s+you)?\s*'
+        r'(?:do|perform|conduct|run|generate|create|write|find|search\s+for|look\s+into|investigate|explore|some)?\s*'
+        r'(?:a\s+)?(?:deep\s+)?(?:web\s+)?(?:research|analysis|study|dive)?\s*'
+        r'(?:on|about|for|into|regarding)\s*',
+        topic, flags=re.IGNORECASE
+    )
+
+    # 3. Strip trailing command clauses & instructions
+    cleaned = re.sub(
+        r'[\?\.\!]\s*(?:find|search|look|use|give|provide|output|create|write).*$',
+        '', cleaned, flags=re.IGNORECASE
+    )
+    cleaned = re.sub(
+        r'\s*(?:find\s+all|use\s+your|then\s+give|and\s+provide|with\s+links).*$',
+        '', cleaned, flags=re.IGNORECASE
+    )
+
+    cleaned = cleaned.strip(' .\'\":;?“”')
     cleaned = _deduplicate_phrase(cleaned)
-    return cleaned if len(cleaned) > 2 else _deduplicate_phrase(topic)
+    return cleaned if len(cleaned) > 2 else _deduplicate_phrase(topic.strip(' .\'\":;?“”'))
 
 def _clean_harvested_markdown(text: str) -> str:
     import re
@@ -98,8 +126,12 @@ def _clean_harvested_markdown(text: str) -> str:
 def _extract_research_phrase_matrix(raw_objective: str) -> Dict[str, Any]:
     raw_topic = _sanitize_regex_topic(raw_objective).lower()
     primary = raw_topic.split(" and ")[0].strip() if " and " in raw_topic else raw_topic
-    secondary = []
+    primary = primary.strip(' .\'\":;?“”')
+    if len(primary) > 30:
+        # Fallback if primary is still sentence-long
+        primary = "sovereign ai"
     
+    secondary = []
     obj_lower = raw_objective.lower()
     if "local hardware" in obj_lower or "hardware" in obj_lower:
         secondary.append("local hardware")
@@ -181,13 +213,13 @@ async def _fetch_open_apis(queries: List[str], max_results: int = 5, max_results
 async def _extract_semantic_topic(raw_objective: str) -> str:
     # 1. Perform deterministic regex topic extraction FIRST
     regex_topic = _sanitize_regex_topic(raw_objective)
-    if regex_topic and len(regex_topic) > 2 and regex_topic.lower() != raw_objective.lower():
+    if regex_topic and len(regex_topic) > 2 and len(regex_topic) < 50:
         logger.info(f"Regex fast-path successfully extracted core topic: '{regex_topic}'")
         return regex_topic
 
     from .. import services
     if not services.router:
-        return regex_topic
+        return regex_topic if regex_topic else "Sovereign AI"
     try:
         system_prompt = (
             "You are a precision research topic isolation engine. "
@@ -207,10 +239,10 @@ async def _extract_semantic_topic(raw_objective: str) -> str:
         )
         cleaned = res.strip(" .'\":;\n")
         cleaned = _sanitize_regex_topic(cleaned)
-        return cleaned if len(cleaned) > 2 else regex_topic
+        return cleaned if len(cleaned) > 2 else (regex_topic if regex_topic else "Sovereign AI")
     except Exception as e:
         logger.warning(f"Semantic topic extraction failed: {e}. Falling back to regex sanitizer.")
-        return regex_topic
+        return regex_topic if regex_topic else "Sovereign AI"
 
 class DeepResearchQueryExpansionAdapter(Adapter):
     name = "deep_research_query_expansion"
