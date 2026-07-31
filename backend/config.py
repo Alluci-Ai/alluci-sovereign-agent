@@ -58,6 +58,7 @@ class InferenceSettings(BaseModel):
     GEMINI_API_KEY: Optional[str] = None
     OPENAI_API_KEY: Optional[str] = None
     ANTHROPIC_API_KEY: Optional[str] = None
+    TOKENROUTER_API_KEY: Optional[str] = None
 
 class RuntimeSettings(BaseModel):
     APP_ENV: str = "development"
@@ -95,6 +96,7 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: Optional[str] = None
     OPENAI_API_KEY: Optional[str] = None
     ANTHROPIC_API_KEY: Optional[str] = None
+    TOKENROUTER_API_KEY: Optional[str] = None
     LOCAL_LCE_URL: str = "http://localhost:8000"
     LOCAL_MODEL_MAX: str = "alluci-polytope-gemma-4-31b-it-bf16"
     LOCAL_MODEL_STRONG: str = "alluci-polytope-gemma-4-31b-it-8bit"
@@ -118,14 +120,14 @@ class Settings(BaseSettings):
     MAX_CONCURRENT_TASKS: int = 5
     MAX_CONCURRENCY: int = 5  # Controls inference concurrency, can be overridden via env var
     MAX_AUTONOMY_RETRIES: int = 3
-    TASK_TIMEOUT_SECONDS: float = 3600.0  # Configurable task execution timeout in seconds
+    TASK_TIMEOUT_SECONDS: float = 14400.0  # Configurable task execution timeout in seconds (4 hours)
     CRITIC_THRESHOLD: float = 0.75
     HEARTBEAT_INTERVAL: int = 30
     
     # Tandem Deep Research Pipeline
     SEARXNG_URL: str = "http://localhost:8080"
     RESEARCH_MAX_RESULTS_PER_QUERY: int = 5
-    RESEARCH_MAX_CONSOLIDATED_CHUNKS: int = 8
+    RESEARCH_MAX_CONSOLIDATED_CHUNKS: int = 4
     CRAWL4AI_HEADLESS: bool = True
     
     # Verus Core

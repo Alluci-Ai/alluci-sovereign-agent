@@ -68,7 +68,7 @@ class FinancialCircuitBreaker:
     
     # Defaults
     MAX_VERUS_SPEND_PER_DAY = 10.0 # 10 VRSCTEST
-    MAX_LLM_API_COST_PER_DAY = 5.0 # $5.00 USD
+    MAX_LLM_API_COST_PER_DAY = 25.0 # $25.00 USD
     
     def __new__(cls):
         if cls._instance is None:

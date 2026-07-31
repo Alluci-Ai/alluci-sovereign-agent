@@ -18,7 +18,17 @@ class Planner:
         """
         Generates a valid DAG from the objective, influenced by the Soul's context and skills.
         """
-        if mode == "research":
+        if mode == "research_recon":
+            steps = [
+                {
+                    "id": "task_research_1",
+                    "tool": "deep_research_query_expansion",
+                    "description": "Reconnaissance Phase 0: Expand queries and gather URLs for deep research",
+                    "dependencies": [],
+                    "assignee": agent_id
+                }
+            ]
+        elif mode == "research" or mode == "research_execute":
             steps = [
                 {
                     "id": "task_research_1",

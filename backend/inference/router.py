@@ -164,6 +164,18 @@ class ModelRouter(ExecutiveRouter):
         else:
             logger.debug("OpenRouter API key missing; OpenRouter provider disabled.")
 
+        # Cloud Provider: Token Router (Kimi 3)
+        self.tokenrouter_client = None
+        tr_key = getattr(settings, "TOKENROUTER_API_KEY", None)
+        if not sovereign and OPENAI_AVAILABLE and tr_key:
+            self.tokenrouter_client = openai.AsyncOpenAI(
+                api_key=tr_key,
+                base_url="https://api.tokenrouter.com/v1"
+            )
+            self.logger.info("Token Router Kimi 3 client ready (Reasoning & Language).")
+        else:
+            logger.debug("Token Router API key missing; Token Router provider disabled.")
+
         # Cloud failovers 6–8: Together, Cohere, Bedrock
         self.together_client = None
         if not sovereign and OPENAI_AVAILABLE and getattr(settings, "TOGETHER_API_KEY", None):
@@ -237,9 +249,11 @@ class ModelRouter(ExecutiveRouter):
 
 
 
-    async def _lce_request(self, prompt: str, system_instruction: str = "", tools: Optional[list] = None, agent_id: str = "executive") -> str:
+    async def _lce_request(self, prompt: str, system_instruction: str = "", tools: Optional[list] = None, agent_id: str = "executive", max_tokens: Optional[int] = None) -> str:
         """Local Cognitive Engine via OS-Agnostic Abstraction."""
         await cognitive_engine.apply_lora_adapter(agent_id)
+        if max_tokens:
+            return await cognitive_engine.generate(prompt, system_instruction=system_instruction, max_tokens=max_tokens, tools=tools)
         return await cognitive_engine.generate(prompt, system_instruction=system_instruction, tools=tools)
 
     async def pre_load_model(self) -> None:
@@ -291,7 +305,7 @@ class ModelRouter(ExecutiveRouter):
 
     @retry(reraise=True, stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10), retry=retry_if_exception_type((httpx.HTTPError, Exception)))
     async def _gemini_request(self, prompt: str, use_pro: bool = False, json_mode: bool = False, system_instruction: str = "", session_id: Optional[str] = None,
-        tools: Optional[list] = None, model_override: Optional[str] = None) -> str:
+        tools: Optional[list] = None, model_override: Optional[str] = None, max_tokens: Optional[int] = None) -> str:
         """Cloud Failover 1: Gemini."""
 
         model = self.gemini_pro if use_pro else self.gemini_flash
@@ -300,7 +314,9 @@ class ModelRouter(ExecutiveRouter):
         
         generation_config = {}
         if json_mode:
-            generation_config = {"response_mime_type": "application/json"}
+            generation_config["response_mime_type"] = "application/json"
+        if max_tokens:
+            generation_config["max_output_tokens"] = max_tokens
         
         # Inject system instruction if present
         if system_instruction:
@@ -333,7 +349,7 @@ class ModelRouter(ExecutiveRouter):
 
     @retry(reraise=True, stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10), retry=retry_if_exception_type((httpx.HTTPError, Exception)))
     async def _openai_request(self, prompt: str, use_strong: bool = False, json_mode: bool = False, system_instruction: str = "", session_id: Optional[str] = None,
-        tools: Optional[list] = None, model_override: Optional[str] = None) -> str:
+        tools: Optional[list] = None, model_override: Optional[str] = None, max_tokens: Optional[int] = None) -> str:
         """Cloud Failover 2: OpenAI."""
         if not self.openai_client:
             raise RuntimeError("OpenAI not configured")
@@ -361,6 +377,8 @@ class ModelRouter(ExecutiveRouter):
             "model": model,
             "messages": messages,
         }
+        if max_tokens:
+            kwargs["max_tokens"] = max_tokens
         if json_mode:
             kwargs["response_format"] = {"type": "json_object"}
         response = await self.openai_client.chat.completions.create(**kwargs)
@@ -451,6 +469,31 @@ class ModelRouter(ExecutiveRouter):
             response.raise_for_status()
             data = response.json()
             return data["choices"][0]["message"]["content"]
+
+    @retry(reraise=True, stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10), retry=retry_if_exception_type((httpx.HTTPError, Exception)))
+    async def _tokenrouter_request(self, prompt: str, model: str = "moonshotai/kimi-k3-free", system_instruction: str = "") -> str:
+        """Token Router Kimi 3 API provider request."""
+        if not self.tokenrouter_client:
+            raise RuntimeError("Token Router Kimi 3 not configured")
+        
+        messages = []
+        if system_instruction:
+            messages.append({"role": "system", "content": system_instruction})
+        messages.append({"role": "user", "content": prompt})
+
+        stream = await self.tokenrouter_client.chat.completions.create(
+            model=model,
+            messages=messages,
+            stream=True,
+            stream_options={"include_usage": True}
+        )
+        content_parts = []
+        async for chunk in stream:
+            if chunk.choices:
+                delta = chunk.choices[0].delta
+                if delta and delta.content:
+                    content_parts.append(delta.content)
+        return "".join(content_parts)
 
     @retry(reraise=True, stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10), retry=retry_if_exception_type((httpx.HTTPError, Exception)))
     async def _cohere_request(self, prompt: str, use_strong: bool = False, system_instruction: str = "") -> str:
@@ -671,7 +714,8 @@ class ModelRouter(ExecutiveRouter):
         inference_mode: Literal["LOCAL", "CLOUD", "TACTICAL", "HYBRID"] = "HYBRID",
         session_id: Optional[str] = None,
         tools: Optional[list] = None,
-        agent_id: str = "executive"
+        agent_id: str = "executive",
+        max_tokens: Optional[int] = None
     ) -> str:
         """
         **Security Guarantee:** Enforces the `AlluciSecureProxy` for cloud egress and 
@@ -875,14 +919,14 @@ class ModelRouter(ExecutiveRouter):
                 # Gemini Failover (Vault-aware lazy loading)
                 if GEMINI_AVAILABLE and self.gemini_flash:
                     if not allowed_llms or "googleCloud" in allowed_llms:
-                        cloud_sequence.append(("Gemini", lambda p: self._gemini_request(p, use_pro=use_strong, json_mode=json_mode, system_instruction=system_instruction, session_id=session_id)))
+                        cloud_sequence.append(("Gemini", lambda p: self._gemini_request(p, use_pro=use_strong, json_mode=json_mode, system_instruction=system_instruction, session_id=session_id, max_tokens=max_tokens)))
                     else:
                         _trigger_intervention("Google Cloud")
                 
                 # OpenAI Failover
                 if OPENAI_AVAILABLE and self.openai_client:
                     if not allowed_llms or "openai" in allowed_llms:
-                        cloud_sequence.append(("OpenAI", lambda p: self._openai_request(p, use_strong=use_strong, json_mode=json_mode, system_instruction=system_instruction, session_id=session_id)))
+                        cloud_sequence.append(("OpenAI", lambda p: self._openai_request(p, use_strong=use_strong, json_mode=json_mode, system_instruction=system_instruction, session_id=session_id, max_tokens=max_tokens)))
                     else:
                         _trigger_intervention("OpenAI")
                 

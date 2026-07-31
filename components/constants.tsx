@@ -7,7 +7,8 @@ export const KNOWN_PROVIDERS = {
         { id: 'anthropic', label: 'Anthropic' },
         { id: 'googleCloud', label: 'Google Cloud' },
         { id: 'groq', label: 'Groq' },
-        { id: 'deepseek', label: 'DeepSeek' }
+        { id: 'deepseek', label: 'DeepSeek' },
+        { id: 'tokenrouter', label: 'Token Router (Kimi 3)' }
     ],
     audio: [
         { id: 'openaiRealtime', label: 'OpenAI Realtime API' },
@@ -54,6 +55,7 @@ export const validateApiKey = (provider: string, key: string): boolean => {
         case 'anthropic': return k.startsWith('sk-ant');
         case 'groq': return k.startsWith('gsk_');
         case 'deepseek': return k.startsWith('sk-');
+        case 'tokenrouter': return k.startsWith('sk-');
         case 'retellAi': return k.startsWith('key_');
         case 'falAi': return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(k) || k.startsWith('key-');
         case 'runway': return k.startsWith('runway_') || k.length > 25;

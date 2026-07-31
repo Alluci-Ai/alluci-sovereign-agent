@@ -218,13 +218,17 @@ export const AgentDetailTabs: React.FC<AgentDetailProps> = ({ agentId, onBack })
                                         onChange={e => setAgent({ ...agent, model: e.target.value })}
                                     >
                                         <option value="">Select Engine...</option>
-                                        {['Local', 'API', 'Open'].map(cat => (
-                                            <optgroup key={cat} label={cat}>
-                                                {availableModels.filter(m => m.category === cat).map(m => (
-                                                    <option key={m.id} value={m.id}>{m.name}</option>
-                                                ))}
-                                            </optgroup>
-                                        ))}
+                                        {Array.from(new Set([...availableModels.map(m => m.category || 'API'), 'Local', 'API', 'Token Router', 'Open'])).filter(Boolean).map(cat => {
+                                            const catModels = availableModels.filter(m => (m.category || 'API') === cat);
+                                            if (catModels.length === 0) return null;
+                                            return (
+                                                <optgroup key={cat} label={cat}>
+                                                    {catModels.map(m => (
+                                                        <option key={m.id} value={m.id}>{m.name}</option>
+                                                    ))}
+                                                </optgroup>
+                                            );
+                                        })}
                                     </select>
                                     <div className="mt-3 bg-glass-2 border border-glass-edge rounded-lg p-2 flex items-center justify-between">
                                         <div className="flex flex-col">
@@ -281,13 +285,17 @@ export const AgentDetailTabs: React.FC<AgentDetailProps> = ({ agentId, onBack })
                                             }}
                                         >
                                             <option value="">+ Add Fallback Model</option>
-                                            {['Local', 'API', 'Open'].map(cat => (
-                                                <optgroup key={cat} label={cat}>
-                                                    {availableModels.filter(m => m.category === cat).map(m => (
-                                                        <option key={m.id} value={m.id}>{m.name}</option>
-                                                    ))}
-                                                </optgroup>
-                                            ))}
+                                            {Array.from(new Set([...availableModels.map(m => m.category || 'API'), 'Local', 'API', 'Token Router', 'Open'])).filter(Boolean).map(cat => {
+                                                const catModels = availableModels.filter(m => (m.category || 'API') === cat);
+                                                if (catModels.length === 0) return null;
+                                                return (
+                                                    <optgroup key={cat} label={cat}>
+                                                        {catModels.map(m => (
+                                                            <option key={m.id} value={m.id}>{m.name}</option>
+                                                        ))}
+                                                    </optgroup>
+                                                );
+                                            })}
                                         </select>
                                     </div>
                                 </div>

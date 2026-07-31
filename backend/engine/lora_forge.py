@@ -33,7 +33,7 @@ class VRAMHypervisor:
             del tokenizer
         gc.collect()
         if mx is not None:
-            mx.metal.clear_cache()
+            mx.clear_cache()
 
 class ExperienceReplayBuffer:
     """

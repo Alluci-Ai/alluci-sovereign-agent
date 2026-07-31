@@ -180,10 +180,14 @@ class Executor:
                 
                 while True:
                     try:
-                        # Execute with Timeout
+                        # Execute with Timeout (Dynamic Scaling for Deep Research Evaluation)
+                        task_timeout_limit = self.task_timeout
+                        if task.action and (task.action == "deep_research_evaluate" or task.action.startswith("deep_research")):
+                            task_timeout_limit = max(self.task_timeout, 7200.0)
+
                         result = await asyncio.wait_for(
                             self._execute_adapter(task.action, task.args, task.id),
-                            timeout=self.task_timeout
+                            timeout=task_timeout_limit
                         )
                         
                         task.result = str(result)

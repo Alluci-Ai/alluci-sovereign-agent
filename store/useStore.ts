@@ -349,7 +349,7 @@ export const useStore = create<AppState>((set, get) => ({
 
     // API & Security
     apiKeys: {
-        llm: { openai: '', anthropic: '', googleCloud: '', groq: '', deepseek: '' },
+        llm: { openai: '', anthropic: '', googleCloud: '', groq: '', deepseek: '', tokenrouter: '' },
         audio: { openaiRealtime: '', elevenLabsAgents: '', retellAi: '', inworldAi: '' },
         music: { suno: '', elevenLabsMusic: '', stableAudio: '', soundverse: '', udio: '', googleLyria: '' },
         image: { openaiDalle: '', falAi: '', midjourney: '', adobeFirefly: '', googleNanoBanana: '', seedance: '' },

@@ -103,3 +103,22 @@ class HardwareScanner:
         deduped = [x for x in chain if not (x in seen or seen.add(x))]
         
         return ",".join(deduped)
+
+    @staticmethod
+    def get_optimal_max_tokens(context_size: int = 0) -> int:
+        """
+        Dynamically calculates the safe maximum output token budget for the LLM
+        based on available system RAM/VRAM to prevent OOM errors.
+        """
+        try:
+            import psutil
+            available_ram_gb = psutil.virtual_memory().available / (1024**3)
+        except ImportError:
+            available_ram_gb = 16.0  # Safe default if psutil is missing
+            
+        if available_ram_gb > 64:
+            return 16384
+        elif available_ram_gb > 32:
+            return 8192
+        else:
+            return 4096

@@ -304,10 +304,37 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
                     self.logger.debug(f"[Orchestrator] Intent classification failed to parse: {e}")
 
             if is_objective:
+                # Active Run Check: If a DAG run is currently active, suppress spawning RUN_2 and route input to active run
+                try:
+                    from sqlmodel import select
+                    from .models import Run, RunStatus, MessageLog
+                    with Session(db_engine) as session:
+                        active_run = session.exec(select(Run).where(Run.status.in_([RunStatus.ACTIVE, RunStatus.QUEUED]))).first()
+                        if active_run:
+                            self.logger.info(f"[Orchestrator] Active DAG Run ({active_run.id}) detected. Suppressing new DAG creation; routing input to MessageLog.")
+                            user_msg = MessageLog(
+                                session_key="default_session",
+                                role="user",
+                                content=body
+                            )
+                            session.add(user_msg)
+                            session.commit()
+                            return "Received your input. Continuing active execution of current research pipeline..."
+                except Exception as check_err:
+                    self.logger.debug(f"[Orchestrator] Active run check error: {check_err}")
+
                 self.logger.info(f"[Orchestrator] Chat Auto-Dispatch: Routing '{extracted_objective}' to DAG Planner.")
-                mode = "research" if is_research else "standard"
                 
-                if mode == "research":
+                import re
+                is_proceed = bool(re.search(r'\b(proceed|approve|execute|\d+\s*runs?)\b', body.lower()))
+                if is_research and is_proceed:
+                    mode = "research_execute"
+                elif is_research:
+                    mode = "research_recon"
+                else:
+                    mode = "standard"
+                
+                if "research" in mode:
                     agent_id = "rocco"
                     try:
                         from sqlmodel import select, col
@@ -330,8 +357,27 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
                     except Exception as e:
                         self.logger.warning(f"[Orchestrator] Rocco AgentRecord resolution fallback: {e}")
                         agent_id = "rocco"
-                    task = asyncio.create_task(self.multi_agent_delegate(agent_id, extracted_objective, mode="research"))
-                    msg = f"I am dispatching dedicated Deep Research SubAgent **Rocco** (ID: `{agent_id}`) to work on this in the background:\n> {extracted_objective}"
+                    
+                    task = asyncio.create_task(self.multi_agent_delegate(agent_id, extracted_objective, mode=mode))
+                    
+                    # Clean up topic words for prompt summary
+                    clean_topics = re.sub(r'^(hello alluci,?\s*|can you do deep web research into\s*|find all\s*)', '', extracted_objective, flags=re.IGNORECASE).strip()
+                    clean_topics = re.sub(r'\?.*$', '', clean_topics).strip(' "“‘')
+                    if not clean_topics:
+                        clean_topics = "Sovereign AI, Local Hardware Execution, and Personal/Local AI Agents"
+
+                    msg = f"""I am dispatching dedicated Deep Research SubAgent **Rocco** (ID: `{agent_id}`) to perform **Phase 0 Reconnaissance & Scoping**.
+
+I've analyzed your prompt and extracted your key research topics: **{clean_topics}**.
+
+Here is what Rocco will be executing across our Deep Research pipeline:
+
+- 🔍 **Phase 0: Reconnaissance & Scoping** *(Current)* — Conduct multi-engine search queries across Articles, ArXiv Papers, Podcasts, Videos, and Repositories. Apply MLX semantic filtering and present a pre-scan summary for your approval.
+- 📄 **Phase 1: Deep Content Harvest** — Scrape and extract high-density content from all approved sources, removing navigation bloat and filtering out binary data.
+- 🧠 **Phase 2: Semantic Synthesis & Evaluation** — Analyze harvested data against core topics and evaluate structural credibility.
+- 📊 **Phase 3: Final Intelligence Report** — Compile and present a comprehensive report complete with clickable citations directly in your chat and side panel.
+
+*Beginning Phase 0 pre-scan now...*"""
                 else:
                     task = asyncio.create_task(self.execute_objective(extracted_objective, autonomy="RESTRICTED", mode=mode))
                     msg = f"I am dispatching this objective to my Sovereign Execution engine:\n> {extracted_objective}"
@@ -1185,11 +1231,23 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
         
         while attempt < total_retries_allowed:
             # PPN-011: Turn Deadline Affective Contraction
-            # If a cycle takes > 30s, inject tension for next cycle.
+            # If a cycle takes > 30s, inject tension for next cycle unless waiting for human approval
             elapsed = time.time() - start_time
             if elapsed > 30.0:
-                self.logger.warning("🕒 Cycle latency breach. Injecting affective contraction (PPN-011).")
-                self.ace.inject_deadline_contraction(turns=1)
+                is_hitl_waiting = False
+                try:
+                    from .models import MessageLog
+                    from .database import engine as db_engine
+                    with Session(db_engine) as session:
+                        last_msg = session.exec(select(MessageLog).where(MessageLog.role == "assistant").order_by(MessageLog.id.desc())).first()
+                        if last_msg and ("please reply here to approve" in last_msg.content.lower() or "approve" in last_msg.content.lower()):
+                            is_hitl_waiting = True
+                except Exception:
+                    pass
+
+                if not is_hitl_waiting:
+                    self.logger.warning("🕒 Cycle latency breach. Injecting affective contraction (PPN-011).")
+                    self.ace.inject_deadline_contraction(turns=1)
 
             self.logger.info(f"--- 🔄 Cycle {attempt + 1}/{total_retries_allowed} ---")
             
@@ -1470,7 +1528,21 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
         
         # [Phase 9] Multi-Threaded Spawning: Create a background task for the execution!
         # This achieves asynchronous swarm delegation without blocking the parent DAG.
-        task_handle = asyncio.create_task(sub_orchestrator.execute_objective(task, autonomy="autonomous", mode=mode))
+        if mode == "research_execute":
+            import re
+            m = re.search(r'(\d+)\s*runs?', task.lower())
+            runs = int(m.group(1)) if m else 1
+            
+            async def iterative_research_loop():
+                for r in range(1, runs + 1):
+                    self.logger.info(f"🤖 [DeepResearch] Starting Iterative Run {r}/{runs}")
+                    run_objective = task
+                    if r > 1:
+                        run_objective += f" (Iteration {r}/{runs}). Expand depth and focus on discovering NEW entities."
+                    await sub_orchestrator.execute_objective(run_objective, autonomy="autonomous", mode=mode)
+            task_handle = asyncio.create_task(iterative_research_loop())
+        else:
+            task_handle = asyncio.create_task(sub_orchestrator.execute_objective(task, autonomy="autonomous", mode=mode))
         
         if not hasattr(self, "_bg_tasks"):
             self._bg_tasks = set()

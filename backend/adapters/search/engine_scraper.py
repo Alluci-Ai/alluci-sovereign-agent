@@ -9,7 +9,7 @@ from duckduckgo_search import DDGS
 logger = logging.getLogger("NativeMultiEngineScraper")
 
 STATIC_ASSET_EXTENSIONS = ('.css', '.js', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.woff', '.woff2', '.ttf', '.eot')
-EXCLUDED_DOMAINS = ('r.bing.com', 'th.bing.com', 'google.com', 'bing.com', 'microsoft.com', 'duckduckgo.com', 'youtube.com/watch')
+EXCLUDED_DOMAINS = ('r.bing.com', 'th.bing.com', 'google.com', 'bing.com', 'microsoft.com', 'duckduckgo.com')
 
 class NativeMultiEngineScraper:
     """
@@ -29,8 +29,9 @@ class NativeMultiEngineScraper:
             return False
         return True
 
-    def _fetch_stealth_search_urls(self, queries: List[str], max_results_per_query: int = 5) -> List[str]:
+    def _fetch_stealth_search_urls(self, queries: List[str], max_results_per_query: int = 5) -> List[tuple]:
         found_urls = set()
+        stealth_results = []
         try:
             from scrapling.fetchers import StealthyFetcher
             for q in queries:
@@ -38,14 +39,15 @@ class NativeMultiEngineScraper:
                 try:
                     target_url = f"https://www.google.com/search?q={urllib.parse.quote(q)}"
                     page = StealthyFetcher.fetch(target_url, headless=True)
-                    if page and page.text:
-                        soup = BeautifulSoup(page.text, "html.parser")
+                    if page and page.body:
+                        soup = BeautifulSoup(page.body, "html.parser")
                         for a in soup.find_all('a', href=True):
                             href = a['href']
                             if href.startswith("/url?q="):
                                 href = urllib.parse.parse_qs(urllib.parse.urlparse(href).query).get('q', [''])[0]
-                            if self._is_valid_organic_url(href):
+                            if self._is_valid_organic_url(href) and href not in found_urls:
                                 found_urls.add(href)
+                                stealth_results.append((href, a.text.strip()[:200]))
                 except Exception as ge:
                     logger.warning(f"Stealth Google search error for '{q}': {ge}")
 
@@ -53,21 +55,34 @@ class NativeMultiEngineScraper:
                 try:
                     target_url = f"https://www.bing.com/search?q={urllib.parse.quote(q)}"
                     page = StealthyFetcher.fetch(target_url, headless=True)
-                    if page and page.text:
-                        soup = BeautifulSoup(page.text, "html.parser")
-                        for link in soup.select("li.b_algo h2 a, li.b_algo a"):
+                    if page and page.body:
+                        soup = BeautifulSoup(page.body, "html.parser")
+                        for link in soup.find_all("a", href=True):
                             href = link.get("href")
-                            if href and self._is_valid_organic_url(href):
+                            if href and "bing.com/ck/a" in href:
+                                u_param = urllib.parse.parse_qs(urllib.parse.urlparse(href).query).get('u', [''])[0]
+                                if u_param.startswith('a1'):
+                                    try:
+                                        import base64
+                                        # Add padding to base64 if needed
+                                        b64_str = u_param[2:]
+                                        b64_str += "=" * ((4 - len(b64_str) % 4) % 4)
+                                        href = base64.b64decode(b64_str).decode('utf-8', errors='ignore')
+                                    except Exception:
+                                        pass
+                            if href and self._is_valid_organic_url(href) and href not in found_urls:
                                 found_urls.add(href)
+                                stealth_results.append((href, link.text.strip()[:200]))
                 except Exception as be:
                     logger.warning(f"Stealth Bing search error for '{q}': {be}")
         except Exception as se:
             logger.warning(f"Scrapling fetcher import/execution notice: {se}")
 
-        return list(found_urls)
+        return stealth_results
 
     async def search(self, queries: List[str], max_results_per_query: int = 5) -> Dict[str, Any]:
         urls = set()
+        detailed_results = []
 
         # 1. Primary Engine: DDGS
         def _sync_ddg_search(search_queries):
@@ -78,29 +93,36 @@ class NativeMultiEngineScraper:
                         results = list(ddgs.text(q, max_results=max_results_per_query))
                         for r in results:
                             href = r.get('href') or r.get('url') or r.get('link')
+                            title = r.get('title', '')
                             if href and self._is_valid_organic_url(href):
-                                ddg_urls.append(href)
+                                ddg_urls.append((href, title))
                     except Exception as e:
                         logger.warning(f"Native DDGS warning for query '{q}': {e}")
             return ddg_urls
 
         try:
             ddg_results = await asyncio.to_thread(_sync_ddg_search, queries)
-            for u in ddg_results:
-                urls.add(u)
+            for u, t in ddg_results:
+                if u not in urls:
+                    urls.add(u)
+                    detailed_results.append({"url": u, "title": t})
         except Exception as e:
             logger.warning(f"DDGS thread execution error: {e}")
 
         # 2. Parallel Secondary Engine: Scrapling Stealth Search for Google & Bing
         try:
             stealth_urls = await asyncio.to_thread(self._fetch_stealth_search_urls, queries, max_results_per_query)
-            for u in stealth_urls:
-                urls.add(u)
+            print(f"DEBUG: stealth_urls = {stealth_urls}")
+            for u, t in stealth_urls:
+                if u not in urls:
+                    urls.add(u)
+                    detailed_results.append({"url": u, "title": t})
         except Exception as e:
             logger.warning(f"Stealth search execution error: {e}")
 
         return {
             "status": "success",
             "queries": queries,
-            "urls": list(urls)
+            "urls": list(urls),
+            "results": detailed_results
         }

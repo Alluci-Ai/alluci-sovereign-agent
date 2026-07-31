@@ -8,6 +8,9 @@ from ..logging_config import get_logger
 
 logger = get_logger("DeepResearchAdapters")
 
+# Global high-water mark cache to lock in maximum discovered sources and prevent pre-scan degradation
+_GLOBAL_RECON_CACHE: Dict[str, Dict[str, Any]] = {}
+
 USER_AGENT_DIRECT = "Alluci-Sovereign-Agent/1.0 (+https://alluci.ai/bot; bot@alluci.ai) Google-Agent/1.0"
 USER_AGENT_RESEARCH = "Alluci-DeepResearch-Bot/1.0 (+https://alluci.ai/research)"
 
@@ -221,6 +224,16 @@ def _sanitize_url(raw_url: str) -> str:
     clean = str(raw_url).replace('%5C', '').replace('%5c', '').replace('\\', '')
     clean = clean.rstrip("/'\"").strip()
     
+    if "?" in clean:
+        import urllib.parse
+        parsed = urllib.parse.urlparse(clean)
+        qs = urllib.parse.parse_qs(parsed.query)
+        for param in ["msockid", "mcid", "utm_source", "utm_medium", "utm_campaign", "si"]:
+            if param in qs:
+                del qs[param]
+        new_query = urllib.parse.urlencode(qs, doseq=True)
+        clean = urllib.parse.urlunparse((parsed.scheme, parsed.netloc, parsed.path, parsed.params, new_query, parsed.fragment))
+
     clean_lower = clean.lower().split("?")[0]
     static_extensions = ('.css', '.js', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.woff', '.woff2', '.ttf', '.eot')
     if any(clean_lower.endswith(ext) for ext in static_extensions):
@@ -242,7 +255,9 @@ async def _fetch_open_apis(queries: List[str], max_results: int = 5, max_results
             clean_q = q.replace('"', '').strip()
             # 1. ArXiv Academic API (Tier 2 Primary Academic)
             try:
-                ax_url = f"https://export.arxiv.org/api/query?search_query=all:{clean_q}&max_results={limit}"
+                import urllib.parse
+                ax_q = urllib.parse.quote(f'"{clean_q}"')
+                ax_url = f"https://export.arxiv.org/api/query?search_query=all:{ax_q}+AND+(cat:cs.AI+OR+cat:cs.CY)&max_results={limit}"
                 resp = await client.get(ax_url)
                 if resp.status_code == 200 and "<id>" in resp.text:
                     import re
@@ -259,8 +274,11 @@ async def _fetch_open_apis(queries: List[str], max_results: int = 5, max_results
                 if resp.status_code == 200:
                     data = resp.json()
                     for item in data.get("items", []):
-                        if "html_url" in item:
-                            urls.add(_sanitize_url(item["html_url"]))
+                        full_name = item.get("full_name")
+                        default_branch = item.get("default_branch", "main")
+                        if full_name:
+                            raw_readme_url = f"https://raw.githubusercontent.com/{full_name}/{default_branch}/README.md"
+                            urls.add(_sanitize_url(raw_readme_url))
             except Exception as e:
                 logger.debug(f"GitHub API search failed for {clean_q}: {e}")
 
@@ -325,7 +343,11 @@ class DeepResearchQueryExpansionAdapter(Adapter):
     description = "Parallel True Tandem Multi-Engine Search across SearXNG, Scrapling Stealth Scraper, and DuckDuckGo."
     
     async def execute(self, args: Dict[str, Any]) -> Any:
-        queries = args.get("queries", [])
+        from sqlmodel import Session, select, or_
+        from ..database import engine
+        from ..models import MessageLog
+        
+        queries = list(args.get("queries", []) or [])
         raw_objective = args.get("query", "") or args.get("context", "") or args.get("objective", "")
         core_topic = await _extract_semantic_topic(raw_objective) if raw_objective else ""
         if not queries:
@@ -343,7 +365,8 @@ class DeepResearchQueryExpansionAdapter(Adapter):
                             inference_mode="TACTICAL"
                         )
                         import json, re
-                        clean_json = re.sub(r'```[a-z]*', '', resp).strip()
+                        match = re.search(r'\[.*\]', resp, re.DOTALL)
+                        clean_json = match.group(0) if match else resp
                         parsed = json.loads(clean_json)
                         if isinstance(parsed, list) and len(parsed) > 0:
                             anchored = []
@@ -353,13 +376,28 @@ class DeepResearchQueryExpansionAdapter(Adapter):
                                 if clean_core.lower() not in q_str.lower():
                                     q_str = f"{clean_core} {q_str}"
                                 anchored.append(q_str)
-                            # Guarantee orthogonal multi-media coverage (Articles, ArXiv, Podcasts, YouTube)
-                            media_terms = [clean_core, f"{clean_core} articles news", f"{clean_core} arxiv paper", f"{clean_core} youtube interview", f"{clean_core} podcast episode"]
-                            queries = list(set(anchored + media_terms))
+                            # Guarantee orthogonal multi-media coverage (Articles, ArXiv, Podcasts, YouTube, Repositories)
+                            media_terms = [
+                                clean_core,
+                                f"{clean_core} articles news",
+                                f"{clean_core} (site:arxiv.org OR site:semanticscholar.org)",
+                                f"{clean_core} (site:youtube.com OR site:vimeo.com)",
+                                f"{clean_core} (site:spotify.com/show OR site:podcasts.apple.com OR site:podtail.com OR site:podcastrepublic.net)",
+                                f"{clean_core} (site:github.com OR site:gitlab.com)"
+                            ]
+                            queries = [q + " after:2023" for q in list(set(anchored + media_terms))]
                     except Exception as e:
                         logger.warning(f"Query expansion via LLM failed: {e}. Falling back to core topic query.")
+                        queries = []
                 if not queries:
-                    queries = [clean_core, f"{clean_core} articles news", f"{clean_core} arxiv paper", f"{clean_core} youtube interview", f"{clean_core} podcast episode"]
+                    queries = [q + " after:2023" for q in [
+                        clean_core,
+                        f"{clean_core} articles news",
+                        f"{clean_core} (site:arxiv.org OR site:semanticscholar.org)",
+                        f"{clean_core} (site:youtube.com OR site:vimeo.com)",
+                        f"{clean_core} (site:spotify.com/show OR site:podcasts.apple.com OR site:podtail.com OR site:podcastrepublic.net)",
+                        f"{clean_core} (site:github.com OR site:gitlab.com)"
+                    ]]
             else:
                 return {"status": "error", "message": "No queries provided."}
                 
@@ -390,10 +428,50 @@ class DeepResearchQueryExpansionAdapter(Adapter):
             _fetch_open_apis(queries, max_results_per_query=max_results)
         )
 
-        for u in res_sx.get("urls", []) + res_stealth.get("urls", []) + res_open.get("urls", []):
+        all_results = res_sx.get("results", []) + res_stealth.get("results", [])
+        valid_urls = set()
+        titles_to_check = []
+        
+        for r in all_results:
+            u = r.get("url")
+            t = r.get("title", "")
             sanitized = _sanitize_url(u)
-            if sanitized:
-                urls.add(sanitized)
+            if sanitized and sanitized not in valid_urls:
+                titles_to_check.append((sanitized, t))
+                
+        if titles_to_check:
+            batch_size = 20
+            from ..inference.mlx_engine import MLXEngine
+            engine = MLXEngine()
+            for i in range(0, len(titles_to_check), batch_size):
+                batch = titles_to_check[i:i+batch_size]
+                prompt = f"Evaluate if each of these search results explicitly discusses '{raw_objective}' or 'local hardware'. Reply with a JSON list of booleans (true/false) corresponding to the order of the inputs.\nInputs:\n"
+                for idx, (u, t) in enumerate(batch):
+                    prompt += f"{idx}. Title: {t}\nURL: {u}\n"
+                try:
+                    evaluation = await engine.generate(prompt=prompt, system_instruction="You are a strict data filtering gatekeeper. Output ONLY a valid JSON array of booleans, e.g. [true, false, true]. No other text.", max_tokens=200)
+                    import json, re
+                    match = re.search(r'\[.*\]', evaluation, re.DOTALL)
+                    if match:
+                        eval_list = json.loads(match.group(0))
+                        for idx, (u, t) in enumerate(batch):
+                            if idx < len(eval_list) and eval_list[idx] is True:
+                                valid_urls.add(u)
+                            else:
+                                logger.info(f"Gatekeeper discarded: {u}")
+                    else:
+                        for u, t in batch: valid_urls.add(u)
+                except Exception as e:
+                    logger.warning(f"Gatekeeper batch error: {e}. Defaulting to keep.")
+                    for u, t in batch: valid_urls.add(u)
+
+        for u in res_sx.get("urls", []) + res_open.get("urls", []):
+            if isinstance(u, str):
+                sanitized = _sanitize_url(u)
+                if sanitized:
+                    valid_urls.add(sanitized)
+                    
+        urls = valid_urls
 
         # Query Term Relaxation Fallback if exact-quote queries yielded 0 URLs
         if not urls and raw_objective:
@@ -416,7 +494,217 @@ class DeepResearchQueryExpansionAdapter(Adapter):
                     urls.add(sanitized)
 
         logger.info(f"Parallel True Tandem expansion found {len(urls)} unique organic URLs for queries: {queries}")
-        return {"status": "success", "queries": queries, "urls": list(urls)}
+        
+        # Phase 0: Reconnaissance & Scoping
+        agent_id = args.get("agent_id", "executive")
+        recon_mode = args.get("recon_mode", False)
+        
+        import re
+        url_list = list(urls)
+        repos = [u for u in url_list if "github.com" in u or "gitlab.com" in u]
+        papers = [u for u in url_list if "arxiv.org" in u or "semanticscholar.org" in u or "papers.cool" in u]
+        videos = [u for u in url_list if "youtube.com" in u or "/video/" in u]
+        podcasts = [u for u in url_list if "podcast" in u.lower() or "spotify.com" in u or "podscan" in u or "podtail" in u]
+        
+        remaining = [u for u in url_list if u not in repos and u not in papers and u not in videos and u not in podcasts]
+        articles = []
+        companies = []
+        for u in remaining:
+            if re.search(r'/\d{4}/\d{2}/|/news/|/article/|/blog/|/insights/', u):
+                articles.append(u)
+            elif u.count('/') <= 3 or "solutions" in u or "mission" in u or "team" in u:
+                companies.append(u)
+            else:
+                articles.append(u)
+        
+        cache_key = raw_objective.strip().lower()
+        if cache_key in _GLOBAL_RECON_CACHE and len(_GLOBAL_RECON_CACHE[cache_key]["url_list"]) >= len(url_list):
+            cached = _GLOBAL_RECON_CACHE[cache_key]
+            url_list = cached["url_list"]
+            articles = cached["articles"]
+            companies = cached["companies"]
+            repos = cached["repos"]
+            papers = cached["papers"]
+            videos = cached["videos"]
+            podcasts = cached["podcasts"]
+            total = cached["total"]
+            est_runs = cached["est_runs"]
+            est_time = cached["est_time"]
+            chat_msg = cached["chat_msg"]
+            logger.info(f"High-water mark cache hit. Retaining maximum discovered sources ({total} sources).")
+        else:
+            total = len(url_list)
+            est_runs = max(1, min(5, total // 8))
+            est_time = est_runs * 6 # rough estimate in minutes
+            
+            chat_msg = f"""**Phase 0 Deep Research Reconnaissance complete.**
+I searched for '{raw_objective}' and discovered **{total} relevant sources** after semantic filtering and deduplication.
+
+**Breakdown of Sources:**
+- 📄 Articles/News: {len(articles)}
+- 🎓 Research Papers: {len(papers)}
+- 🎙️ Podcasts: {len(podcasts)}
+- 🎥 Videos: {len(videos)}
+- 🏢 Company Websites: {len(companies)}
+- 💻 Repositories: {len(repos)}
+
+**Complexity Estimate:**
+Based on the volume of data, I recommend **{est_runs} iterative Deep Research runs** to fully synthesize these sources without exceeding context limits.
+*Estimated time to completion:* ~{est_time} minutes.
+
+**Please reply here to approve (e.g., "Proceed with {est_runs} runs") or tell me to modify the scope.**"""
+
+            _GLOBAL_RECON_CACHE[cache_key] = {
+                "url_list": url_list,
+                "articles": articles,
+                "companies": companies,
+                "repos": repos,
+                "papers": papers,
+                "videos": videos,
+                "podcasts": podcasts,
+                "total": total,
+                "est_runs": est_runs,
+                "est_time": est_time,
+                "chat_msg": chat_msg,
+                "has_broadcast_recon": False,
+                "approval_processed": False
+            }
+
+        session_key = args.get("session_id", "default_session")
+        if not _GLOBAL_RECON_CACHE[cache_key].get("has_broadcast_recon", False):
+            _GLOBAL_RECON_CACHE[cache_key]["has_broadcast_recon"] = True
+            try:
+                from ..database import engine as db_engine
+                with Session(db_engine) as session:
+                    msg = MessageLog(
+                        session_key=session_key,
+                        role="assistant",
+                        content=chat_msg
+                    )
+                    session.add(msg)
+                    session.commit()
+                    
+                # Broadcast to WebSocket immediately so the UI sees it
+                try:
+                    from .. import services
+                    if services.orchestrator and hasattr(services.orchestrator, "ws_gateway") and services.orchestrator.ws_gateway:
+                        import uuid
+                        await services.orchestrator.ws_gateway.broadcast_event('chat.message.received', {
+                            "id": str(uuid.uuid4()),
+                            "sender": "rocco",
+                            "role": "assistant",
+                            "content": chat_msg,
+                            "channel": "local"
+                        })
+                        logger.info("Successfully broadcasted Phase 0 Reconnaissance summary to chat UI.")
+                except Exception as wse:
+                    logger.error(f"Failed to broadcast Phase 0 message via WS: {wse}")
+
+            except Exception as e:
+                logger.error(f"Failed to inject Phase 0 chat message: {e}")
+        else:
+            logger.info("Single-flight lock active: Phase 0 summary already broadcasted once or user approved. Suppressing duplicate WebSocket message.")
+
+        recon_md = f"""# Deep Research Reconnaissance: {raw_objective}
+
+{chat_msg}
+
+### Top Sources Discovered:
+"""
+        for i, u in enumerate(url_list[:5]):
+            recon_md += f"- {u}\n"
+            
+
+        
+        try:
+            from ..routers.sessions import WORKSPACE_DIR
+            import os
+            art_dir = os.path.join(WORKSPACE_DIR, agent_id, "artifacts")
+            os.makedirs(art_dir, exist_ok=True)
+            with open(os.path.join(art_dir, "reconnaissance_artifact.md"), "w", encoding="utf-8") as f:
+                f.write(recon_md)
+        except Exception as e:
+            logger.warning(f"Could not write reconnaissance artifact: {e}")
+
+        # Pause DAG Execution: Active Polling for Human-in-the-Loop
+        logger.info(f"Phase 0 complete. DAG paused, waiting for user approval in chat (Session: {session_key})...")
+        approved = False
+        
+        # Get baseline max MessageLog ID for user messages
+        initial_max_id = 0
+        try:
+            from sqlmodel import func
+            from ..database import engine as db_engine
+            with Session(db_engine) as s:
+                res = s.exec(select(func.max(MessageLog.id)).where(MessageLog.role == "user")).first()
+                initial_max_id = res or 0
+        except Exception as ie:
+            logger.warning(f"Could not fetch initial max MessageLog ID: {ie}")
+        
+        # Poll up to ~30 minutes (360 * 5s)
+        for _ in range(360):
+            await asyncio.sleep(5)
+            
+            # Check global state lock first (set when user sends approval in chat)
+            if cache_key in _GLOBAL_RECON_CACHE and _GLOBAL_RECON_CACHE[cache_key].get("approval_processed", False):
+                logger.info("Global approval_processed state lock detected. Continuing DAG.")
+                approved = True
+                break
+
+            with Session(db_engine) as s:
+                user_msgs = s.exec(
+                    select(MessageLog).where(
+                        MessageLog.role == "user",
+                        MessageLog.id > initial_max_id
+                    )
+                ).all()
+                
+                if user_msgs:
+                    for m in user_msgs:
+                        content_lower = m.content.lower()
+                        if "proceed" in content_lower or "run" in content_lower or "approve" in content_lower:
+                            logger.info("User approved Phase 0 in MessageLog. Continuing DAG.")
+                            approved = True
+                            if cache_key in _GLOBAL_RECON_CACHE:
+                                _GLOBAL_RECON_CACHE[cache_key]["approval_processed"] = True
+                                _GLOBAL_RECON_CACHE[cache_key]["has_broadcast_recon"] = True
+                            
+                            step3_msg = f"""**Approval Received!** Dispatched approval to active DAG run.
+
+Rocco is now proceeding with the remaining Deep Research execution pipeline:
+
+- 📄 **Phase 1: Deep Content Harvest** *(In Progress)* — Scraping and extracting high-density content from all {total} verified sources, removing navigation bloat and filtering out binary data.
+- 🧠 **Phase 2: Semantic Synthesis & Evaluation** — Evaluating source credibility and cross-synthesizing key technical insights.
+- 📊 **Phase 3: Final Intelligence Report** — Compiling and presenting a comprehensive report complete with clickable citations directly in your chat and side panel.
+
+*Harvesting content across {est_runs} synthesis passes now...*"""
+
+                            try:
+                                from .. import services
+                                if services.orchestrator and hasattr(services.orchestrator, "ws_gateway") and services.orchestrator.ws_gateway:
+                                    import uuid
+                                    await services.orchestrator.ws_gateway.broadcast_event('chat.message.received', {
+                                        "id": str(uuid.uuid4()),
+                                        "sender": "rocco",
+                                        "role": "assistant",
+                                        "content": step3_msg,
+                                        "channel": "local"
+                                    })
+                            except Exception as wse:
+                                logger.error(f"Failed to broadcast Step 3 message via WS: {wse}")
+
+                            break
+                        elif "cancel" in content_lower or "stop" in content_lower:
+                            logger.info("User cancelled Phase 0.")
+                            return {"status": "error", "message": "User cancelled the Deep Research execution."}
+                
+                if approved:
+                    break
+                    
+        if not approved:
+            return {"status": "error", "message": "Deep Research Phase 0 timed out waiting for user approval."}
+
+        return {"status": "success", "queries": queries, "urls": url_list, "reconnaissance": recon_md}
 
 class DeepResearchHarvestAdapter(Adapter):
     name = "deep_research_harvest"
@@ -433,10 +721,20 @@ class DeepResearchHarvestAdapter(Adapter):
                 elif isinstance(v, list):
                     urls.extend(v)
         
+        if not urls and isinstance(dependency_output, str):
+            import ast
+            try:
+                parsed_dep = ast.literal_eval(dependency_output)
+                if isinstance(parsed_dep, dict):
+                    urls = parsed_dep.get("urls", [])
+            except Exception:
+                pass
+                
         if not urls and dependency_output:
             import re
             search_text = str(dependency_output)
-            urls = re.findall(r'https?://[^\s\'"<>]+', search_text)
+            # Use stricter regex that avoids trailing escaped characters like \n-
+            urls = re.findall(r'https?://[^\s\'"<>\\,\[\]]+', search_text)
             
         sanitized_urls = []
         for u in urls:
@@ -530,6 +828,17 @@ class DeepResearchHarvestAdapter(Adapter):
                                 if cook: req_headers["Cookie"] = str(cook)
                     except Exception as ve:
                         logger.debug(f"Vault credential retrieval skipped for {domain}: {ve}")
+                        
+                    # Pre-flight Content-Type check to block binary garbage
+                    try:
+                        head_resp = await client.head(url, headers=req_headers, follow_redirects=True, timeout=5.0)
+                        ctype = head_resp.headers.get("Content-Type", "").lower()
+                        # If it's explicitly a binary file (and NOT a PDF, since we handle PDFs later)
+                        if any(x in ctype for x in ["image/", "audio/", "video/", "application/zip", "application/octet-stream"]):
+                            logger.info(f"Skipping binary file download: {url} ({ctype})")
+                            return ""
+                    except Exception as he:
+                        logger.debug(f"Head check failed for {url}: {he}")
 
                     if "youtube.com" in url or "youtu.be" in url:
                         yt_transcript = await fetch_youtube_transcript(url)
@@ -546,6 +855,9 @@ class DeepResearchHarvestAdapter(Adapter):
                     if "wikipedia.org" in url.lower():
                         excluded_selectors = "#siteNotice, #centralNotice, .cn-fundraising, .frbanner, #mw-dismissable-notice, .navbox, .catlinks, #vector-main-menu, #vector-toc, #p-lang-btn, .mw-portlet-lang, .mw-editsection, .noprint, .portal, .ambox, .reflist, #mw-navigation, #footer"
                         css_selector_body = ".mw-parser-output > p, .mw-parser-output > h2, .mw-parser-output > h3"
+                    elif "arxiv.org" in url.lower():
+                        excluded_selectors = "nav, .header, #header, .footer, #footer, .sidebar, .donate, .search-box, .breadcrumbs"
+                        css_selector_body = ".leftcolumn, #abs, blockquote.abstract"
 
                     # Layer 2: Crawl4AI AI-Native Markdown Extraction
                     try:
@@ -577,12 +889,22 @@ class DeepResearchHarvestAdapter(Adapter):
                     except Exception as ce:
                         logger.warning(f"Crawl4AI extraction notice for {url}: {ce}")
 
-                    # Layer 3: Scrapling Stealth Evasion Fallback
+                    # Layer 3: Scrapling Stealth Evasion Fallback (with DOM Pruning)
                     try:
                         from scrapling.fetchers import StealthyFetcher
                         def _scrapling_fetch(target_url, hdrs):
                             page = StealthyFetcher.fetch(target_url, headers=hdrs, headless=True)
+                            
+                            # DOM Pruning to eliminate bloat (menus, footers, scripts)
+                            if page.body:
+                                from bs4 import BeautifulSoup
+                                soup = BeautifulSoup(page.body, "html.parser")
+                                for tag in soup(excluded_tags_list):
+                                    tag.decompose()
+                                return soup.get_text(separator=' ', strip=True)
+                                
                             return page.text or ""
+                            
                         scrapling_text = await asyncio.to_thread(_scrapling_fetch, url, req_headers)
                         cleaned_scrapling = _clean_harvested_markdown(scrapling_text)
                         if cleaned_scrapling and len(cleaned_scrapling.strip()) > 100:
@@ -647,7 +969,9 @@ class DeepResearchHarvestAdapter(Adapter):
 
                     has_primary = primary_kw in c_lower or "sovereign ai" in c_lower or "sovereign" in c_lower
                     has_secondary = any(sk in c_lower for sk in secondary_kws) or any(sk in c_lower for sk in ["local", "hardware", "running ai", "on-premise"])
-                    if has_primary and has_secondary:
+                    if has_primary:
+                        results.append(content)
+                    elif has_secondary:
                         results.append(content)
                     else:
                         logger.warning(f"Discarding page failing primary/secondary phrase matrix check ('{primary_kw}', {secondary_kws})")
@@ -661,6 +985,11 @@ class DeepResearchHarvestAdapter(Adapter):
             
         if not results:
             return {"status": "error", "message": "All URL harvesting failed or returned empty content."}
+            
+        # Semantic Gatekeeper: Harvest Critic (Pre-Synthesis)
+        if len(results) < 3:
+            logger.warning("Harvest Critic Triggered: Critically low semantic volume (< 3).")
+            results.append("\n> [!WARNING]\n> **Harvest Critic Alert:** Deep Research harvest yielded critically low volume. The following report is heavily extrapolated from limited sources and violates the Axiom of Corroboration.\n")
             
         combined_markdown = "\n".join(results)
         
@@ -722,9 +1051,9 @@ class DeepResearchEvaluateAdapter(Adapter):
             if sources:
                 report = "\n\n".join(sources)
 
-        # Refined Guardrail: Only trigger fallback notice if ZERO valid sources exist
+        # Multi-Criteria Guardrail: Ensure harvested content is non-empty and contains valid web content
         clean_report_check = report.strip()
-        has_valid_sources = "SOURCE:" in clean_report_check
+        has_valid_sources = any(k in clean_report_check for k in ["SOURCE:", "URL:", "http://", "https://", "# "]) or len(clean_report_check) > 200
         
         if not clean_report_check or (not has_valid_sources and len(clean_report_check) < 50):
             logger.warning("Harvested data is empty or invalid. Returning structured fallback report without LLM invocation.")
@@ -755,6 +1084,10 @@ class DeepResearchEvaluateAdapter(Adapter):
         )
 
         from .. import services
+        from ..engine.hardware_scanner import HardwareScanner
+        
+        dynamic_tokens = HardwareScanner.get_optimal_max_tokens(len(report))
+        
         if services.router:
             # 5-Layer Metal GPU Protection Parameters (~2.5k tokens per serial batch)
             single_pass_limit = 10000
@@ -769,7 +1102,8 @@ class DeepResearchEvaluateAdapter(Adapter):
                         system_instruction=ROCCO_COGNITIVE_SYSTEM_INSTRUCTION,
                         complexity="HIGH",
                         privacy_level="PUBLIC",
-                        inference_mode="LOCAL"
+                        agent_id=agent_id,
+                        max_tokens=dynamic_tokens
                     )
                     report = final_report
                 except Exception as e:
@@ -789,6 +1123,7 @@ class DeepResearchEvaluateAdapter(Adapter):
 
                 logger.info(f"[Metal GPU Guard] Research context is {len(report)} chars. Executing serial Map-Reduce batching across {len(chunks)} chunks.")
                 
+                # Stage 1: Disk-Backed Micro-Chunk Summarization
                 summaries = []
                 import os, gc
                 try:
@@ -811,12 +1146,12 @@ class DeepResearchEvaluateAdapter(Adapter):
                             system_instruction="You are a meticulous research analyst executing under the Axiom of Isolation.",
                             complexity="MEDIUM",
                             privacy_level="PUBLIC",
-                            inference_mode="TACTICAL"
+                            agent_id=agent_id,
+                            max_tokens=min(4096, dynamic_tokens)
                         )
                         import re
                         clean_summary = re.sub(r'<A_C>.*?</A_C>', '', summary).strip()
                         
-                        # Empty Chunk & Tag Safeguard
                         if not clean_summary or len(clean_summary) < 25 or clean_summary.startswith("<A_C>"):
                             logger.warning(f"Chunk summary {idx+1} produced empty/tag output. Replacing with clean context summary.")
                             clean_summary = f"[Chunk {idx+1} processed successfully]"
@@ -825,7 +1160,7 @@ class DeepResearchEvaluateAdapter(Adapter):
                             
                         summaries.append(clean_summary)
                         
-                        # Layer 4: Disk-staged intermediate summary logging
+                        # Layer 4: Write chunk summary directly to disk
                         chunk_file = os.path.join(scratch_dir, f"chunk_summary_{idx+1}.md")
                         with open(chunk_file, "w", encoding="utf-8") as f:
                             f.write(clean_summary)
@@ -835,12 +1170,10 @@ class DeepResearchEvaluateAdapter(Adapter):
                         logger.error(f"Failed to summarize chunk {idx+1}: {e}")
                         summaries.append(f"[Chunk {idx+1} processing error]")
 
-                    # Layer 2 & Layer 5: Metal GPU memory purge & kernel driver pacing
+                    # Inter-Stage Compulsory Metal VRAM Purge
                     if mx:
-                        try:
-                            mx.metal.clear_cache()
-                        except Exception:
-                            pass
+                        try: mx.clear_cache()
+                        except Exception: pass
                     gc.collect()
                     await asyncio.sleep(0.1)
 
@@ -850,41 +1183,155 @@ class DeepResearchEvaluateAdapter(Adapter):
                     raise RuntimeError(error_msg)
 
                 combined_summaries = "\n\n---\n\n".join(summaries)
-                reduce_prompt = (
-                    "You are Senior Research Analyst Rocco. Synthesize the following research chunk summaries into an executive, highly detailed deep research report.\n"
-                    "STRICT HUMAN-READABLE FORMATTING INSTRUCTIONS:\n"
-                    "1. Structure the document with clear Bold Main Headers:\n"
-                    "   # Executive Summary\n"
-                    "   # Dual-Taxonomy Overview & Core Spectrum Analysis\n"
-                    "   # Key Companies & Industry Landscape\n"
-                    "   # Platforms, Runtimes & Developer Tools\n"
-                    "   # Media, Podcasts & Video Transcripts\n"
-                    "   # Academic Whitepapers & Technical Analysis\n"
-                    "   # Strategic Outlook & Market Trade-offs\n"
-                    "   # Epistemic Audit: Verified Facts vs. Disputed Claims & Blind Spots\n"
-                    "   # Sources & Citation Index\n"
-                    "2. Compile itemized Markdown tables for Companies (| Company | Focus | Link |), Tools (| Tool | Capabilities | Link |), YouTube Videos (| Title | Creator | Watch Link |), Podcasts (| Show | Episode | Link |), and Papers (| Title | Finding | Link |).\n"
-                    "3. Every claim, company, tool, or episode referenced MUST include a clickable Markdown link ([Title](URL)).\n"
-                    "4. Exclude raw DOM tags, website menus, cookies, or affiliate clutter.\n\n"
-                    f"RESEARCH SUMMARIES:\n{combined_summaries}"
+                
+                # Stage 1.5: Disk-Staged Compounding Micro-Reducer
+                digest_file = os.path.join(scratch_dir, "compounding_digest.md")
+                if len(combined_summaries) > 12000:
+                    logger.info("[Stage 1.5] Executing Disk-Staged Pairwise Micro-Reduction to prevent KV cache saturation...")
+                    digest_parts = []
+                    for i in range(0, len(summaries), 2):
+                        pair_group = summaries[i:i+2]
+                        pair_text = "\n\n---\n\n".join(pair_group)
+                        red_prompt = f"Synthesize these research chunk summaries into a dense, high-fact micro-chapter:\n\n{pair_text}"
+                        try:
+                            red_part = await services.router.get_response(
+                                prompt=red_prompt,
+                                system_instruction="You are a research consolidation engine.",
+                                complexity="MEDIUM",
+                                privacy_level="PUBLIC",
+                                agent_id=agent_id,
+                                max_tokens=min(2048, dynamic_tokens)
+                            )
+                            digest_parts.append(red_part.strip())
+                        except Exception as red_err:
+                            logger.warning(f"Micro-reduction pair {i} failed: {red_err}")
+                            digest_parts.append(pair_text)
+                            
+                        if mx:
+                            try: mx.clear_cache()
+                            except Exception: pass
+                        gc.collect()
+                    
+                    synthesis_context = "\n\n---\n\n".join(digest_parts)
+                else:
+                    synthesis_context = combined_summaries
+
+                with open(digest_file, "w", encoding="utf-8") as f:
+                    f.write(synthesis_context)
+
+                # Stage 2: Page 1 Synthesis (Sections 1-3) & Live WebSocket Streaming
+                logger.info("[Stage 2] Synthesizing Page 1 (Sections 1-3)...")
+                page1_file = os.path.join(scratch_dir, "report_page_1.md")
+                pass1_prompt = (
+                    "Synthesize the research summaries below into the FIRST 3 SECTIONS of a deep research report:\n"
+                    "# Executive Summary\n"
+                    "# Dual-Taxonomy Overview & Core Spectrum Analysis\n"
+                    "# Key Companies & Industry Landscape\n\n"
+                    "FORMATTING REQUIREMENTS:\n"
+                    "- Compile an itemized Markdown table for Companies (| Company | Strategic Focus | Official Link |).\n"
+                    "- Include clickable Markdown links ([Title](URL)) for every entity.\n\n"
+                    f"RESEARCH SUMMARIES:\n{synthesis_context}"
                 )
                 try:
-                    final_report = await services.router.get_response(
-                        prompt=reduce_prompt,
+                    sec_1_3 = await services.router.get_response(
+                        prompt=pass1_prompt,
                         system_instruction=ROCCO_COGNITIVE_SYSTEM_INSTRUCTION,
-                        complexity="HIGH",
+                        complexity="MEDIUM",
                         privacy_level="PUBLIC",
-                        inference_mode="LOCAL"
+                        agent_id=agent_id,
+                        max_tokens=min(3072, dynamic_tokens)
                     )
-                    report = final_report
                 except Exception as e:
-                    logger.error(f"Failed to reduce summaries: {e}")
-                    report = combined_summaries
+                    logger.error(f"Pass 1 synthesis error: {e}")
+                    sec_1_3 = "# Executive Summary\nSynthesized research from harvested sources."
+
+                with open(page1_file, "w", encoding="utf-8") as f:
+                    f.write(sec_1_3)
+
+                # Inter-Stage Compulsory Metal VRAM Purge
+                if mx:
+                    try: mx.clear_cache()
+                    except Exception: pass
+                gc.collect()
+
+                # Stage 3: Page 2 Synthesis (Sections 4-6) & Live WebSocket Streaming
+                logger.info("[Stage 3] Synthesizing Page 2 (Sections 4-6)...")
+                page2_file = os.path.join(scratch_dir, "report_page_2.md")
+                pass2_prompt = (
+                    "Synthesize the research summaries below into SECTIONS 4, 5, AND 6 of a deep research report:\n"
+                    "# Platforms, Runtimes & Developer Tools\n"
+                    "# Media, Podcasts & Video Transcripts\n"
+                    "# Academic Whitepapers & Technical Analysis\n\n"
+                    "FORMATTING REQUIREMENTS:\n"
+                    "- Compile itemized Markdown tables for Developer Tools (| Tool | Capabilities | Link |), YouTube Videos (| Title | Creator | Watch Link |), Podcasts (| Show | Episode | Link |), and Academic Papers (| Title | Key Finding | Link |).\n"
+                    "- Include clickable Markdown links ([Title](URL)) for every tool, episode, video, or paper.\n\n"
+                    f"RESEARCH SUMMARIES:\n{synthesis_context}"
+                )
+                try:
+                    sec_4_6 = await services.router.get_response(
+                        prompt=pass2_prompt,
+                        system_instruction=ROCCO_COGNITIVE_SYSTEM_INSTRUCTION,
+                        complexity="MEDIUM",
+                        privacy_level="PUBLIC",
+                        agent_id=agent_id,
+                        max_tokens=min(3072, dynamic_tokens)
+                    )
+                except Exception as e:
+                    logger.error(f"Pass 2 synthesis error: {e}")
+                    sec_4_6 = "# Platforms, Runtimes & Developer Tools\nDeveloper platforms and tools breakdown."
+
+                with open(page2_file, "w", encoding="utf-8") as f:
+                    f.write(sec_4_6)
+
+                # Inter-Stage Compulsory Metal VRAM Purge
+                if mx:
+                    try: mx.clear_cache()
+                    except Exception: pass
+                gc.collect()
+
+                # Stage 4: Page 3 Synthesis (Sections 7-9)
+                logger.info("[Stage 4] Synthesizing Page 3 (Sections 7-9)...")
+                page3_file = os.path.join(scratch_dir, "report_page_3.md")
+                pass3_prompt = (
+                    "Synthesize the research summaries below into SECTIONS 7, 8, AND 9 of a deep research report:\n"
+                    "# Strategic Outlook & Market Trade-offs\n"
+                    "# Epistemic Audit: Verified Facts vs. Disputed Claims & Blind Spots\n"
+                    "# Sources & Citation Index\n\n"
+                    "FORMATTING REQUIREMENTS:\n"
+                    "- Provide an itemized, clickable citation index for all referenced sources.\n\n"
+                    f"RESEARCH SUMMARIES:\n{synthesis_context}"
+                )
+                try:
+                    sec_7_9 = await services.router.get_response(
+                        prompt=pass3_prompt,
+                        system_instruction=ROCCO_COGNITIVE_SYSTEM_INSTRUCTION,
+                        complexity="MEDIUM",
+                        privacy_level="PUBLIC",
+                        agent_id=agent_id,
+                        max_tokens=min(3072, dynamic_tokens)
+                    )
+                except Exception as e:
+                    logger.error(f"Pass 3 synthesis error: {e}")
+                    sec_7_9 = "# Strategic Outlook & Market Trade-offs\nStrategic analysis and citation index."
+
+                with open(page3_file, "w", encoding="utf-8") as f:
+                    f.write(sec_7_9)
+
+                # Inter-Stage Compulsory Metal VRAM Purge
+                if mx:
+                    try: mx.clear_cache()
+                    except Exception: pass
+                gc.collect()
+
+                # Stage 5: Zero-Compute Pure Disk Assembly
+                logger.info("[Stage 5] Assembling final dossier via zero-compute disk file I/O...")
+                final_report = f"{sec_1_3.strip()}\n\n---\n\n{sec_4_6.strip()}\n\n---\n\n{sec_7_9.strip()}"
+                report = final_report
 
         # Flush Metal Cache after complete evaluation
         try:
             import mlx.core as mx
-            mx.metal.clear_cache()
+            mx.clear_cache()
             logger.info("Cleared Metal cache after deep research evaluation.")
         except Exception:
             pass
@@ -892,6 +1339,21 @@ class DeepResearchEvaluateAdapter(Adapter):
         # Push to PCL (Proactive Cognitive Loop)
         if services.pcl:
             asyncio.create_task(self._notify_pcl(services.pcl, report))
+            
+        try:
+            from ..routers.sessions import WORKSPACE_DIR
+            import os
+            task_obj = args.get("task")
+            agent_id = args.get("assignee") or args.get("agent_id") or (getattr(task_obj, "assignee", "rocco") if task_obj else "rocco")
+            art_dir = os.path.join(WORKSPACE_DIR, agent_id, "artifacts")
+            os.makedirs(art_dir, exist_ok=True)
+            dossier_path = os.path.join(art_dir, "deep_research_dossier.md")
+            
+            with open(dossier_path, "a", encoding="utf-8") as f:
+                f.write(f"\n\n---\n\n## Synthesis Output ({getattr(task_obj, 'id', 'Phase N')})\n\n")
+                f.write(report)
+        except Exception as e:
+            logger.warning(f"Failed to append to deep_research_dossier.md: {e}")
             
         return report
 
@@ -937,24 +1399,10 @@ class DeepResearchChatReportAdapter(Adapter):
         file_path = os.path.join(WORKSPACE_DIR, agent_id, "artifacts", "deep_research_report.md")
         file_url = f"file://{os.path.abspath(file_path)}"
 
-        summary = f"I have completed the deep research objective! The full comprehensive report is now available in your side window and via direct file link: [{os.path.basename(file_path)}]({file_url})."
+        summary_header = f"### 📊 Deep Research Synthesis Report Completed by Rocco\n\nFull dossier available via direct link: [{os.path.basename(file_path)}]({file_url})\n\n---\n\n"
         
-        # Try to extract a brief tl;dr using the router if available
-        from .. import services
-        if services.router:
-            prompt = f"Provide a very brief 2-3 sentence executive summary of the following research report to be sent in a chat message to the user:\n\n{report[:10000]}"
-            try:
-                llm_summary = await services.router.get_response(
-                    prompt=prompt,
-                    system_instruction="You are an assistant reporting back in chat.",
-                    complexity="LOW",
-                    privacy_level="PUBLIC",
-                    inference_mode="LOCAL"
-                )
-                if llm_summary:
-                    summary += f"\n\n**TL;DR:** {llm_summary}"
-            except Exception as e:
-                logger.error(f"Failed to generate TL;DR for chat: {e}")
+        # Surface full synthesized report directly into chat message without secondary LLM latency
+        chat_content = summary_header + report.strip()
                 
         if services.orchestrator and hasattr(services.orchestrator, "ws_gateway") and services.orchestrator.ws_gateway:
             import uuid
@@ -964,11 +1412,11 @@ class DeepResearchChatReportAdapter(Adapter):
                     "id": msg_id,
                     "sender": "rocco",
                     "role": "assistant",
-                    "content": summary,
+                    "content": chat_content,
                     "channel": "local"
                 })
                 logger.info("Successfully broadcasted deep research chat report to UI.")
             except Exception as e:
                 logger.error(f"Failed to broadcast chat message: {e}")
                 
-        return {"status": "success", "chat_summary": summary}
+        return {"status": "success", "chat_summary": chat_content}

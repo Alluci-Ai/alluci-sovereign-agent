@@ -46,7 +46,7 @@ class VisualPolytopeIngestor:
         
         # Explicitly instruct MLX Metal to clear its cached compute graphs and buffers
         if mx is not None:
-            mx.metal.clear_cache()
+            mx.clear_cache()
             logger.debug("MLX Metal cache cleared successfully.")
 
     def ingest_document_pages(

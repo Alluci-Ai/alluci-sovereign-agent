@@ -65,6 +65,20 @@ class MLXEngine:
             model_dir = os.path.abspath(f"mirror_cache/{model_name}")
             from pathlib import Path; model_path = Path(model_dir)
             
+            # Configure Metal GPU VRAM cache ceiling to prevent command buffer OOM panics
+            try:
+                import mlx.core as mx
+                if hasattr(mx, "set_cache_limit"):
+                    mx.set_cache_limit(4 * 1024 * 1024 * 1024) # 4GB VRAM cache ceiling
+                if hasattr(mx, "set_memory_limit"):
+                    import psutil
+                    total_ram_gb = psutil.virtual_memory().total / (1024**3)
+                    safe_limit_bytes = int(min(total_ram_gb * 0.75, 48.0) * (1024**3))
+                    mx.set_memory_limit(safe_limit_bytes)
+                logger.info("MLXEngine: Configured native Metal GPU memory cache limits.")
+            except Exception as mem_err:
+                logger.warning(f"MLXEngine: Could not set Metal cache limits: {mem_err}")
+
             self.engine, _ = load_model(model_path, get_model_classes=_polytope_get_classes)
             self.tokenizer = load_tokenizer(model_path)
             
@@ -136,7 +150,7 @@ class MLXEngine:
         self,
         prompt: str,
         system_instruction: str = "",
-        max_tokens: int = 1024,
+        max_tokens: int = 8192,
         temperature: float = 0.7,
         agent_id: Optional[str] = None,
         tools: Optional[list] = None
@@ -155,7 +169,7 @@ class MLXEngine:
         self,
         prompt: str,
         system_instruction: str = "",
-        max_tokens: int = 1024,
+        max_tokens: int = 8192,
         temperature: float = 0.7,
         agent_id: Optional[str] = None,
         tools: Optional[list] = None
@@ -254,8 +268,10 @@ class MLXEngine:
                     yield buffer
 
             await gen_future
-            # Clear Metal cache
-            mx.metal.clear_cache()
+            # Clear Metal cache natively and collect garbage
+            import gc
+            mx.clear_cache()
+            gc.collect()
 
     async def apply_lora_adapter(self, agent_id: str) -> None:
         """Alias for apply_context_moat to comply with CognitiveEngine protocol."""

@@ -149,4 +149,11 @@ async def get_available_models():
             {"id": "gemini-1.5-flash", "name": "Gemini 1.5 Flash", "category": "API"}
         ])
         
+    tokenrouter_key = vault_keys.get("tokenrouter") or getattr(settings, "TOKENROUTER_API_KEY", None)
+    if tokenrouter_key:
+        available_models.extend([
+            {"id": "moonshotai/kimi-k3-free", "name": "Moonshot Kimi 3 Free (Reasoning & Language)", "category": "API", "provider": "tokenrouter", "provider_label": "Token Router (Kimi 3)"},
+            {"id": "moonshotai/kimi-k3", "name": "Moonshot Kimi 3 Pro", "category": "API", "provider": "tokenrouter", "provider_label": "Token Router (Kimi 3)"}
+        ])
+        
     return {"models": available_models}

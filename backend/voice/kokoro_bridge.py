@@ -76,7 +76,7 @@ class AlluciKokoroBridge:
             gc.collect()
             try:
                 import mlx.core as mx
-                mx.metal.clear_cache()
+                mx.clear_cache()
             except ImportError:
                 pass
             logger.info("[SOVEREIGN VOICE] Kokoro model weights unloaded from VRAM.")

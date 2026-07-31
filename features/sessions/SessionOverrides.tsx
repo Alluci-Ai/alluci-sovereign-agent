@@ -65,7 +65,7 @@ export const SessionOverrides: React.FC = () => {
                     <option value="auto">Auto (Router Handled)</option>
                     {availableModels.map(model => (
                         <option key={model.id} value={model.id}>
-                            {model.category === 'Local' ? `💻 ${model.name}` : `☁️ ${model.name}`}
+                            {model.category === 'Local' ? `💻 ${model.name}` : model.provider_label ? `🧠 [${model.provider_label}] ${model.name}` : `☁️ ${model.name}`}
                         </option>
                     ))}
                 </select>
