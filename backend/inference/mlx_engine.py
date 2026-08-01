@@ -155,15 +155,26 @@ class MLXEngine:
         agent_id: Optional[str] = None,
         tools: Optional[list] = None
     ) -> str:
-        """Generates a complete response via the Native MLX Engine."""
-        result = ""
-        async for chunk in self.generate_stream(
-            prompt, system_instruction, max_tokens, temperature, agent_id, tools
-        ):
-            result += chunk
-        import re
-        result = re.sub(r'<A_C>.*?</A_C>', '', result).strip()
-        return result
+        """Generates a complete response via the Native MLX Engine with Metal OOM Protection."""
+        try:
+            result = ""
+            async for chunk in self.generate_stream(
+                prompt, system_instruction, max_tokens, temperature, agent_id, tools
+            ):
+                result += chunk
+            import re
+            result = re.sub(r'<A_C>.*?</A_C>', '', result).strip()
+            return result
+        except Exception as ge:
+            logger.error(f"[Metal GPU Safeguard] MLX generation notice: {ge}")
+            try:
+                import mlx.core as mx
+                mx.clear_cache()
+            except Exception:
+                pass
+            import gc
+            gc.collect()
+            raise RuntimeError(f"MLX Engine Local Hardware Failure: {ge}")
 
     async def generate_stream(
         self,
@@ -204,6 +215,13 @@ class MLXEngine:
                         loop.call_soon_threadsafe(queue.put_nowait, chunk)
                         if "<turn|>" in sync_buffer or "<eos>" in sync_buffer or "<|endoftext|>" in sync_buffer:
                             break
+                except Exception as me:
+                    logger.error(f"[Metal GPU Safeguard] Caught MLX Metal execution error: {me}")
+                    try:
+                        import mlx.core as mx
+                        mx.clear_cache()
+                    except Exception:
+                        pass
                 finally:
                     loop.call_soon_threadsafe(queue.put_nowait, None)
 

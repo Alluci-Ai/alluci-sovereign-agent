@@ -724,6 +724,40 @@ class ModelRouter(ExecutiveRouter):
         """
         await self._ensure_vault_keys()
         
+        # ── Agent-First Model Dispatch ──────────────────────────
+        # Check if the requested agent has a configured primary API model in the database.
+        # If so, route directly to the designated API provider without touching local MLX memory.
+        if agent_id and agent_id != "executive":
+            try:
+                from ..database import engine as db_engine
+                from ..models import AgentRecord
+                from sqlmodel import Session, select
+                with Session(db_engine) as session:
+                    agent_rec = session.exec(select(AgentRecord).where(AgentRecord.id == agent_id)).first()
+                    if agent_rec and agent_rec.model:
+                        target_model = agent_rec.model.strip()
+                        self.logger.info(f"[AGENT_DISPATCH] Discovered agent target model '{target_model}' for agent '{agent_id}'")
+                        
+                        if "kimi" in target_model.lower() or target_model.startswith("moonshotai/"):
+                            if self.tokenrouter_client:
+                                self.logger.info(f"[AGENT_DISPATCH] Routing directly to Token Router Kimi 3 ({target_model})")
+                                return await self._tokenrouter_request(prompt, model=target_model, system_instruction=system_instruction)
+                        elif "gpt" in target_model.lower() or target_model.startswith("openai/"):
+                            if self.openai_client:
+                                clean_model = target_model.replace("openai/", "")
+                                self.logger.info(f"[AGENT_DISPATCH] Routing directly to OpenAI ({clean_model})")
+                                return await self._openai_request(prompt, model_override=clean_model, system_instruction=system_instruction, max_tokens=max_tokens)
+                        elif "gemini" in target_model.lower():
+                            if self.gemini_client:
+                                self.logger.info(f"[AGENT_DISPATCH] Routing directly to Gemini ({target_model})")
+                                return await self._gemini_request(prompt, system_instruction=system_instruction)
+                        elif "groq" in target_model.lower():
+                            if self.groq_api_key:
+                                self.logger.info(f"[AGENT_DISPATCH] Routing directly to Groq ({target_model})")
+                                return await self.get_fast_tactical_response(prompt, system_instruction=system_instruction, agent_id=agent_id)
+            except Exception as ad_err:
+                self.logger.warning(f"[AGENT_DISPATCH] Failed to resolve agent model override: {ad_err}")
+
         # ── Polytope Cognitive Fine-Tuning Emulation ──────────────────
         # Since 4-bit Edge tensors cannot be LoRA-updated locally, we inject the
         # absolute Polytope persona and behavioral specs into the inescapable system layer.
