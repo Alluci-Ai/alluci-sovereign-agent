@@ -1404,6 +1404,7 @@ class DeepResearchChatReportAdapter(Adapter):
         # Surface full synthesized report directly into chat message without secondary LLM latency
         chat_content = summary_header + report.strip()
                 
+        from .. import services
         if services.orchestrator and hasattr(services.orchestrator, "ws_gateway") and services.orchestrator.ws_gateway:
             import uuid
             msg_id = str(uuid.uuid4())
