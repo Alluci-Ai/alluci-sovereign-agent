@@ -59,7 +59,7 @@ def _sanitize_regex_topic(topic: str) -> str:
         r'(?:do|perform|conduct|run|generate|create|write|find|search\s+for|look\s+into|investigate|explore|some)?\s*'
         r'(?:a\s+)?(?:deep\s+)?(?:web\s+)?(?:research|analysis|study|dive)?\s*'
         r'(?:on|about|for|into|regarding)\s*',
-        topic, flags=re.IGNORECASE
+        '', topic, flags=re.IGNORECASE
     )
 
     # 3. Strip trailing command clauses & instructions
