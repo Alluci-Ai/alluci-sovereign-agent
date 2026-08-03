@@ -596,17 +596,31 @@ Here is what Rocco will be executing across our Deep Research pipeline:
                     # ── Local Report Retrieval Check ─────────────────────────────
                     retrieval_verbs = ["pull up", "show", "read", "open", "display", "view", "fetch", "get"]
                     if any(rv in body_lower for rv in retrieval_verbs) and ("report" in body_lower or "dossier" in body_lower or "previous" in body_lower or "old" in body_lower):
-                        import os
+                        import os, glob
                         from .routers.sessions import WORKSPACE_DIR
+                        found_reports = []
                         for search_agent in ["a32eb383", "rocco", "executive"]:
-                            rep_path = os.path.join(WORKSPACE_DIR, search_agent, "artifacts", "deep_research_report.md")
-                            if os.path.exists(rep_path):
-                                with open(rep_path, "r", encoding="utf-8") as rf:
-                                    rep_content = rf.read()
-                                file_url = f"file://{os.path.abspath(rep_path)}"
-                                response_text = f"### 📊 Retrieved Local Deep Research Report\n\nDirect dossier link: [{os.path.basename(rep_path)}]({file_url})\n\n---\n\n{rep_content.strip()}"
-                                self.logger.info(f"[Orchestrator] Served local deep research report from {rep_path}")
-                                break
+                            # Check dated task directories first: WORKSPACE/<agent>/artifacts/research/<date_topic>/deep_research_report.md
+                            research_base = os.path.join(WORKSPACE_DIR, search_agent, "artifacts", "research")
+                            if os.path.exists(research_base):
+                                pattern = os.path.join(research_base, "*", "deep_research_report.md")
+                                for p in glob.glob(pattern):
+                                    found_reports.append((os.path.getmtime(p), p))
+                            # Check flat fallback file
+                            flat_p = os.path.join(WORKSPACE_DIR, search_agent, "artifacts", "deep_research_report.md")
+                            if os.path.exists(flat_p):
+                                found_reports.append((os.path.getmtime(flat_p), flat_p))
+
+                        if found_reports:
+                            # Sort by modification time (newest first)
+                            found_reports.sort(key=lambda x: x[0], reverse=True)
+                            latest_path = found_reports[0][1]
+                            with open(latest_path, "r", encoding="utf-8") as rf:
+                                rep_content = rf.read()
+                            file_url = f"file://{os.path.abspath(latest_path)}"
+                            folder_label = os.path.basename(os.path.dirname(latest_path))
+                            response_text = f"### 📊 Retrieved Deep Research Report (`{folder_label}`)\n\nDirect dossier link: [{os.path.basename(latest_path)}]({file_url})\n\n---\n\n{rep_content.strip()}"
+                            self.logger.info(f"[Orchestrator] Served local deep research report from {latest_path}")
 
                     if services.router and not response_text:
                         # Build Soul Manifest personality context

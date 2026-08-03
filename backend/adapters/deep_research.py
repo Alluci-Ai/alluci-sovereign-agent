@@ -67,14 +67,32 @@ def _sanitize_regex_topic(topic: str) -> str:
         r'[\?\.\!]\s*(?:find|search|look|use|give|provide|output|create|write).*$',
         '', cleaned, flags=re.IGNORECASE
     )
-    cleaned = re.sub(
-        r'\s*(?:find\s+all|use\s+your|then\s+give|and\s+provide|with\s+links).*$',
-        '', cleaned, flags=re.IGNORECASE
-    )
-
-    cleaned = cleaned.strip(' .\'\":;?“”')
-    cleaned = _deduplicate_phrase(cleaned)
     return cleaned if len(cleaned) > 2 else _deduplicate_phrase(topic.strip(' .\'\":;?“”'))
+
+def get_research_task_dir(objective_text: str, agent_id: str = "rocco", subfolder: str = "artifacts") -> str:
+    """
+    Generates a dated & topic-categorized task folder on local disk.
+    Taxonomy: backend/workspace/<agent_id>/<subfolder>/research/<YYYY-MM-DD>_<topic_slug>/
+    Example: backend/workspace/rocco/artifacts/research/2026-08-03_sovereign_ai/
+    """
+    import os, re, datetime
+    from ..routers.sessions import WORKSPACE_DIR
+    
+    clean_topic = _sanitize_regex_topic(objective_text) or "deep_research"
+    # Convert clean_topic to clean snake_case slug
+    slug = re.sub(r'[^a-zA-Z0-9]+', '_', clean_topic.lower()).strip('_')
+    if not slug or len(slug) < 2:
+        slug = "deep_research"
+    # Truncate long slugs to 4 words max
+    slug_parts = [p for p in slug.split('_') if p][:4]
+    slug = "_".join(slug_parts)
+    
+    date_str = datetime.date.today().strftime("%Y-%m-%d")
+    folder_name = f"{date_str}_{slug}"
+    
+    task_dir = os.path.join(WORKSPACE_DIR, agent_id, subfolder, "research", folder_name)
+    os.makedirs(task_dir, exist_ok=True)
+    return task_dir
 
 def _clean_harvested_markdown(text: str) -> str:
     import re
@@ -617,10 +635,8 @@ Based on the volume of data, I recommend **{est_runs} iterative Deep Research ru
 
         
         try:
-            from ..routers.sessions import WORKSPACE_DIR
             import os
-            art_dir = os.path.join(WORKSPACE_DIR, agent_id, "artifacts")
-            os.makedirs(art_dir, exist_ok=True)
+            art_dir = get_research_task_dir(raw_objective, "executive", "artifacts")
             with open(os.path.join(art_dir, "reconnaissance_artifact.md"), "w", encoding="utf-8") as f:
                 f.write(recon_md)
         except Exception as e:
@@ -1132,11 +1148,9 @@ class DeepResearchEvaluateAdapter(Adapter):
                 except ImportError:
                     mx = None
 
-                from ..routers.sessions import WORKSPACE_DIR
                 task_obj = args.get("task")
                 agent_id = args.get("assignee") or args.get("agent_id") or (getattr(task_obj, "assignee", "rocco") if task_obj else "rocco")
-                scratch_dir = os.path.join(WORKSPACE_DIR, agent_id, "scratch")
-                os.makedirs(scratch_dir, exist_ok=True)
+                scratch_dir = get_research_task_dir(report, agent_id, "scratch")
 
                 failed_chunk_count = 0
                 for idx, chunk in enumerate(chunks):
@@ -1342,19 +1356,29 @@ class DeepResearchEvaluateAdapter(Adapter):
             asyncio.create_task(self._notify_pcl(services.pcl, report))
             
         try:
-            from ..routers.sessions import WORKSPACE_DIR
-            import os
+            import os, json, datetime
             task_obj = args.get("task")
             agent_id = args.get("assignee") or args.get("agent_id") or (getattr(task_obj, "assignee", "rocco") if task_obj else "rocco")
-            art_dir = os.path.join(WORKSPACE_DIR, agent_id, "artifacts")
-            os.makedirs(art_dir, exist_ok=True)
+            art_dir = get_research_task_dir(report, agent_id, "artifacts")
             dossier_path = os.path.join(art_dir, "deep_research_dossier.md")
             
             with open(dossier_path, "a", encoding="utf-8") as f:
                 f.write(f"\n\n---\n\n## Synthesis Output ({getattr(task_obj, 'id', 'Phase N')})\n\n")
                 f.write(report)
+                
+            # Write lightweight catalog metadata index
+            meta_path = os.path.join(art_dir, "metadata.json")
+            meta_data = {
+                "topic": _sanitize_regex_topic(report[:300]),
+                "folder_name": os.path.basename(art_dir),
+                "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                "dossier_file": "deep_research_dossier.md",
+                "report_file": "deep_research_report.md"
+            }
+            with open(meta_path, "w", encoding="utf-8") as mf:
+                json.dump(meta_data, mf, indent=2)
         except Exception as e:
-            logger.warning(f"Failed to append to deep_research_dossier.md: {e}")
+            logger.warning(f"Failed to write dossier/metadata to research folder: {e}")
             
         return report
 
@@ -1394,10 +1418,12 @@ class DeepResearchChatReportAdapter(Adapter):
             return "No findings to report."
 
         import os
-        from ..routers.sessions import WORKSPACE_DIR
         task_obj = args.get("task")
         agent_id = args.get("assignee") or args.get("agent_id") or (getattr(task_obj, "assignee", "rocco") if task_obj else "rocco")
-        file_path = os.path.join(WORKSPACE_DIR, agent_id, "artifacts", "deep_research_report.md")
+        art_dir = get_research_task_dir(report, agent_id, "artifacts")
+        file_path = os.path.join(art_dir, "deep_research_report.md")
+        with open(file_path, "w", encoding="utf-8") as rf:
+            rf.write(report)
         file_url = f"file://{os.path.abspath(file_path)}"
 
         summary_header = f"### 📊 Deep Research Synthesis Report Completed by Rocco\n\nFull dossier available via direct link: [{os.path.basename(file_path)}]({file_url})\n\n---\n\n"
