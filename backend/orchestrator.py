@@ -267,16 +267,23 @@ class ExecutiveOrchestrator:
             research_keywords = ["deep research", "deep web research", "research on", "research into", "scour the web", "rocco"]
             objective_keywords = ["find all", "search for", "generate report", "analyze", "run script", "create file"]
             retrieval_verbs = ["pull up", "show", "read", "open", "display", "view", "fetch", "get"]
+            generation_verbs = ["write an article", "write an essay", "write a story", "draft an article", "draft a post", "compose an article", "write a blog", "write me an article", "write me an essay", "draft a document"]
+            cancellation_verbs = ["stop", "cancel", "abort", "halt", "terminate"]
+
+            # If user message is a cancellation command, bypass auto-dispatch so Emergency Abort Interceptor handles it
+            if any(cv in body_lower for cv in cancellation_verbs) and any(w in body_lower for w in ["dag", "run", "research", "pipeline", "execution", "this"]):
+                return None
 
             is_objective = False
             extracted_objective = body
             is_research = False
 
-            # Check if message is a local report retrieval request rather than a new execution request
+            # Check if message is a local report retrieval request or generation request rather than a new execution request
             is_retrieval_request = any(rv in body_lower for rv in retrieval_verbs) and ("report" in body_lower or "dossier" in body_lower or "previous" in body_lower or "old" in body_lower)
+            is_generation_request = any(gv in body_lower for gv in generation_verbs)
 
-            if is_retrieval_request:
-                self.logger.info(f"[Orchestrator] Intent classified as local report retrieval for body: '{body[:50]}...'")
+            if is_retrieval_request or is_generation_request:
+                self.logger.info(f"[Orchestrator] Intent classified as conversational/generation request for body: '{body[:50]}...'")
                 is_objective = False
                 is_research = False
             elif any(k in body_lower for k in research_keywords):
@@ -285,12 +292,12 @@ class ExecutiveOrchestrator:
             elif any(k in body_lower for k in objective_keywords):
                 is_objective = True
 
-            if not is_objective:
+            if not is_objective and not is_generation_request and not is_retrieval_request:
                 import json
                 intent_prompt = f"""
 Analyze this message to determine if it is an ACTIONABLE OBJECTIVE.
 An actionable objective asks you to perform a task (e.g. "send an email", "run a script", "fetch the news", "modify a file").
-A conversational message just asks a question or chats (e.g. "how are you", "what is your name", "explain this to me").
+A conversational message just asks a question or chats or asks you to write text/creative content (e.g. "how are you", "write an article", "explain this to me").
 Also determine if the objective requires extensive or deep research (e.g. "deep web research", "find all articles", "research topics").
 Message: "{body}"
 Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objective": string, "is_research": boolean}}
@@ -542,8 +549,12 @@ Here is what Rocco will be executing across our Deep Research pipeline:
                     return
 
             # ── Emergency Abort Signal Interceptor ──────────────────────────
-            abort_keywords = ["stop dag", "stop the dag", "cancel run", "abort run", "stop research", "halt run", "stop the run", "stop active run", "cancel the dag", "cancel research", "stop the dag run"]
-            if any(ak in body_lower for ak in abort_keywords):
+            abort_keywords = ["stop dag", "stop the dag", "cancel run", "abort run", "stop research", "stop this deep research", "stop deep research", "cancel research", "abort research", "halt run", "stop the run", "stop active run", "cancel the dag", "stop the dag run", "stop execution", "halt execution"]
+            is_abort_signal = any(ak in body_lower for ak in abort_keywords) or (
+                any(sw in body_lower for sw in ["stop", "cancel", "abort", "halt", "terminate"]) and
+                any(rw in body_lower for rw in ["research", "dag", "run", "pipeline", "execution", "this"])
+            )
+            if is_abort_signal:
                 self.logger.info(f"[Orchestrator] Emergency Abort Signal detected in message: '{body}'")
                 try:
                     from sqlmodel import select
