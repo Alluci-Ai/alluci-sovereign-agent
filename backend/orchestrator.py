@@ -266,12 +266,20 @@ class ExecutiveOrchestrator:
             body_lower = body.lower()
             research_keywords = ["deep research", "deep web research", "research on", "research into", "scour the web", "rocco"]
             objective_keywords = ["find all", "search for", "generate report", "analyze", "run script", "create file"]
+            retrieval_verbs = ["pull up", "show", "read", "open", "display", "view", "fetch", "get"]
 
             is_objective = False
             extracted_objective = body
             is_research = False
 
-            if any(k in body_lower for k in research_keywords):
+            # Check if message is a local report retrieval request rather than a new execution request
+            is_retrieval_request = any(rv in body_lower for rv in retrieval_verbs) and ("report" in body_lower or "dossier" in body_lower or "previous" in body_lower or "old" in body_lower)
+
+            if is_retrieval_request:
+                self.logger.info(f"[Orchestrator] Intent classified as local report retrieval for body: '{body[:50]}...'")
+                is_objective = False
+                is_research = False
+            elif any(k in body_lower for k in research_keywords):
                 is_objective = True
                 is_research = True
             elif any(k in body_lower for k in objective_keywords):
@@ -533,6 +541,39 @@ Here is what Rocco will be executing across our Deep Research pipeline:
                         }))
                     return
 
+            # ── Emergency Abort Signal Interceptor ──────────────────────────
+            abort_keywords = ["stop dag", "stop the dag", "cancel run", "abort run", "stop research", "halt run", "stop the run", "stop active run", "cancel the dag", "cancel research", "stop the dag run"]
+            if any(ak in body_lower for ak in abort_keywords):
+                self.logger.info(f"[Orchestrator] Emergency Abort Signal detected in message: '{body}'")
+                try:
+                    from sqlmodel import select
+                    from .models import Run, RunStatus, TaskRecord, TaskStatus
+                    from .database import engine as db_engine
+                    with Session(db_engine) as session:
+                        active_runs = session.exec(select(Run).where(Run.status.in_([RunStatus.ACTIVE, RunStatus.QUEUED]))).all()
+                        for r in active_runs:
+                            r.status = RunStatus.CANCELLED
+                            session.add(r)
+                        active_tasks = session.exec(select(TaskRecord).where(TaskRecord.status.in_([TaskStatus.RUNNING, TaskStatus.PENDING]))).all()
+                        for t in active_tasks:
+                            t.status = TaskStatus.CANCELLED
+                            session.add(t)
+                        session.commit()
+                    
+                    abort_msg = "🛑 **Emergency Abort Signal Received!** Canceled all active DAG runs and halted running tasks per your request."
+                    if hasattr(self, 'ws_gateway') and self.ws_gateway:
+                        import uuid
+                        await self.ws_gateway.broadcast_event('chat.message.received', {
+                            "id": str(uuid.uuid4()),
+                            "sender": "alluci",
+                            "role": "assistant",
+                            "content": abort_msg,
+                            "channel": "local"
+                        })
+                    return
+                except Exception as abort_err:
+                    self.logger.error(f"[Orchestrator] Failed to execute Emergency Abort: {abort_err}")
+
             # 1. Record User Message to Log & Set Context
             with structlog.contextvars.bound_contextvars(session_key=session_key):
                 if self.analytics:
@@ -552,7 +593,22 @@ Here is what Rocco will be executing across our Deep Research pipeline:
                     from . import services
                     response_text = ""
 
-                    if services.router:
+                    # ── Local Report Retrieval Check ─────────────────────────────
+                    retrieval_verbs = ["pull up", "show", "read", "open", "display", "view", "fetch", "get"]
+                    if any(rv in body_lower for rv in retrieval_verbs) and ("report" in body_lower or "dossier" in body_lower or "previous" in body_lower or "old" in body_lower):
+                        import os
+                        from .routers.sessions import WORKSPACE_DIR
+                        for search_agent in ["a32eb383", "rocco", "executive"]:
+                            rep_path = os.path.join(WORKSPACE_DIR, search_agent, "artifacts", "deep_research_report.md")
+                            if os.path.exists(rep_path):
+                                with open(rep_path, "r", encoding="utf-8") as rf:
+                                    rep_content = rf.read()
+                                file_url = f"file://{os.path.abspath(rep_path)}"
+                                response_text = f"### 📊 Retrieved Local Deep Research Report\n\nDirect dossier link: [{os.path.basename(rep_path)}]({file_url})\n\n---\n\n{rep_content.strip()}"
+                                self.logger.info(f"[Orchestrator] Served local deep research report from {rep_path}")
+                                break
+
+                    if services.router and not response_text:
                         # Build Soul Manifest personality context
                         system_instruction, tools_list = await self._build_system_context()
 

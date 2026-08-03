@@ -662,7 +662,11 @@ Based on the volume of data, I recommend **{est_runs} iterative Deep Research ru
                 if user_msgs:
                     for m in user_msgs:
                         content_lower = m.content.lower()
-                        if "proceed" in content_lower or "run" in content_lower or "approve" in content_lower:
+                        # Negation assertion check: check for refusal keywords first
+                        if any(neg in content_lower for neg in ["do not", "don't", "dont", "stop", "cancel", "no", "halt"]):
+                            logger.info(f"User cancelled Phase 0 via MessageLog: {m.content}")
+                            return {"status": "error", "message": "User cancelled the Deep Research execution."}
+                        elif "proceed" in content_lower or "run" in content_lower or "approve" in content_lower:
                             logger.info("User approved Phase 0 in MessageLog. Continuing DAG.")
                             approved = True
                             if cache_key in _GLOBAL_RECON_CACHE:
@@ -694,9 +698,6 @@ Rocco is now proceeding with the remaining Deep Research execution pipeline:
                                 logger.error(f"Failed to broadcast Step 3 message via WS: {wse}")
 
                             break
-                        elif "cancel" in content_lower or "stop" in content_lower:
-                            logger.info("User cancelled Phase 0.")
-                            return {"status": "error", "message": "User cancelled the Deep Research execution."}
                 
                 if approved:
                     break

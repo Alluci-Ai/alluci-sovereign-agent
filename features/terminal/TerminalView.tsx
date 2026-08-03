@@ -292,7 +292,7 @@ const renderMarkdown = (text: string) => {
         const parts = inlineText.split(/(\*\*.*?\*\*|\*.*?\*)/);
         return parts.map((part, index) => {
             if (part.startsWith('**') && part.endsWith('**')) {
-                return <strong key={index} className="font-extrabold text-white">{part.slice(2, -2)}</strong>;
+                return <strong key={index} className="font-extrabold text-text-primary">{part.slice(2, -2)}</strong>;
             }
             if (part.startsWith('*') && part.endsWith('*')) {
                 return <em key={index} className="italic text-text-secondary">{part.slice(1, -1)}</em>;
