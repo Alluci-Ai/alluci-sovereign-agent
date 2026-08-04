@@ -697,6 +697,7 @@ class InterventionJudge:
 
     def _check_deduplication(self, opp: Opportunity) -> Tuple[bool, str]:
         from datetime import datetime, timezone, timedelta
+        from sqlmodel import Session, select, col
         cutoff_24h = datetime.now(timezone.utc) - timedelta(hours=24)
         with Session(self.db_engine) as session:
             recent = session.exec(
@@ -704,7 +705,7 @@ class InterventionJudge:
                 .where(
                     PCLOpportunity.id == opp.id,
                     PCLOpportunity.detected_at > cutoff_24h,
-                    PCLOpportunity.outcome.in_(["success", "ignored"]),  # type: ignore
+                    col(PCLOpportunity.outcome).in_(["success", "ignored"]),
                 )
             ).first()
         if recent:

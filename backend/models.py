@@ -43,12 +43,13 @@ class TaskStatus(str, Enum):
     PENDING = "pending"
     SKIPPED = "skipped"
     SUSPENDED_SECURITY = "suspended_security"
+    CANCELLED = "cancelled"
 
 class CognitiveCategory(str, Enum):
     FRAMEWORK = "FRAMEWORK"
     MINDSET = "MINDSET"
     KNOWLEDGE = "KNOWLEDGE"
-
+    
 class ExtrinsicCategory(str, Enum):
     BRIDGE = "BRIDGE"
     MCP = "MCP"
@@ -59,6 +60,8 @@ class RunStatus(str, Enum):
     ACTIVE = "active"
     COMPLETED = "completed"
     FAILED = "failed"
+    CANCELLED = "cancelled"
+
 
 # --- Existing models (unchanged) ---
 # ... (omitted for brevity) ...

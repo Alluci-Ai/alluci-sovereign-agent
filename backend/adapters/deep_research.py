@@ -666,7 +666,6 @@ Based on the volume of data, I recommend **{est_runs} iterative Deep Research ru
                 logger.info("Global approval_processed state lock detected. Continuing DAG.")
                 approved = True
                 break
-
             with Session(db_engine) as s:
                 user_msgs = s.exec(
                     select(MessageLog).where(
@@ -674,9 +673,10 @@ Based on the volume of data, I recommend **{est_runs} iterative Deep Research ru
                         MessageLog.id > initial_max_id
                     )
                 ).all()
-                
                 if user_msgs:
                     for m in user_msgs:
+                        if not m.content:
+                            continue
                         content_lower = m.content.lower()
                         # Negation assertion check: check for refusal keywords first
                         if any(neg in content_lower for neg in ["do not", "don't", "dont", "stop", "cancel", "no", "halt"]):

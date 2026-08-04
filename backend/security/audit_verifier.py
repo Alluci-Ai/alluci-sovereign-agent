@@ -2,7 +2,7 @@ import asyncio
 import json
 import hashlib
 from typing import Optional
-from sqlmodel import Session, select
+from sqlmodel import Session, select, col
 
 from ..logging_config import get_logger
 from ..database import engine as db_engine
@@ -69,7 +69,7 @@ class AuditVerifier:
         with Session(db_engine) as session:
             # We just get the latest verus_txid that is not null
             latest_anchored = session.exec(
-                select(AuditLog).where(AuditLog.verus_txid != None).order_by(AuditLog.id.desc()).limit(1)  # type: ignore
+                select(AuditLog).where(AuditLog.verus_txid != None).order_by(col(AuditLog.id).desc()).limit(1)
             ).first()
 
             if not latest_anchored:

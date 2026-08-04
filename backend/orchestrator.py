@@ -6,7 +6,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Dict, Any, Tuple, Optional
 import structlog
-from sqlmodel import Session
+from sqlmodel import Session, select, col
 from sentence_transformers import SentenceTransformer
 
 from .models import TaskStatus, Run, RunStatus, AgentRecord
@@ -195,9 +195,24 @@ class ExecutiveOrchestrator:
                     with open(file_path, "w", encoding="utf-8") as f:
                         f.write(content)
                     self.logger.info(f"Physically saved deep research report to {file_path}")
-                except Exception as e:
-                    self.logger.error(f"Failed to persist physical artifact: {e}")
-                    
+                    # Persist completion message to database MessageLog for active session
+                    try:
+                        from sqlmodel import Session
+                        from .models import MessageLog
+                        from .database import engine as db_engine
+                        with Session(db_engine) as session:
+                            msg_entry = MessageLog(
+                                session_key="default_session",
+                                role="assistant",
+                                content=f"### 📊 Deep Research Synthesis Report Completed by Rocco\n\n{content}"
+                            )
+                            session.add(msg_entry)
+                            session.commit()
+                    except Exception as db_err:
+                        self.logger.error(f"Failed to persist research report to MessageLog: {db_err}")
+                except Exception as file_err:
+                    self.logger.error(f"Failed to persist physical artifact: {file_err}")
+
                 # Broadcast final executive report directly to Chat Window stream
                 if self._ws_gateway:
                     try:
@@ -321,10 +336,11 @@ Respond ONLY with a raw JSON object: {{"is_objective": boolean, "extracted_objec
             if is_objective:
                 # Active Run Check: If a DAG run is currently active, suppress spawning RUN_2 and route input to active run
                 try:
-                    from sqlmodel import select
+                    from sqlmodel import Session, select, col
                     from .models import Run, RunStatus, MessageLog
+                    from .database import engine as db_engine
                     with Session(db_engine) as session:
-                        active_run = session.exec(select(Run).where(Run.status.in_([RunStatus.ACTIVE, RunStatus.QUEUED]))).first()
+                        active_run = session.exec(select(Run).where(col(Run.status).in_([RunStatus.ACTIVE, RunStatus.QUEUED]))).first()
                         if active_run:
                             self.logger.info(f"[Orchestrator] Active DAG Run ({active_run.id}) detected. Suppressing new DAG creation; routing input to MessageLog.")
                             user_msg = MessageLog(
@@ -415,6 +431,38 @@ Here is what Rocco will be executing across our Deep Research pipeline:
         except Exception as e:
             self.logger.error(f"[Orchestrator] Auto-dispatch attempt failed: {e}")
             return None
+
+    async def handle_user_message(self, prompt: str) -> Optional[str]:
+        """
+        Handle direct user message input from web API / Gemini router.
+        Checks for emergency abort commands or auto-dispatches actionable objectives.
+        """
+        body_lower = prompt.lower().strip()
+        cancellation_keywords = ["stop", "cancel", "abort", "halt", "terminate"]
+        is_abort_signal = any(ck in body_lower for ck in cancellation_keywords) and any(
+            w in body_lower for w in ["dag", "run", "research", "pipeline", "execution", "this"]
+        )
+        if is_abort_signal:
+            try:
+                from sqlmodel import select, col
+                from .models import Run, RunStatus, TaskRecord, TaskStatus
+                from .database import engine as db_engine
+                with Session(db_engine) as session:
+                    active_runs = session.exec(select(Run).where(col(Run.status).in_([RunStatus.ACTIVE, RunStatus.QUEUED]))).all()
+                    for r in active_runs:
+                        r.status = RunStatus.CANCELLED
+                        session.add(r)
+                    active_tasks = session.exec(select(TaskRecord).where(col(TaskRecord.status).in_([TaskStatus.RUNNING, TaskStatus.PENDING]))).all()
+                    for t in active_tasks:
+                        t.status = TaskStatus.CANCELLED
+                        session.add(t)
+                    session.commit()
+                return "🛑 **Emergency Abort Signal Received!** Canceled all active DAG runs and halted running tasks per your request."
+            except Exception as abort_err:
+                self.logger.error(f"[Orchestrator] Emergency Abort error: {abort_err}")
+                return "Failed to execute Emergency Abort."
+
+        return await self.attempt_auto_dispatch(prompt)
 
     async def preview_plan(self, objective: str) -> list:
         """Generate a plan without executing it. Returns DAG task list for preview."""
@@ -557,15 +605,15 @@ Here is what Rocco will be executing across our Deep Research pipeline:
             if is_abort_signal:
                 self.logger.info(f"[Orchestrator] Emergency Abort Signal detected in message: '{body}'")
                 try:
-                    from sqlmodel import select
+                    from sqlmodel import select, col
                     from .models import Run, RunStatus, TaskRecord, TaskStatus
                     from .database import engine as db_engine
                     with Session(db_engine) as session:
-                        active_runs = session.exec(select(Run).where(Run.status.in_([RunStatus.ACTIVE, RunStatus.QUEUED]))).all()
+                        active_runs = session.exec(select(Run).where(col(Run.status).in_([RunStatus.ACTIVE, RunStatus.QUEUED]))).all()
                         for r in active_runs:
                             r.status = RunStatus.CANCELLED
                             session.add(r)
-                        active_tasks = session.exec(select(TaskRecord).where(TaskRecord.status.in_([TaskStatus.RUNNING, TaskStatus.PENDING]))).all()
+                        active_tasks = session.exec(select(TaskRecord).where(col(TaskRecord.status).in_([TaskStatus.RUNNING, TaskStatus.PENDING]))).all()
                         for t in active_tasks:
                             t.status = TaskStatus.CANCELLED
                             session.add(t)
@@ -1137,8 +1185,8 @@ Here is what Rocco will be executing across our Deep Research pipeline:
                     from .models import MessageLog
                     from .database import engine as db_engine
                     with Session(db_engine) as session:
-                        last_msg = session.exec(select(MessageLog).where(MessageLog.role == "assistant").order_by(MessageLog.id.desc())).first()
-                        if last_msg and ("please reply here to approve" in last_msg.content.lower() or "approve" in last_msg.content.lower()):
+                        last_msg = session.exec(select(MessageLog).where(MessageLog.role == "assistant").order_by(col(MessageLog.id).desc())).first()
+                        if last_msg and last_msg.content and ("please reply here to approve" in last_msg.content.lower() or "approve" in last_msg.content.lower()):
                             is_hitl_waiting = True
                 except Exception:
                     pass

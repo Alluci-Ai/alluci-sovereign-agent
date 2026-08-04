@@ -117,14 +117,37 @@ async def gemini_proxy_stream(
         local_report = _check_local_research_reports(prompt)
 
         system_instruction = ""
-        if services.orchestrator and not local_report:
-            system_instruction, _ = await services.orchestrator._build_system_context()
+        orch = services.orchestrator
+        if orch is not None and not local_report:
+            system_instruction, _ = await orch._build_system_context(compact_index=True)
+
+        # 2. 3-Layer Parallel Intent Switchboard (< 5ms Check)
+        orchestrator_reply = None
+        if orch is not None and not local_report:
+            try:
+                import asyncio, re
+                body_lower = prompt.lower()
+                action_keywords = ["rocco", "deep research", "deep web research", "spin up", "execute dag", "run script", "schedule cron", "scour the web"]
+                proceed_pattern = bool(re.search(r'\b(proceed|approve|execute|\d+\s*runs?)\b', body_lower))
+                cancellation_keywords = ["stop", "cancel", "abort", "halt", "terminate"]
+                
+                if any(ck in body_lower for ck in cancellation_keywords) and any(w in body_lower for w in ["dag", "run", "research", "pipeline", "execution", "this"]):
+                    orchestrator_reply = await orch.handle_user_message(prompt)
+                elif any(ak in body_lower for ak in action_keywords) or proceed_pattern:
+                    orchestrator_reply = await orch.handle_user_message(prompt)
+                    logger.info(f"[GeminiRouter] Handled orchestrator auto-dispatch for prompt: '{prompt[:50]}...'")
+            except Exception as dispatch_err:
+                logger.debug(f"[GeminiRouter] Intent switchboard note: {dispatch_err}")
 
         async def event_generator():
             import json
 
             if local_report:
                 yield f"data: {json.dumps({'text': local_report})}\n\n"
+                return
+
+            if orchestrator_reply:
+                yield f"data: {json.dumps({'text': orchestrator_reply})}\n\n"
                 return
 
             try:
