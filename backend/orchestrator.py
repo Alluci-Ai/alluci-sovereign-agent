@@ -681,37 +681,38 @@ Here is what Rocco will be executing across our Deep Research pipeline:
                             response_text = f"### 📊 Retrieved Deep Research Report (`{folder_label}`)\n\nDirect dossier link: [{os.path.basename(latest_path)}]({file_url})\n\n---\n\n{rep_content.strip()}"
                             self.logger.info(f"[Orchestrator] Served local deep research report from {latest_path}")
 
-                    if services.router and not response_text:
-                        # Build Soul Manifest personality context
-                        system_instruction, tools_list = await self._build_system_context()
+                    if not response_text:
+                        if services.router:
+                            # Build Soul Manifest personality context
+                            system_instruction, tools_list = await self._build_system_context()
 
-                        # ── Chat Auto-Dispatch Intent Classification ─────────────────
-                        response_text = await self.attempt_auto_dispatch(body)
-                        
-                        if not response_text:
-                            # ── Build sender-aware prompt ────────────────────────
-                            # Include who is messaging so Alluci can address them
-                            # by name (resolved via macOS Contacts.app by the bridge).
-                            sender_name = message.get("sender_name")  # Resolved contact name
-                            if sender_name:
-                                sender_context = f"Message from {sender_name} ({sender}) via {protocol}:\n{body}"
-                            else:
-                                sender_context = f"Message from {sender} via {protocol}:\n{body}"
-    
-                            # Direct LLM call — same path as /api/v1/gemini/proxy
-                            response_text = await services.router.get_response(
-                                prompt=sender_context,
-                                system_instruction=system_instruction,
-                                complexity="MEDIUM",
-                                privacy_level="PUBLIC",
-                                inference_mode="HYBRID",
-                                session_id=session_key
+                            # ── Chat Auto-Dispatch Intent Classification ─────────────────
+                            response_text = await self.attempt_auto_dispatch(body)
+                            
+                            if not response_text:
+                                # ── Build sender-aware prompt ────────────────────────
+                                # Include who is messaging so Alluci can address them
+                                # by name (resolved via macOS Contacts.app by the bridge).
+                                sender_name = message.get("sender_name")  # Resolved contact name
+                                if sender_name:
+                                    sender_context = f"Message from {sender_name} ({sender}) via {protocol}:\n{body}"
+                                else:
+                                    sender_context = f"Message from {sender} via {protocol}:\n{body}"
+        
+                                # Direct LLM call — same path as /api/v1/gemini/proxy
+                                response_text = await services.router.get_response(
+                                    prompt=sender_context,
+                                    system_instruction=system_instruction,
+                                    complexity="MEDIUM",
+                                    privacy_level="PUBLIC",
+                                    inference_mode="HYBRID",
+                                    session_id=session_key
+                                )
+                        else:
+                            self.logger.warning(
+                                f"[Orchestrator] Model router not available for {protocol} reply"
                             )
-                    else:
-                        self.logger.warning(
-                            f"[Orchestrator] Model router not available for {protocol} reply"
-                        )
-                        response_text = "I'm currently initializing my systems. Please try again in a moment."
+                            response_text = "I'm currently initializing my systems. Please try again in a moment."
 
                     # ── Send the response back to the sender via the bridge ──
                     if response_text and sender and sender != "unknown":
