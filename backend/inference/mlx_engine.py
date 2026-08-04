@@ -230,74 +230,25 @@ class MLXEngine:
 
             gen_future = loop.run_in_executor(self.executor, _sync_gen)
 
-        buffer = ""
-        in_thought = False
-        emitted_thought = False
-
         while True:
             chunk = await queue.get()
             if chunk is None:
                 break
-                    
-            buffer += chunk
             
-            # Filter opening thought/control channel tags robustly across split chunks
-            if not in_thought and not emitted_thought:
-                if "<|channel>" in buffer:
-                    in_thought = True
-                    buffer = buffer.split("<|channel>", 1)[1]
-                    if buffer.startswith("thought"):
-                        buffer = buffer[7:].lstrip()
+            # Direct DELTA token streaming (July 31st Native Logic)
+            import re
+            clean_chunk = re.sub(r'<\|channel.*?>|<channel\|>', '', chunk)
+            for stop_tag in ["<turn|>", "<eos>", "<|endoftext|>"]:
+                if stop_tag in clean_chunk:
+                    clean_chunk = clean_chunk.split(stop_tag)[0]
+            if clean_chunk:
+                yield clean_chunk
 
-            if in_thought:
-                if "<channel|>" in buffer:
-                    in_thought = False
-                    emitted_thought = True
-                    buffer = buffer.split("<channel|>", 1)[1]
-                else:
-                    # Retain trailing characters in case of a partial '<channel|>' split across chunks
-                    buffer = buffer[-20:]
-                    continue
-
-            if not in_thought:
-                # Strip leading control channel fragments if any
-                if buffer.startswith("<|channel"):
-                    continue
-
-                # Check for stop tokens and halt streaming to the frontend
-                if "<turn|>" in buffer:
-                    yield_text = buffer.split("<turn|>")[0]
-                    if yield_text:
-                        yield yield_text
-                    break
-                elif "<eos>" in buffer:
-                    yield_text = buffer.split("<eos>")[0]
-                    if yield_text:
-                        yield yield_text
-                    break
-                elif "<|endoftext|>" in buffer:
-                    yield_text = buffer.split("<|endoftext|>")[0]
-                    if yield_text:
-                        yield yield_text
-                    break
-                    
-                # Yield text safely, keeping a 20-char tail for potential split tags
-                if len(buffer) > 20:
-                    yield buffer[:-20]
-                    buffer = buffer[-20:]
-
-            # Yield any remaining non-thought text in the buffer
-            if buffer and not in_thought:
-                for stop_tag in ["<turn|>", "<eos>", "<|endoftext|>"]:
-                    buffer = buffer.split(stop_tag)[0]
-                if buffer:
-                    yield buffer
-
-            await gen_future
-            # Clear Metal cache natively and collect garbage
-            import gc
-            mx.clear_cache()
-            gc.collect()
+        await gen_future
+        # Clear Metal cache natively and collect garbage
+        import gc
+        mx.clear_cache()
+        gc.collect()
 
     async def apply_lora_adapter(self, agent_id: str) -> None:
         """Alias for apply_context_moat to comply with CognitiveEngine protocol."""
