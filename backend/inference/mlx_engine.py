@@ -136,15 +136,13 @@ class MLXEngine:
             
         messages.append({"role": "user", "content": prompt})
         
-        if self.tokenizer and hasattr(self.tokenizer, 'apply_chat_template'):
-            return self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        formatted = ""
+        if system_instruction:
+            formatted += f"<bos><|turn>system\n{system_instruction}<|turn|>\n"
         else:
-            # Fallback if tokenizer is not fully loaded or doesn't have apply_chat_template
-            formatted = ""
-            if system_instruction:
-                formatted += f"<bos><|turn>system\n{system_instruction}<|turn|>\n"
-            formatted += f"<|turn>user\n{prompt}<|turn|>\n<|turn>model\n"
-            return formatted
+            formatted += "<bos>"
+        formatted += f"<|turn>user\n{prompt}<|turn|>\n<|turn>model\n"
+        return formatted
 
     async def generate(
         self,
@@ -243,45 +241,50 @@ class MLXEngine:
                     
             buffer += chunk
             
-            # Check for opening thought channel
+            # Filter opening thought/control channel tags robustly across split chunks
             if not in_thought and not emitted_thought:
-                if "<|channel>thought" in buffer:
+                if "<|channel>" in buffer:
                     in_thought = True
-                    buffer = buffer.split("<|channel>thought", 1)[1]
-                        
-                # Check for closing thought channel
-                if in_thought:
-                    if "<channel|>" in buffer:
-                        in_thought = False
-                        emitted_thought = True
-                        buffer = buffer.split("<channel|>", 1)[1]
-                    else:
-                        # Retain trailing characters in case of a partial '<channel|>' split across chunks
-                        buffer = buffer[-20:]
-                        continue
+                    buffer = buffer.split("<|channel>", 1)[1]
+                    if buffer.startswith("thought"):
+                        buffer = buffer[7:].lstrip()
 
-                if not in_thought:
-                    # Check for stop tokens and halt streaming to the frontend
-                    if "<turn|>" in buffer:
-                        yield_text = buffer.split("<turn|>")[0]
-                        if yield_text:
-                            yield yield_text
-                        break
-                    elif "<eos>" in buffer:
-                        yield_text = buffer.split("<eos>")[0]
-                        if yield_text:
-                            yield yield_text
-                        break
-                    elif "<|endoftext|>" in buffer:
-                        yield_text = buffer.split("<|endoftext|>")[0]
-                        if yield_text:
-                            yield yield_text
-                        break
-                        
-                    # Yield text safely, keeping a 20-char tail for potential split tags
-                    if len(buffer) > 20:
-                        yield buffer[:-20]
-                        buffer = buffer[-20:]
+            if in_thought:
+                if "<channel|>" in buffer:
+                    in_thought = False
+                    emitted_thought = True
+                    buffer = buffer.split("<channel|>", 1)[1]
+                else:
+                    # Retain trailing characters in case of a partial '<channel|>' split across chunks
+                    buffer = buffer[-20:]
+                    continue
+
+            if not in_thought:
+                # Strip leading control channel fragments if any
+                if buffer.startswith("<|channel"):
+                    continue
+
+                # Check for stop tokens and halt streaming to the frontend
+                if "<turn|>" in buffer:
+                    yield_text = buffer.split("<turn|>")[0]
+                    if yield_text:
+                        yield yield_text
+                    break
+                elif "<eos>" in buffer:
+                    yield_text = buffer.split("<eos>")[0]
+                    if yield_text:
+                        yield yield_text
+                    break
+                elif "<|endoftext|>" in buffer:
+                    yield_text = buffer.split("<|endoftext|>")[0]
+                    if yield_text:
+                        yield yield_text
+                    break
+                    
+                # Yield text safely, keeping a 20-char tail for potential split tags
+                if len(buffer) > 20:
+                    yield buffer[:-20]
+                    buffer = buffer[-20:]
 
             # Yield any remaining non-thought text in the buffer
             if buffer and not in_thought:
