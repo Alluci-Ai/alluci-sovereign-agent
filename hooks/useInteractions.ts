@@ -97,11 +97,20 @@ export const useInteractions = (
  
         try {
             let cumulativeText = '';
+            let hasFirstToken = false;
             const responseText = await runInference(currentText, currentAttachments, (token) => {
                 cumulativeText += token;
-                setTranscriptions(prev => prev.map(msg => 
-                    msg.id === assistantMsgId ? { ...msg, text: cumulativeText } : msg
-                ));
+                setTranscriptions(prev => prev.map(msg => {
+                    if (msg.id === assistantMsgId) {
+                        const updated = { ...msg, text: cumulativeText };
+                        if (!hasFirstToken && token.trim().length > 0) {
+                            hasFirstToken = true;
+                            updated.timestamp = new Date().toISOString();
+                        }
+                        return updated;
+                    }
+                    return msg;
+                }));
             });
             setTranscriptions(prev => prev.map(msg => 
                 msg.id === assistantMsgId ? { ...msg, text: responseText } : msg

@@ -8,8 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 import mlx.core as mx
 from mlx_lm import generate, stream_generate
 from mlx_lm.sample_utils import make_sampler
-from mlx_lm.utils import load_model, hf_repo_to_path, load_adapters
-from mlx_lm.utils import load_tokenizer
+from mlx_lm.utils import load_model, hf_repo_to_path, load_adapters, load_tokenizer
 
 from backend.inference.profiler import HardwareProfiler
 
@@ -33,6 +32,7 @@ class MLXEngine:
     is_loading: bool = False
     hardware_profile: Optional[Dict[str, Any]] = None
     executor: ThreadPoolExecutor
+    session_caches: Dict[str, Any] = {}
     
     # Strictly one inference operation at a time to prevent MLX Graph Panics
     _inference_lock: asyncio.Lock = asyncio.Lock()
@@ -203,12 +203,17 @@ class MLXEngine:
                     sampler = make_sampler(temp=temperature)
                     sync_buffer = ""
                     assert self.engine is not None and self.tokenizer is not None, "Model not loaded"
+
+                    gen_kwargs = {
+                        "prompt": full_prompt,
+                        "max_tokens": max_tokens,
+                        "sampler": sampler
+                    }
+
                     for response in stream_generate(
                         self.engine,
                         self.tokenizer,
-                        prompt=full_prompt,
-                        max_tokens=max_tokens,
-                        sampler=sampler
+                        **gen_kwargs
                     ):
                         chunk = response.text
                         sync_buffer += chunk
@@ -227,22 +232,22 @@ class MLXEngine:
 
             gen_future = loop.run_in_executor(self.executor, _sync_gen)
 
-            buffer = ""
-            in_thought = False
-            emitted_thought = False
+        buffer = ""
+        in_thought = False
+        emitted_thought = False
 
-            while True:
-                chunk = await queue.get()
-                if chunk is None:
-                    break
+        while True:
+            chunk = await queue.get()
+            if chunk is None:
+                break
                     
-                buffer += chunk
-                
-                # Check for opening thought channel
-                if not in_thought and not emitted_thought:
-                    if "<|channel>thought" in buffer:
-                        in_thought = True
-                        buffer = buffer.split("<|channel>thought", 1)[1]
+            buffer += chunk
+            
+            # Check for opening thought channel
+            if not in_thought and not emitted_thought:
+                if "<|channel>thought" in buffer:
+                    in_thought = True
+                    buffer = buffer.split("<|channel>thought", 1)[1]
                         
                 # Check for closing thought channel
                 if in_thought:
@@ -280,8 +285,8 @@ class MLXEngine:
 
             # Yield any remaining non-thought text in the buffer
             if buffer and not in_thought:
-                for token in ["<turn|>", "<eos>", "<|endoftext|>"]:
-                    buffer = buffer.split(token)[0]
+                for stop_tag in ["<turn|>", "<eos>", "<|endoftext|>"]:
+                    buffer = buffer.split(stop_tag)[0]
                 if buffer:
                     yield buffer
 

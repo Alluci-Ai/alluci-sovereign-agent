@@ -660,6 +660,31 @@ class HLSMManager:
             logger.error(f"[HLSM L2] KùzuDB search failed: {e}", exc_info=True)
             return []
 
+    async def publish_subagent_insight(
+        self,
+        agent_id: str,
+        topic: str,
+        insight_summary: str,
+        session_key: str = "",
+        privacy_level: str = "PUBLIC"
+    ) -> Optional[str]:
+        """
+        [ Federated SubAgent Memory Bus ]
+        Publishes a knowledge insight node into the shared KùzuDB graph memory.
+        Enables Executive Alluci to instantly recall any subagent's findings.
+        """
+        import uuid
+        entry = HLSMEpisodicEntry(
+            id=f"insight_{uuid.uuid4().hex[:8]}",
+            content=f"[{agent_id.upper()} INSIGHT - {topic}]: {insight_summary}",
+            source=agent_id,
+            session_key=session_key,
+            psi_at_encoding=0.0,
+            topological_importance=1.0,
+        )
+        self._l1_sql_insert(entry)
+        return await self.l2_store(entry)
+
     async def l2_delete(self, kuzu_id: str) -> bool:
         """Remove a pruned entry from KùzuDB."""
         if not self.kuzu_conn:

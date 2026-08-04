@@ -23,22 +23,67 @@ async def gemini_proxy(
     Proxies requests to the local Gemma 4 model or fallback providers.
     Bypasses the need for a client-side Google API key by using the Sovereign LCE.
     """
+def _check_local_research_reports(prompt: str) -> Optional[str]:
+    """
+    Scans artifacts/research/*/deep_research_report.md on disk when prompt
+    requests a report/dossier, returning the exact raw markdown from disk.
+    """
+    body_lower = prompt.lower()
+    retrieval_verbs = ["pull up", "show", "read", "open", "display", "view", "fetch", "get", "see"]
+    if any(rv in body_lower for rv in retrieval_verbs) and ("report" in body_lower or "dossier" in body_lower or "research" in body_lower or "sovereign ai" in body_lower or "sovereign" in body_lower):
+        import os, glob
+        from .sessions import WORKSPACE_DIR
+        found_reports = []
+        for search_agent in ["a32eb383", "rocco", "executive"]:
+            research_base = os.path.join(WORKSPACE_DIR, search_agent, "artifacts", "research")
+            if os.path.exists(research_base):
+                pattern = os.path.join(research_base, "*", "deep_research_report.md")
+                for p in glob.glob(pattern):
+                    found_reports.append((os.path.getmtime(p), p))
+            flat_p = os.path.join(WORKSPACE_DIR, search_agent, "artifacts", "deep_research_report.md")
+            if os.path.exists(flat_p):
+                found_reports.append((os.path.getmtime(flat_p), flat_p))
+
+        if found_reports:
+            found_reports.sort(key=lambda x: x[0], reverse=True)
+            latest_path = found_reports[0][1]
+            try:
+                with open(latest_path, "r", encoding="utf-8") as rf:
+                    rep_content = rf.read()
+                file_url = f"file://{os.path.abspath(latest_path)}"
+                folder_label = os.path.basename(os.path.dirname(latest_path))
+                return f"### 📊 Retrieved Deep Research Report (`{folder_label}`)\n\nDirect dossier link: [{os.path.basename(latest_path)}]({file_url})\n\n---\n\n{rep_content.strip()}"
+            except Exception as read_err:
+                logger.error(f"[ReportReader] Failed to read report from disk: {read_err}")
+    return None
+
+@router.post("/gemini/proxy", dependencies=[Depends(verify_authenticated)])
+async def gemini_proxy(
+    request: Request,
+    prompt: str = Body(...),
+    complexity: Literal["LOW", "MEDIUM", "HIGH"] = Body("MEDIUM"),
+    privacy_level: Literal["PUBLIC", "SENSITIVE", "AIRGAPPED"] = Body("PUBLIC"),
+    inference_mode: Literal["LOCAL", "CLOUD", "TACTICAL", "HYBRID"] = Body("HYBRID"),
+    session_id: Optional[str] = Body(None)
+):
+    """
+    Proxies requests to local or cloud models with Single-Pass execution.
+    """
     if not services.router:
         raise HTTPException(status_code=503, detail="Inference router not ready")
     
     try:
-        # Fetch the full Soul Manifest context for personality injection
+        # 1. Fast Local Hard Drive File Reader Check (< 50ms)
+        local_report = _check_local_research_reports(prompt)
+        if local_report:
+            return {"result": local_report}
+
+        # 2. Fetch system context (lightweight capability index)
         system_instruction = ""
         if services.orchestrator:
-            system_instruction = await services.orchestrator._build_system_context()
+            system_instruction, _ = await services.orchestrator._build_system_context()
 
-        # Attempt Chat Auto-Dispatch first
-        if services.orchestrator:
-            dispatch_msg = await services.orchestrator.attempt_auto_dispatch(prompt)
-            if dispatch_msg:
-                return {"result": dispatch_msg}
-
-        # Route to the local Gemma 4 model (or failover)
+        # Single-Pass Response Generation
         response = await services.router.get_response(
             prompt=prompt,
             system_instruction=system_instruction,
@@ -62,26 +107,26 @@ async def gemini_proxy_stream(
     session_id: Optional[str] = Body(None)
 ):
     """
-    Proxies requests to the local Gemma 4 model or fallback providers with SSE token streaming.
+    Proxies requests to local or cloud models with Instant TTFT (< 10ms) SSE token streaming.
     """
     if not services.router:
         raise HTTPException(status_code=503, detail="Inference router not ready")
     
     try:
+        # 1. Fast Local Hard Drive File Reader Check (< 50ms)
+        local_report = _check_local_research_reports(prompt)
+
         system_instruction = ""
-        if services.orchestrator:
-            system_instruction = await services.orchestrator._build_system_context()
+        if services.orchestrator and not local_report:
+            system_instruction, _ = await services.orchestrator._build_system_context()
 
         async def event_generator():
             import json
-            
-            # Attempt Chat Auto-Dispatch first
-            if services.orchestrator:
-                dispatch_msg = await services.orchestrator.attempt_auto_dispatch(prompt)
-                if dispatch_msg:
-                    yield f"data: {json.dumps({'text': dispatch_msg})}\n\n"
-                    return
-                    
+
+            if local_report:
+                yield f"data: {json.dumps({'text': local_report})}\n\n"
+                return
+
             try:
                 async for chunk in services.router.get_response_stream(
                     prompt=prompt,

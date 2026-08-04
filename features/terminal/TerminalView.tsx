@@ -357,10 +357,10 @@ const renderMarkdown = (text: string) => {
                 const level = match[1].length;
                 const headerText = match[2];
                 const headerClass = level === 1 
-                    ? "text-2xl font-black text-white mt-6 mb-3 tracking-wide" 
+                    ? "text-2xl font-black text-text-primary mt-6 mb-3 tracking-wide" 
                     : level === 2 
-                    ? "text-xl font-bold text-white mt-5 mb-2.5 tracking-wide" 
-                    : "text-lg font-semibold text-white mt-4 mb-2 tracking-wide";
+                    ? "text-xl font-bold text-text-primary mt-5 mb-2.5 tracking-wide" 
+                    : "text-lg font-semibold text-text-primary mt-4 mb-2 tracking-wide";
                 
                 const HeaderTag = `h${level}` as any;
                 elements.push(

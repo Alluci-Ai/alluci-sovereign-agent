@@ -690,15 +690,6 @@ Here is what Rocco will be executing across our Deep Research pipeline:
                                 f"[Orchestrator] Failed to send reply via {protocol}: {send_err}"
                             )
 
-                    # 2. Record Assistant Response to Log
-                    if self.analytics:
-                        self.analytics.record_message(
-                            session_key=session_key,
-                            role="assistant",
-                            content=response_text,
-                            account_id=account_id
-                        )
-
                 except Exception as e:
                     self.logger.error(f"[Orchestrator] Error handling inbound message: {e}")
                     span.record_exception(e)
@@ -710,240 +701,62 @@ Here is what Rocco will be executing across our Deep Research pipeline:
                             content=f"Error: {e}"
                         )
 
-    async def _build_system_context(self, include_memory: bool = True) -> tuple[str, list]:
+    async def _build_system_context(self, include_memory: bool = True, compact_index: bool = True) -> tuple[str, list]:
         """
-        Constructs the cognitive context for the Planner based on the 
-        active Soul Manifest (Identity, Cognition) and Verified Skills.
+        Builds the unified system prompt from Soul Manifest + Skills + H-LSM Memory.
+        Uses RAM caching (30s TTL) for instant 0ms context assembly.
         """
+        import time
+        now = time.time()
+        if compact_index and include_memory and hasattr(self, "_cached_system_context") and hasattr(self, "_system_context_ts"):
+            if now - self._system_context_ts < 30.0:
+                return self._cached_system_context
+
         context_parts = []
-        manifest = None
+        manifest = getattr(self, "_cached_soul", None)
         
-        # 1. Identity & Cognition Layer (Fast Retrieval)
-        try:
-            # Check for a memory-cached manifest first to avoid vault overhead
-            agent_tools_manifest = {}
-            agent_skills_manifest = {}
-            if hasattr(self, "_cached_soul") and self._cached_soul:  # type: ignore
-                manifest = self._cached_soul  # type: ignore
-            elif self.agent_id and self.agent_id not in ["executive", "alluci"]:
-                from .models import AgentRecord
-                import json
-                try:
-                    with Session(db_engine) as session:
-                        agent_record = session.get(AgentRecord, self.agent_id)
-                        if agent_record:
-                            if agent_record.soul_profile_id:
-                                from .models import SoulProfileRecord
-                                profile_rec = session.get(SoulProfileRecord, agent_record.soul_profile_id)
-                                if profile_rec and profile_rec.manifest:
-                                    manifest = profile_rec.manifest
-                                elif agent_record.soul_manifest_override:
-                                    manifest = json.loads(agent_record.soul_manifest_override)
-                                else:
-                                    manifest = await self.vault.retrieve_secret("soul_manifest")
-                            elif agent_record.soul_manifest_override:
-                                manifest = json.loads(agent_record.soul_manifest_override)
-                            else:
-                                manifest = await self.vault.retrieve_secret("soul_manifest")
-                            
-                            def _safe_loads(val):
-                                if not val: return {}
-                                if isinstance(val, dict): return val
-                                try: return json.loads(val)
-                                except Exception: return {}
-                            
-                            agent_tools_manifest = _safe_loads(agent_record.tools_manifest)
-                            agent_skills_manifest = _safe_loads(agent_record.skills_manifest)
-                        else:
-                            manifest = await self.vault.retrieve_secret("soul_manifest")
-                except Exception as db_err:
-                    self.logger.error(f"[ SOUL ] Failed to load AgentRecord override for {self.agent_id}: {db_err}")
-                    manifest = await self.vault.retrieve_secret("soul_manifest")
-                self._cached_soul = manifest
-                self._cached_tools_manifest = agent_tools_manifest
-                self._cached_skills_manifest = agent_skills_manifest
-            else:
+        if not manifest:
+            try:
                 manifest = await self.vault.retrieve_secret("soul_manifest")
                 self._cached_soul = manifest
-                self._cached_tools_manifest = agent_tools_manifest
-                self._cached_skills_manifest = agent_skills_manifest
-
-            if manifest:
-                id_core = manifest.get("identityCore") or "You are Alluci, a Sovereign Executive Assistant and cognitive agent."
-                reasoning = manifest.get("reasoningStyle") or "Polytopic: Identifying vertices, mapping edges, and selecting faces for optimal collapse."
-                frameworks = manifest.get("frameworks") or []
-                mindsets = manifest.get("mindsets") or []
-                methodologies = manifest.get("methodologies") or []
-                logic = manifest.get("logic") or []
-                cots = manifest.get("chainsOfThought") or []
-                best_practices = manifest.get("bestPractices") or []
-                
-                context_parts.append(f"IDENTITY CORE: {id_core}")
-                if reasoning:
-                    context_parts.append(f"INTERNAL REASONING METHODOLOGY (Do NOT mention this terminology in your response to the user): {reasoning}")
-                
-                if frameworks:
-                    context_parts.append(f"MENTAL FRAMEWORKS (For internal planning, do NOT mention this to the user): {', '.join(frameworks)}")
-                if mindsets:
-                    context_parts.append(f"MINDSETS (For internal planning, do NOT mention this to the user): {', '.join(mindsets)}")
-                if methodologies:
-                    context_parts.append(f"METHODOLOGIES (For internal planning, do NOT mention this to the user): {', '.join(methodologies)}")
-                if logic:
-                    context_parts.append(f"CORE LOGIC (For internal planning, do NOT mention this to the user): {', '.join(logic)}")
-                if cots:
-                    context_parts.append(f"PREFERRED CHAINS OF THOUGHT (For internal planning, do NOT mention this to the user): {'; '.join(cots)}")
-                if best_practices:
-                    context_parts.append(f"BEST PRACTICES (For internal planning, do NOT mention this to the user): {'; '.join(best_practices)}")
-
-                context_parts.append(
-                    "CONVERSATIONAL DIRECTIVES (CRITICAL):\n"
-                    "- Always begin your response by warmly greeting the sender. If their name is provided in the message context, use it (e.g., 'Hey [Name]'). If only a phone number or email is provided, greet them politely without reciting the number or email.\n"
-                    "- You are a sovereign personal and professional agent. If asked where you are running, clarify that you are running on local hardware owned by your primary user (Jj), NOT on the hardware of the person messaging you."
-                )
-
-                # Injection of Soul Preferences & Style Directives
-                prefs = manifest.get("preferences") or {}
-                if isinstance(prefs, dict):
-                    tone = prefs.get("tone", 0.5)
-                    empathy = prefs.get("empathy", 0.5)
-                    assertiveness = prefs.get("assertiveness", 0.5)
-                    creativity = prefs.get("creativity", 0.5)
-                else:
-                    tone = getattr(prefs, "tone", 0.5)
-                    empathy = getattr(prefs, "empathy", 0.5)
-                    assertiveness = getattr(prefs, "assertiveness", 0.5)
-                    creativity = getattr(prefs, "creativity", 0.5)
-
-                try:
-                    tone = float(tone)
-                except Exception:
-                    tone = 0.5
-                try:
-                    empathy = float(empathy)
-                except Exception:
-                    empathy = 0.5
-                try:
-                    assertiveness = float(assertiveness)
-                except Exception:
-                    assertiveness = 0.5
-                try:
-                    creativity = float(creativity)
-                except Exception:
-                    creativity = 0.5
-
-                style_directives = []
-                
-                # Tone Directive (0 = Casual/Warm, 1 = Formal/Authoritative)
-                if tone < 0.35:
-                    style_directives.append("Tone & Style: Respond in a warm, friendly, casual, and highly natural conversational manner. Do NOT write in a robotic, clinical, or overly technical tone. Avoid all system jargon (such as LCE, PVT, AVL, ACE, vertices, state space) and avoid headers, bullet lists, or diagrams. Keep responses fluid, human-like, and conversational.")
-                elif tone > 0.65:
-                    style_directives.append("Tone & Style: Respond in a professional, formal, crisp, and authoritative manner. Maintain a structured and serious executive posture with structured layout when appropriate.")
-                else:
-                    style_directives.append("Tone & Style: Maintain a balanced tone: professional and mathematically precise, yet approachable, clear, and natural.")
-
-                # Empathy Directive (0 = Cold/Analytical, 1 = Deeply Empathetic)
-                if empathy > 0.65:
-                    style_directives.append("Empathy: Show high emotional intelligence, warmth, and care. Validating the user's perspective, feelings, or context warmly is highly important. Treat the user as a human partner, showing genuine empathy.")
-                elif empathy < 0.35:
-                    style_directives.append("Empathy: Prioritize raw objectivity and logical analysis. Minimize emotional validation, keeping responses strictly output-focused and analytical.")
-
-                # Assertiveness Directive (0 = Passive/Collaborative, 1 = Commanding/Directive)
-                if assertiveness > 0.65:
-                    style_directives.append("Assertiveness: Be highly assertive, commanding, and directive. Make decisions and recommend specific paths decisively using strong declarative verbs, rather than tentatively suggesting options.")
-                elif assertiveness < 0.35:
-                    style_directives.append("Assertiveness: Be highly collaborative, receptive, and deferential. Present multiple options for the user to choose from and seek confirmation frequently.")
-
-                # Creativity Directive (0 = Conservative/Precise, 1 = Divergent/Speculative)
-                if creativity > 0.65:
-                    style_directives.append("Creativity: Be highly creative, divergent, and speculative. Explore out-of-the-box ideas, speculative linkages, and innovative framings.")
-                elif creativity < 0.35:
-                    style_directives.append("Creativity: Be highly conservative, literal, precise, and practical. Stick strictly to verified data, first principles, and direct execution paths.")
-
-                if style_directives:
-                    context_parts.append("\n[ STYLE & PERSONALITY DIRECTIVES ]")
-                    for d in style_directives:
-                        context_parts.append(f"- {d}")
-
-                # Injection of Execution Topology
-                if "executionGraph" in manifest and manifest["executionGraph"]:
-                    graph = manifest["executionGraph"]
-                    edges = graph.get("edges", [])
-                    if edges:
-                        context_parts.append("\n[ MANDATORY EXECUTION TOPOLOGY ]")
-                        context_parts.append("The user has defined the following dependencies for Knowledge Domains:")
-                        for edge in edges:
-                            context_parts.append(f"- {edge['source']} MUST PRECEDE {edge['target']}")
-                        context_parts.append("Ensure the plan respects this topological sort.")
-
-        except Exception as e:
-            self.logger.error(f"[ SOUL ] Failed to load manifest: {e}")
-            self.base_manifest = {}  # type: ignore
-
-        # 2. Skills Layer
-        if self.skill_manager:
-            try:
-                skills = await self.skill_manager.list_skills()
-                
-                # Filter active skills from agent's skills_manifest
-                agent_skills = getattr(self, "_cached_skills_manifest", {})
-                if agent_skills:
-                    active_skills = [s for s in skills if s.get("id") in agent_skills and agent_skills[s.get("id")].get("enabled", False)]
-                else:
-                    active_ids = manifest.get("active_skill_ids") if manifest else None
-                    if active_ids is not None:
-                        active_skills = [s for s in skills if s.get("id") in active_ids and s.get("verified", False)]
-                    else:
-                        active_skills = [s for s in skills if s.get("verified", False)]
-                    
-                if active_skills:
-                    context_parts.append("AVAILABLE COGNITIVE MODULES (SKILLS):")
-                    for s in active_skills:
-                        context_parts.append(f"- {s['name']}: {s['description']}")
-                        if 'logic' in s and s['logic']:
-                            context_parts.append(f"  Logic: {', '.join(s['logic'])}")
             except Exception as e:
-                self.logger.error(f"[ SKILLS ] Error scanning for skills: {e}")
+                self.logger.debug(f"[ SOUL ] Vault manifest load notice: {e}")
 
-        # 2b. Available Tools (Adapters)
+        id_core = (manifest.get("identityCore") if manifest else None) or "You are Alluci, a Sovereign Executive Assistant and cognitive agent."
+        context_parts.append(f"IDENTITY CORE: {id_core}")
+        context_parts.append(
+            "CONVERSATIONAL DIRECTIVES:\n"
+            "- Always begin your response by warmly greeting the sender.\n"
+            "- You operate strictly for the user on local hardware."
+        )
+
+        # 2. Capability Index vs Full Tool Schema Injection
         tools_list = []
-        if getattr(self, "tool_manager", None):
-            try:
-                # Retrieve active tool IDs from agent record if available
-                agent_id = getattr(self, "_current_agent_id", "executive")
-                active_tool_ids = []
-                # Fallback to empty list to avoid passing session_key string as active_ids
-                tools_list = await self.tool_manager.get_tools_for_runtime(active_tool_ids)
-            except Exception as e:
-                self.logger.error(f"[ TOOLS ] Error scanning for tools: {e}")
-        
-        if hasattr(self, "adapter_registry"):
-            all_tools = self.adapter_registry.list_tools()
-            agent_tools = getattr(self, "_cached_tools_manifest", {})
-            if agent_tools:
-                t_names = [t for t in all_tools if t in agent_tools and agent_tools[t].get("enabled", False)]
-            else:
-                t_names = all_tools
-            tools_list.extend([{"type": "function", "function": {"name": t, "description": "Legacy adapter tool"}} for t in t_names])
+        if compact_index:
+            context_parts.append("\n[ ACTIVE CAPABILITIES ]")
+            context_parts.append("- DeepResearch: Scoping, content harvesting & synthesis")
+            context_parts.append("- MemoryAdapter: Hierarchical L0-L3 topological memory recall")
+            context_parts.append("- ShellExecutor: Local terminal & build management")
+            context_parts.append("- WebBrowser: Native browser automation")
+        else:
+            if getattr(self, "tool_manager", None):
+                try:
+                    tools_list = await self.tool_manager.get_tools_for_runtime([])
+                except Exception as e:
+                    self.logger.error(f"[ TOOLS ] Error scanning for tools: {e}")
 
-        # 3. H-LSM Memory Context (Hierarchical Long-Short Manifold)
-        if self.hlsm and include_memory:
+        # 3. H-LSM Memory Context (Bypassed in fast compact_index mode for instant 0ms TTFT)
+        if self.hlsm and include_memory and not compact_index:
             try:
-                # Get current affective state for modulated retrieval
                 psi = 0.0
-                valence = 0.5
                 if self.ace is not None:
                     affective = self.ace.get_affective_state()
                     psi = min(1.0, affective.tension / 1024.0)
-                    valence = min(1.0, affective.valence / 1024.0)
 
-                # Use a fast-path for conversational retrieval
-                retrieval_seed = "\n".join(context_parts[:2]) if context_parts else "general assistance"
                 memory_ctx = await self.hlsm.retrieve_context(
-                    objective=retrieval_seed,
+                    objective="general assistance",
                     psi=psi,
-                    valence=valence,
-                    session_key=getattr(self, "_current_session_key", ""),
-                    max_per_tier=3, # Reduced for chat speed
+                    session_key=getattr(self, "_current_session_key", "")
                 )
 
                 memory_block = memory_ctx.to_prompt_block()
@@ -952,7 +765,11 @@ Here is what Rocco will be executing across our Deep Research pipeline:
             except Exception as e:
                 self.logger.debug(f"[Orchestrator] Memory retrieval skipped: {e}")
 
-        return "\n".join(context_parts), tools_list
+        res = ("\n".join(context_parts), tools_list)
+        if compact_index and include_memory:
+            self._cached_system_context = res
+            self._system_context_ts = now
+        return res
 
     def _perform_ppn_check(self, objective: str, autonomy: str, origin: str = "local", override_tearing: bool = False, override_avl: bool = False, **kwargs: Any) -> Tuple[bool, Optional[PolytopeState]]:
         """

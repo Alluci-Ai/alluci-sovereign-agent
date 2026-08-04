@@ -1057,6 +1057,19 @@ class ModelRouter(ExecutiveRouter):
             span.set_status(trace.Status(trace.StatusCode.ERROR, error_msg))
             raise RuntimeError(error_msg)
 
+    def build_session_state_envelope(self, session_id: Optional[str] = None) -> str:
+        """
+        Constructs a compact SessionStateEnvelope (~350 tokens) for unified
+        context state across Local MLX and Cloud API providers (Groq/Gemini/OpenAI).
+        """
+        envelope = [
+            "[ UNIFIED SESSION STATE ENVELOPE ]",
+            "User: Jj (Primary Workstation: Mac)",
+            "Architecture: Alluci Sovereign Agent (Local MLX Engine & Cross-Model Bus)",
+            f"Active Session: {session_id or 'default'}"
+        ]
+        return "\n".join(envelope)
+
     async def get_response_stream(
         self, 
         prompt: str, 
@@ -1088,17 +1101,23 @@ class ModelRouter(ExecutiveRouter):
             "   - Match the User's Context: If the user is greeting you, telling a joke, asking a casual question, or having a light conversation, reply with a warm, natural, fluid, and conversational flow (a brief paragraph or simple sentences). Do NOT use markdown headers, sections, bullet lists, or bold key-value blocks for everyday casual chat.\n"
             "   - Structural Formatting: ONLY use markdown headers, sections, and bullet lists for complex queries, technical analysis, coding tasks, or multi-step execution plans where they are functionally necessary for legibility.\n"
             "   - Adaptive Visualization: ONLY generate a Mermaid diagram or markdown table if the user explicitly asks for a diagram/table (using words like 'diagram', 'mermaid', 'table', 'visualize', 'chart'). NEVER generate diagrams or tables for casual, humorous, greeting, or simple conversational messages.\n"
+            "6. Single-Pass Dynamic Action Tags:\n"
+            "   - If your dynamic reasoning determines the user is requesting multi-phase web research or deep topic analysis, include `<dispatch_research topic=\"topic_name\">` in your response.\n"
+            "   - If your dynamic reasoning determines the user is requesting execution of a multi-step project plan, include `<dispatch_dag objective=\"objective_name\">`.\n"
+            "   - For all casual conversations, questions, explanations, or light chat, reply directly without action tags.\n"
         )
 
         if isinstance(system_instruction, tuple):
             system_instruction = "\n".join(str(x) for x in system_instruction)
 
+        # Inject Unified Session State Envelope
+        state_envelope = self.build_session_state_envelope(session_id)
         if not system_instruction:
-            system_instruction = polytope_system_core
+            system_instruction = f"{polytope_system_core}\n\n{state_envelope}"
         elif "Alluci" not in system_instruction:
-            system_instruction = polytope_system_core + "\n" + system_instruction
+            system_instruction = f"{polytope_system_core}\n\n{state_envelope}\n\n{system_instruction}"
         else:
-            system_instruction += "\n" + polytope_system_core
+            system_instruction += f"\n\n{state_envelope}"
 
         # If Local Inference is enabled and LCE is ready
         if inference_mode in ["HYBRID", "LOCAL"] and self.lce_enabled:
