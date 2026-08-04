@@ -239,7 +239,7 @@ def _sanitize_url(raw_url: str) -> str:
     import re
     if not raw_url:
         return ""
-    clean = str(raw_url).replace('%5C', '').replace('%5c', '').replace('\\', '')
+    clean = raw_url.replace('%5C', '').replace('%5c', '').replace('\\', '')
     clean = clean.rstrip("/'\"").strip()
     
     if "?" in clean:
@@ -910,7 +910,7 @@ class DeepResearchHarvestAdapter(Adapter):
                     try:
                         from scrapling.fetchers import StealthyFetcher
                         def _scrapling_fetch(target_url, hdrs):
-                            page = StealthyFetcher.fetch(target_url, headers=hdrs, headless=True)
+                            page = StealthyFetcher.fetch(target_url, extra_headers=hdrs, headless=True)
                             
                             # DOM Pruning to eliminate bloat (menus, footers, scripts)
                             if page.body:
