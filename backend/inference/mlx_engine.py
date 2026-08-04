@@ -237,7 +237,7 @@ class MLXEngine:
             
             # Direct DELTA token streaming (July 31st Native Logic)
             import re
-            clean_chunk = re.sub(r'<\|channel.*?>|<channel\|>', '', chunk)
+            clean_chunk = re.sub(r'<\|channel.*?>thought\n?|<\|channel.*?>|<channel\|>', '', chunk)
             for stop_tag in ["<turn|>", "<eos>", "<|endoftext|>"]:
                 if stop_tag in clean_chunk:
                     clean_chunk = clean_chunk.split(stop_tag)[0]
