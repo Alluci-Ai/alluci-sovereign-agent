@@ -230,6 +230,7 @@ class MLXEngine:
 
             gen_future = loop.run_in_executor(self.executor, _sync_gen)
 
+        has_started = False
         while True:
             chunk = await queue.get()
             if chunk is None:
@@ -241,7 +242,14 @@ class MLXEngine:
             for stop_tag in ["<turn|>", "<eos>", "<|endoftext|>"]:
                 if stop_tag in clean_chunk:
                     clean_chunk = clean_chunk.split(stop_tag)[0]
-            if clean_chunk:
+
+            if not has_started:
+                # Strip standalone initial 'thought' preamble tag at stream start
+                clean_chunk = re.sub(r'^thought\s*', '', clean_chunk.strip())
+                if clean_chunk:
+                    has_started = True
+                    yield clean_chunk
+            elif clean_chunk:
                 yield clean_chunk
 
         await gen_future
