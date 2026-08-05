@@ -115,6 +115,7 @@ def temp_db():
     This ensures complete test isolation — no shared state.
     """
     from sqlmodel import create_engine, SQLModel
+    from backend import models  # noqa: F401
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
         db_path = f.name
 
