@@ -106,3 +106,37 @@ async def list_dag_run_tasks(run_id: int):
                 for t in tasks
             ]
         }
+
+@router.delete("/dag/runs/{run_id}", dependencies=[Depends(verify_authenticated)])
+async def delete_dag_run(run_id: int):
+    with Session(db_engine) as session:
+        run = session.get(Run, run_id)
+        if not run:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=404, detail="Run not found")
+        tasks = session.exec(select(TaskRecordModel).where(col(TaskRecordModel.run_id) == run_id)).all()
+        for t in tasks:
+            session.delete(t)
+        session.delete(run)
+        session.commit()
+        return {"status": "success", "deleted_run_id": run_id, "deleted_task_count": len(tasks)}
+
+@router.delete("/dag/runs", dependencies=[Depends(verify_authenticated)])
+async def clear_dag_runs(status: Optional[str] = None):
+    with Session(db_engine) as session:
+        stmt = select(Run)
+        if status:
+            stmt = stmt.where(col(Run.status) == status)
+        runs = session.exec(stmt).all()
+        deleted_runs_count = 0
+        deleted_tasks_count = 0
+        for run in runs:
+            tasks = session.exec(select(TaskRecordModel).where(col(TaskRecordModel.run_id) == run.id)).all()
+            for t in tasks:
+                session.delete(t)
+                deleted_tasks_count += 1
+            session.delete(run)
+            deleted_runs_count += 1
+        session.commit()
+        return {"status": "success", "deleted_runs_count": deleted_runs_count, "deleted_tasks_count": deleted_tasks_count}
+
