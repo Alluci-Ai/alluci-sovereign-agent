@@ -1040,6 +1040,8 @@ class DeepResearchEvaluateAdapter(Adapter):
     description = "Evaluates harvested data, synthesizes report via single-pass or dynamic Map-Reduce, and triggers artifact broadcast."
     
     async def execute(self, args: Dict[str, Any]) -> Any:
+        task_obj = args.get("task")
+        agent_id = args.get("assignee") or args.get("agent_id") or (getattr(task_obj, "assignee", "rocco") if task_obj else "rocco")
         dependency_output = args.get("dependency_output", "")
         report = args.get("synthesis_report", "")
 
