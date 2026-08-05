@@ -322,7 +322,7 @@ async def _fetch_wikipedia_fallback(queries: List[str], max_results: int = 2) ->
                 logger.debug(f"Wikipedia Fallback API failed for {clean_q}: {e}")
     return {"urls": list(urls)}
 
-async def _extract_semantic_topic(raw_objective: str) -> str:
+async def _extract_semantic_topic(raw_objective: str, agent_id: str = "rocco") -> str:
     # 1. Perform deterministic regex topic extraction FIRST
     regex_topic = _sanitize_regex_topic(raw_objective)
     if regex_topic and len(regex_topic) > 2 and len(regex_topic) < 50:
@@ -347,7 +347,8 @@ async def _extract_semantic_topic(raw_objective: str) -> str:
             system_instruction=system_prompt,
             complexity="LOW",
             privacy_level="PUBLIC",
-            inference_mode="TACTICAL"
+            inference_mode="TACTICAL",
+            agent_id=agent_id
         )
         cleaned = res.strip(" .'\":;\n")
         cleaned = _sanitize_regex_topic(cleaned)
@@ -358,7 +359,7 @@ async def _extract_semantic_topic(raw_objective: str) -> str:
 
 class DeepResearchQueryExpansionAdapter(Adapter):
     name = "deep_research_query_expansion"
-    description = "Parallel True Tandem Multi-Engine Search across SearXNG, Scrapling Stealth Scraper, and DuckDuckGo."
+    description = "Deconstructs raw research objectives into targeted search queries across Articles, ArXiv, Podcasts, and Videos."
     
     async def execute(self, args: Dict[str, Any]) -> Any:
         from sqlmodel import Session, select, or_
@@ -367,7 +368,7 @@ class DeepResearchQueryExpansionAdapter(Adapter):
         
         queries = list(args.get("queries", []) or [])
         raw_objective = args.get("query", "") or args.get("context", "") or args.get("objective", "")
-        core_topic = await _extract_semantic_topic(raw_objective) if raw_objective else ""
+        core_topic = await _extract_semantic_topic(raw_objective, agent_id=self.agent_id) if raw_objective else ""
         if not queries:
             if raw_objective:
                 clean_core = core_topic.replace('"', '').replace("'", '').strip()
@@ -380,7 +381,8 @@ class DeepResearchQueryExpansionAdapter(Adapter):
                             system_instruction="You are a specialized multi-media research query expansion engine.",
                             complexity="MEDIUM",
                             privacy_level="PUBLIC",
-                            inference_mode="TACTICAL"
+                            inference_mode="TACTICAL",
+                            agent_id=self.agent_id
                         )
                         import json, re
                         match = re.search(r'\[.*\]', resp, re.DOTALL)
@@ -728,6 +730,14 @@ class DeepResearchHarvestAdapter(Adapter):
     description = "Asynchronously harvests web pages, YouTube transcripts, and Podcast metadata into Markdown."
     
     async def execute(self, args: Dict[str, Any]) -> Any:
+        try:
+            import mlx.core as mx
+            mx.clear_cache()
+        except Exception:
+            pass
+        import gc
+        gc.collect()
+
         dependency_output = args.get("dependency_output", "")
         urls = args.get("urls", [])
         

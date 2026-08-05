@@ -3,9 +3,10 @@
 This document defines the immutable laws and architectural foundation of the Alluci Sovereign Agent. 
 
 ## 1. Core Inference & Compute
-- **The LCE Law (Local Compute Engine):** The system relies exclusively on the official Apple MLX Python frameworks (`mlx_lm` and `mlx_vlm`). The Local Compute Engine (LCE) evaluates models natively in Python without relying on brittle C++ kernels.
+- **The LCE Law (Local Compute Engine):** The system relies on the official Apple MLX Python frameworks (`mlx_lm` and `mlx_vlm`) for local inference. The Local Compute Engine (LCE) evaluates models natively in Python without relying on brittle C++ kernels.
+- **Agent-First Hybrid Model Routing:** Specialized sub-agents (e.g., Deep Research / Rocco) MAY specify designated Cloud Token Router models (e.g., Kimi 3 / `moonshotai/kimi-k3-free`). When an explicit `agent_id` is supplied, `router.py` MUST resolve the agent's assigned model override directly to offload high-density synthesis to the cloud API with 0 MB local VRAM allocation. If offline or airgapped, local LCE execution MUST enforce 4-bit (Q4) quantized model weights (~16 GB VRAM) to prevent Metal memory exhaustion.
 - **Custom Architectures:** Any custom architectural variations or propriety model definitions MUST be transparently mapped directly to native `mlx_lm` implementations within `backend/inference/mlx_engine.py` using runtime dictionary mappings (e.g., overriding `_get_classes`), avoiding the need for dedicated monkey-patching or `nn.Module` reimplementations.
-- **Dynamic KV Cache Strategy:** To prevent memory exhaustion during Deep Research workflows, the LCE dynamically toggles the KV cache format. Short contexts use FP16 for absolute precision, while contexts >8,000 tokens (or edge tiers) automatically switch to Q4 (4-bit quantization) to conserve memory.
+- **Dynamic KV Cache Strategy & Purging:** To prevent memory exhaustion during Deep Research workflows, the LCE dynamically toggles the KV cache format (switching to Q4 quantization for contexts >8,000 tokens) and mandates compulsory `mx.metal.clear_cache()` purges before and after synthesis loops.
 - **Multi-Agent Concurrency:** The LCE uses a strict Python `asyncio.Lock` and queue system to manage concurrent requests from multiple agents. C++ mutexes are strictly forbidden.
 
 ## 2. Security & Integrity

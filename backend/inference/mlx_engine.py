@@ -189,6 +189,12 @@ class MLXEngine:
         """
         await self.ensure_loaded()
         
+        try:
+            import mlx.core as mx
+            mx.clear_cache()
+        except Exception:
+            pass
+
         prompt_with_ace, temperature = self._apply_ace_logic(prompt, temperature)
         full_prompt = self._format_prompt(prompt_with_ace, system_instruction=system_instruction, tools=tools)
         
