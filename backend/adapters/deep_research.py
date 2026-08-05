@@ -366,9 +366,10 @@ class DeepResearchQueryExpansionAdapter(Adapter):
         from ..database import engine
         from ..models import MessageLog
         
+        agent_id = args.get("agent_id") or args.get("assignee") or "rocco"
         queries = list(args.get("queries", []) or [])
         raw_objective = args.get("query", "") or args.get("context", "") or args.get("objective", "")
-        core_topic = await _extract_semantic_topic(raw_objective, agent_id=self.agent_id) if raw_objective else ""
+        core_topic = await _extract_semantic_topic(raw_objective, agent_id=agent_id) if raw_objective else ""
         if not queries:
             if raw_objective:
                 clean_core = core_topic.replace('"', '').replace("'", '').strip()
@@ -382,7 +383,7 @@ class DeepResearchQueryExpansionAdapter(Adapter):
                             complexity="MEDIUM",
                             privacy_level="PUBLIC",
                             inference_mode="TACTICAL",
-                            agent_id=self.agent_id
+                            agent_id=agent_id
                         )
                         import json, re
                         match = re.search(r'\[.*\]', resp, re.DOTALL)
