@@ -8,7 +8,7 @@ from backend.adapters.deep_research import (
 )
 
 @pytest.mark.asyncio
-async def test_deep_research_query_expansion():
+async def test_deep_research_query_expansion(temp_db):
     adapter = DeepResearchQueryExpansionAdapter()
     
     # Test missing queries
@@ -30,7 +30,7 @@ async def test_deep_research_query_expansion():
         assert "https://example.com/1" in res["urls"]
 
 @pytest.mark.asyncio
-async def test_deep_research_harvest():
+async def test_deep_research_harvest(temp_db):
     adapter = DeepResearchHarvestAdapter()
     
     # Test missing urls
@@ -56,7 +56,7 @@ async def test_deep_research_harvest():
         assert "# Test Content" in res["harvested_content"]
 
 @pytest.mark.asyncio
-async def test_deep_research_evaluate():
+async def test_deep_research_evaluate(temp_db):
     adapter = DeepResearchEvaluateAdapter()
     
     # Test missing dependency output
@@ -86,7 +86,7 @@ async def test_deep_research_evaluate():
         )
 
 @pytest.mark.asyncio
-async def test_deep_research_orchestration_rocco_routing():
+async def test_deep_research_orchestration_rocco_routing(temp_db):
     from backend.engine.planner import Planner
     from backend.engine.executor import Executor
     from backend.adapters.registry import AdapterRegistry
