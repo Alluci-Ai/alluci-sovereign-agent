@@ -3,7 +3,10 @@ from opentelemetry import trace
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+try:
+    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+except (ImportError, Exception):
+    OTLPSpanExporter = None
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 
@@ -23,7 +26,7 @@ def configure_tracing(app=None, service_name: str = "alluci-sovereign-agent"):
     provider = TracerProvider(resource=resource)
     
     otlp_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
-    if otlp_endpoint:
+    if otlp_endpoint and OTLPSpanExporter:
         # Production: OTLP over gRPC or HTTP
         exporter = OTLPSpanExporter(endpoint=otlp_endpoint)
         processor = BatchSpanProcessor(exporter)  # type: ignore

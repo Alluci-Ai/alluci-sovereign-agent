@@ -1119,9 +1119,9 @@ class DeepResearchEvaluateAdapter(Adapter):
         dynamic_tokens = HardwareScanner.get_optimal_max_tokens(len(report))
         
         if services.router:
-            # 5-Layer Metal GPU Protection Parameters (~2.5k tokens per serial batch)
-            single_pass_limit = 10000
-            chunk_size = 10000
+            # 5-Layer Metal GPU Protection Parameters (~1.5k tokens per serial batch)
+            single_pass_limit = 6000
+            chunk_size = 6000
             
             if len(report) <= single_pass_limit:
                 logger.info(f"[Metal GPU Guard] Executing Single-Pass Synthesis on {len(report)} characters...")

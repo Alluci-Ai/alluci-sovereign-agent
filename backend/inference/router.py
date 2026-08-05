@@ -29,7 +29,7 @@ cognitive_engine = get_cognitive_engine()
 try:
     import google.generativeai as genai
     GEMINI_AVAILABLE = True
-except ImportError:
+except (ImportError, Exception):
     GEMINI_AVAILABLE = False
 
 try:
@@ -312,7 +312,7 @@ class ModelRouter(ExecutiveRouter):
         if not model:
             raise RuntimeError("Gemini not configured")
         
-        generation_config = {}
+        generation_config: Dict[str, Any] = {}
         if json_mode:
             generation_config["response_mime_type"] = "application/json"
         if max_tokens:
@@ -731,9 +731,13 @@ class ModelRouter(ExecutiveRouter):
             try:
                 from ..database import engine as db_engine
                 from ..models import AgentRecord
-                from sqlmodel import Session, select
+                from sqlmodel import Session, select, col, or_
                 with Session(db_engine) as session:
-                    agent_rec = session.exec(select(AgentRecord).where(AgentRecord.id == agent_id)).first()
+                    agent_rec = session.exec(
+                        select(AgentRecord).where(
+                            or_(col(AgentRecord.id) == agent_id, col(AgentRecord.name).ilike(agent_id))
+                        )
+                    ).first()
                     if agent_rec and agent_rec.model:
                         target_model = agent_rec.model.strip()
                         self.logger.info(f"[AGENT_DISPATCH] Discovered agent target model '{target_model}' for agent '{agent_id}'")
@@ -748,9 +752,10 @@ class ModelRouter(ExecutiveRouter):
                                 self.logger.info(f"[AGENT_DISPATCH] Routing directly to OpenAI ({clean_model})")
                                 return await self._openai_request(prompt, model_override=clean_model, system_instruction=system_instruction, max_tokens=max_tokens)
                         elif "gemini" in target_model.lower():
-                            if self.gemini_client:
+                            if self.gemini_flash:
                                 self.logger.info(f"[AGENT_DISPATCH] Routing directly to Gemini ({target_model})")
-                                return await self._gemini_request(prompt, system_instruction=system_instruction)
+                                use_pro = "pro" in target_model.lower()
+                                return await self._gemini_request(prompt, use_pro=use_pro, system_instruction=system_instruction, max_tokens=max_tokens)
                         elif "groq" in target_model.lower():
                             if self.groq_api_key:
                                 self.logger.info(f"[AGENT_DISPATCH] Routing directly to Groq ({target_model})")

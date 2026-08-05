@@ -144,6 +144,18 @@ class MLXEngine:
         formatted += f"<|turn>user\n{prompt}<|turn|>\n<|turn>model\n"
         return formatted
 
+    @staticmethod
+    def _clear_vram_cache() -> None:
+        """Safely purges Apple Silicon Metal GPU VRAM cache without raising exceptions."""
+        try:
+            import mlx.core as mx
+            if hasattr(mx, "clear_cache"):
+                mx.clear_cache()
+            elif hasattr(mx, "metal") and hasattr(mx.metal, "clear_cache"):
+                mx.metal.clear_cache()
+        except Exception:
+            pass
+
     async def generate(
         self,
         prompt: str,
@@ -165,11 +177,7 @@ class MLXEngine:
             return result
         except Exception as ge:
             logger.error(f"[Metal GPU Safeguard] MLX generation notice: {ge}")
-            try:
-                import mlx.core as mx
-                mx.clear_cache()
-            except Exception:
-                pass
+            MLXEngine._clear_vram_cache()
             import gc
             gc.collect()
             raise RuntimeError(f"MLX Engine Local Hardware Failure: {ge}")
@@ -189,11 +197,10 @@ class MLXEngine:
         """
         await self.ensure_loaded()
         
-        try:
-            import mlx.core as mx
-            mx.clear_cache()
-        except Exception:
-            pass
+        # Mandatory Pre-Inference VRAM Purge
+        MLXEngine._clear_vram_cache()
+        import gc
+        gc.collect()
 
         prompt_with_ace, temperature = self._apply_ace_logic(prompt, temperature)
         full_prompt = self._format_prompt(prompt_with_ace, system_instruction=system_instruction, tools=tools)
@@ -214,6 +221,14 @@ class MLXEngine:
                         "sampler": sampler
                     }
 
+                    # Dynamic KV Cache Safeguards for Long Prompts (>8,000 chars / ~4,000 tokens)
+                    prompt_len = len(full_prompt)
+                    if prompt_len > 8000:
+                        logger.info(f"[Metal GPU Guard] Long prompt detected ({prompt_len} chars). Enabling Q4 KV cache safeguards.")
+                        # Cap max output tokens on long context to prevent Metal KV buffer overfill
+                        gen_kwargs["max_tokens"] = min(max_tokens, 4096)
+                        MLXEngine._clear_vram_cache()
+
                     for response in stream_generate(
                         self.engine,
                         self.tokenizer,
@@ -226,12 +241,12 @@ class MLXEngine:
                             break
                 except Exception as me:
                     logger.error(f"[Metal GPU Safeguard] Caught MLX Metal execution error: {me}")
-                    try:
-                        import mlx.core as mx
-                        mx.clear_cache()
-                    except Exception:
-                        pass
+                    MLXEngine._clear_vram_cache()
+                    gc.collect()
                 finally:
+                    # Post-Inference VRAM & GC Release
+                    MLXEngine._clear_vram_cache()
+                    gc.collect()
                     loop.call_soon_threadsafe(queue.put_nowait, None)
 
             gen_future = loop.run_in_executor(self.executor, _sync_gen)
@@ -261,7 +276,7 @@ class MLXEngine:
         await gen_future
         # Clear Metal cache natively and collect garbage
         import gc
-        mx.clear_cache()
+        MLXEngine._clear_vram_cache()
         gc.collect()
 
     async def apply_lora_adapter(self, agent_id: str) -> None:
