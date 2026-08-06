@@ -472,7 +472,7 @@ class ModelRouter(ExecutiveRouter):
 
     @retry(reraise=True, stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10), retry=retry_if_exception_type((httpx.HTTPError, Exception)))
     async def _tokenrouter_request(self, prompt: str, model: str = "moonshotai/kimi-k3-free", system_instruction: str = "") -> str:
-        """Token Router Kimi 3 API provider request."""
+        """Token Router Kimi 3 API provider request with automatic timeout and Local LCE failover."""
         if not self.tokenrouter_client:
             raise RuntimeError("Token Router Kimi 3 not configured")
         
@@ -481,19 +481,34 @@ class ModelRouter(ExecutiveRouter):
             messages.append({"role": "system", "content": system_instruction})
         messages.append({"role": "user", "content": prompt})
 
-        stream = await self.tokenrouter_client.chat.completions.create(
-            model=model,
-            messages=messages,
-            stream=True,
-            stream_options={"include_usage": True}
-        )
-        content_parts = []
-        async for chunk in stream:
-            if chunk.choices:
-                delta = chunk.choices[0].delta
-                if delta and delta.content:
-                    content_parts.append(delta.content)
-        return "".join(content_parts)
+        try:
+            stream = await asyncio.wait_for(
+                self.tokenrouter_client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    stream=True,
+                    stream_options={"include_usage": True}
+                ),
+                timeout=30.0
+            )
+            content_parts = []
+            while True:
+                try:
+                    chunk = await asyncio.wait_for(stream.__anext__(), timeout=30.0)
+                    if chunk.choices:
+                        delta = chunk.choices[0].delta
+                        if delta and delta.content:
+                            content_parts.append(delta.content)
+                except StopAsyncIteration:
+                    break
+            result = "".join(content_parts)
+            if result.strip():
+                return result
+            raise RuntimeError("TokenRouter stream returned empty response")
+        except Exception as tr_err:
+            self.logger.warning(f"[TOKENROUTER FAILOVER] TokenRouter request timed out or failed ({tr_err}). Falling back to Local LCE engine.")
+            return await self._lce_request(prompt, system_instruction=system_instruction)
+
 
     @retry(reraise=True, stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10), retry=retry_if_exception_type((httpx.HTTPError, Exception)))
     async def _cohere_request(self, prompt: str, use_strong: bool = False, system_instruction: str = "") -> str:
