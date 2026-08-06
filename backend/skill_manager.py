@@ -112,8 +112,9 @@ class SkillManager:
 
     def resolve_skill_context_for_prompt(self, prompt: str) -> Optional[str]:
         """
-        Dynamically matches single or multiple active skills from user prompt tokens
-        and formats a structured <COGNITIVE_SKILL_CONTEXT> block for LLM system injection.
+        Dynamically matches single or multiple active skills from user prompt tokens,
+        including natural language skill titles, internal methodologies, mindsets, and concepts.
+        Formats a structured <COGNITIVE_SKILL_CONTEXT> block for LLM system injection.
         """
         if not prompt or not prompt.strip():
             return None
@@ -125,23 +126,54 @@ class SkillManager:
         for skill in skills:
             skill_id = str(skill.get("id", "")).lower()
             skill_name = str(skill.get("name", "")).lower()
+            methodologies = [str(m) for m in skill.get("methodologies", [])]
+            frameworks = [str(f) for f in skill.get("frameworks", [])]
+            knowledge = [str(k) for k in skill.get("knowledge", [])]
+            capabilities = [str(c) for c in skill.get("capabilities", [])]
+            mindsets = [str(m) for m in skill.get("mindsets", [])]
             
-            # Check for direct ID match (e.g. hcd_01) or full name match (e.g. human centered design)
+            concept_terms = methodologies + frameworks + knowledge + capabilities + mindsets
+            
+            is_match = False
+            
+            # 1. Direct ID match (e.g., hcd_01) or full natural name match (e.g., human centered design)
             if (skill_id and skill_id in prompt_lower) or (skill_name and skill_name in prompt_lower):
-                matched_skills.append(skill)
+                is_match = True
             elif skill_name:
-                # Check for individual multi-word matching (e.g., "human centered" or "design thinking")
+                # 2. Multi-word title matching (e.g. "human centered" or "design thinking")
                 name_words = [w for w in skill_name.split() if len(w) > 3]
                 if name_words and all(w in prompt_lower for w in name_words):
-                    matched_skills.append(skill)
+                    is_match = True
+            
+            # 3. Methodological concept & keyword matching (e.g., "journey mapping", "usability testing", "ethnographic", "user research")
+            if not is_match:
+                for term in concept_terms:
+                    spaced_term = "".join([f" {c.lower()}" if c.isupper() else c for c in term]).replace("_", " ").strip().lower()
+                    clean_term = term.replace("_", " ").strip().lower()
+                    term_lower = term.lower()
+                    
+                    if (term_lower and len(term_lower) > 3 and term_lower in prompt_lower) or \
+                       (clean_term and len(clean_term) > 3 and clean_term in prompt_lower) or \
+                       (spaced_term and len(spaced_term) > 3 and spaced_term in prompt_lower):
+                        is_match = True
+                        break
+                        
+            # 4. Common conversational aliases for core skills
+            if not is_match and skill_id == "hcd_01":
+                hcd_aliases = ["user experience", "user research", "empathy mapping", "design thinking", "human-centered", "human centered"]
+                if any(alias in prompt_lower for alias in hcd_aliases):
+                    is_match = True
+                    
+            if is_match and skill not in matched_skills:
+                matched_skills.append(skill)
                     
         if not matched_skills:
             return None
             
         context_blocks = []
         for s in matched_skills:
-            mindsets = s.get("mindsets", [])
-            methodologies = s.get("methodologies", [])
+            m_list = s.get("mindsets", [])
+            meth_list = s.get("methodologies", [])
             chains = s.get("chainsOfThought", [])
             logic = s.get("logic", [])
             logic_str = logic[0] if isinstance(logic, list) and logic else str(logic)
@@ -150,8 +182,8 @@ class SkillManager:
             block = (
                 f"<COGNITIVE_SKILL_CONTEXT id=\"{s.get('id')}\" name=\"{s.get('name')}\">\n"
                 f"Description: {s.get('description', '')}\n"
-                f"Mindsets: {', '.join(mindsets) if mindsets else 'N/A'}\n"
-                f"Methodologies: {', '.join(methodologies) if methodologies else 'N/A'}\n"
+                f"Mindsets: {', '.join(m_list) if m_list else 'N/A'}\n"
+                f"Methodologies: {', '.join(meth_list) if meth_list else 'N/A'}\n"
                 f"Chains of Thought:\n" + ("\n".join([f"  - {c}" for c in chains]) if chains else "  - N/A") + "\n"
                 f"Logic: {logic_str}\n"
                 f"Best Practices:\n" + ("\n".join([f"  - {bp}" for bp in best_practices]) if best_practices else "  - N/A") + "\n"
