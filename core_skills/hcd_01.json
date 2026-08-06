@@ -28,13 +28,13 @@
     "Understanding users deeply by experiencing their challenges."
   ],
   "chainsOfThought": [
-    "Empathize -> Understand User Needs",
-    "Define -> Identify Core Problems",
-    "Ideate -> Generate Solutions",
-    "Prototype -> Develop Tangible Models",
-    "Test -> Validate with Users",
-    "Implement -> Launch Solutions",
-    "Measure -> Assess Impact"
+    "Empathize → Understand User Needs",
+    "Define → Identify Core Problems",
+    "Ideate → Generate Solutions",
+    "Prototype → Develop Tangible Models",
+    "Test → Validate with Users",
+    "Implement → Launch Solutions",
+    "Measure → Assess Impact"
   ],
   "capabilities": [
     "User_Research",

@@ -1056,6 +1056,15 @@ class ModelRouter(ExecutiveRouter):
             span.set_status(trace.Status(trace.StatusCode.ERROR, error_msg))
             raise RuntimeError(error_msg)
 
+    def _sanitize_formatting(self, text: str) -> str:
+        """
+        Post-processes model output chunks to ensure workflow sequence arrows use clean Unicode (→)
+        instead of unrendered LaTeX math notation ($\rightarrow$).
+        """
+        if not text or not isinstance(text, str):
+            return text
+        return text.replace("$\\rightarrow$", "→").replace("\\rightarrow", "→")
+
     def _prepare_system_instruction(self, prompt: str, system_instruction: str = "", session_id: Optional[str] = None) -> str:
         """
         Prepares unified system instructions across all model channels (streaming & batch).
@@ -1086,6 +1095,7 @@ class ModelRouter(ExecutiveRouter):
             "5. Dynamic Formatting & Conversational Flow:\n"
             "   - Match the User's Context: If the user is greeting you, telling a joke, asking a casual question, or having a light conversation, reply with a warm, natural, fluid, and conversational flow (a brief paragraph or simple sentences). Do NOT use markdown headers, sections, bullet lists, or bold key-value blocks for everyday casual chat.\n"
             "   - Structural Formatting: ONLY use markdown headers, sections, and bullet lists for complex queries, technical analysis, coding tasks, or multi-step execution plans where they are functionally necessary for legibility.\n"
+            "   - Clean Arrow Symbols: Use standard clean Unicode arrows (→) for workflow sequences and step-by-step chains of thought. Reserve LaTeX math syntax ($...$) strictly for mathematical formulas and equations.\n"
             "   - Adaptive Visualization: ONLY generate a Mermaid diagram or markdown table if the user explicitly asks for a diagram/table (using words like 'diagram', 'mermaid', 'table', 'visualize', 'chart'). NEVER generate diagrams or tables for casual, humorous, greeting, or simple conversational messages.\n"
             "6. Single-Pass Dynamic Action Tags:\n"
             "   - If your dynamic reasoning determines the user is requesting multi-phase web research or deep topic analysis, include `<dispatch_research topic=\"topic_name\">` in your response.\n"
@@ -1144,7 +1154,7 @@ class ModelRouter(ExecutiveRouter):
                 self.logger.info("[STREAM] Routing to local LCE native stream...")
                 await cognitive_engine.apply_lora_adapter(agent_id)
                 async for chunk in cognitive_engine.generate_stream(prompt, system_instruction=system_instruction):
-                    yield chunk
+                    yield self._sanitize_formatting(chunk)
                 return
             except Exception as e:
                 self.logger.warning(f"Local LCE streaming failed, falling back to standard router: {e}")
@@ -1160,7 +1170,7 @@ class ModelRouter(ExecutiveRouter):
             session_id=session_id,
             agent_id=agent_id
         )
-        yield response
+        yield self._sanitize_formatting(response)
 
     async def get_structured_plan(self, prompt: str, system_instruction: str = "", tools: Optional[list] = None, agent_id: str = "executive") -> Dict[str, Any]:
         """

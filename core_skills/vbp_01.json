@@ -27,9 +27,9 @@
     "Charge based on the expected ROI and perceived benefits."
   ],
   "chainsOfThought": [
-    "Understand Client Objectives -> Define Value Creation",
-    "Estimate Perceived Value -> Determine ROI",
-    "Set Value-Based Price -> Validate Market Readiness"
+    "Understand Client Objectives → Define Value Creation",
+    "Estimate Perceived Value → Determine ROI",
+    "Set Value-Based Price → Validate Market Readiness"
   ],
   "capabilities": [
     "Economic_Surplus_Extraction",

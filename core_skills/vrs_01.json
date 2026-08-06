@@ -28,10 +28,10 @@
     "Self-sovereign identity is the root of all provenance."
   ],
   "chainsOfThought": [
-    "Define Identity -> Register Name Commitment -> Register Identity",
-    "Construct VDXF Object -> Sign -> Publish",
-    "Define Currency -> Launch Chain",
-    "Bridge Assets -> Cross-Chain Export"
+    "Define Identity → Register Name Commitment → Register Identity",
+    "Construct VDXF Object → Sign → Publish",
+    "Define Currency → Launch Chain",
+    "Bridge Assets → Cross-Chain Export"
   ],
   "capabilities": [
     "verus_id_operations",

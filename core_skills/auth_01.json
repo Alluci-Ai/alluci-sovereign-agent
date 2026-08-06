@@ -28,7 +28,7 @@
     "Credentials should be discovered and negotiated dynamically, never hardcoded."
   ],
   "chainsOfThought": [
-    "Scan for Domain Posture -> Probe PRM -> Evaluate auth.md -> Mint ID-JAG -> Transmit Assertion -> Secure API Key"
+    "Scan for Domain Posture → Probe PRM → Evaluate auth.md → Mint ID-JAG → Transmit Assertion → Secure API Key"
   ],
   "capabilities": [
     "rfc9728_two_hop_probe",

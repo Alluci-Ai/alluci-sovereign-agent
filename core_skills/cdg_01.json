@@ -28,13 +28,13 @@
     "Waste is data in the wrong place. Close the loop."
   ],
   "chainsOfThought": [
-    "Understand Context -> Analyze Systems",
-    "Define Objectives -> Set Sustainability Goals",
-    "Ideate -> Generate Circular Solutions",
-    "Prototype -> Develop Tangible Models",
-    "Test -> Gather User Feedback",
-    "Implement -> Launch",
-    "Measure -> Assess Impact"
+    "Understand Context → Analyze Systems",
+    "Define Objectives → Set Sustainability Goals",
+    "Ideate → Generate Circular Solutions",
+    "Prototype → Develop Tangible Models",
+    "Test → Gather User Feedback",
+    "Implement → Launch",
+    "Measure → Assess Impact"
   ],
   "capabilities": [
     "Systemic_Optimization",
