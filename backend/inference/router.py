@@ -778,9 +778,17 @@ class ModelRouter(ExecutiveRouter):
             except Exception as ad_err:
                 self.logger.warning(f"[AGENT_DISPATCH] Failed to resolve agent model override: {ad_err}")
 
-        # ── Polytope Cognitive Fine-Tuning Emulation ──────────────────
-        # Since 4-bit Edge tensors cannot be LoRA-updated locally, we inject the
-        # absolute Polytope persona and behavioral specs into the inescapable system layer.
+        # ── Polytope Cognitive Skill & Persona Context Injection ──────────────────
+        from .. import services
+        if services.skill_manager and hasattr(services.skill_manager, "resolve_skill_context_for_prompt"):
+            try:
+                skill_context = services.skill_manager.resolve_skill_context_for_prompt(prompt)
+                if skill_context:
+                    self.logger.info(f"[SKILL_INJECTION] Dynamically injected cognitive skill context for prompt")
+                    system_instruction = f"{skill_context}\n\n{system_instruction}" if system_instruction else skill_context
+            except Exception as sk_err:
+                self.logger.warning(f"[SKILL_INJECTION] Failed to resolve skill context: {sk_err}")
+
         polytope_system_core = (
             "You are Alluci, a Sovereign Agent built on the Polytope Architecture.\n"
             "SPECS & BEHAVIORAL DIRECTIVES:\n"
@@ -799,10 +807,9 @@ class ModelRouter(ExecutiveRouter):
             
         if not system_instruction:
             system_instruction = polytope_system_core
-        elif "Alluci" not in system_instruction:
-            system_instruction = polytope_system_core + "\n" + system_instruction
-        else:
-            system_instruction += "\n" + polytope_system_core
+        elif "You are Alluci" not in system_instruction:
+            system_instruction = f"{polytope_system_core}\n\n{system_instruction}"
+
         from ..tracing_config import get_tracer
         from opentelemetry import trace
         from ..security.circuit_breaker import circuit_breaker

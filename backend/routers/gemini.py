@@ -26,11 +26,25 @@ async def gemini_proxy(
 def _check_local_research_reports(prompt: str) -> Optional[str]:
     """
     Scans artifacts/research/*/deep_research_report.md on disk when prompt
-    requests a report/dossier, returning the exact raw markdown from disk.
+    explicitly requests a research report or dossier, returning the exact raw markdown.
+    Uses compound phrase matching and negative guardrails to avoid out-of-context triggers.
     """
     body_lower = prompt.lower()
-    retrieval_verbs = ["pull up", "show", "read", "open", "display", "view", "fetch", "get", "see"]
-    if any(rv in body_lower for rv in retrieval_verbs) and ("report" in body_lower or "dossier" in body_lower or "research" in body_lower or "sovereign ai" in body_lower or "sovereign" in body_lower):
+    
+    # Negative guardrail keywords: Never intercept educational, skill, or code analysis prompts
+    exclude_keywords = ["skill", "hcd", "framework", "json", "code", "mindset", "methodology", "ethnographic", "concept", "definition"]
+    if any(kw in body_lower for kw in exclude_keywords):
+        return None
+        
+    explicit_phrases = [
+        "pull up the report", "show the report", "read the report", "open the report",
+        "display the dossier", "view the research dossier", "show me the deep research report",
+        "fetch latest research report", "open the deep research dossier", "show research dossier",
+        "pull up research report"
+    ]
+    
+    is_explicit_request = any(phrase in body_lower for phrase in explicit_phrases)
+    if is_explicit_request:
         import os, glob
         from .sessions import WORKSPACE_DIR
         found_reports = []

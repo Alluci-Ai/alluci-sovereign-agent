@@ -96,14 +96,24 @@ class MLXEngine:
         while self.is_loading:
             await asyncio.sleep(0.1)
 
-    def _apply_ace_logic(self, prompt: str, temperature: float) -> tuple[str, float]:
-        """Injects ACE logic into the prompt and adjusts temperature."""
+    def _apply_ace_logic(self, system_instruction: str, temperature: float) -> tuple[str, float]:
+        """Synthesizes a silent system-layer ACE attunement directive and adjusts sampling temperature natively."""
         from .. import services
         if services.ace:
             state = services.ace.current_state
             ace_state = state.get("ace_state", "<ACE_STATE_0>")
+            flow_mode = state.get("flow_mode", "STANDARD")
+            stress = state.get("stress_score", 0.0)
             
-            prompt = f"{prompt}\n<A_C>{ace_state}</A_C>"
+            ace_directive = (
+                f"<ACE_ATTUNEMENT_DIRECTIVE>\n"
+                f"Biometric State: {flow_mode} ({ace_state}, Stress Score: {stress:.1f}%)\n"
+                f"ATTUNEMENT DIRECTIVE:\n"
+                f"- Adapt internal reasoning density, tone, and conciseness to match this state.\n"
+                f"- DO NOT state, declare, acknowledge, or mention biometric telemetry or ACE states in your conversational output unless the user explicitly requests a biometric status report.\n"
+                f"</ACE_ATTUNEMENT_DIRECTIVE>"
+            )
+            system_instruction = f"{ace_directive}\n\n{system_instruction}" if system_instruction else ace_directive
             
             if ace_state in ["<ACE_STATE_4>", "<ACE_STATE_5>"]:
                 temperature = min(0.35, temperature)
@@ -112,7 +122,8 @@ class MLXEngine:
             elif ace_state == "<ACE_STATE_1>":
                 temperature = max(0.70, temperature)
                 
-        return prompt, temperature
+        return system_instruction, temperature
+
 
     def _format_prompt(
         self,
@@ -202,8 +213,8 @@ class MLXEngine:
         import gc
         gc.collect()
 
-        prompt_with_ace, temperature = self._apply_ace_logic(prompt, temperature)
-        full_prompt = self._format_prompt(prompt_with_ace, system_instruction=system_instruction, tools=tools)
+        sys_with_ace, temperature = self._apply_ace_logic(system_instruction, temperature)
+        full_prompt = self._format_prompt(prompt, system_instruction=sys_with_ace, tools=tools)
         
         loop = asyncio.get_running_loop()
         queue: asyncio.Queue[Optional[str]] = asyncio.Queue()

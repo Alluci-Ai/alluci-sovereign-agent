@@ -33,7 +33,7 @@ class DummyGoalEngine:
         return True
 
 class DummyMemory:
-    async def list_entries(self, limit=50, offset=0):
+    async def list_entries(self, limit=50, offset=0, tier=None):
         return []
     async def search(self, q, limit=10):
         return []
@@ -92,3 +92,14 @@ def test_security_resolve_cancel():
     response = client.post("/security/resolve", json=payload)
     assert response.status_code == 200
     assert response.json()["status"] == "success"
+
+def test_check_local_research_reports_guardrails():
+    from backend.routers.gemini import _check_local_research_reports
+    
+    # Prompts mentioning skills, ethnographic, or hcd should NOT trigger report interception
+    res1 = _check_local_research_reports("Tell me about EthnographicResearch and Human Centered Design")
+    assert res1 is None
+    
+    res2 = _check_local_research_reports("What are the mindsets of hcd_01?")
+    assert res2 is None
+

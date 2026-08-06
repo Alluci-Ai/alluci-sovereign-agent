@@ -24,11 +24,15 @@ class SkillManager:
         data = await self.vault.retrieve_secret(self.registry_id)
         vault_skills = data.get("skills", [])
         
-        # 2. Load from Disk (both user ~/.polytope/skills and workspace alluci_vault/skills)
+        # 2. Load from Disk (user ~/.polytope/skills, workspace alluci_vault/skills, and core_skills)
         disk_skills = []
         dirs_to_scan = [self.skills_dir]
         if self.workspace_skills_dir:
             dirs_to_scan.append(self.workspace_skills_dir)
+        core_skills_dir = os.path.join(os.getcwd(), "core_skills")
+        if os.path.exists(core_skills_dir):
+            dirs_to_scan.append(core_skills_dir)
+            
         seen_ids = set()
         
         for s in vault_skills:
@@ -70,6 +74,107 @@ class SkillManager:
                 skill["verified"] = True
                 
         return all_skills
+
+    def list_skills_sync(self) -> List[Dict[str, Any]]:
+        """Synchronously scan disk skills for high-performance prompt resolution."""
+        disk_skills = []
+        dirs_to_scan = [self.skills_dir]
+        if self.workspace_skills_dir:
+            dirs_to_scan.append(self.workspace_skills_dir)
+        core_skills_dir = os.path.join(os.getcwd(), "core_skills")
+        if os.path.exists(core_skills_dir):
+            dirs_to_scan.append(core_skills_dir)
+            
+        seen_ids = set()
+        for d in dirs_to_scan:
+            if not os.path.exists(d):
+                continue
+            try:
+                for filename in os.listdir(d):
+                    file_path = os.path.join(d, filename)
+                    skill_data = None
+                    if filename.endswith((".yaml", ".yml")):
+                        with open(file_path, "r") as f:
+                            skill_data = yaml.safe_load(f)
+                    elif filename.endswith(".json"):
+                        import json
+                        with open(file_path, "r") as f:
+                            skill_data = json.load(f)
+                            
+                    if skill_data and "id" in skill_data:
+                        if skill_data["id"] not in seen_ids:
+                            skill_data["source"] = "disk"
+                            disk_skills.append(skill_data)
+                            seen_ids.add(skill_data["id"])
+            except Exception as e:
+                logger.error(f"Sync load failed for dir {d}: {e}")
+        return disk_skills
+
+    def resolve_skill_context_for_prompt(self, prompt: str) -> Optional[str]:
+        """
+        Dynamically matches single or multiple active skills from user prompt tokens
+        and formats a structured <COGNITIVE_SKILL_CONTEXT> block for LLM system injection.
+        """
+        if not prompt or not prompt.strip():
+            return None
+            
+        prompt_lower = prompt.lower()
+        skills = self.list_skills_sync()
+        matched_skills = []
+        
+        for skill in skills:
+            skill_id = str(skill.get("id", "")).lower()
+            skill_name = str(skill.get("name", "")).lower()
+            
+            # Check for direct ID match (e.g. hcd_01) or full name match (e.g. human centered design)
+            if (skill_id and skill_id in prompt_lower) or (skill_name and skill_name in prompt_lower):
+                matched_skills.append(skill)
+            elif skill_name:
+                # Check for individual multi-word matching (e.g., "human centered" or "design thinking")
+                name_words = [w for w in skill_name.split() if len(w) > 3]
+                if name_words and all(w in prompt_lower for w in name_words):
+                    matched_skills.append(skill)
+                    
+        if not matched_skills:
+            return None
+            
+        context_blocks = []
+        for s in matched_skills:
+            mindsets = s.get("mindsets", [])
+            methodologies = s.get("methodologies", [])
+            chains = s.get("chainsOfThought", [])
+            logic = s.get("logic", [])
+            logic_str = logic[0] if isinstance(logic, list) and logic else str(logic)
+            best_practices = s.get("bestPractices", [])
+            
+            block = (
+                f"<COGNITIVE_SKILL_CONTEXT id=\"{s.get('id')}\" name=\"{s.get('name')}\">\n"
+                f"Description: {s.get('description', '')}\n"
+                f"Mindsets: {', '.join(mindsets) if mindsets else 'N/A'}\n"
+                f"Methodologies: {', '.join(methodologies) if methodologies else 'N/A'}\n"
+                f"Chains of Thought:\n" + ("\n".join([f"  - {c}" for c in chains]) if chains else "  - N/A") + "\n"
+                f"Logic: {logic_str}\n"
+                f"Best Practices:\n" + ("\n".join([f"  - {bp}" for bp in best_practices]) if best_practices else "  - N/A") + "\n"
+                f"</COGNITIVE_SKILL_CONTEXT>"
+            )
+            context_blocks.append(block)
+            
+        return "\n\n".join(context_blocks)
+
+    def detect_context_switch(self, current_prompt: str, active_skill_ids: List[str]) -> bool:
+        """
+        Detects if the current prompt signals a context switch away from previously active skills.
+        """
+        if not current_prompt or not active_skill_ids:
+            return False
+            
+        prompt_lower = current_prompt.lower()
+        switch_indicators = ["switch to", "new topic", "different task", "forget skills", "clear skills", "move on to", "next task"]
+        if any(ind in prompt_lower for ind in switch_indicators):
+            return True
+            
+        return False
+
 
     async def get_review_queue(self) -> List[Dict[str, Any]]:
         """Retrieve skills pending review."""
