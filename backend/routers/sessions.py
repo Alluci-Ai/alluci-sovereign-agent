@@ -64,6 +64,28 @@ async def get_session_config(session_key: str):
             return {"session_key": session_key, "overrides": {}}
         return config
 
+@router.post("/sessions/{session_key}/synthesize", dependencies=[Depends(verify_authenticated)])
+async def synthesize_session_history(
+    session_key: str,
+    payload: Dict[str, Any] = Body(...)
+):
+    """
+    Triggers asynchronous chat history reduction & H-LSM synthesis for a session.
+    """
+    from .. import services
+    messages = payload.get("messages", [])
+    if not messages:
+        return {"status": "SKIPPED", "reason": "No messages provided for synthesis"}
+
+    if hasattr(services, "hlsm_manager") and services.hlsm_manager:
+        entry_id = await services.hlsm_manager.synthesize_and_store_chat_session(session_key, messages)
+        return {
+            "status": "SUCCESS" if entry_id else "SKIPPED",
+            "session_key": session_key,
+            "synthesized_entry_id": entry_id
+        }
+    return {"status": "FAILED", "reason": "HLSM Manager not initialized"}
+
 # ─── Agent Constellation CRUD ───────────────
 @router.get("/agents", dependencies=[Depends(verify_authenticated)])
 async def list_agents():

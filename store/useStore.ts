@@ -230,8 +230,12 @@ export interface AppState {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     sessions: any[];
     activeSessionKey: string;
+    sessionHistories: Record<string, Message[]>;
     setSessions: (val: AppState['sessions']) => void;
     setActiveSessionKey: (val: string) => void;
+    createNewChat: () => string;
+    loadChatSession: (sessionKey: string) => void;
+    deleteChatSession: (sessionKey: string) => void;
 
     // Sprint H: Presence
     presenceCount: number;
@@ -438,9 +442,38 @@ export const useStore = create<AppState>((set, get) => ({
     setBaseManifest: (val) => set({ baseManifest: val }),
 
     // Interaction
-    transcriptions: [],
+    transcriptions: (() => {
+        try {
+            const activeKey = localStorage.getItem('alluci_active_session') || 'default_session';
+            const historiesRaw = localStorage.getItem('alluci_session_histories');
+            if (historiesRaw) {
+                const histories = JSON.parse(historiesRaw);
+                return histories[activeKey] || [];
+            }
+        } catch (e) {
+            console.warn('[STORE] Failed reading initial transcriptions from localStorage', e);
+        }
+        return [];
+    })(),
     isProcessing: false,
-    setTranscriptions: (fn) => set((state) => ({ transcriptions: fn(state.transcriptions) })),
+    setTranscriptions: (fn) => set((state) => {
+        const nextTranscriptions = fn(state.transcriptions);
+        const activeKey = state.activeSessionKey || localStorage.getItem('alluci_active_session') || 'default_session';
+        const updatedHistories = {
+            ...state.sessionHistories,
+            [activeKey]: nextTranscriptions
+        };
+        try {
+            localStorage.setItem('alluci_session_histories', JSON.stringify(updatedHistories));
+            localStorage.setItem('alluci_active_session', activeKey);
+        } catch (e) {
+            console.warn('[STORE] Failed persisting transcriptions to localStorage', e);
+        }
+        return {
+            transcriptions: nextTranscriptions,
+            sessionHistories: updatedHistories
+        };
+    }),
     setIsProcessing: (val) => set({ isProcessing: val }),
     isVoiceRecording: false,
     setIsVoiceRecording: (val) => set({ isVoiceRecording: val }),
@@ -476,9 +509,72 @@ export const useStore = create<AppState>((set, get) => ({
 
     // Sprint B: Sessions
     sessions: [],
-    activeSessionKey: '',
+    activeSessionKey: localStorage.getItem('alluci_active_session') || 'default_session',
+    sessionHistories: (() => {
+        try {
+            const historiesRaw = localStorage.getItem('alluci_session_histories');
+            if (historiesRaw) return JSON.parse(historiesRaw);
+        } catch (e) {
+            console.warn('[STORE] Failed reading sessionHistories from localStorage', e);
+        }
+        return {};
+    })(),
     setSessions: (val) => set({ sessions: val }),
-    setActiveSessionKey: (val) => set({ activeSessionKey: val }),
+    setActiveSessionKey: (val) => {
+        localStorage.setItem('alluci_active_session', val);
+        set((state) => ({
+            activeSessionKey: val,
+            transcriptions: state.sessionHistories[val] || []
+        }));
+    },
+    createNewChat: () => {
+        const newKey = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        localStorage.setItem('alluci_active_session', newKey);
+        set((state) => {
+            const updatedHistories = {
+                ...state.sessionHistories,
+                [newKey]: []
+            };
+            try {
+                localStorage.setItem('alluci_session_histories', JSON.stringify(updatedHistories));
+            } catch (e) {
+                console.warn('[STORE] Failed writing new chat session to localStorage', e);
+            }
+            return {
+                activeSessionKey: newKey,
+                transcriptions: [],
+                sessionHistories: updatedHistories,
+                activeView: 'chat'
+            };
+        });
+        return newKey;
+    },
+    loadChatSession: (sessionKey: string) => {
+        localStorage.setItem('alluci_active_session', sessionKey);
+        set((state) => ({
+            activeSessionKey: sessionKey,
+            transcriptions: state.sessionHistories[sessionKey] || [],
+            activeView: 'chat'
+        }));
+    },
+    deleteChatSession: (sessionKey: string) => {
+        set((state) => {
+            const updatedHistories = { ...state.sessionHistories };
+            delete updatedHistories[sessionKey];
+            try {
+                localStorage.setItem('alluci_session_histories', JSON.stringify(updatedHistories));
+            } catch (e) {
+                console.warn('[STORE] Failed updating localStorage on session deletion', e);
+            }
+            const fallbackKey = Object.keys(updatedHistories)[0] || 'default_session';
+            localStorage.setItem('alluci_active_session', fallbackKey);
+            return {
+                sessionHistories: updatedHistories,
+                activeSessionKey: state.activeSessionKey === sessionKey ? fallbackKey : state.activeSessionKey,
+                transcriptions: state.activeSessionKey === sessionKey ? (updatedHistories[fallbackKey] || []) : state.transcriptions
+            };
+        });
+    },
 
     // Sprint H: Presence
     presenceCount: 0,

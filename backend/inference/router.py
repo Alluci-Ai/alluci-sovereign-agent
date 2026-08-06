@@ -3,7 +3,7 @@ import asyncio
 import os
 import math
 import httpx
-from typing import Literal, Dict, Any, List, Optional, AsyncGenerator
+from typing import Literal, Dict, Any, List, Optional, AsyncGenerator, cast
 from ..logging_config import get_logger
 from ..metrics import LLM_REQUESTS_TOTAL
 from .executive import ExecutiveRouter
@@ -242,7 +242,7 @@ class ModelRouter(ExecutiveRouter):
 
         response = await self.lm_studio_client.chat.completions.create(
             model=model,
-            messages=messages,  # type: ignore
+            messages=cast(Any, messages),
             max_tokens=2048,
         )
         return response.choices[0].message.content  # type: ignore
@@ -421,7 +421,7 @@ class ModelRouter(ExecutiveRouter):
 
         response = await client.chat.completions.create(
             model=model,
-            messages=messages,
+            messages=cast(Any, messages),
             max_tokens=4096,
         )
         return response.choices[0].message.content
@@ -485,7 +485,7 @@ class ModelRouter(ExecutiveRouter):
             stream = await asyncio.wait_for(
                 self.tokenrouter_client.chat.completions.create(
                     model=model,
-                    messages=messages,
+                    messages=cast(Any, messages),
                     stream=True,
                     stream_options={"include_usage": True}
                 ),

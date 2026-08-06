@@ -15,6 +15,9 @@
 5. **Mandatory Architecture Review:**
    You MUST read `ARCHITECTURE.md` in its entirety before taking any actions in this repository.
 
+6. **No Unsanctioned Service Restarts (Explicit Confirmation Required):**
+   You are STRICTLY FORBIDDEN from automatically running `make restart`, `make stop`, `make start`, `pkill`, or killing processes on ports 8000/3000. You MUST ask for explicit user confirmation before executing any service restart commands so the user can save their work and restart on their own terms without losing active Web UI chat sessions.
+
 ---
 ## Maintenance Protocols & System Telemetry
 

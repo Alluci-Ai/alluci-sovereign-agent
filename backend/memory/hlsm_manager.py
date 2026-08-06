@@ -391,6 +391,50 @@ class HLSMManager:
         logger.debug(f"[HLSM L1] Stored episodic entry {entry_id[:8]} source={source}")
         return entry_id
 
+    async def synthesize_and_store_chat_session(
+        self,
+        session_key: str,
+        messages: List[Dict[str, Any]]
+    ) -> Optional[str]:
+        """
+        Synthesizes a chat session into a high-density summary node and stores it in L1/L2.
+        """
+        from .chat_synthesis import ChatSynthesisEngine
+        engine = ChatSynthesisEngine(settings=self.settings)
+        payload = await engine.synthesize_session(session_key, messages)
+        if not payload:
+            return None
+        
+        # Store to L1 Episodic Memory
+        entry_id = str(uuid.uuid4())
+        now = time.time()
+        entry = HLSMEpisodicEntry(
+            id=entry_id,
+            content=payload["summary_content"],
+            source="chat_synthesis",
+            session_key=session_key,
+            objective_hash=hashlib.sha256(payload["topic_summary"].encode()).hexdigest()[:16],
+            psi_at_encoding=0.5,
+            valence_at_encoding=0.5,
+            topological_importance=1.5,
+            access_count=1,
+            last_accessed=now,
+            created_at=now,
+            retention_score=1.0,
+            promoted_to_l2=False,
+            extra_metadata=json.dumps(payload["metadata"]),
+        )
+        await asyncio.to_thread(self._l1_sql_insert, entry)
+
+        # Promote to L2 Semantic Memory if available
+        if self.kuzu_conn:
+            try:
+                await self.l2_store(entry)
+            except Exception as err:
+                logger.warning(f"[HLSM] Failed to promote synthesized session {session_key[:8]} to L2: {err}")
+
+        return entry_id
+
     def _l1_sql_insert(self, entry: HLSMEpisodicEntry) -> None:
         with Session(self.db_engine) as session:
             session.add(entry)
