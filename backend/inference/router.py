@@ -244,8 +244,16 @@ class ModelRouter(ExecutiveRouter):
             model=model,
             messages=cast(Any, messages),
             max_tokens=2048,
+            stream=False,
         )
-        return response.choices[0].message.content  # type: ignore
+        if hasattr(response, "choices"):
+            return response.choices[0].message.content or ""
+        else:
+            content_parts = []
+            async for chunk in response:
+                if chunk.choices and len(chunk.choices) > 0 and chunk.choices[0].delta and chunk.choices[0].delta.content:
+                    content_parts.append(chunk.choices[0].delta.content)
+            return "".join(content_parts)
 
 
 
@@ -376,6 +384,7 @@ class ModelRouter(ExecutiveRouter):
         kwargs: Dict[str, Any] = {
             "model": model,
             "messages": messages,
+            "stream": False,
         }
         if max_tokens:
             kwargs["max_tokens"] = max_tokens
@@ -383,22 +392,25 @@ class ModelRouter(ExecutiveRouter):
             kwargs["response_format"] = {"type": "json_object"}
         response = await self.openai_client.chat.completions.create(**kwargs)
         
-        content = response.choices[0].message.content
-
-        # Log Usage
-        # Removed undefined 'state' reference and AVL gate budget check; analytics handled later.
-
-        if self.analytics and session_id:
-            try:
-                self.analytics.record_turn(
-                    session_key=session_id,
-                    model=model,
-                    provider="OpenAI",
-                    input_tokens=response.usage.prompt_tokens,
-                    output_tokens=response.usage.completion_tokens
-                )
-            except Exception as e:
-                logger.warning(f"Failed to record OpenAI usage: {e}")
+        if hasattr(response, "choices"):
+            content = response.choices[0].message.content or ""
+            if self.analytics and session_id and getattr(response, "usage", None):
+                try:
+                    self.analytics.record_turn(
+                        session_key=session_id,
+                        model=model,
+                        provider="OpenAI",
+                        input_tokens=response.usage.prompt_tokens,
+                        output_tokens=response.usage.completion_tokens
+                    )
+                except Exception as e:
+                    self.logger.warning(f"Failed to record OpenAI usage: {e}")
+        else:
+            content_parts = []
+            async for chunk in response:
+                if chunk.choices and len(chunk.choices) > 0 and chunk.choices[0].delta and chunk.choices[0].delta.content:
+                    content_parts.append(chunk.choices[0].delta.content)
+            content = "".join(content_parts)
 
         if getattr(self, "secure_proxy", None) and manifest:
             content = self.secure_proxy.deanonymize_response(content, manifest.pii_vault_registry)
@@ -423,8 +435,16 @@ class ModelRouter(ExecutiveRouter):
             model=model,
             messages=cast(Any, messages),
             max_tokens=4096,
+            stream=False,
         )
-        return response.choices[0].message.content
+        if hasattr(response, "choices"):
+            return response.choices[0].message.content or ""
+        else:
+            content_parts = []
+            async for chunk in response:
+                if chunk.choices and len(chunk.choices) > 0 and chunk.choices[0].delta and chunk.choices[0].delta.content:
+                    content_parts.append(chunk.choices[0].delta.content)
+            return "".join(content_parts)
 
     @retry(reraise=True, stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10), retry=retry_if_exception_type((httpx.HTTPError, Exception)))
     async def _anthropic_request(self, prompt: str, use_strong: bool = False, system_instruction: str = "", model_override: Optional[str] = None) -> str:
