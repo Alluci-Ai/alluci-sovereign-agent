@@ -147,6 +147,7 @@ polytope_sdk/
 test_signal.txt
 
 .sovereign_vault/
+.sovereign_vault_backup*
 polytope_data.kuzu
 polytope_data.kuzu.wal
 pytest_live_out.txt
