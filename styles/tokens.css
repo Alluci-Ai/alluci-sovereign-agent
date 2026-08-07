@@ -1,3 +1,5 @@
+@import "katex/dist/katex.min.css";
+
 /* =========================================================================
    ALLUCI SOVEREIGN OS — DESIGN TOKENS & LAYOUT SYSTEM (v6.0)
    Apple HIG-inspired minimal design. Light & Dark themes.
@@ -669,6 +671,84 @@ body {
     overflow: hidden;
     text-overflow: ellipsis;
 }
+
+/* Compact Ghost New Chat Button */
+.sidebar__new-chat-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: var(--radius-md);
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    cursor: pointer;
+    box-shadow: none;
+    transition: transform var(--lg-dur-release) var(--lg-spring), background var(--dur-fast) ease, border-color var(--dur-fast) ease, color var(--dur-fast) ease;
+}
+
+.sidebar__new-chat-btn:hover {
+    background: rgba(34, 197, 94, 0.12);
+    border-color: rgba(34, 197, 94, 0.35);
+    color: var(--text-primary);
+    transform: translateY(-1px);
+}
+
+.sidebar__new-chat-btn:active {
+    transform: scale(0.98);
+    transition: transform var(--lg-dur-press) var(--lg-ease-press);
+}
+
+/* Recent Session Drawer Items */
+.sidebar__recent-session-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 10px;
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: background var(--dur-fast) ease, color var(--dur-fast) ease, transform var(--lg-dur-release) var(--lg-spring);
+}
+
+.sidebar__recent-session-item:hover {
+    background: var(--fill-quaternary);
+    color: var(--text-primary);
+}
+
+.sidebar__recent-session-item--active {
+    background: var(--accent-tint);
+    color: var(--text-primary);
+    font-weight: 500;
+    border-left: 2px solid var(--accent);
+}
+
+.sidebar__recent-session-delete-btn {
+    opacity: 0;
+    padding: 4px;
+    border-radius: 4px;
+    border: none;
+    background: transparent;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    transition: opacity var(--dur-fast) ease, background var(--dur-fast) ease, color var(--dur-fast) ease;
+}
+
+.sidebar__recent-session-item:hover .sidebar__recent-session-delete-btn {
+    opacity: 1;
+}
+
+.sidebar__recent-session-delete-btn:hover {
+    background: var(--accent-danger-tint);
+    color: var(--accent-danger);
+}
+
 
 .sidebar--collapsed .sidebar__item {
     justify-content: center;

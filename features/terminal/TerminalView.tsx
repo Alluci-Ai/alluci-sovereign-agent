@@ -1,4 +1,5 @@
 import React, { useRef, useEffect } from 'react';
+import katex from 'katex';
 import { useStore } from '../../store/useStore';
 import { ExecutionTimeline } from '../../components/Visualizers';
 import PolytopeIdentity from '../../components/Identity';
@@ -197,6 +198,19 @@ const Mermaid: React.FC<MermaidProps> = ({ chart }) => {
     );
 };
 
+const renderMathToString = (expr: string, displayMode: boolean): string => {
+    try {
+        return katex.renderToString(expr, {
+            displayMode,
+            throwOnError: false,
+            output: 'htmlAndMathml',
+        });
+    } catch (err) {
+        console.warn('[KaTeX] Error rendering formula:', err);
+        return expr;
+    }
+};
+
 const renderMarkdown = (text: string) => {
     const lines = text.split('\n');
     const elements: React.ReactNode[] = [];
@@ -289,15 +303,63 @@ const renderMarkdown = (text: string) => {
     };
 
     const parseInlineMarkdown = (inlineText: string): React.ReactNode => {
-        const parts = inlineText.split(/(\*\*.*?\*\*|\*.*?\*)/);
+        // Pre-clean unrendered arrow shortcuts outside KaTeX expressions
+        let processed = inlineText
+            .replace(/\\\b(rightarrow|to)\b/g, '→')
+            .replace(/\\\b(leftarrow)\b/g, '←')
+            .replace(/\\\b(Rightarrow)\b/g, '⇒')
+            .replace(/\\\b(Leftarrow)\b/g, '⇐');
+
+        // Regex for LaTeX math blocks / inline math ($...$ or \(...\) or $$...$$) while preserving currency ($50, $10.00)
+        const inlineMathRegex = /(\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|(?<![\$\d])\$(?!\s|\d)(?:\\.|[^\$])*(?<!\s)\$)/g;
+        const parts = processed.split(inlineMathRegex);
+
         return parts.map((part, index) => {
-            if (part.startsWith('**') && part.endsWith('**')) {
-                return <strong key={index} className="font-extrabold text-text-primary">{part.slice(2, -2)}</strong>;
+            if (!part) return null;
+
+            // Block math $$...$$ or \[...\]
+            if (
+                (part.startsWith('$$') && part.endsWith('$$') && part.length > 4) ||
+                (part.startsWith('\\[') && part.endsWith('\\]') && part.length > 4)
+            ) {
+                const mathContent = part.startsWith('$$') ? part.slice(2, -2).trim() : part.slice(2, -2).trim();
+                const html = renderMathToString(mathContent, true);
+                return (
+                    <span
+                        key={`math-disp-${index}`}
+                        className="katex-display-wrapper inline-block my-1.5 overflow-x-auto max-w-full align-middle"
+                        dangerouslySetInnerHTML={{ __html: html }}
+                    />
+                );
             }
-            if (part.startsWith('*') && part.endsWith('*')) {
-                return <em key={index} className="italic text-text-secondary">{part.slice(1, -1)}</em>;
+
+            // Inline math $...$ or \(...\)
+            if (
+                (part.startsWith('$') && part.endsWith('$') && part.length > 2) ||
+                (part.startsWith('\\(') && part.endsWith('\\)') && part.length > 4)
+            ) {
+                const mathContent = part.startsWith('$') ? part.slice(1, -1).trim() : part.slice(2, -2).trim();
+                const html = renderMathToString(mathContent, false);
+                return (
+                    <span
+                        key={`math-inline-${index}`}
+                        className="katex-inline-wrapper inline-block align-middle px-0.5"
+                        dangerouslySetInnerHTML={{ __html: html }}
+                    />
+                );
             }
-            return part;
+
+            // Standard Markdown bold / italic splitting
+            const mdParts = part.split(/(\*\*.*?\*\*|\*.*?\*)/);
+            return mdParts.map((subPart, subIdx) => {
+                if (subPart.startsWith('**') && subPart.endsWith('**')) {
+                    return <strong key={`${index}-${subIdx}`} className="font-extrabold text-text-primary">{subPart.slice(2, -2)}</strong>;
+                }
+                if (subPart.startsWith('*') && subPart.endsWith('*')) {
+                    return <em key={`${index}-${subIdx}`} className="italic text-text-secondary">{subPart.slice(1, -1)}</em>;
+                }
+                return subPart;
+            });
         });
     };
 

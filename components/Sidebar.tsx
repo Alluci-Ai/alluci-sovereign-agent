@@ -132,12 +132,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 <div className="px-2 mb-3">
                     <button
                         onClick={() => createNewChat()}
-                        className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-md text-xs font-medium transition-all shadow-sm"
-                        style={{
-                            background: 'var(--liquid-accent)',
-                            border: '1px solid var(--liquid-accent-edge)',
-                            color: 'var(--text-primary)'
-                        }}
+                        className="sidebar__new-chat-btn"
                         title="Start a new chat session"
                     >
                         <Plus size={15} />
@@ -180,7 +175,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                             <div className="flex flex-col gap-1 max-h-48 overflow-y-auto pr-1">
                                 {sessionKeys.slice(-10).reverse().map((sKey) => {
                                     const msgs = sessionHistories[sKey] || [];
-                                    const firstMsg = msgs.find(m => m.sender === 'user' || m.role === 'user');
+                                    const firstMsg = msgs.find(m => m.isUser || m.sender === 'user' || m.role === 'user');
                                     const label = firstMsg ? (firstMsg.text || firstMsg.content || 'Chat Session').slice(0, 24) : sKey.slice(0, 15);
                                     const isActive = activeSessionKey === sKey;
 
@@ -188,29 +183,28 @@ const Sidebar: React.FC<SidebarProps> = ({
                                         <div
                                             key={sKey}
                                             onClick={() => loadChatSession(sKey)}
-                                            className={`group relative flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs cursor-pointer transition-all ${
-                                                isActive
-                                                    ? 'bg-accent-tint text-text-primary border-l-2 border-accent font-medium'
-                                                    : 'text-text-secondary hover:bg-fill-quaternary hover:text-text-primary'
-                                            }`}
+                                            className={`sidebar__recent-session-item ${isActive ? 'sidebar__recent-session-item--active' : ''}`}
                                         >
                                             <div className="flex items-center gap-2 truncate">
                                                 <MessageSquare size={13} className={isActive ? 'text-accent' : 'text-text-tertiary'} />
                                                 <span className="truncate">{label}</span>
                                             </div>
 
-                                            {sessionKeys.length > 1 && (
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        deleteChatSession(sKey);
-                                                    }}
-                                                    className="opacity-0 group-hover:opacity-100 p-1 text-text-tertiary hover:text-accent-danger transition-opacity"
-                                                    title="Delete session"
-                                                >
-                                                    <Trash2 size={12} />
-                                                </button>
-                                            )}
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="text-[10px] text-text-tertiary">{msgs.length} msgs</span>
+                                                {sessionKeys.length > 1 && (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            deleteChatSession(sKey);
+                                                        }}
+                                                        className="sidebar__recent-session-delete-btn"
+                                                        title="Delete session"
+                                                    >
+                                                        <Trash2 size={12} />
+                                                    </button>
+                                                )}
+                                            </div>
                                         </div>
                                     );
                                 })}

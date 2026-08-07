@@ -14,6 +14,7 @@ export interface AvailableModel {
     id: string;
     name: string;
     category: string;
+    provider_label?: string;
 }
 
 export type ActiveView =

@@ -1,10 +1,10 @@
 import { GroundingSource, FilePart } from './geminiService';
 
 export interface Message {
-  text: string;
-  isUser: boolean;
+  text?: string;
+  isUser?: boolean;
   sources?: GroundingSource[];
-  timestamp: string;
+  timestamp?: string;
   isCompaction?: boolean;
   /** Number of tokens freed during context compaction (populated by WS event) */
   tokenCount?: number;
@@ -14,6 +14,10 @@ export interface Message {
   type?: 'chat' | 'dispatch';
   /** Optional unique ID to support dynamic streaming updates */
   id?: string;
+  /** Optional role/sender/content for external or legacy session format compatibility */
+  sender?: string;
+  role?: string;
+  content?: string;
 }
 
 export interface PendingAttachment extends FilePart {

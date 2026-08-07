@@ -246,14 +246,9 @@ class ModelRouter(ExecutiveRouter):
             max_tokens=2048,
             stream=False,
         )
-        if hasattr(response, "choices"):
+        if hasattr(response, "choices") and response.choices:
             return response.choices[0].message.content or ""
-        else:
-            content_parts = []
-            async for chunk in response:
-                if chunk.choices and len(chunk.choices) > 0 and chunk.choices[0].delta and chunk.choices[0].delta.content:
-                    content_parts.append(chunk.choices[0].delta.content)
-            return "".join(content_parts)
+        return ""
 
 
 
@@ -392,7 +387,7 @@ class ModelRouter(ExecutiveRouter):
             kwargs["response_format"] = {"type": "json_object"}
         response = await self.openai_client.chat.completions.create(**kwargs)
         
-        if hasattr(response, "choices"):
+        if hasattr(response, "choices") and response.choices:
             content = response.choices[0].message.content or ""
             if self.analytics and session_id and getattr(response, "usage", None):
                 try:
@@ -406,11 +401,7 @@ class ModelRouter(ExecutiveRouter):
                 except Exception as e:
                     self.logger.warning(f"Failed to record OpenAI usage: {e}")
         else:
-            content_parts = []
-            async for chunk in response:
-                if chunk.choices and len(chunk.choices) > 0 and chunk.choices[0].delta and chunk.choices[0].delta.content:
-                    content_parts.append(chunk.choices[0].delta.content)
-            content = "".join(content_parts)
+            content = ""
 
         if getattr(self, "secure_proxy", None) and manifest:
             content = self.secure_proxy.deanonymize_response(content, manifest.pii_vault_registry)
@@ -437,14 +428,9 @@ class ModelRouter(ExecutiveRouter):
             max_tokens=4096,
             stream=False,
         )
-        if hasattr(response, "choices"):
+        if hasattr(response, "choices") and response.choices:
             return response.choices[0].message.content or ""
-        else:
-            content_parts = []
-            async for chunk in response:
-                if chunk.choices and len(chunk.choices) > 0 and chunk.choices[0].delta and chunk.choices[0].delta.content:
-                    content_parts.append(chunk.choices[0].delta.content)
-            return "".join(content_parts)
+        return ""
 
     @retry(reraise=True, stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10), retry=retry_if_exception_type((httpx.HTTPError, Exception)))
     async def _anthropic_request(self, prompt: str, use_strong: bool = False, system_instruction: str = "", model_override: Optional[str] = None) -> str:
@@ -462,7 +448,24 @@ class ModelRouter(ExecutiveRouter):
             kwargs["system"] = system_instruction
 
         message = await self.anthropic_client.messages.create(**kwargs)
-        return message.content[0].text
+        if hasattr(message, "content"):
+            if isinstance(message.content, list) and len(message.content) > 0:
+                first_block = message.content[0]
+                if hasattr(first_block, "text"):
+                    return first_block.text
+                return str(first_block)
+            return str(message.content)
+
+        text_content = ""
+        if hasattr(message, "__aiter__"):
+            async for event in cast(Any, message):
+                if hasattr(event, "delta") and hasattr(event.delta, "text"):
+                    text_content += event.delta.text
+                elif hasattr(event, "text"):
+                    text_content += event.text
+                elif hasattr(event, "content"):
+                    text_content += str(event.content)
+        return text_content
 
     @retry(reraise=True, stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10), retry=retry_if_exception_type((httpx.HTTPError, Exception)))
     async def _kimi_request(self, prompt: str, thinking: bool = True, system_instruction: str = "") -> str:
@@ -1079,11 +1082,11 @@ class ModelRouter(ExecutiveRouter):
     def _sanitize_formatting(self, text: str) -> str:
         """
         Post-processes model output chunks to ensure workflow sequence arrows use clean Unicode (→)
-        instead of unrendered LaTeX math notation ($\rightarrow$).
+        while preserving valid LaTeX math blocks for KaTeX rendering.
         """
         if not text or not isinstance(text, str):
             return text
-        return text.replace("$\\rightarrow$", "→").replace("\\rightarrow", "→")
+        return text.replace(r"$\rightarrow$", "→")
 
     def _prepare_system_instruction(self, prompt: str, system_instruction: str = "", session_id: Optional[str] = None) -> str:
         """

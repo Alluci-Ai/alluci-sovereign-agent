@@ -75,6 +75,21 @@ from ..inference.ppn import DiscreteProjectionKernel
 
 logger = get_logger("HLSM")
 
+def _extract_kuzu_rows(raw_results: Any) -> List[Any]:
+    """Safely extract rows from KùzuDB QueryResult, Python list, tuple, or generic iterable."""
+    if raw_results is None:
+        return []
+    if isinstance(raw_results, (list, tuple)):
+        return list(raw_results)
+    if hasattr(raw_results, "has_next") and callable(getattr(raw_results, "has_next")):
+        rows = []
+        while raw_results.has_next():
+            rows.append(raw_results.get_next())
+        return rows
+    if hasattr(raw_results, "__iter__"):
+        return list(raw_results)
+    return []
+
 # ─── Configuration Constants ──────────────────────────────────────────────────
 
 L0_TTL_SECONDS: float = 3600.0          # 1 hour working memory TTL
@@ -654,8 +669,8 @@ class HLSMManager:
             
             results = []
             
-            while raw_results.has_next():
-                row = raw_results.get_next()
+            rows = _extract_kuzu_rows(raw_results)
+            for row in rows:
                 kuzu_id, content, source, session_key, psi_enc, topo_imp, betti_support, access_count, created_at, is_barcode, uri, blob_path, ttl = row
                 
                 if is_barcode:
@@ -833,8 +848,8 @@ class HLSMManager:
             )
             raw_results = await asyncio.to_thread(self.kuzu_conn.execute, cypher_query, {"limit": limit})
             results = []
-            while raw_results.has_next():
-                row = raw_results.get_next()
+            rows = _extract_kuzu_rows(raw_results)
+            for row in rows:
                 kuzu_id, content, source, l1_id, created_at = row
                 results.append(HLSMRetrievalResult(
                     id=kuzu_id,
@@ -857,8 +872,9 @@ class HLSMManager:
             # First get the l1_id from the L3Memory node
             get_query = "MATCH (m:L3Memory {id: $id}) RETURN m.l1_id"
             raw_results = await asyncio.to_thread(self.kuzu_conn.execute, get_query, {"id": kuzu_id})
-            if raw_results.has_next():
-                l1_id = raw_results.get_next()[0]
+            rows = _extract_kuzu_rows(raw_results)
+            if rows:
+                l1_id = rows[0][0]
                 # Delete relationships that were sourced from this memory
                 rel_query = "MATCH ()-[r:RELATES_TO {source_memory: $l1_id}]->() DELETE r"
                 await asyncio.to_thread(self.kuzu_conn.execute, rel_query, {"l1_id": l1_id})
@@ -1242,8 +1258,8 @@ class HLSMManager:
                     cypher_query
                 )
                 
-                while raw_results.has_next():
-                    row = raw_results.get_next()
+                rows = _extract_kuzu_rows(raw_results)
+                for row in rows:
                     kuzu_id, created_at, topo_imp, betti_1 = row
 
                     retention = self.decay.calculate_retention(
@@ -1351,12 +1367,14 @@ class HLSMManager:
         if self.kuzu_conn:
             try:
                 raw_results = await asyncio.to_thread(self.kuzu_conn.execute, "MATCH (n:SemanticMemory) RETURN COUNT(n)")
-                if raw_results.has_next():
-                    l2_count = raw_results.get_next()[0]
+                l2_rows = _extract_kuzu_rows(raw_results)
+                if l2_rows:
+                    l2_count = l2_rows[0][0]
                 
                 raw_results_l3 = await asyncio.to_thread(self.kuzu_conn.execute, "MATCH (n:L3Memory) RETURN COUNT(n)")
-                if raw_results_l3.has_next():
-                    l3_count = raw_results_l3.get_next()[0]
+                l3_rows = _extract_kuzu_rows(raw_results_l3)
+                if l3_rows:
+                    l3_count = l3_rows[0][0]
             except Exception:
                 l2_count = -1
                 l3_count = -1
@@ -1452,10 +1470,10 @@ class HLSMManager:
                 count_query = "MATCH (m:SemanticMemory) RETURN COUNT(m)"
                 raw_results = await asyncio.to_thread(self.kuzu_conn.execute, query, {"offset": offset, "limit": limit})
                 raw_count = await asyncio.to_thread(self.kuzu_conn.execute, count_query)
-                total = raw_count.get_next()[0] if raw_count.has_next() else 0
+                count_rows = _extract_kuzu_rows(raw_count)
+                total = count_rows[0][0] if count_rows else 0
                 formatted = []
-                while raw_results.has_next():
-                    row = raw_results.get_next()
+                for row in _extract_kuzu_rows(raw_results):
                     formatted.append({"id": row[0], "content": row[1], "source": row[2], "tier": 2, "created_at": row[3], "promoted_to_l2": True})
         elif tier == 3:
             if not self.kuzu_conn:
@@ -1465,10 +1483,10 @@ class HLSMManager:
                 count_query = "MATCH (m:L3Memory) RETURN COUNT(m)"
                 raw_results = await asyncio.to_thread(self.kuzu_conn.execute, query, {"offset": offset, "limit": limit})
                 raw_count = await asyncio.to_thread(self.kuzu_conn.execute, count_query)
-                total = raw_count.get_next()[0] if raw_count.has_next() else 0
+                count_rows = _extract_kuzu_rows(raw_count)
+                total = count_rows[0][0] if count_rows else 0
                 formatted = []
-                while raw_results.has_next():
-                    row = raw_results.get_next()
+                for row in _extract_kuzu_rows(raw_results):
                     formatted.append({"id": row[0], "content": row[1], "source": row[2], "tier": 3, "created_at": row[3], "promoted_to_l3": True})
         else:
             # Fallback for all
