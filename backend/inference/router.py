@@ -1086,7 +1086,7 @@ class ModelRouter(ExecutiveRouter):
         """
         if not text or not isinstance(text, str):
             return text
-        return text.replace(r"$\rightarrow$", "→")
+        return text.replace(r"$\rightarrow$", "→").replace(r"\rightarrow", "→")
 
     def _prepare_system_instruction(self, prompt: str, system_instruction: str = "", session_id: Optional[str] = None) -> str:
         """
