@@ -1,0 +1,44 @@
+{
+  "id": "agentic_registration_tool_01",
+  "name": "Agentic Registration Engine Tool",
+  "description": "Executes RFC 9728 & RFC 8414 2-hop discovery, ID-JAG identity assertions, RFC 8628 claim ceremonies, RFC 7523 JWT bearer token exchanges, RFC 7009 credential revocations, and Vault credential storage per the auth.md open protocol.",
+  "category": "TOOL",
+  "capabilities": {
+    "discover_agent_auth_metadata": {
+      "type": "PYTHON_NATIVE"
+    },
+    "register_agent_identity": {
+      "type": "PYTHON_NATIVE"
+    },
+    "poll_claim_ceremony": {
+      "type": "PYTHON_NATIVE"
+    },
+    "exchange_token_jwt_bearer": {
+      "type": "PYTHON_NATIVE"
+    },
+    "revoke_agent_token": {
+      "type": "PYTHON_NATIVE"
+    },
+    "export_registration_package": {
+      "type": "FILESYSTEM_EXPORT"
+    },
+    "request_registration_approval": {
+      "type": "WEBSOCKET_EXEC_APPROVAL"
+    }
+  },
+  "dependencies": [
+    "httpx",
+    "pyjwt",
+    "cryptography",
+    "pydantic"
+  ],
+  "permissions": [
+    "exec_approval",
+    "network_access",
+    "filesystem_write",
+    "vault_secret_read",
+    "vault_secret_write"
+  ],
+  "verified": true,
+  "source": "vault"
+}

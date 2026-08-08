@@ -589,6 +589,54 @@ async def execute_hro_tool_capability(payload: Dict[str, Any] = Body(...)):
     else:
         raise HTTPException(status_code=400, detail=f"Unknown capability: {capability}")
 
+@router.post("/tools/agentic_registration_tool_01/capability")
+async def execute_agentic_registration_capability(payload: Dict[str, Any] = Body(...)):
+    """Executes specific capabilities on the AgenticRegistrationTool (agentic_registration_tool_01)."""
+    from .. import services
+    from ..tools.agentic_registration_tool import AgenticRegistrationTool
+
+    capability = payload.get("capability")
+    params = payload.get("params", {})
+
+    tool_instance = AgenticRegistrationTool(
+        vault_manager=services.vault,
+        exec_approval_mgr=getattr(services, "exec_approval_manager", None)
+    )
+
+    if capability == "discover_agent_auth_metadata":
+        target_domain = params.get("target_domain", "example.com")
+        return await tool_instance.discover_agent_auth_metadata(target_domain)
+    elif capability == "register_agent_identity":
+        target_domain = params.get("target_domain", "example.com")
+        registration_payload = params.get("registration_payload", {})
+        return await tool_instance.register_agent_identity(target_domain, registration_payload)
+    elif capability == "poll_claim_ceremony":
+        target_domain = params.get("target_domain", "example.com")
+        claim_token = params.get("claim_token", "")
+        token_endpoint = params.get("token_endpoint", "")
+        interval = int(params.get("interval", 5))
+        return await tool_instance.poll_claim_ceremony(target_domain, claim_token, token_endpoint, interval)
+    elif capability == "exchange_token_jwt_bearer":
+        token_endpoint = params.get("token_endpoint", "")
+        identity_assertion = params.get("identity_assertion", "")
+        target_domain = params.get("target_domain", "example.com")
+        return await tool_instance.exchange_token_jwt_bearer(token_endpoint, identity_assertion, target_domain)
+    elif capability == "revoke_agent_token":
+        target_domain = params.get("target_domain", "example.com")
+        token = params.get("token", "")
+        token_type_hint = params.get("token_type_hint", "access_token")
+        return await tool_instance.revoke_agent_token(target_domain, token, token_type_hint)
+    elif capability == "export_registration_package":
+        registration_payload = params.get("registration_payload", {})
+        company_name = params.get("company_name", "Company")
+        return tool_instance.export_registration_package(registration_payload, company_name)
+    elif capability == "request_registration_approval":
+        registration_id = params.get("registration_id", "v1")
+        summary = params.get("context_summary", "")
+        return await tool_instance.request_registration_approval(registration_id, summary)
+    else:
+        raise HTTPException(status_code=400, detail=f"Unknown capability: {capability}")
+
 @router.post("/tools/test_sandbox")
 async def test_sandbox(payload: Dict[str, Any] = Body(...)):
     """Executes a tool dynamically without permanently saving it to the registry."""
