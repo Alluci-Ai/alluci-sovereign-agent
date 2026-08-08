@@ -68,7 +68,7 @@ class CalibrationManager:
         with open(self.ace_cache_path, "w") as f:
             json.dump(self.ace_history, f)
 
-    def get_dynamic_threshold(self, origin: str = "local", soul_preferences: dict = None, is_tool: bool = False) -> float:
+    def get_dynamic_threshold(self, origin: str = "local", soul_preferences: dict | None = None, is_tool: bool = False) -> float:
         """
         Calculates the fluid baseline.
         Local origins use Discovery Mode & Continuous Normalization.
