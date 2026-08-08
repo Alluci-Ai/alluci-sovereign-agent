@@ -1,0 +1,80 @@
+{
+  "id": "swd_01",
+  "name": "Strategic Workforce Design & Resource Optimization",
+  "category": "FRAMEWORK",
+  "description": "Deterministic operating framework to design the optimal execution model for an organization—evaluating the combination of human talent, AI agents, workflow automation, contractors, and token economics.",
+  "mindsets": [
+    "StrategyBeforeStaffing",
+    "WorkBeforeRoles",
+    "CapabilityBeforeHeadcount",
+    "HumansWhereJudgmentCreatesValue",
+    "AIWhereScaleCreatesValue",
+    "AutomationWhereWorkIsRepetitive",
+    "FinancialStewardship",
+    "ContinuousOrganizationalLearning"
+  ],
+  "methodologies": [
+    "InitiateWorkforcePlanning",
+    "DiscoverOrganizationalContext",
+    "StrategicWorkDesign",
+    "AnalyzeWorkforceAndCapabilityGaps",
+    "ResourceOptimizationAnalysis",
+    "DesignFutureWorkforce",
+    "WorkforceEconomicsAndFinancialIntegration",
+    "HumanReviewAndApproval",
+    "ExecuteWorkforceStrategy",
+    "MonitorWorkforceIntelligence",
+    "LearnAndUpdateOrganizationalMemory"
+  ],
+  "frameworks": [
+    "11-Phase Execution Lifecycle Model",
+    "Resource Optimization Matrix (Human vs AI vs Automation vs Contractor vs Hybrid)",
+    "AI Economics & Token TCO Model",
+    "Conway's Law & Team Topologies Alignment",
+    "3-Tier Governance Matrix"
+  ],
+  "knowledge": [
+    "OrganizationalDesign",
+    "WorkforceStrategy",
+    "IndustrialPsychology",
+    "HumanCapitalEconomics",
+    "ArtificialIntelligence",
+    "AgentOrchestration",
+    "TokenEconomics",
+    "FinancialPlanning"
+  ],
+  "logic": [
+    "Designing an organization is not simply about hiring people. Modern execution models integrate human employees, leadership, AI agents, workflow automation, and external contractors. Design how work is accomplished before determining who or what should perform it."
+  ],
+  "chainsOfThought": [
+    "Step 1: Initiate Workforce Planning -> Define Scope & Objectives -> Load Organizational Memory -> Identify Key Stakeholders",
+    "Step 2: Discover Organizational Context -> Analyze Business Model, Strategy & Technology Stack -> Map Business Priorities",
+    "Step 3: Strategic Work Design -> Map Capabilities, Workflows, Decision Complexity & Knowledge Dependencies -> Identify Repetitive vs High-Value Work",
+    "Step 4: Capability & Gap Analysis -> Assess Current Skills, Capacity & Leadership -> Identify Critical Skill Shortages",
+    "Step 5: Resource Optimization Analysis -> Evaluate Execution Models (Human, AI Agent, Automation, Contractor, Hybrid) -> Calculate Token & TCO Economics",
+    "Step 6: Design Future Workforce & AI Architecture -> Structure Teams, Roles, AI Agent Orchestration & Automation Pipelines",
+    "Step 7: Workforce Economics & Financial Integration -> Model Labor Costs, AI Subscriptions, Token Consumption & Total Cost of Ownership",
+    "Step 8: Human Review & Approval -> Broadcast WebSocket Approval Request via ExecApprovalManager -> Obtain Leadership Authorization",
+    "Step 9: Execute Workforce Strategy -> Launch Hiring, AI Deployment & Workflow Automations",
+    "Step 10: Monitor Workforce Intelligence -> Track Token Usage, API Costs, Hiring Velocity, Productivity & System Health",
+    "Step 11: Learn & Update Organizational Memory -> Archive Lessons Learned & Refine Execution Models"
+  ],
+  "capabilities": [
+    "Capability_Mapper",
+    "Resource_Optimization_Analyzer",
+    "AI_Token_TCO_Calculator",
+    "Workforce_Package_Exporter",
+    "Workforce_Approval_Orchestrator"
+  ],
+  "bestPractices": [
+    "Design work before designing jobs; eliminate unnecessary work before staffing or automating it.",
+    "Select the smallest AI model that reliably meets quality requirements to optimize token TCO.",
+    "Require explicit human executive sign-off before authorizing hiring, organizational restructuring, or major AI deployments."
+  ],
+  "tools": [
+    "swd_tool_01"
+  ],
+  "signature": "sys-signed",
+  "publicKey": "sys-pub",
+  "verified": true
+}

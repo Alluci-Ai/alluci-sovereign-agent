@@ -1,0 +1,71 @@
+{
+  "id": "ldl_01",
+  "name": "Legal Document Lifecycle Management",
+  "category": "FRAMEWORK",
+  "description": "Deterministic strategic framework to orchestrate corporate legal compliance, contract drafting, IP assignments, cap table governance, execution tracking, and audit-ready document repositories.",
+  "mindsets": [
+    "LegalRigor",
+    "FiduciaryStewardship",
+    "SingleSourceOfTruth",
+    "RiskMitigation",
+    "ComplianceFirst",
+    "AuditReadiness",
+    "ConfidentialityProtection",
+    "ContractualPrecision"
+  ],
+  "methodologies": [
+    "LegalComplianceAuditing",
+    "ContractTemplateGeneration",
+    "SignatureAndExecutionTracking",
+    "IPAndCapTableVerification",
+    "LegalRepositoryOrganization",
+    "ContractRenewalAndExpirationMonitoring",
+    "ExecutiveSignoffOrchestration"
+  ],
+  "frameworks": [
+    "6-Stage Contract Lifecycle Model (Draft->Review->Negotiate->Approve->Execute->Archive)",
+    "7-Tier Legal Decision Hierarchy",
+    "3-Tier Confidentiality Classification Matrix (Public/Restricted/StrictlyConfidential)",
+    "Audit-Ready Governance Taxonomy"
+  ],
+  "knowledge": [
+    "CorporateLaw",
+    "CorporateGovernance",
+    "ContractManagement",
+    "IntellectualProperty",
+    "EmploymentLaw",
+    "RegulatoryCompliance",
+    "CapTableEquityManagement"
+  ],
+  "logic": [
+    "Legal compliance is the bedrock of enterprise value. Missing IP assignments, unexecuted founder contracts, or defective cap table records destroy investor confidence and create catastrophic liability. Maintain single-source-of-truth legal discipline."
+  ],
+  "chainsOfThought": [
+    "Step 1: Initiate Legal Audit -> Inventory Corporate Formation, Equity, IP & Material Agreements -> Calculate Compliance Index",
+    "Step 2: Template Selection & Draft Generation -> Select Standard Legal Template -> Inject Party Details & Governing Terms -> Draft Agreement",
+    "Step 3: Pre-Execution Compliance Scan -> Audit Confidentiality, IP Assignment & Liability Clauses -> Check Governance Consistency",
+    "Step 4: Signature & Execution Tracking -> Register Counterparties, Signature Deadlines & Expiration Rules -> Track Signature Status",
+    "Step 5: Executive Review & Approval -> Request WebSocket Sign-Off via ExecApprovalManager -> Obtain Human Counsel/Founder Authorization",
+    "Step 6: Execute & Store -> Apply Standardized Naming Convention ([Category]_[DocType]_[Party]_[Date]_v[X.X].pdf) -> Archive in Secure Vault",
+    "Step 7: Lifecycle & Expiration Monitoring -> Track Renewal Dates, Expiration Triggers & Termination Notice Windows -> Notify Leadership"
+  ],
+  "capabilities": [
+    "Legal_Compliance_Auditor",
+    "Legal_Template_Generator",
+    "Signature_Status_Verifier",
+    "Contract_Expiration_Monitor",
+    "Legal_Repository_Exporter",
+    "Counsel_Approval_Orchestrator"
+  ],
+  "bestPractices": [
+    "Every executed agreement must have one designated owner, one approved version, and one authoritative location.",
+    "Require explicit human founder/counsel sign-off before executing or releasing any legal document.",
+    "All employee and contractor agreements must contain explicit IP Assignment and Non-Disclosure clauses."
+  ],
+  "tools": [
+    "ldl_tool_01"
+  ],
+  "signature": "sys-signed",
+  "publicKey": "sys-pub",
+  "verified": true
+}

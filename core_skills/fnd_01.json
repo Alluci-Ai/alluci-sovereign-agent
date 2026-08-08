@@ -1,0 +1,81 @@
+{
+  "id": "fnd_01",
+  "name": "Founder Discovery & Narrative Development",
+  "category": "FRAMEWORK",
+  "description": "Deterministic strategic operating narrative framework to uncover, validate, and translate fragmented founder insights into reusable, multi-audience strategic intelligence.",
+  "mindsets": [
+    "Curious",
+    "Investigative",
+    "DeeplyObservant",
+    "PatternSeeking",
+    "SystemsThinking",
+    "FirstPrinciplesThinking",
+    "ContrarianCuriosity",
+    "ClarityBuildsTrust",
+    "AuthenticityOverPerformance"
+  ],
+  "methodologies": [
+    "StructuredFounderDiscovery",
+    "InsightAndOpportunityDiscovery",
+    "FounderMarketFitAssessment",
+    "OpportunityArchitecture",
+    "NarrativeArchitecture",
+    "AudienceTranslation",
+    "EvidenceValidation",
+    "NarrativeDeployment",
+    "ContinuousLearning"
+  ],
+  "frameworks": [
+    "7-Tier Decision Hierarchy",
+    "5-Level Evidence Matrix",
+    "16-Module Narrative Schema",
+    "3-Tier Automation Protocol"
+  ],
+  "knowledge": [
+    "Entrepreneurship",
+    "FounderPsychology",
+    "StrategicThinking",
+    "InsightDiscovery",
+    "MarketIntelligence",
+    "Fundraising",
+    "CorporateDevelopment",
+    "NarrativeDesign"
+  ],
+  "logic": [
+    "Every founder has a story, but very few have a strategic narrative. Truth over hype; never sacrifice truth for persuasion. If a competitor could make the same claim, the narrative is not yet differentiated."
+  ],
+  "chainsOfThought": [
+    "Step 1: Initiate Workflow -> Confirm Objectives -> Gather Raw Materials -> Define Target Deliverables",
+    "Step 2: Conduct Founder Discovery -> Extract Convictions, Turning Points & Personal Mission -> Formulate Founder Profile",
+    "Step 3: Discover Strategic Insights -> Challenge Industry Assumptions -> Identify Unsolved Root Causes -> Build Insight Inventory",
+    "Step 4: Assess Founder-Market Fit -> Evaluate Domain Credibility & Unfair Access -> Audit Timing & Conviction",
+    "Step 5: Define Strategic Opportunity -> Formulate Market Shift Thesis -> Draft Opportunity Architecture",
+    "Step 6: Develop Narrative Engine -> Synthesize 16 Distinct Modular Narratives -> Build Narrative Library",
+    "Step 7: Audience Translation -> Adapt Messaging for Investors, Customers, Talent, Partners & Acquirers",
+    "Step 8: Audit & Validate -> Run 5-Level Evidence Matrix -> Verify Authenticity -> Audit 23 Required Questions",
+    "Step 9: Deliverable Generation -> Produce Pitch Decks, Executive Summaries & Messaging Repositories",
+    "Step 10: Knowledge Capture -> Commit Approved Insights to Persistent Memory -> Bind Downstream Workflows"
+  ],
+  "capabilities": [
+    "Interview_Transcription",
+    "Theme_Extraction",
+    "Market_Shift_Detection",
+    "Broken_Assumption_Analysis",
+    "Narrative_Synthesizer",
+    "Evidence_Auditor",
+    "Pitch_Deck_Synchronizer",
+    "Knowledge_Graph_Ingestion"
+  ],
+  "bestPractices": [
+    "Never manufacture a story; discover and validate authentic founder advantage.",
+    "Content must always precede visual design.",
+    "Require explicit human founder sign-off before triggering autonomous downstream deployment.",
+    "Flag any claim unsupported by Level 2+ evidence as an unvalidated assumption."
+  ],
+  "tools": [
+    "fnd_tool_01"
+  ],
+  "signature": "sys-signed",
+  "publicKey": "sys-pub",
+  "verified": true
+}

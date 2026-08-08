@@ -1,0 +1,72 @@
+{
+  "id": "fde_01",
+  "name": "Founder Education & Decision Intelligence",
+  "category": "FRAMEWORK",
+  "description": "Deterministic strategic framework to synthesize founder learning modules, evaluate decision confidence scores, log structured decision journals, apply mental models, and accelerate executive decision mastery.",
+  "mindsets": [
+    "FirstPrinciplesThinking",
+    "SecondOrderAwareness",
+    "EvidenceBasedDecisionMaking",
+    "ContinuousExecutiveLearning",
+    "MentalModelRigor",
+    "RiskAdjustedPerspective",
+    "DecisionTransparency",
+    "LongTermValueFocus"
+  ],
+  "methodologies": [
+    "LearningModuleSynthesis",
+    "DecisionConfidenceScoring",
+    "ExecutiveDecisionJournaling",
+    "MentalModelApplication",
+    "ScenarioPlanningAndTradeoffAnalysis",
+    "DecisionReviewAndPostMortemAudit",
+    "ExecutiveSignoffOrchestration"
+  ],
+  "frameworks": [
+    "7-Core Founder Mental Models (First Principles, Second-Order Thinking, Inversion, Opportunity Cost, Margin of Safety, Conway's Law, Pareto Principle)",
+    "7-Tier Decision Intelligence Hierarchy",
+    "Multi-Factor Decision Confidence Model (0-100%)",
+    "Structured Decision Journal Protocol",
+    "3-Tier Governance Matrix"
+  ],
+  "knowledge": [
+    "ExecutiveEducation",
+    "DecisionScience",
+    "MentalModels",
+    "BehavioralEconomics",
+    "StrategicManagement",
+    "LeadershipDevelopment",
+    "RiskManagement"
+  ],
+  "logic": [
+    "The velocity and quality of founder decisions dictate organizational trajectory. Unstructured intuition, cognitive biases, unexamined trade-offs, or unlogged decisions lead to repeated mistakes and strategic drift. Execute systematic founder education and decision intelligence."
+  ],
+  "chainsOfThought": [
+    "Step 1: Identify Learning & Decision Need -> Analyze Active Strategic Bottlenecks (`spe_01`, `suf_01`, `ocs_01`) -> Determine Required Knowledge Domain",
+    "Step 2: Synthesize Executive Learning Brief -> Generate Tailored Learning Module with Core Principles, Case Studies & Practical Heuristics",
+    "Step 3: Apply Mental Models & Scenario Analysis -> Evaluate Decision Options using First Principles, Inversion & Opportunity Cost",
+    "Step 4: Compute Decision Confidence Score -> Evaluate Evidence Quality, Alignment, Financial Impact & Historical Outcomes (0-100%)",
+    "Step 5: Executive Decision Journaling -> Log Decision Record (Rationale, Alternatives Considered, Trade-offs, Review Timeline)",
+    "Step 6: Executive Sign-Off & Approval -> Broadcast WebSocket Approval Request via ExecApprovalManager for Strategic Decisions",
+    "Step 7: Export Education & Decision Package -> Generate Curriculum JSON, Decision Journal CSV, Mental Models Dashboard HTML & Manifest -> Archive in Vault",
+    "Step 8: Post-Decision Review & Learning Loop -> Register Review Triggers in PCL Daemon -> Audit Decision Outcomes against Initial Hypotheses"
+  ],
+  "capabilities": [
+    "Learning_Module_Synthesizer",
+    "Decision_Confidence_Evaluator",
+    "Decision_Journal_Logger",
+    "Education_Package_Exporter",
+    "Decision_Approval_Orchestrator"
+  ],
+  "bestPractices": [
+    "Never make a major strategic decision on raw intuition alone; require a structured Decision Journal entry with alternatives and trade-offs.",
+    "Require a minimum Decision Confidence Score of 70% before proceeding to execution; identify key assumptions if confidence is low.",
+    "Audit decision outcomes quarterly against initial hypotheses to continuously improve organizational intelligence."
+  ],
+  "tools": [
+    "fde_tool_01"
+  ],
+  "signature": "sys-signed",
+  "publicKey": "sys-pub",
+  "verified": true
+}

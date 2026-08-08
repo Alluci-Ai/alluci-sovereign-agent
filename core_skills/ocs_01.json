@@ -1,0 +1,72 @@
+{
+  "id": "ocs_01",
+  "name": "Ownership Intelligence & Capital Strategy",
+  "category": "FRAMEWORK",
+  "description": "Deterministic strategic framework to audit capitalization tables, model dilution scenarios, compute liquidation waterfalls, optimize option pool reserves, and structure long-term capital allocation strategies.",
+  "mindsets": [
+    "FiduciaryRigor",
+    "FounderControlProtection",
+    "DilutionAwareness",
+    "MathematicalPrecision",
+    "CapitalEfficiency",
+    "LongTermValueCreation",
+    "StrategicAlignment",
+    "TransparencyInEquity"
+  ],
+  "methodologies": [
+    "CapTableLedgerAuditing",
+    "ProFormaDilutionModeling",
+    "SAFEAndNoteConversionAnalysis",
+    "LiquidationWaterfallCalculation",
+    "OptionPoolReserveOptimization",
+    "CapitalStrategyBriefSynthesis",
+    "BoardAndFounderSignoffOrchestration"
+  ],
+  "frameworks": [
+    "7-Tier Capital Decision Hierarchy",
+    "Pre-Money vs Post-Money Dilution Model",
+    "1x Non-Participating vs Participating Preferred Waterfall Framework",
+    "SAFE Conversion Engine (Uncapped/Valuation Cap/Discount)",
+    "3-Tier Governance Protocol"
+  ],
+  "knowledge": [
+    "CorporateFinance",
+    "CapTableManagement",
+    "VentureCapital",
+    "PrivateEquity",
+    "ValuationMethodologies",
+    "EquityCompensation",
+    "SecuritiesLaw"
+  ],
+  "logic": [
+    "Ownership structure dictates control, alignment, and economic returns. Unmodeled dilution, misconfigured option pools, or predatory liquidation preferences permanently erode founder ownership and investor value. Execute mathematically precise capitalization management."
+  ],
+  "chainsOfThought": [
+    "Step 1: Initiate Cap Table Audit -> Inventory Common Stock, Preferred Shares, Options & SAFE Notes -> Verify Fully-Diluted Share Count",
+    "Step 2: Dilution Scenario Modeling -> Input Financing Round Terms (Pre-Money Valuation, Investment Amount, Option Pool Refresh) -> Calculate Post-Round Dilution & Share Prices",
+    "Step 3: SAFE & Convertible Note Conversion -> Compute Conversion Prices (Valuation Cap vs Discount Rate) -> Map Issuance of Series Preferred Shares",
+    "Step 4: Liquidation Waterfall Analysis -> Model Exit Valuations -> Compute Preferred Liquidation Preferences (1x Non-Participating) vs Common Stock Proceeds",
+    "Step 5: Executive & Board Sign-Off -> Broadcast WebSocket Approval Request via ExecApprovalManager -> Obtain Founder Sign-Off",
+    "Step 6: Export Capital Strategy Package -> Generate Cap Table Ledger JSON, Pro-Forma CSV, Waterfall MD & Capital Strategy Brief -> Archive in Vault",
+    "Step 7: Continuous Ownership Monitoring -> Track Option Pool Reserves, Vesting Schedules & Conversion Triggers -> Notify Leadership"
+  ],
+  "capabilities": [
+    "Cap_Table_Ledger_Auditor",
+    "Dilution_Scenario_Modeler",
+    "Liquidation_Waterfall_Calculator",
+    "SAFE_Conversion_Engine",
+    "Capital_Strategy_Exporter",
+    "Ownership_Approval_Orchestrator"
+  ],
+  "bestPractices": [
+    "Always model dilution on a fully-diluted basis including all issued options, unallocated reserves, and convertibles.",
+    "Require explicit human founder sign-off before modifying cap table ledgers or authorizing new equity issuances.",
+    "Verify pre-money option pool expansion impact on effective valuation prior to term sheet execution."
+  ],
+  "tools": [
+    "ocs_tool_01"
+  ],
+  "signature": "sys-signed",
+  "publicKey": "sys-pub",
+  "verified": true
+}

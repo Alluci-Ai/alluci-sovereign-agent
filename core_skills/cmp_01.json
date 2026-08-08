@@ -1,0 +1,71 @@
+{
+  "id": "cmp_01",
+  "name": "Compensation Strategy & Total Rewards Management",
+  "category": "FRAMEWORK",
+  "description": "Deterministic strategic framework to audit compensation bands, model equity incentive pools, benchmark market percentiles, structure total rewards packages, and optimize workforce cash/equity allocations.",
+  "mindsets": [
+    "PayParityAndFairness",
+    "PerformanceAlignment",
+    "FounderEquityStewardship",
+    "MarketBenchmarkingRigor",
+    "TotalRewardsOptimization",
+    "RetentionDrivenDesign",
+    "TransparencyInCompensation",
+    "FinancialSustainability"
+  ],
+  "methodologies": [
+    "CompensationBandAuditing",
+    "EquityIncentiveModeling",
+    "TotalRewardsTCOCalculation",
+    "MarketPercentileBenchmarking",
+    "OptionPoolAllocationAnalysis",
+    "VestingScheduleOptimization",
+    "ExecutiveCompensationSignoffOrchestration"
+  ],
+  "frameworks": [
+    "4-Pillar Total Rewards Architecture (Base Cash + Variable Bonus + Equity + Benefits)",
+    "7-Tier Compensation Decision Hierarchy",
+    "Standard 4-Year Vesting / 1-Year Cliff Model",
+    "Market Percentile Positioning Matrix (50th / 75th / 90th Percentile)",
+    "3-Tier Governance Matrix"
+  ],
+  "knowledge": [
+    "CompensationStrategy",
+    "ExecutiveCompensation",
+    "EquityIncentives",
+    "StockOptionsAndGranting",
+    "LaborEconomics",
+    "TotalRewards",
+    "FinancialModeling"
+  ],
+  "logic": [
+    "Compensation is a primary driver of talent attraction, retention, and organizational culture. Arbitrary pay scales, unbenchmarked salaries, or mispriced equity grants cause pay disparities, drain cash reserves, and dilute founder ownership. Execute mathematically rigorous compensation design."
+  ],
+  "chainsOfThought": [
+    "Step 1: Initiate Compensation Audit -> Benchmark Base Salaries & Variable Bonuses against Market Data (50th/75th Percentile) -> Identify Pay Disparities",
+    "Step 2: Salary Band Standardization -> Structure Grade & Level Cash Compensation Ranges across Engineering, GTM, Product & Ops",
+    "Step 3: Equity Incentive & Option Pool Modeling -> Model Share Grants, Strike Prices, 4-Year Vesting with 1-Year Cliff & Dilution Impact (integrated with ocs_01)",
+    "Step 4: Total Rewards TCO Synthesis -> Calculate Combined Cash + Equity + Benefits + Tech Subscriptions TCO per Headcount",
+    "Step 5: Executive Sign-Off & Board Approval -> Broadcast WebSocket Approval Request via ExecApprovalManager for Compensation Bands & Equity Grants",
+    "Step 6: Export Compensation Package -> Generate Comp Bands Registry CSV, Equity Grant Model JSON, Total Rewards Dashboard HTML & Manifest -> Archive in Vault",
+    "Step 7: Continuous Parity & Benchmark Monitoring -> Register Alert Triggers in PCL Daemon -> Flag Benchmark Drift or Budget Variance (>10%)"
+  ],
+  "capabilities": [
+    "Compensation_Bands_Auditor",
+    "Equity_Incentives_Modeler",
+    "Total_Rewards_TCO_Calculator",
+    "Compensation_Package_Exporter",
+    "Compensation_Approval_Orchestrator"
+  ],
+  "bestPractices": [
+    "Always benchmark compensation against verified market percentile data (e.g. Radford, Pave, Carta) for company tier and stage.",
+    "Structure equity option grants with standard 4-year vesting and a 1-year cliff to protect company cap table integrity.",
+    "Require explicit human executive sign-off before modifying salary bands or issuing new stock option grants."
+  ],
+  "tools": [
+    "cmp_tool_01"
+  ],
+  "signature": "sys-signed",
+  "publicKey": "sys-pub",
+  "verified": true
+}

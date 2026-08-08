@@ -1,0 +1,82 @@
+{
+  "id": "spe_01",
+  "name": "Strategic Planning, Execution & Performance Management",
+  "category": "FRAMEWORK",
+  "description": "Deterministic operating system framework to translate strategic vision into executable workstreams, milestones, tasks, KPIs, Balanced Scorecards, and executive dashboards.",
+  "mindsets": [
+    "LongTermThinking",
+    "EnterpriseThinking",
+    "SystemsThinking",
+    "OutcomeOrientedPlanning",
+    "StrategicPrioritization",
+    "BiasTowardAction",
+    "Accountability",
+    "ContinuousProgress",
+    "CrossFunctionalCollaboration",
+    "OperationalDiscipline",
+    "Transparency",
+    "Ownership"
+  ],
+  "methodologies": [
+    "StrategicPlanning",
+    "InitiativePlanning",
+    "ProjectArchitecture",
+    "PerformanceArchitecture",
+    "ExecutionManagement",
+    "LeadershipIntelligence",
+    "PerformanceMonitoring",
+    "ContinuousLearning"
+  ],
+  "frameworks": [
+    "7-Tier Decision Hierarchy",
+    "Strategy-to-Execution Alignment Model",
+    "Balanced Scorecard Methodology",
+    "Health Calculation Formula",
+    "3-Tier Automation Matrix",
+    "Platform-Agnostic Data Model"
+  ],
+  "knowledge": [
+    "StrategicPlanning",
+    "ProjectManagement",
+    "OperationalExcellence",
+    "PerformanceManagement",
+    "OrganizationalLeadership",
+    "RiskManagement",
+    "AIAndKnowledgeManagement"
+  ],
+  "logic": [
+    "Most organizations do not fail because they lack strategy. They fail because strategy never becomes consistent execution. Every project must trace back to a strategic objective; measure outcomes, not activity."
+  ],
+  "chainsOfThought": [
+    "Step 1: Initiate Strategic Planning -> Define Vision, Mission & Strategic Pillars -> Establish Annual Goals",
+    "Step 2: Initiative Decomposition -> Break Pillars into Strategic Initiatives, Programs & Workstreams -> Assign Executive Owners",
+    "Step 3: Project Architecture -> Translate Initiatives into Projects, Milestones, Tasks & Dependency Networks -> Calculate Critical Path",
+    "Step 4: Performance Architecture -> Define KPIs, Scorecards, Health Formulas & Target Metrics -> Map KPIs to Initiatives",
+    "Step 5: Resource & Capacity Allocation -> Evaluate Team Capacity, Budget & Skill Dependencies -> Mitigate Bottlenecks",
+    "Step 6: Risk & Dependency Audit -> Surface Hidden Dependencies & Execution Blockers -> Build Risk Register",
+    "Step 7: Health & Progress Calculation -> Run Formula (Expected = Elapsed / Planned) -> Assign Health States (On Track, At Risk, Overdue)",
+    "Step 8: Generate Executive Intelligence -> Synthesize Executive Dashboards, Scorecard Updates & Weekly Reports",
+    "Step 9: Human Review & Approval -> Request Executive Sign-Off via WebSocket -> Obtain Sign-Off on Scope, Priorities & Allocations",
+    "Step 10: Publish & Platform Sync -> Export to Notion, Airtable, CSV & Persistent Graph Memory -> Trigger Workflow Sync"
+  ],
+  "capabilities": [
+    "Strategic_Plan_Decomposer",
+    "Work_Breakdown_Architect",
+    "Project_Health_Calculator",
+    "Balanced_Scorecard_Generator",
+    "Executive_Dashboard_Synthesizer",
+    "Platform_Export_Engine"
+  ],
+  "bestPractices": [
+    "Strategy before execution: work that does not advance strategy must be questioned before execution begins.",
+    "Single accountable owner per task.",
+    "Health calculation must compare actual progress against elapsed time.",
+    "Require explicit human executive sign-off before triggering autonomous downstream deployment."
+  ],
+  "tools": [
+    "spe_tool_01"
+  ],
+  "signature": "sys-signed",
+  "publicKey": "sys-pub",
+  "verified": true
+}

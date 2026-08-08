@@ -139,6 +139,456 @@ async def execute_tool(tool_id: str, payload: Dict[str, Any] = Body(...)):
         logger.error(f"Execution failed for tool {tool_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.post("/tools/fnd_tool_01/capability")
+async def execute_fnd_tool_capability(payload: Dict[str, Any] = Body(...)):
+    """Executes specific capabilities on the FounderNarrativeTool (fnd_tool_01)."""
+    from .. import services
+    from ..tools.founder_narrative_tool import FounderNarrativeTool
+
+    capability = payload.get("capability")
+    params = payload.get("params", {})
+
+    tool_instance = FounderNarrativeTool(
+        vault_manager=services.vault,
+        exec_approval_mgr=getattr(services, "exec_approval_manager", None)
+    )
+
+    if capability == "transcribe_interview":
+        file_path = params.get("file_path", "")
+        return await tool_instance.transcribe_interview(file_path)
+    elif capability == "audit_evidence":
+        claims = params.get("claims", [])
+        return tool_instance.audit_evidence(claims)
+    elif capability == "request_approval":
+        narrative_id = params.get("narrative_id", "v1")
+        summary = params.get("context_summary", "")
+        return await tool_instance.request_approval(narrative_id, summary)
+    elif capability == "export_deliverables":
+        narrative_data = params.get("narrative_data", {})
+        company_name = params.get("company_name", "Company")
+        return tool_instance.export_deliverables(narrative_data, company_name)
+    elif capability == "sync_channels":
+        channel = params.get("channel", "slack")
+        sync_payload = params.get("payload", {})
+        return await tool_instance.sync_external_channels(channel, sync_payload)
+    else:
+        raise HTTPException(status_code=400, detail=f"Unknown capability: {capability}")
+
+@router.post("/tools/fnd_tool_02/capability")
+async def execute_fnd_tool_02_capability(payload: Dict[str, Any] = Body(...)):
+    """Executes specific capabilities on the FounderInsightMarketShiftTool (fnd_tool_02)."""
+    from .. import services
+    from ..tools.founder_insight_market_shift_tool import FounderInsightMarketShiftTool
+
+    capability = payload.get("capability")
+    params = payload.get("params", {})
+
+    tool_instance = FounderInsightMarketShiftTool(
+        vault_manager=services.vault,
+        exec_approval_mgr=getattr(services, "exec_approval_manager", None)
+    )
+
+    if capability == "extract_market_shifts":
+        macro_inputs = params.get("macro_inputs", [])
+        return tool_instance.extract_market_shifts(macro_inputs)
+    elif capability == "score_decision_confidence":
+        recommendation = params.get("recommendation", "")
+        evidence_claims = params.get("evidence_claims", [])
+        return tool_instance.score_decision_confidence(recommendation, evidence_claims)
+    elif capability == "evaluate_signals_and_risks":
+        current_state = params.get("current_state", {})
+        market_signals = params.get("market_signals", [])
+        return tool_instance.evaluate_signals_and_risks(current_state, market_signals)
+    elif capability == "export_insight_assets":
+        insight_data = params.get("insight_data", {})
+        company_name = params.get("company_name", "Company")
+        return tool_instance.export_insight_assets(insight_data, company_name)
+    elif capability == "request_founder_signoff":
+        insight_id = params.get("insight_id", "v1")
+        summary = params.get("context_summary", "")
+        return await tool_instance.request_founder_signoff(insight_id, summary)
+    else:
+        raise HTTPException(status_code=400, detail=f"Unknown capability: {capability}")
+
+@router.post("/tools/spe_tool_01/capability")
+async def execute_spe_tool_capability(payload: Dict[str, Any] = Body(...)):
+    """Executes specific capabilities on the StrategicPlanningExecutionTool (spe_tool_01)."""
+    from .. import services
+    from ..tools.strategic_planning_execution_tool import StrategicPlanningExecutionTool
+
+    capability = payload.get("capability")
+    params = payload.get("params", {})
+
+    tool_instance = StrategicPlanningExecutionTool(
+        vault_manager=services.vault,
+        exec_approval_mgr=getattr(services, "exec_approval_manager", None)
+    )
+
+    if capability == "decompose_strategic_plan":
+        pillars = params.get("pillars", [])
+        return tool_instance.decompose_strategic_plan(pillars)
+    elif capability == "calculate_project_health":
+        projects = params.get("projects", [])
+        return tool_instance.calculate_project_health(projects)
+    elif capability == "generate_balanced_scorecard":
+        kpi_metrics = params.get("kpis", [])
+        return tool_instance.generate_balanced_scorecard(kpi_metrics)
+    elif capability == "export_operating_system":
+        plan_data = params.get("plan_data", {})
+        company_name = params.get("company_name", "Company")
+        return tool_instance.export_operating_system(plan_data, company_name)
+    elif capability == "request_executive_approval":
+        plan_id = params.get("plan_id", "v1")
+        summary = params.get("context_summary", "")
+        return await tool_instance.request_executive_approval(plan_id, summary)
+    else:
+        raise HTTPException(status_code=400, detail=f"Unknown capability: {capability}")
+
+@router.post("/tools/ir_tool_01/capability")
+async def execute_ir_tool_capability(payload: Dict[str, Any] = Body(...)):
+    """Executes specific capabilities on the InvestmentReadinessTool (ir_tool_01)."""
+    from .. import services
+    from ..tools.investment_readiness_tool import InvestmentReadinessTool
+
+    capability = payload.get("capability")
+    params = payload.get("params", {})
+
+    tool_instance = InvestmentReadinessTool(
+        vault_manager=services.vault,
+        exec_approval_mgr=getattr(services, "exec_approval_manager", None)
+    )
+
+    if capability == "assess_readiness_gaps":
+        inventory_data = params.get("inventory_data", {})
+        return tool_instance.assess_readiness_gaps(inventory_data)
+    elif capability == "audit_data_room_structure":
+        folder_structure = params.get("folder_structure", {})
+        return tool_instance.audit_data_room_structure(folder_structure)
+    elif capability == "generate_investor_guide":
+        company_name = params.get("company_name", "Company")
+        data_room_structure = params.get("data_room_structure", {})
+        return tool_instance.generate_investor_guide(company_name, data_room_structure)
+    elif capability == "export_diligence_package":
+        diligence_data = params.get("diligence_data", {})
+        company_name = params.get("company_name", "Company")
+        return tool_instance.export_diligence_package(diligence_data, company_name)
+    elif capability == "request_publication_approval":
+        data_room_id = params.get("data_room_id", "v1")
+        summary = params.get("context_summary", "")
+        return await tool_instance.request_publication_approval(data_room_id, summary)
+    else:
+        raise HTTPException(status_code=400, detail=f"Unknown capability: {capability}")
+
+@router.post("/tools/ldl_tool_01/capability")
+async def execute_ldl_tool_capability(payload: Dict[str, Any] = Body(...)):
+    """Executes specific capabilities on the LegalDocumentLifecycleTool (ldl_tool_01)."""
+    from .. import services
+    from ..tools.legal_document_lifecycle_tool import LegalDocumentLifecycleTool
+
+    capability = payload.get("capability")
+    params = payload.get("params", {})
+
+    tool_instance = LegalDocumentLifecycleTool(
+        vault_manager=services.vault,
+        exec_approval_mgr=getattr(services, "exec_approval_manager", None)
+    )
+
+    if capability == "audit_legal_compliance":
+        repository_data = params.get("repository_data", {})
+        return tool_instance.audit_legal_compliance(repository_data)
+    elif capability == "generate_legal_templates":
+        doc_type = params.get("doc_type", "Mutual NDA")
+        party_details = params.get("party_details", {})
+        return tool_instance.generate_legal_templates(doc_type, party_details)
+    elif capability == "verify_signature_status":
+        contracts = params.get("contracts", [])
+        return tool_instance.verify_signature_status(contracts)
+    elif capability == "export_legal_repository":
+        legal_data = params.get("legal_data", {})
+        company_name = params.get("company_name", "Company")
+        return tool_instance.export_legal_repository(legal_data, company_name)
+    elif capability == "request_execution_signoff":
+        contract_id = params.get("contract_id", "v1")
+        summary = params.get("context_summary", "")
+        return await tool_instance.request_execution_signoff(contract_id, summary)
+    else:
+        raise HTTPException(status_code=400, detail=f"Unknown capability: {capability}")
+
+@router.post("/tools/ocs_tool_01/capability")
+async def execute_ocs_tool_capability(payload: Dict[str, Any] = Body(...)):
+    """Executes specific capabilities on the OwnershipCapitalStrategyTool (ocs_tool_01)."""
+    from .. import services
+    from ..tools.ownership_capital_strategy_tool import OwnershipCapitalStrategyTool
+
+    capability = payload.get("capability")
+    params = payload.get("params", {})
+
+    tool_instance = OwnershipCapitalStrategyTool(
+        vault_manager=services.vault,
+        exec_approval_mgr=getattr(services, "exec_approval_manager", None)
+    )
+
+    if capability == "audit_cap_table_ledger":
+        cap_table_data = params.get("cap_table_data", {})
+        return tool_instance.audit_cap_table_ledger(cap_table_data)
+    elif capability == "model_dilution_scenarios":
+        current_cap_table = params.get("current_cap_table", {})
+        financing_round = params.get("financing_round", {})
+        return tool_instance.model_dilution_scenarios(current_cap_table, financing_round)
+    elif capability == "calculate_waterfall_payouts":
+        cap_table_data = params.get("cap_table_data", {})
+        exit_valuation = float(params.get("exit_valuation", 50000000.0))
+        return tool_instance.calculate_waterfall_payouts(cap_table_data, exit_valuation)
+    elif capability == "export_capital_strategy_package":
+        strategy_data = params.get("strategy_data", {})
+        company_name = params.get("company_name", "Company")
+        return tool_instance.export_capital_strategy_package(strategy_data, company_name)
+    elif capability == "request_cap_table_approval":
+        cap_table_id = params.get("cap_table_id", "v1")
+        summary = params.get("context_summary", "")
+        return await tool_instance.request_cap_table_approval(cap_table_id, summary)
+    else:
+        raise HTTPException(status_code=400, detail=f"Unknown capability: {capability}")
+
+@router.post("/tools/suf_tool_01/capability")
+async def execute_suf_tool_capability(payload: Dict[str, Any] = Body(...)):
+    """Executes specific capabilities on the UseOfFundsCapitalAllocationTool (suf_tool_01)."""
+    from .. import services
+    from ..tools.use_of_funds_capital_allocation_tool import UseOfFundsCapitalAllocationTool
+
+    capability = payload.get("capability")
+    params = payload.get("params", {})
+
+    tool_instance = UseOfFundsCapitalAllocationTool(
+        vault_manager=services.vault,
+        exec_approval_mgr=getattr(services, "exec_approval_manager", None)
+    )
+
+    if capability == "audit_capital_allocation":
+        budget_actuals_data = params.get("budget_actuals_data", {})
+        return tool_instance.audit_capital_allocation(budget_actuals_data)
+    elif capability == "calculate_runway_and_burn":
+        financial_metrics = params.get("financial_metrics", {})
+        return tool_instance.calculate_runway_and_burn(financial_metrics)
+    elif capability == "validate_funds_compliance":
+        allocation_plan = params.get("allocation_plan", {})
+        investor_covenants = params.get("investor_covenants", {})
+        return tool_instance.validate_funds_compliance(allocation_plan, investor_covenants)
+    elif capability == "export_capital_allocation_package":
+        allocation_data = params.get("allocation_data", {})
+        company_name = params.get("company_name", "Company")
+        return tool_instance.export_capital_allocation_package(allocation_data, company_name)
+    elif capability == "request_allocation_approval":
+        reallocation_id = params.get("reallocation_id", "v1")
+        summary = params.get("context_summary", "")
+        return await tool_instance.request_allocation_approval(reallocation_id, summary)
+    else:
+        raise HTTPException(status_code=400, detail=f"Unknown capability: {capability}")
+
+@router.post("/tools/swd_tool_01/capability")
+async def execute_swd_tool_capability(payload: Dict[str, Any] = Body(...)):
+    """Executes specific capabilities on the StrategicWorkforceDesignTool (swd_tool_01)."""
+    from .. import services
+    from ..tools.strategic_workforce_design_tool import StrategicWorkforceDesignTool
+
+    capability = payload.get("capability")
+    params = payload.get("params", {})
+
+    tool_instance = StrategicWorkforceDesignTool(
+        vault_manager=services.vault,
+        exec_approval_mgr=getattr(services, "exec_approval_manager", None)
+    )
+
+    if capability == "map_business_capabilities":
+        work_tasks = params.get("work_tasks", [])
+        return tool_instance.map_business_capabilities(work_tasks)
+    elif capability == "analyze_resource_optimization":
+        capabilities_list = params.get("capabilities_list", [])
+        return tool_instance.analyze_resource_optimization(capabilities_list)
+    elif capability == "calculate_ai_token_tco":
+        workforce_model = params.get("workforce_model", {})
+        return tool_instance.calculate_ai_token_tco(workforce_model)
+    elif capability == "export_workforce_package":
+        workforce_data = params.get("workforce_data", {})
+        company_name = params.get("company_name", "Company")
+        return tool_instance.export_workforce_package(workforce_data, company_name)
+    elif capability == "request_workforce_approval":
+        plan_id = params.get("plan_id", "v1")
+        summary = params.get("context_summary", "")
+        return await tool_instance.request_workforce_approval(plan_id, summary)
+    else:
+        raise HTTPException(status_code=400, detail=f"Unknown capability: {capability}")
+
+@router.post("/tools/okd_tool_01/capability")
+async def execute_okd_tool_capability(payload: Dict[str, Any] = Body(...)):
+    """Executes specific capabilities on the OrganizationalKnowledgeDocumentTool (okd_tool_01)."""
+    from .. import services
+    from ..tools.organizational_knowledge_document_tool import OrganizationalKnowledgeDocumentTool
+
+    capability = payload.get("capability")
+    params = payload.get("params", {})
+
+    tool_instance = OrganizationalKnowledgeDocumentTool(
+        vault_manager=services.vault,
+        exec_approval_mgr=getattr(services, "exec_approval_manager", None)
+    )
+
+    if capability == "audit_knowledge_repository":
+        knowledge_data = params.get("knowledge_data", {})
+        return tool_instance.audit_knowledge_repository(knowledge_data)
+    elif capability == "index_document_metadata":
+        document_input = params.get("document_input", {})
+        return tool_instance.index_document_metadata(document_input)
+    elif capability == "query_organizational_memory":
+        search_query = params.get("search_query", "")
+        return tool_instance.query_organizational_memory(search_query)
+    elif capability == "export_knowledge_package":
+        knowledge_payload = params.get("knowledge_payload", {})
+        company_name = params.get("company_name", "Company")
+        return tool_instance.export_knowledge_package(knowledge_payload, company_name)
+    elif capability == "request_knowledge_approval":
+        update_id = params.get("update_id", "v1")
+        summary = params.get("context_summary", "")
+        return await tool_instance.request_knowledge_approval(update_id, summary)
+    else:
+        raise HTTPException(status_code=400, detail=f"Unknown capability: {capability}")
+
+@router.post("/tools/cmp_tool_01/capability")
+async def execute_cmp_tool_capability(payload: Dict[str, Any] = Body(...)):
+    """Executes specific capabilities on the CompensationStrategyTool (cmp_tool_01)."""
+    from .. import services
+    from ..tools.compensation_strategy_tool import CompensationStrategyTool
+
+    capability = payload.get("capability")
+    params = payload.get("params", {})
+
+    tool_instance = CompensationStrategyTool(
+        vault_manager=services.vault,
+        exec_approval_mgr=getattr(services, "exec_approval_manager", None)
+    )
+
+    if capability == "audit_compensation_bands":
+        salary_benchmark_data = params.get("salary_benchmark_data", {})
+        return tool_instance.audit_compensation_bands(salary_benchmark_data)
+    elif capability == "model_equity_incentives":
+        option_grant_data = params.get("option_grant_data", {})
+        return tool_instance.model_equity_incentives(option_grant_data)
+    elif capability == "calculate_total_rewards_tco":
+        rewards_payload = params.get("rewards_payload", {})
+        return tool_instance.calculate_total_rewards_tco(rewards_payload)
+    elif capability == "export_compensation_package":
+        compensation_payload = params.get("compensation_payload", {})
+        company_name = params.get("company_name", "Company")
+        return tool_instance.export_compensation_package(compensation_payload, company_name)
+    elif capability == "request_compensation_approval":
+        grant_id = params.get("grant_id", "v1")
+        summary = params.get("context_summary", "")
+        return await tool_instance.request_compensation_approval(grant_id, summary)
+    else:
+        raise HTTPException(status_code=400, detail=f"Unknown capability: {capability}")
+
+@router.post("/tools/fde_tool_01/capability")
+async def execute_fde_tool_capability(payload: Dict[str, Any] = Body(...)):
+    """Executes specific capabilities on the FounderEducationDecisionTool (fde_tool_01)."""
+    from .. import services
+    from ..tools.founder_education_decision_tool import FounderEducationDecisionTool
+
+    capability = payload.get("capability")
+    params = payload.get("params", {})
+
+    tool_instance = FounderEducationDecisionTool(
+        vault_manager=services.vault,
+        exec_approval_mgr=getattr(services, "exec_approval_manager", None)
+    )
+
+    if capability == "synthesize_learning_modules":
+        topic_scope = params.get("topic_scope", {})
+        return tool_instance.synthesize_learning_modules(topic_scope)
+    elif capability == "evaluate_decision_confidence":
+        decision_scenario = params.get("decision_scenario", {})
+        return tool_instance.evaluate_decision_confidence(decision_scenario)
+    elif capability == "log_decision_journal_entry":
+        journal_payload = params.get("journal_payload", {})
+        return tool_instance.log_decision_journal_entry(journal_payload)
+    elif capability == "export_education_package":
+        education_payload = params.get("education_payload", {})
+        company_name = params.get("company_name", "Company")
+        return tool_instance.export_education_package(education_payload, company_name)
+    elif capability == "request_decision_signoff":
+        decision_id = params.get("decision_id", "v1")
+        summary = params.get("context_summary", "")
+        return await tool_instance.request_decision_signoff(decision_id, summary)
+    else:
+        raise HTTPException(status_code=400, detail=f"Unknown capability: {capability}")
+
+@router.post("/tools/ftl_tool_01/capability")
+async def execute_ftl_tool_capability(payload: Dict[str, Any] = Body(...)):
+    """Executes specific capabilities on the FoundingTeamLeadershipTool (ftl_tool_01)."""
+    from .. import services
+    from ..tools.founding_team_leadership_tool import FoundingTeamLeadershipTool
+
+    capability = payload.get("capability")
+    params = payload.get("params", {})
+
+    tool_instance = FoundingTeamLeadershipTool(
+        vault_manager=services.vault,
+        exec_approval_mgr=getattr(services, "exec_approval_manager", None)
+    )
+
+    if capability == "audit_leadership_architecture":
+        team_data = params.get("team_data", {})
+        return tool_instance.audit_leadership_architecture(team_data)
+    elif capability == "model_founder_equity_vesting":
+        founder_equity_data = params.get("founder_equity_data", {})
+        return tool_instance.model_founder_equity_vesting(founder_equity_data)
+    elif capability == "calculate_leadership_capacity_tco":
+        leadership_payload = params.get("leadership_payload", {})
+        return tool_instance.calculate_leadership_capacity_tco(leadership_payload)
+    elif capability == "export_leadership_package":
+        leadership_payload = params.get("leadership_payload", {})
+        company_name = params.get("company_name", "Company")
+        return tool_instance.export_leadership_package(leadership_payload, company_name)
+    elif capability == "request_leadership_approval":
+        arch_id = params.get("arch_id", "v1")
+        summary = params.get("context_summary", "")
+        return await tool_instance.request_leadership_approval(arch_id, summary)
+    else:
+        raise HTTPException(status_code=400, detail=f"Unknown capability: {capability}")
+
+@router.post("/tools/hro_tool_01/capability")
+async def execute_hro_tool_capability(payload: Dict[str, Any] = Body(...)):
+    """Executes specific capabilities on the HumanResourceOnboardingTool (hro_tool_01)."""
+    from .. import services
+    from ..tools.human_resource_onboarding_tool import HumanResourceOnboardingTool
+
+    capability = payload.get("capability")
+    params = payload.get("params", {})
+
+    tool_instance = HumanResourceOnboardingTool(
+        vault_manager=services.vault,
+        exec_approval_mgr=getattr(services, "exec_approval_manager", None)
+    )
+
+    if capability == "audit_onboarding_pipeline":
+        onboarding_data = params.get("onboarding_data", {})
+        return tool_instance.audit_onboarding_pipeline(onboarding_data)
+    elif capability == "generate_onboarding_roadmap":
+        employee_input = params.get("employee_input", {})
+        return tool_instance.generate_onboarding_roadmap(employee_input)
+    elif capability == "calculate_time_to_productivity":
+        productivity_metrics = params.get("productivity_metrics", {})
+        return tool_instance.calculate_time_to_productivity(productivity_metrics)
+    elif capability == "export_onboarding_package":
+        onboarding_payload = params.get("onboarding_payload", {})
+        company_name = params.get("company_name", "Company")
+        return tool_instance.export_onboarding_package(onboarding_payload, company_name)
+    elif capability == "request_onboarding_approval":
+        onboarding_id = params.get("onboarding_id", "v1")
+        summary = params.get("context_summary", "")
+        return await tool_instance.request_onboarding_approval(onboarding_id, summary)
+    else:
+        raise HTTPException(status_code=400, detail=f"Unknown capability: {capability}")
+
 @router.post("/tools/test_sandbox")
 async def test_sandbox(payload: Dict[str, Any] = Body(...)):
     """Executes a tool dynamically without permanently saving it to the registry."""

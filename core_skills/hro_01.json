@@ -1,0 +1,71 @@
+{
+  "id": "hro_01",
+  "name": "Human Resource Onboarding & Employee Integration",
+  "category": "FRAMEWORK",
+  "description": "Deterministic strategic framework to orchestrate employee onboarding, 30-60-90 day milestone roadmaps, legal document execution, IT account provisioning, and time-to-productivity (TTP) optimization.",
+  "mindsets": [
+    "AcceleratedProductivity",
+    "EmployeeExperienceExcellence",
+    "ComplianceRigor",
+    "StructuredIntegration",
+    "ClearExpectations",
+    "MentorshipAndBelonging",
+    "ContinuousFeedback",
+    "FrictionlessProvisioning"
+  ],
+  "methodologies": [
+    "OnboardingPipelineAuditing",
+    "Roadmap306090Synthesis",
+    "TimeToProductivityCalculation",
+    "LegalDocumentExecutionVerification",
+    "ITProvisioningOrchestration",
+    "BuddyMentorshipMatching",
+    "ExecutiveOnboardingApprovalOrchestration"
+  ],
+  "frameworks": [
+    "5-Phase Onboarding Lifecycle Model (Pre-Boarding, Day 1 Orientation, 30-Day Integration, 60-Day Competency, 90-Day Autonomy)",
+    "7-Tier Onboarding Decision Hierarchy",
+    "Time-To-Productivity (TTP) Mathematical Formula",
+    "Mandatory Compliance Document Matrix (PIIA, Form W-4, Form I-9, Offer Letter)",
+    "3-Tier Governance Matrix"
+  ],
+  "knowledge": [
+    "HumanResources",
+    "EmployeeOnboarding",
+    "TalentManagement",
+    "EmploymentLaw",
+    "ITProvisioning",
+    "OrganizationalPsychology",
+    "PerformanceManagement"
+  ],
+  "logic": [
+    "An employee's first 90 days dictate long-term retention, engagement, and performance. Unstructured onboarding, delayed IT account access, missing legal documents (PIIA), or ambiguous 30-60-90 day goals increase early turnover and inflate time-to-productivity. Execute frictionless, audit-ready employee onboarding."
+  ],
+  "chainsOfThought": [
+    "Step 1: Initiate Pre-Boarding Audit -> Verify Executed Offer Letter, PIIA & Tax Forms (W-4/I-9) -> Provision System Accounts & Hardware",
+    "Step 2: Day 1 Orientation & Welcome -> Introduce Team Buddy, Deliver Systems Access & Assign Organizational Memory Learning Modules (okd_01)",
+    "Step 3: Synthesize 30-60-90 Day Milestone Roadmap -> Define 30-Day Learning Goals, 60-Day Role Competency & 90-Day Autonomous Deliverables (spe_01)",
+    "Step 4: Time-To-Productivity (TTP) & Efficiency Analysis -> Measure Days to First Independent Output, Onboarding Cost & Manager Feedback Scores",
+    "Step 5: Executive Sign-Off & HR Verification -> Broadcast WebSocket Approval Request via ExecApprovalManager for Onboarding Completion",
+    "Step 6: Export Onboarding Package -> Generate Onboarding Blueprint JSON, Checklist CSV, 30-60-90 Dashboard HTML & Manifest -> Archive in Vault",
+    "Step 7: Continuous Integration & Milestone Monitoring -> Register Alert Triggers in PCL Daemon -> Flag Overdue 30/60/90 Day Milestones"
+  ],
+  "capabilities": [
+    "Onboarding_Pipeline_Auditor",
+    "Roadmap_306090_Synthesizer",
+    "Time_To_Productivity_Calculator",
+    "Onboarding_Package_Exporter",
+    "Onboarding_Approval_Orchestrator"
+  ],
+  "bestPractices": [
+    "Ensure 100% of legal documents (PIIA, Offer Letter, W-4/I-9) are fully executed before Day 1.",
+    "Assign a dedicated peer onboarding buddy to every new employee to accelerate cultural and technical integration.",
+    "Require explicit manager sign-off on 30-day, 60-day, and 90-day performance milestones."
+  ],
+  "tools": [
+    "hro_tool_01"
+  ],
+  "signature": "sys-signed",
+  "publicKey": "sys-pub",
+  "verified": true
+}

@@ -1,0 +1,71 @@
+{
+  "id": "ftl_01",
+  "name": "Founding Team Design & Leadership Architecture",
+  "category": "FRAMEWORK",
+  "description": "Deterministic strategic framework to design co-founder domain coverage, structure executive decision rights (RACI/RAPID), model founder reverse vesting and acceleration terms, and build scalable leadership architectures.",
+  "mindsets": [
+    "DomainComplementarity",
+    "FounderAlignment",
+    "DecisionRightsClarity",
+    "ReverseVestingRigor",
+    "CapTableStewardship",
+    "ScalableLeadership",
+    "ConflictResolutionProtocol",
+    "LongTermGovernance"
+  ],
+  "methodologies": [
+    "LeadershipArchitectureAuditing",
+    "CoFounderDomainCoverageMapping",
+    "FounderVestingAndAccelerationModeling",
+    "ExecutiveDecisionRightsMatrixDesign",
+    "LeadershipCapacityTCOCalculation",
+    "ExecutiveHiringRoadmapSynthesis",
+    "FounderSignoffOrchestration"
+  ],
+  "frameworks": [
+    "4-Domain Co-Founder Coverage Model (CEO/Strategy, CTO/Tech, CPO/Product, CRO/GTM)",
+    "7-Tier Leadership Decision Hierarchy",
+    "Standard 4-Year Reverse Vesting / 1-Year Cliff with Double-Trigger Acceleration Model",
+    "RACI & RAPID Decision Rights Framework",
+    "3-Tier Governance Matrix"
+  ],
+  "knowledge": [
+    "OrganizationalDesign",
+    "ExecutiveLeadership",
+    "CoFounderDynamics",
+    "CorporateGovernance",
+    "EquityVesting",
+    "CapTableManagement",
+    "TalentAcquisition"
+  ],
+  "logic": [
+    "The founding team and leadership architecture form the bedrock of an enterprise. Overlapping co-founder domains, unvested founder equity, ambiguous decision rights, or missing leadership capabilities lead to co-founder split-ups, cap table deadlocks, and organizational failure. Execute mathematically sound founding team design."
+  ],
+  "chainsOfThought": [
+    "Step 1: Audit Founding Team Architecture -> Map Co-Founder Roles across Strategy (CEO), Technology (CTO), Product (CPO) & GTM (CRO) -> Identify Domain Overlaps & Gaps",
+    "Step 2: Decision Rights Standardization -> Structure RACI/RAPID Matrix for High-Stakes Decisions (Hiring, Budgeting, Product Roadmap, Fundraising)",
+    "Step 3: Founder Equity & Reverse Vesting Modeling -> Model 4-Year Vesting with 1-Year Cliff, Single vs Double-Trigger Acceleration Clauses & Buyout Terms (integrated with ocs_01 & ldl_01)",
+    "Step 4: Leadership Capacity & TCO Synthesis -> Model Founder Draws + Executive Hires (VP Eng, VP Sales) + Board/Advisor Equity Reserves (integrated with swd_01 & cmp_01)",
+    "Step 5: Executive Sign-Off & Founder Approval -> Broadcast WebSocket Approval Request via ExecApprovalManager for Founding Agreements & Leadership Structure",
+    "Step 6: Export Leadership Package -> Generate Founding Blueprint JSON, RACI Matrix CSV, Vesting Dashboard HTML & Manifest -> Archive in Vault",
+    "Step 7: Continuous Governance & Alignment Monitoring -> Register Alert Triggers in PCL Daemon -> Flag Co-Founder Friction or Unfilled Leadership Gaps"
+  ],
+  "capabilities": [
+    "Leadership_Architecture_Auditor",
+    "Founder_Vesting_Modeler",
+    "Leadership_Capacity_TCO_Calculator",
+    "Leadership_Package_Exporter",
+    "Leadership_Approval_Orchestrator"
+  ],
+  "bestPractices": [
+    "Always subject founder equity to 4-year reverse vesting with a 1-year cliff to protect company capitalization table integrity.",
+    "Enforce clear decision rights (RACI/RAPID) for key operational areas to prevent co-founder gridlock.",
+    "Require explicit human founder sign-off before modifying founding equity splits or executive governance agreements."
+  ],
+  "tools": [
+    "ftl_tool_01"
+  ],
+  "signature": "sys-signed",
+  "publicKey": "sys-pub",
+  "verified": true
+}

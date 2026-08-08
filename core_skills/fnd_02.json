@@ -1,0 +1,85 @@
+{
+  "id": "fnd_02",
+  "name": "Founder Insight & Market Shift Discovery",
+  "category": "FRAMEWORK",
+  "description": "Deterministic strategic framework to discover, validate, and translate founder insights, contrarian beliefs, macro market shifts, category opportunities, and signal/risk dynamics into persistent organizational intelligence.",
+  "mindsets": [
+    "Curious",
+    "Investigative",
+    "DeeplyObservant",
+    "PatternSeeking",
+    "SystemsThinking",
+    "FirstPrinciplesThinking",
+    "ContrarianCuriosity",
+    "FutureStateThinking",
+    "RootCauseExploration",
+    "SignalOverNoise",
+    "ClarityBuildsTrust",
+    "AuthenticityOverPerformance"
+  ],
+  "methodologies": [
+    "StructuredFounderDiscovery",
+    "InsightAndOpportunityDiscovery",
+    "MarketShiftAnalysis",
+    "FounderMarketFitAssessment",
+    "OpportunityArchitecture",
+    "EvidenceValidation",
+    "StrategicIntelligenceGeneration",
+    "SignalAndRiskMonitoring",
+    "ContinuousLearningAndRefinement"
+  ],
+  "frameworks": [
+    "7-Tier Decision Hierarchy",
+    "5-Level Evidence Matrix",
+    "5-Tier Decision Confidence Matrix",
+    "30+ Mental Models Taxonomy",
+    "3-Tier Automation Protocol",
+    "Signals and Risk Monitoring Engine"
+  ],
+  "knowledge": [
+    "Entrepreneurship",
+    "FounderPsychology",
+    "StrategicThinking",
+    "InsightDiscovery",
+    "MarketIntelligence",
+    "Fundraising",
+    "CorporateDevelopment",
+    "Communication"
+  ],
+  "logic": [
+    "Great companies begin with unique insights, not simply better products. Many founders can describe what they built; far fewer can articulate why they built it, what insight led them there, and why the market is finally ready today."
+  ],
+  "chainsOfThought": [
+    "Step 1: Initiate Discovery -> Confirm Scope & Objectives -> Gather Raw Company Documentation -> Formulate Initial Hypotheses",
+    "Step 2: Capture Founder Intelligence -> Interview Founder -> Extract Experiences, Motivations, Convictions & Defining Moments -> Build Founder Profile",
+    "Step 3: Discover Strategic Insights -> Challenge Conventional Industry Wisdom -> Identify Unresolved Root Causes & Earned Truths -> Build Insight Inventory",
+    "Step 4: Analyze Market Shifts -> Evaluate Technology, Regulatory, Economic & Behavioral Transformations -> Separate Trends from Structural Shifts",
+    "Step 5: Validate Founder-Market Fit -> Assess Credibility, Network & Unfair Advantage -> Audit Conviction & Timing",
+    "Step 6: Architect the Opportunity -> Formulate Market Thesis & Category Definition -> Draft Opportunity Architecture",
+    "Step 7: Validate Evidence & Score Confidence -> Audit 5-Level Evidence Matrix -> Compute 5-Tier Decision Confidence Score",
+    "Step 8: Generate Strategic Intelligence -> Synthesize Strategic Intelligence Package -> Produce 30+ Reusable Knowledge Assets",
+    "Step 9: Human Review & Approval -> Request WebSocket Sign-Off on Thesis, Category & Positioning -> Obtain Founder Sign-Off",
+    "Step 10: Publish & Integrate -> Store Memory Objects in Polytope Graph -> Trigger Downstream Workflow Synchronization"
+  ],
+  "capabilities": [
+    "Market_Shift_Extraction",
+    "Contrarian_Belief_Auditor",
+    "Decision_Confidence_Scorer",
+    "Signal_And_Risk_Monitor",
+    "Category_Thesis_Synthesizer",
+    "Insight_Deliverable_Exporter",
+    "Knowledge_Graph_Persister"
+  ],
+  "bestPractices": [
+    "Never manufacture a story; discover and validate authentic founder advantage.",
+    "Distinguish clearly between Facts, Evidence, Assumptions, Hypotheses, and Recommendations.",
+    "Every major recommendation must explicitly report its Decision Confidence Level.",
+    "Require explicit human founder sign-off before triggering autonomous downstream deployment."
+  ],
+  "tools": [
+    "fnd_tool_02"
+  ],
+  "signature": "sys-signed",
+  "publicKey": "sys-pub",
+  "verified": true
+}

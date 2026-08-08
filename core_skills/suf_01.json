@@ -1,0 +1,72 @@
+{
+  "id": "suf_01",
+  "name": "Strategic Use of Funds & Capital Allocation Management",
+  "category": "FRAMEWORK",
+  "description": "Deterministic strategic framework to monitor, audit, report, validate, and verify capital allocation, gross/net burn rates, runway trajectory, and investor covenant compliance.",
+  "mindsets": [
+    "FiduciaryStewardship",
+    "CapitalEfficiency",
+    "RunwayMaximization",
+    "VarianceVigilance",
+    "CovenantCompliance",
+    "MilestoneOrientedSpending",
+    "DataDrivenAllocation",
+    "TransparencyInReporting"
+  ],
+  "methodologies": [
+    "CapitalAllocationAuditing",
+    "RunwayAndBurnRateCalculation",
+    "InvestorCovenantValidation",
+    "BudgetVsActualVarianceAnalysis",
+    "ZeroCashDateForecasting",
+    "MilestoneRunwayEfficiencyScoring",
+    "ExecutiveReallocationOrchestration"
+  ],
+  "frameworks": [
+    "7-Tier Capital Allocation Decision Hierarchy",
+    "4-Bucket Allocation Taxonomy (R&D, GTM, Ops, Reserve)",
+    "Runway Formula (Cash / Net Monthly Burn)",
+    "Budget Variance Protocol (>15% Flag Threshold)",
+    "3-Tier Governance Matrix"
+  ],
+  "knowledge": [
+    "CorporateFinance",
+    "FinancialAccounting",
+    "CapitalAllocation",
+    "VentureCapitalCovenants",
+    "CashFlowManagement",
+    "FinancialModeling",
+    "InvestorRelations"
+  ],
+  "logic": [
+    "Capital is the fuel of organizational strategy. Unmonitored burn rates, unauthorized budget reallocations, or covenant breaches deplete runway prematurely and destroy investor trust. Execute continuous audit and mathematical verification of capital deployment."
+  ],
+  "chainsOfThought": [
+    "Step 1: Initiate Capital Audit -> Inventory Cash Balance, Revenue & Monthly Operating Expenses -> Audit Allocation by Bucket",
+    "Step 2: Calculate Burn & Runway -> Compute Gross Burn, Net Burn, Zero Cash Date & Runway Months -> Calculate Milestone Runway Efficiency",
+    "Step 3: Variance & Covenant Audit -> Compare Budget vs Actuals across R&D, GTM, Ops & Reserves -> Flag Variances >15%",
+    "Step 4: Investor Covenant Verification -> Validate Allocation Plan against Pitch Deck & Term Sheet Commitments -> Check Reallocation Caps",
+    "Step 5: Executive & Board Sign-Off -> Broadcast WebSocket Approval Request via ExecApprovalManager for Major Reallocations -> Obtain Founder Sign-Off",
+    "Step 6: Export Capital Allocation Package -> Generate Audit Report JSON, Runway CSV, HTML Dashboard & Covenant Verification MD -> Archive in Vault",
+    "Step 7: Continuous Runway Monitoring -> Register Runway Alert Triggers (<6 Months) in PCL -> Notify Leadership of Financial Drift"
+  ],
+  "capabilities": [
+    "Capital_Allocation_Auditor",
+    "Runway_Burn_Calculator",
+    "Covenant_Compliance_Verifier",
+    "Variance_Analysis_Engine",
+    "Capital_Allocation_Exporter",
+    "Reallocation_Approval_Orchestrator"
+  ],
+  "bestPractices": [
+    "Never measure burn rate on gross expenses alone; calculate Net Burn = Gross Operating Expenses - Recognized Monthly Cash Receipts.",
+    "Require explicit human founder/board sign-off before reallocating >15% of budget across strategic buckets.",
+    "Alert leadership immediately when projected runway drops below 6 months."
+  ],
+  "tools": [
+    "suf_tool_01"
+  ],
+  "signature": "sys-signed",
+  "publicKey": "sys-pub",
+  "verified": true
+}

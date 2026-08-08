@@ -1,0 +1,71 @@
+{
+  "id": "okd_01",
+  "name": "Organizational Knowledge & Document Management",
+  "category": "FRAMEWORK",
+  "description": "Deterministic strategic framework to structure, index, version, audit, and retrieve organizational memory, knowledge graph assets, standardized document taxonomies, and cross-workflow intelligence.",
+  "mindsets": [
+    "SingleSourceOfTruth",
+    "InstitutionalMemoryPreservation",
+    "KnowledgeCompounding",
+    "AuditReadiness",
+    "ZeroKnowledgeSilos",
+    "MetadataRigor",
+    "ConfidentialityProtection",
+    "ContinuousLearning"
+  ],
+  "methodologies": [
+    "KnowledgeRepositoryAuditing",
+    "DocumentMetadataIndexing",
+    "OrganizationalMemoryQuerying",
+    "KnowledgeGraphTraversal",
+    "VersionControlVerification",
+    "TaxonomyStandardization",
+    "ExecutiveKnowledgeSignoffOrchestration"
+  ],
+  "frameworks": [
+    "6-Layer Organizational Memory Architecture (Strategic, Operational, Legal, Financial, Product, AI)",
+    "7-Tier Knowledge Decision Hierarchy",
+    "3-Tier Confidentiality Classification Matrix (Public/Restricted/StrictlyConfidential)",
+    "Single Source of Truth Specification",
+    "3-Tier Governance Matrix"
+  ],
+  "knowledge": [
+    "KnowledgeManagement",
+    "DocumentManagementSystems",
+    "InformationArchitecture",
+    "TaxonomyDesign",
+    "MetadataStandards",
+    "VectorSearchAndIndexing",
+    "CorporateMemory"
+  ],
+  "logic": [
+    "Institutional knowledge is an organization's most valuable strategic asset. Fragmented documents, lost decision rationale, outdated versions, or unindexed files cripple execution and destroy enterprise value. Build a centralized, self-healing Organizational Knowledge System."
+  ],
+  "chainsOfThought": [
+    "Step 1: Initiate Knowledge Audit -> Inventory Documents across Strategic, Legal, Financial, Product & Operational layers -> Calculate Knowledge Health Index",
+    "Step 2: Document Taxonomy & Metadata Indexing -> Apply Standardized Naming Convention ([Category]_[DocType]_[Owner]_[YYYYMMDD]_v[X.X]) -> Tag Metadata & Confidentiality Levels",
+    "Step 3: Single Source of Truth Resolution -> Resolve Duplicate or Conflicting Files -> Assign Authoritative Source Location",
+    "Step 4: Vector Indexing & Knowledge Graph Linkage -> Embed Documents into Persistent Polytope Graph -> Create Cross-Workflow Relationships",
+    "Step 5: Executive Sign-Off & Approval -> Broadcast WebSocket Approval Request via ExecApprovalManager for Knowledge Base Modifications",
+    "Step 6: Export Knowledge Package -> Generate Knowledge Graph Index JSON, Taxonomy Registry CSV, Memory Architecture MD & Manifest -> Archive in Vault",
+    "Step 7: Continuous Freshness & Outdated Document Monitoring -> Register Expiration Triggers in PCL Daemon -> Flag Stale Knowledge Assets (>90 Days)"
+  ],
+  "capabilities": [
+    "Knowledge_Repository_Auditor",
+    "Document_Metadata_Indexer",
+    "Organizational_Memory_QueryEngine",
+    "Knowledge_Package_Exporter",
+    "Knowledge_Approval_Orchestrator"
+  ],
+  "bestPractices": [
+    "Every document in the organization must have exactly one owner, one approved version, and one authoritative location.",
+    "Tag every file with explicit confidentiality classification (Public, Restricted, Strictly Confidential).",
+    "Require explicit human executive sign-off before modifying core corporate memory objects or archiving strategic records."
+  ],
+  "tools": [
+    "okd_tool_01"
+  ],
+  "signature": "sys-signed",
+  "publicKey": "sys-pub",
+  "verified": true
+}

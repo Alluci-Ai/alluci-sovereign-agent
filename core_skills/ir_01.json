@@ -1,0 +1,80 @@
+{
+  "id": "ir_01",
+  "name": "Investment Readiness Operating Workflow",
+  "category": "FRAMEWORK",
+  "description": "Deterministic strategic framework to prepare an organization for investor due diligence by orchestrating the creation, validation, organization, publication, and maintenance of an analytics-enabled Investor Data Room.",
+  "mindsets": [
+    "ThinkLikeAnInvestor",
+    "EveryInteractionShapesConfidence",
+    "GuideRatherThanOverwhelm",
+    "BuildOnceReuseForever",
+    "InvestmentReadinessIsOrganizationalReadiness",
+    "OperationalExcellence",
+    "Stewardship",
+    "Transparency"
+  ],
+  "methodologies": [
+    "AssessOrganizationalReadiness",
+    "CoordinateBusinessNarrative",
+    "ValidateOrganizationalKnowledge",
+    "OrganizeInstitutionalKnowledge",
+    "BuildInvestorDataRoom",
+    "CreateInvestorGuide",
+    "ConductMockDueDiligence",
+    "PublishAndMonitor",
+    "MaintainInvestmentReadiness"
+  ],
+  "frameworks": [
+    "Due Diligence Journey Model",
+    "Single Source of Truth Standards",
+    "Knowledge Lifecycle (Create->Review->Approve->Publish->Maintain)",
+    "Standardized Data Room Folder Taxonomy",
+    "3-Tier Automation Matrix",
+    "SaaS Platform Integration Model (DocSend/FirmRoom/Ansarada)"
+  ],
+  "knowledge": [
+    "StrategicPlanning",
+    "Fundraising",
+    "CorporateFinance",
+    "InvestorRelations",
+    "ProgramManagement",
+    "CorporateGovernance",
+    "CapitalFormation",
+    "DueDiligence"
+  ],
+  "logic": [
+    "Investment opportunities are often won or lost during investor due diligence. Even exceptional companies lose investor confidence when information is incomplete, inconsistent, or poorly organized. Build a structured diligence experience that demonstrates operational maturity."
+  ],
+  "chainsOfThought": [
+    "Step 1: Assess Investment Readiness -> Evaluate Maturity across Strategy, Finance, Legal, Product, Commercial & Operations -> Calculate Readiness Score & Gap Analysis",
+    "Step 2: Coordinate Required Deliverables -> Inventory Executive Summary, Financial Models, Legal Docs & Tech Architecture -> Build Collection Status Dashboard",
+    "Step 3: Validate Workflow Dependencies -> Confirm Prerequisite Workflows Completed -> Generate Go/No-Go Recommendation",
+    "Step 4: Validate Organizational Knowledge -> Run Document Validation (Accuracy, Evidence, Approvals) -> Audit Claims against Evidence Matrix",
+    "Step 5: Organize Institutional Knowledge -> Apply Standardized Folder Taxonomy, Document Naming & Metadata Standards -> Assign Confidentiality Classifications",
+    "Step 6: Configure Investor Data Room -> Setup DocSend Space Structure, Navigation Hierarchy, Access Controls & Security Settings",
+    "Step 7: Create Investor Experience -> Synthesize Investor Guide, Welcome Message, Diligence Roadmap & Investor FAQ",
+    "Step 8: Validate Investor Experience -> Conduct Internal Mock Due Diligence Review -> Confirm Navigation, Accessibility & Story Consistency",
+    "Step 9: Publish & Monitor -> Grant Investor Access -> Track Time-On-Document Analytics & Engagement Signals",
+    "Step 10: Maintain Investment Readiness -> Maintain Version Control History -> Refresh Financial & Governance Data Continuously"
+  ],
+  "capabilities": [
+    "Readiness_Gap_Assessor",
+    "Data_Room_Taxonomy_Auditor",
+    "Investor_Guide_Generator",
+    "Diligence_Package_Exporter",
+    "DocSend_Space_Specifier",
+    "Investor_Analytics_Monitor"
+  ],
+  "bestPractices": [
+    "Only approved deliverables are eligible for publication within the Investor Data Room.",
+    "Every published document should have one owner, one approved version, and one authoritative location.",
+    "Could a first-time investor understand our business within thirty minutes? Can every document be located within two minutes?",
+    "Require explicit human executive sign-off before publishing data rooms or sharing materials with investors."
+  ],
+  "tools": [
+    "ir_tool_01"
+  ],
+  "signature": "sys-signed",
+  "publicKey": "sys-pub",
+  "verified": true
+}
