@@ -72,9 +72,41 @@ def _check_local_research_reports(prompt: str) -> Optional[str]:
     return None
 
 import base64
+import re
+import io
+
+def _extract_text_from_pdf_bytes(pdf_bytes: bytes) -> str:
+    """Extracts text streams from PDF raw bytes cleanly without requiring external binary tools."""
+    text_chunks = []
+    try:
+        import pypdf
+        reader = pypdf.PdfReader(io.BytesIO(pdf_bytes))
+        for page in reader.pages:
+            t = page.extract_text()
+            if t:
+                text_chunks.append(t)
+        if text_chunks:
+            return "\n".join(text_chunks)
+    except Exception:
+        pass
+
+    try:
+        matches = re.findall(rb'\((.*?)\)', pdf_bytes)
+        clean_strings = [
+            m.decode('utf-8', errors='ignore').strip() 
+            for m in matches 
+            if len(m) > 2 and any(c.isalnum() for c in m.decode('utf-8', errors='ignore'))
+        ]
+        if clean_strings:
+            return " ".join(clean_strings)
+    except Exception:
+        pass
+
+    return pdf_bytes.decode('utf-8', errors='ignore')
+
 
 def _process_attached_files(prompt: str, files: Optional[List[Dict[str, Any]]] = None) -> str:
-    """Decodes and appends attached file contents (TXT, MD, PDF, JSON, CSV) to prompt context."""
+    """Decodes and appends attached file contents (TXT, MD, PDF, JSON, CSV, DOCX) to prompt context."""
     if not files:
         return prompt
 
@@ -82,19 +114,23 @@ def _process_attached_files(prompt: str, files: Optional[List[Dict[str, Any]]] =
     for file_obj in files:
         file_name = file_obj.get("name", "attached_file.txt")
         file_data = file_obj.get("data", "")
-        file_mime = file_obj.get("mimeType", "")
+        file_mime = file_obj.get("mimeType", "").lower()
 
         decoded_content = ""
         if file_data:
             try:
                 raw_bytes = base64.b64decode(file_data)
-                decoded_content = raw_bytes.decode("utf-8", errors="replace")
+                is_pdf = file_mime == "application/pdf" or file_name.lower().endswith(".pdf") or raw_bytes.startswith(b"%PDF")
+                if is_pdf:
+                    decoded_content = _extract_text_from_pdf_bytes(raw_bytes)
+                else:
+                    decoded_content = raw_bytes.decode("utf-8", errors="replace")
             except Exception as e:
                 logger.warning(f"[GeminiRouter] Could not decode base64 for file {file_name}: {e}")
                 decoded_content = str(file_data)
 
         if decoded_content:
-            appended_text += f"\n\n--- [ATTACHED FILE: {file_name}] ---\n{decoded_content}\n--- [END ATTACHED FILE] ---"
+            appended_text += f"\n\n--- [ATTACHED FILE: {file_name}] ---\n{decoded_content.strip()}\n--- [END ATTACHED FILE] ---"
 
     return appended_text
 

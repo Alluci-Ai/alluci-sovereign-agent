@@ -22,6 +22,24 @@ def test_process_attached_files_ingestion():
     assert sample_text in effective_prompt
 
 
+def test_process_pdf_file_ingestion():
+    prompt = "please process this pdf."
+    pdf_bytes = b"%PDF-1.4 BT (Executive Strategic Vision Plan) ET"
+    encoded_pdf = base64.b64encode(pdf_bytes).decode("utf-8")
+
+    files = [
+        {
+            "name": "vision_plan.pdf",
+            "data": encoded_pdf,
+            "mimeType": "application/pdf"
+        }
+    ]
+
+    effective_prompt = _process_attached_files(prompt, files)
+    assert "--- [ATTACHED FILE: vision_plan.pdf] ---" in effective_prompt
+    assert "Executive Strategic Vision Plan" in effective_prompt
+
+
 def test_no_false_positive_abort_on_document_text():
     # Document containing the word "stop" and "this"
     document_text = "We will never stop innovating in this business."
