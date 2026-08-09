@@ -440,7 +440,7 @@ Here is what Rocco will be executing across our Deep Research pipeline:
         body_lower = prompt.lower().strip()
         cancellation_keywords = ["stop", "cancel", "abort", "halt", "terminate"]
         is_abort_signal = any(ck in body_lower for ck in cancellation_keywords) and any(
-            w in body_lower for w in ["dag", "run", "research", "pipeline", "execution", "this"]
+            w in body_lower for w in ["dag", "run", "research", "pipeline", "execution"]
         )
         if is_abort_signal:
             try:
@@ -600,7 +600,7 @@ Here is what Rocco will be executing across our Deep Research pipeline:
             abort_keywords = ["stop dag", "stop the dag", "cancel run", "abort run", "stop research", "stop this deep research", "stop deep research", "cancel research", "abort research", "halt run", "stop the run", "stop active run", "cancel the dag", "stop the dag run", "stop execution", "halt execution"]
             is_abort_signal = any(ak in body_lower for ak in abort_keywords) or (
                 any(sw in body_lower for sw in ["stop", "cancel", "abort", "halt", "terminate"]) and
-                any(rw in body_lower for rw in ["research", "dag", "run", "pipeline", "execution", "this"])
+                any(rw in body_lower for rw in ["research", "dag", "run", "pipeline", "execution"])
             )
             if is_abort_signal:
                 self.logger.info(f"[Orchestrator] Emergency Abort Signal detected in message: '{body}'")

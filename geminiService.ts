@@ -257,6 +257,7 @@ export class AlluciGeminiService {
         headers: headers,
         body: JSON.stringify({ 
           prompt: text, 
+          files: files,
           complexity: 'MEDIUM', 
           inference_mode: inferenceMode,
           session_id: state.activeSessionKey

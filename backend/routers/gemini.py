@@ -1,5 +1,5 @@
 
-from typing import Optional, Literal
+from typing import Optional, Literal, List, Dict, Any
 from fastapi import APIRouter, HTTPException, Depends, Body, Request
 from fastapi.responses import StreamingResponse
 from ..security.auth import verify_authenticated
@@ -71,10 +71,39 @@ def _check_local_research_reports(prompt: str) -> Optional[str]:
                 logger.error(f"[ReportReader] Failed to read report from disk: {read_err}")
     return None
 
+import base64
+
+def _process_attached_files(prompt: str, files: Optional[List[Dict[str, Any]]] = None) -> str:
+    """Decodes and appends attached file contents (TXT, MD, PDF, JSON, CSV) to prompt context."""
+    if not files:
+        return prompt
+
+    appended_text = prompt
+    for file_obj in files:
+        file_name = file_obj.get("name", "attached_file.txt")
+        file_data = file_obj.get("data", "")
+        file_mime = file_obj.get("mimeType", "")
+
+        decoded_content = ""
+        if file_data:
+            try:
+                raw_bytes = base64.b64decode(file_data)
+                decoded_content = raw_bytes.decode("utf-8", errors="replace")
+            except Exception as e:
+                logger.warning(f"[GeminiRouter] Could not decode base64 for file {file_name}: {e}")
+                decoded_content = str(file_data)
+
+        if decoded_content:
+            appended_text += f"\n\n--- [ATTACHED FILE: {file_name}] ---\n{decoded_content}\n--- [END ATTACHED FILE] ---"
+
+    return appended_text
+
+
 @router.post("/gemini/proxy", dependencies=[Depends(verify_authenticated)])
 async def gemini_proxy(
     request: Request,
     prompt: str = Body(...),
+    files: Optional[List[Dict[str, Any]]] = Body(None),
     complexity: Literal["LOW", "MEDIUM", "HIGH"] = Body("MEDIUM"),
     privacy_level: Literal["PUBLIC", "SENSITIVE", "AIRGAPPED"] = Body("PUBLIC"),
     inference_mode: Literal["LOCAL", "CLOUD", "TACTICAL", "HYBRID"] = Body("HYBRID"),
@@ -85,10 +114,12 @@ async def gemini_proxy(
     """
     if not services.router:
         raise HTTPException(status_code=503, detail="Inference router not ready")
-    
+
+    effective_prompt = _process_attached_files(prompt, files)
+
     try:
         # 1. Fast Local Hard Drive File Reader Check (< 50ms)
-        local_report = _check_local_research_reports(prompt)
+        local_report = _check_local_research_reports(effective_prompt)
         if local_report:
             return {"result": local_report}
 
@@ -99,7 +130,7 @@ async def gemini_proxy(
 
         # Single-Pass Response Generation
         response = await services.router.get_response(
-            prompt=prompt,
+            prompt=effective_prompt,
             system_instruction=system_instruction,
             complexity=complexity,
             privacy_level=privacy_level,
@@ -115,6 +146,7 @@ async def gemini_proxy(
 async def gemini_proxy_stream(
     request: Request,
     prompt: str = Body(...),
+    files: Optional[List[Dict[str, Any]]] = Body(None),
     complexity: Literal["LOW", "MEDIUM", "HIGH"] = Body("MEDIUM"),
     privacy_level: Literal["PUBLIC", "SENSITIVE", "AIRGAPPED"] = Body("PUBLIC"),
     inference_mode: Literal["LOCAL", "CLOUD", "TACTICAL", "HYBRID"] = Body("HYBRID"),
@@ -125,10 +157,12 @@ async def gemini_proxy_stream(
     """
     if not services.router:
         raise HTTPException(status_code=503, detail="Inference router not ready")
-    
+
+    effective_prompt = _process_attached_files(prompt, files)
+
     try:
         # 1. Fast Local Hard Drive File Reader Check (< 50ms)
-        local_report = _check_local_research_reports(prompt)
+        local_report = _check_local_research_reports(effective_prompt)
 
         system_instruction = ""
         orch = services.orchestrator
@@ -144,11 +178,11 @@ async def gemini_proxy_stream(
                 action_keywords = ["rocco", "deep research", "deep web research", "spin up", "execute dag", "run script", "schedule cron", "scour the web"]
                 proceed_pattern = bool(re.search(r'\b(proceed|approve|execute|\d+\s*runs?)\b', body_lower))
                 cancellation_keywords = ["stop", "cancel", "abort", "halt", "terminate"]
-                
-                if any(ck in body_lower for ck in cancellation_keywords) and any(w in body_lower for w in ["dag", "run", "research", "pipeline", "execution", "this"]):
-                    orchestrator_reply = await orch.handle_user_message(prompt)
+
+                if any(ck in body_lower for ck in cancellation_keywords) and any(w in body_lower for w in ["dag", "run", "research", "pipeline", "execution"]):
+                    orchestrator_reply = await orch.handle_user_message(effective_prompt)
                 elif any(ak in body_lower for ak in action_keywords) or proceed_pattern:
-                    orchestrator_reply = await orch.handle_user_message(prompt)
+                    orchestrator_reply = await orch.handle_user_message(effective_prompt)
                     logger.info(f"[GeminiRouter] Handled orchestrator auto-dispatch for prompt: '{prompt[:50]}...'")
             except Exception as dispatch_err:
                 logger.debug(f"[GeminiRouter] Intent switchboard note: {dispatch_err}")
