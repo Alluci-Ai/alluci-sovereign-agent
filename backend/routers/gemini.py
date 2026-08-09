@@ -236,7 +236,7 @@ async def gemini_proxy_stream(
 
             try:
                 async for chunk in services.router.get_response_stream(
-                    prompt=prompt,
+                    prompt=effective_prompt,
                     system_instruction=system_instruction,
                     complexity=complexity,
                     privacy_level=privacy_level,
