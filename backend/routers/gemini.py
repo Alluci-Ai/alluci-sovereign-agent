@@ -88,6 +88,62 @@ def _process_attached_files(prompt: str, files: Optional[List[Dict[str, Any]]] =
     return appended_text
 
 
+async def _intercept_memory_deletion_request(prompt: str) -> Optional[str]:
+    """
+    Detects memory deletion intent in chat prompts (e.g. 'delete memory', 'purge memory', 'scrub', 'delete [imessage]')
+    and executes immediate database deletion via hlsm_manager.delete_by_pattern(), returning empirical results.
+    """
+    body_lower = prompt.lower()
+    delete_keywords = [
+        "delete memory", "delete memories", "purge memory", "purge memories", 
+        "scrub memory", "scrub memories", "delete any [imessage]", "delete [imessage]",
+        "delete imessage", "purge imessage", "scrub imessage"
+    ]
+    
+    is_deletion_req = any(dk in body_lower for dk in delete_keywords) or (
+        ("delete" in body_lower or "purge" in body_lower or "scrub" in body_lower or "clear" in body_lower) and
+        ("memory" in body_lower or "memories" in body_lower or "hlsm" in body_lower or "imessage" in body_lower)
+    )
+
+    if not is_deletion_req:
+        return None
+
+    phone_match = re.search(r'\+?\d{1,3}[\s\-\.]?\(?\d{3}\)?[\s\-\.]?\d{3}[\s\-\.]?\d{4}', prompt)
+    pattern_to_delete = ""
+    if phone_match:
+        pattern_to_delete = phone_match.group(0).strip()
+    else:
+        pattern_match = re.search(r'(?:from|pattern|tagged|matching|containing|for)\s+[\'"]?([^\'"\.\,\?\!\n]+)', prompt, re.IGNORECASE)
+        if pattern_match:
+            pattern_to_delete = pattern_match.group(1).strip()
+        else:
+            pattern_to_delete = re.sub(r'^(hello alluci,?\s*|can you search through your h-lsm memories and delete\s*|delete memory\s*|purge memory\s*)', '', prompt, flags=re.IGNORECASE).strip()
+
+    if not pattern_to_delete:
+        return None
+
+    if hasattr(services, "hlsm_manager") and services.hlsm_manager:
+        try:
+            res = await services.hlsm_manager.delete_by_pattern(pattern_to_delete)
+            total = res.get("total_deleted", 0)
+            if total > 0:
+                return (
+                    f"✅ **H-LSM Memory Purge Complete**\n\n"
+                    f"Successfully scanned all topological memory layers and permanently deleted **{total} matching memory entries** for `{pattern_to_delete}`.\n\n"
+                    f"- **L0 Working Memory:** {res.get('deleted_l0', 0)} entries purged\n"
+                    f"- **L1 Episodic Memory:** {res.get('deleted_l1', 0)} entries purged\n"
+                    f"- **L2 Semantic Memory:** {res.get('deleted_l2', 0)} entries purged\n"
+                    f"- **L3 Knowledge Graph:** {res.get('deleted_l3', 0)} entries purged"
+                )
+            else:
+                return f"🔍 **H-LSM Memory Scan Complete**\n\nScanned memory layers for `{pattern_to_delete}`, but found 0 matching memory entries to delete."
+        except Exception as err:
+            logger.error(f"[GeminiRouter] Memory deletion interceptor error: {err}")
+            return f"❌ **H-LSM Memory Purge Error:** Failed to execute memory deletion: {err}"
+
+    return None
+
+
 @router.post("/gemini/proxy", dependencies=[Depends(verify_authenticated)])
 async def gemini_proxy(
     request: Request,
@@ -108,12 +164,17 @@ async def gemini_proxy(
     effective_prompt = _process_attached_files(prompt, files)
 
     try:
-        # 1. Fast Local Hard Drive File Reader Check (< 50ms)
+        # 1. Fast Memory Deletion Interceptor Check (< 5ms)
+        mem_purge_reply = await _intercept_memory_deletion_request(prompt)
+        if mem_purge_reply:
+            return {"result": mem_purge_reply}
+
+        # 2. Fast Local Hard Drive File Reader Check (< 50ms)
         local_report = _check_local_research_reports(effective_prompt)
         if local_report:
             return {"result": local_report}
 
-        # 2. Fetch system context (lightweight capability index)
+        # 3. Fetch system context (lightweight capability index)
         system_instruction = ""
         if services.orchestrator:
             system_instruction, _ = await services.orchestrator._build_system_context()
@@ -128,7 +189,6 @@ async def gemini_proxy(
             session_id=session_id
         )
 
-        # Record verbatim to message_log & ingest distilled intent to H-LSM
         msg_id = f"msg_{uuid.uuid4().hex[:12]}"
         analytics = getattr(services, "analytics", None)
         if analytics:
@@ -168,17 +228,20 @@ async def gemini_proxy_stream(
     effective_prompt = _process_attached_files(prompt, files)
 
     try:
-        # 1. Fast Local Hard Drive File Reader Check (< 50ms)
+        # 1. Fast Memory Deletion Interceptor Check (< 5ms)
+        mem_purge_reply = await _intercept_memory_deletion_request(prompt)
+
+        # 2. Fast Local Hard Drive File Reader Check (< 50ms)
         local_report = _check_local_research_reports(effective_prompt)
 
         system_instruction = ""
         orch = services.orchestrator
-        if orch is not None and not local_report:
+        if orch is not None and not local_report and not mem_purge_reply:
             system_instruction, _ = await orch._build_system_context(compact_index=True)
 
-        # 2. 3-Layer Parallel Intent Switchboard (< 5ms Check)
+        # 3. 3-Layer Parallel Intent Switchboard (< 5ms Check)
         orchestrator_reply = None
-        if orch is not None and not local_report:
+        if orch is not None and not local_report and not mem_purge_reply:
             try:
                 import re
                 body_lower = prompt.lower()
@@ -199,6 +262,10 @@ async def gemini_proxy_stream(
 
             # Instant TTFT heartbeat signal to keep UI responsive
             yield f"data: {json.dumps({'text': '', 'status': 'Ingesting document & initializing skill context...'})}\n\n"
+
+            if mem_purge_reply:
+                yield f"data: {json.dumps({'text': mem_purge_reply})}\n\n"
+                return
 
             if local_report:
                 yield f"data: {json.dumps({'text': local_report})}\n\n"
