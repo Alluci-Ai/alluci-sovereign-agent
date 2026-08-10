@@ -42,19 +42,26 @@ export const SecurityInterventionModal: React.FC = () => {
         }
     };
 
-    let title = "Security Block";
+    let title = pendingSecurityResolution.title || "Security Block";
     let icon = "🛑";
 
-    if (pendingSecurityResolution.exception_type === "DOMAIN_BLOCK") {
+    const excType = pendingSecurityResolution.exception_type || pendingSecurityResolution.action || '';
+
+    if (excType === "DOMAIN_BLOCK") {
         title = "Untrusted Domain Blocked";
         icon = "🌐";
-    } else if (pendingSecurityResolution.exception_type === "BUDGET_EXCEEDED") {
+    } else if (excType === "BUDGET_EXCEEDED") {
         title = "Financial Circuit Breaker";
         icon = "💳";
-    } else if (pendingSecurityResolution.exception_type === "MANIFOLD_TEARING") {
+    } else if (excType === "MANIFOLD_TEARING") {
         title = "Manifold Tearing Detected";
         icon = "⚠️";
+    } else if (excType === "HLSM_MEMORY_PURGE" || pendingSecurityResolution.action === "HLSM_MEMORY_PURGE") {
+        title = pendingSecurityResolution.title || "H-LSM Memory Purge Approval Required";
+        icon = "⚠️";
     }
+
+    const displayMessage = pendingSecurityResolution.description || pendingSecurityResolution.message || pendingSecurityResolution.impact || 'Alluci requires your explicit executive authorization before proceeding with this operation.';
 
     return (
         <div className="security-intervention-overlay">
@@ -71,11 +78,11 @@ export const SecurityInterventionModal: React.FC = () => {
 
                 <div className="security-intervention-body">
                     <div className="security-intervention-message-card">
-                        <p>{pendingSecurityResolution.message}</p>
+                        <p>{displayMessage}</p>
                     </div>
 
                     <div className="security-intervention-actions">
-                        {pendingSecurityResolution.exception_type === "DOMAIN_BLOCK" && (
+                        {excType === "DOMAIN_BLOCK" && (
                             <>
                                 <button
                                     className="security-btn btn-primary"
@@ -94,7 +101,7 @@ export const SecurityInterventionModal: React.FC = () => {
                             </>
                         )}
                         
-                        {pendingSecurityResolution.exception_type === "BUDGET_EXCEEDED" && (
+                        {excType === "BUDGET_EXCEEDED" && (
                             <button
                                 className="security-btn btn-primary"
                                 onClick={() => handleAction("IGNORE_BUDGET")}
@@ -104,13 +111,33 @@ export const SecurityInterventionModal: React.FC = () => {
                             </button>
                         )}
 
-                        {pendingSecurityResolution.exception_type === "MANIFOLD_TEARING" && (
+                        {excType === "MANIFOLD_TEARING" && (
                             <button
                                 className="security-btn btn-primary"
                                 onClick={() => handleAction("OVERRIDE_TEARING")}
                                 disabled={loading}
                             >
                                 Authorize Topology Shift (Discovery Mode)
+                            </button>
+                        )}
+
+                        {(excType === "HLSM_MEMORY_PURGE" || pendingSecurityResolution.action === "HLSM_MEMORY_PURGE") && (
+                            <button
+                                className="security-btn btn-primary"
+                                onClick={() => handleAction("APPROVE_MEMORY_PURGE")}
+                                disabled={loading}
+                            >
+                                Approve & Execute Memory Purge
+                            </button>
+                        )}
+
+                        {!["DOMAIN_BLOCK", "BUDGET_EXCEEDED", "MANIFOLD_TEARING", "HLSM_MEMORY_PURGE"].includes(excType) && pendingSecurityResolution.action !== "HLSM_MEMORY_PURGE" && (
+                            <button
+                                className="security-btn btn-primary"
+                                onClick={() => handleAction("APPROVE_ACTION")}
+                                disabled={loading}
+                            >
+                                Approve & Authorize Action
                             </button>
                         )}
 

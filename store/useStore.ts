@@ -202,10 +202,15 @@ export interface AppState {
     // Security Interventions
     pendingSecurityResolution: {
         task_id: string;
-        message: string;
-        exception_type: string;
+        message?: string;
+        exception_type?: string;
+        action?: string;
+        title?: string;
+        description?: string;
+        impact?: string;
+        pattern?: string;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        metadata: any;
+        metadata?: any;
     } | null;
     setPendingSecurityResolution: (val: AppState['pendingSecurityResolution']) => void;
 

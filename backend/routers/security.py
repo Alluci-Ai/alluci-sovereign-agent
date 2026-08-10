@@ -79,5 +79,38 @@ async def resolve_security_block(req: SecurityResolutionRequest):
         
         resolution_manager.provide_resolution(req.task_id, "OVERRIDE_TEARING")
         return {"status": "success", "action": "tearing_overridden"}
+
+    if req.resolution_type in ["APPROVE_MEMORY_PURGE", "APPROVE_ACTION"]:
+        import uuid
+        from .. import services
+        pattern = (req.metadata.get("pattern") or "") if req.metadata else ""
+        
+        counts = {"deleted_l0": 0, "deleted_l1": 0, "deleted_l2": 0, "deleted_l3": 0, "total_deleted": 0}
+        if pattern and hasattr(services, "hlsm_manager") and services.hlsm_manager:
+            try:
+                counts = await services.hlsm_manager.delete_by_pattern(pattern)
+            except Exception as e:
+                logger.error(f"[SecurityRouter] Memory purge execution error: {e}")
+        
+        total = counts.get("total_deleted", 0)
+        card_msg = (
+            f"✅ **H-LSM Memory Purge Approved & Executed**\n\n"
+            f"Successfully scanned all topological memory layers and permanently deleted **{total} matching memory entries** for `{pattern}`.\n\n"
+            f"- **L0 Working Memory:** {counts.get('deleted_l0', 0)} entries purged\n"
+            f"- **L1 Episodic Memory:** {counts.get('deleted_l1', 0)} entries purged\n"
+            f"- **L2 Semantic Memory:** {counts.get('deleted_l2', 0)} entries purged\n"
+            f"- **L3 Knowledge Graph:** {counts.get('deleted_l3', 0)} entries purged"
+        )
+        
+        if services.orchestrator and hasattr(services.orchestrator, "ws_gateway") and services.orchestrator.ws_gateway:
+            await services.orchestrator.ws_gateway.broadcast_event('chat.message.received', {
+                "type": "chat.message.received",
+                "id": f"msg_purge_{uuid.uuid4().hex[:8]}",
+                "content": card_msg,
+                "sender": "system"
+            })
+            
+        resolution_manager.provide_resolution(req.task_id, req.resolution_type)
+        return {"status": "success", "action": "memory_purge_executed", "total_deleted": total}
         
     raise HTTPException(status_code=400, detail=f"Unknown resolution_type: {req.resolution_type}")

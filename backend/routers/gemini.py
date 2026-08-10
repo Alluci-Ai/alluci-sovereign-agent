@@ -181,9 +181,12 @@ async def _intercept_memory_deletion_request(prompt: str) -> Optional[str]:
         req_id = f"approval_mem_{uuid.uuid4().hex[:8]}"
         await services.orchestrator.ws_gateway.broadcast_event('security.resolution_required', {
             "type": "security.resolution_required",
+            "task_id": req_id,
             "approval_id": req_id,
             "action": "HLSM_MEMORY_PURGE",
+            "exception_type": "HLSM_MEMORY_PURGE",
             "pattern": pattern_to_delete,
+            "metadata": {"pattern": pattern_to_delete},
             "title": "H-LSM Memory Purge Approval Required",
             "description": f"Alluci is requesting permission to scan and permanently delete all H-LSM memory entries matching pattern: '{pattern_to_delete}'.",
             "impact": "Permanent deletion of matching entries across L0 Working, L1 Episodic, L2 Semantic, and L3 Knowledge Graph layers."
