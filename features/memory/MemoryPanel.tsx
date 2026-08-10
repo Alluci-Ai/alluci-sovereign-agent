@@ -31,6 +31,11 @@ export const MemoryPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
     useEffect(() => {
         fetchMemories();
+        const handleMemoryDeleted = () => {
+            fetchMemories();
+        };
+        window.addEventListener('hlsm_memory_deleted', handleMemoryDeleted);
+        return () => window.removeEventListener('hlsm_memory_deleted', handleMemoryDeleted);
     }, [fetchMemories]);
 
     const handleSearch = async () => {

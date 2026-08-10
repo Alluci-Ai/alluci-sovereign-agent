@@ -113,6 +113,11 @@ async def resolve_security_block(req: SecurityResolutionRequest):
                 "content": card_msg,
                 "sender": "system"
             })
+            await services.orchestrator.ws_gateway.broadcast_event('memory.deleted', {
+                "type": "memory.deleted",
+                "pattern": pattern,
+                "total_deleted": total
+            })
             
         resolution_manager.provide_resolution(req.task_id, req.resolution_type)
         return {"status": "success", "action": "memory_purge_executed", "total_deleted": total}

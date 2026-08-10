@@ -158,16 +158,16 @@ async def _intercept_memory_deletion_request(prompt: str) -> Optional[str]:
     if not explicit_purge_intent:
         return None
 
-    phone_match = re.search(r'\+?\d{1,3}[\s\-\.]?\(?\d{3}\)?[\s\-\.]?\d{3}[\s\-\.]?\d{4}', prompt)
+    phone_match = re.search(r'\+?\d{1,3}[\s\-\.]?\(?\d{3}\)?[\s\-\.]?\d{3}[\s\-\.]?\d{4}|\b\d{5,6}\b', prompt)
     pattern_to_delete = ""
     if phone_match:
-        pattern_to_delete = phone_match.group(0).strip()
+        pattern_to_delete = phone_match.group(0).strip().rstrip(":")
     else:
         pattern_match = re.search(r'(?:from|pattern|tagged|matching|containing|for)\s+[\'"]?([^\'"\.\,\?\!\n]+)', prompt, re.IGNORECASE)
         if pattern_match:
-            pattern_to_delete = pattern_match.group(1).strip()
+            pattern_to_delete = pattern_match.group(1).strip().rstrip(":")
         else:
-            pattern_to_delete = re.sub(r'^(hello alluci,?\s*|can you search through your h-lsm memories and delete\s*|delete memory\s*|delete memories\s*|purge memory\s*|purge memories\s*)', '', prompt, flags=re.IGNORECASE).strip()
+            pattern_to_delete = re.sub(r'^(hello alluci,?\s*|can you search through your h-lsm memories and delete\s*|delete memory\s*|delete memories\s*|purge memory\s*|purge memories\s*)', '', prompt, flags=re.IGNORECASE).strip().rstrip(":")
 
     # Guard 3: Minimum 3-Character Pattern Guard & Stop-Word Filtering
     stop_words = ["a", "an", "the", "for", "and", "all", "in", "of", "to", "or", "is", "my", "me", "me."]

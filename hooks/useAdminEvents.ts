@@ -109,6 +109,8 @@ export const useAdminEvents = () => {
           } else if (method === 'security.resolution_required') {
             const { setPendingSecurityResolution } = useStore.getState();
             setPendingSecurityResolution(params);
+          } else if (method === 'memory.deleted') {
+            window.dispatchEvent(new CustomEvent('hlsm_memory_deleted', { detail: params }));
           }
         },
         onOpen: () => setIsConnected(true),
