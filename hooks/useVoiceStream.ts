@@ -31,6 +31,25 @@ export const useVoiceStream = (
         isRecordingRef.current = isRecording;
     }, [isRecording]);
 
+    const audioQueueRef = useRef<ArrayBuffer[]>([]);
+    const isProcessingQueueRef = useRef<boolean>(false);
+    const activeSourceRef = useRef<AudioBufferSourceNode | null>(null);
+
+    const clearAudioQueue = useCallback(() => {
+        audioQueueRef.current = [];
+        if (activeSourceRef.current) {
+            try {
+                activeSourceRef.current.stop();
+                activeSourceRef.current.disconnect();
+            } catch (e) {
+                // Ignore stop errors if already stopped
+            }
+            activeSourceRef.current = null;
+        }
+        isProcessingQueueRef.current = false;
+        setIsAgentSpeaking(false);
+    }, []);
+
     const stopRecording = useCallback(() => {
         setIsRecording(false);
         if (workletNodeRef.current) {
@@ -47,7 +66,19 @@ export const useVoiceStream = (
         }
     }, []);
 
-    const playPcmAudio = useCallback(async (pcmData: ArrayBuffer) => {
+    const processAudioQueue = useCallback(async () => {
+        if (isProcessingQueueRef.current || audioQueueRef.current.length === 0) {
+            if (audioQueueRef.current.length === 0) {
+                setIsAgentSpeaking(false);
+            }
+            return;
+        }
+
+        isProcessingQueueRef.current = true;
+        setIsAgentSpeaking(true);
+
+        const pcmData = audioQueueRef.current.shift()!;
+        
         if (!playbackCtxRef.current) {
             playbackCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 48000 });
         }
@@ -70,14 +101,21 @@ export const useVoiceStream = (
         const source = audioCtx.createBufferSource();
         source.buffer = audioBuffer;
         source.connect(audioCtx.destination);
+        activeSourceRef.current = source;
         
         source.onended = () => {
-            setIsAgentSpeaking(false);
+            activeSourceRef.current = null;
+            isProcessingQueueRef.current = false;
+            processAudioQueue();
         };
         
-        setIsAgentSpeaking(true);
         source.start();
     }, []);
+
+    const playPcmAudio = useCallback(async (pcmData: ArrayBuffer) => {
+        audioQueueRef.current.push(pcmData);
+        processAudioQueue();
+    }, [processAudioQueue]);
 
     const connectWebSocket = useCallback(() => {
         if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) return;
