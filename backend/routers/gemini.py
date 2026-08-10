@@ -348,16 +348,95 @@ async def gemini_proxy_stream(
                         analytics.record_message(session_key=session_id or "web_chat", role="assistant", content=full_response)
                     if hasattr(services, "hlsm_manager") and services.hlsm_manager:
                         asyncio.create_task(services.hlsm_manager.ingest_distilled_intent(session_key=session_id or "web_chat", message_id=msg_id, prompt=prompt, response=full_response))
-                        if files:
-                            for f in files:
-                                fn, fdata, fmime = f.get("name", "attachment"), f.get("data", ""), f.get("mimeType", "")
-                                p_text = extract_text_from_file_payload(fn, fdata, fmime)
-                                if p_text and not p_text.startswith(("[BINARY", "[UNSUPPORTED")):
-                                    asyncio.create_task(services.hlsm_manager.ingest_document_payload(filename=fn, content=p_text, session_key=session_id or "web_chat"))
-                except Exception as rec_err:
-                    logger.debug(f"[GeminiRouter] Post-stream memory recording notice: {rec_err}")
+                    
+                    # Intercept dynamic artifacts (presentation, html, code, text) and surface side panel
+                    asyncio.create_task(_process_dynamic_artifact_block(full_response, prompt))
+                except Exception as post_err:
+                    logger.debug(f"[GeminiRouter] Post-stream artifact/memory note: {post_err}")
 
         return StreamingResponse(event_generator(), media_type="text/event-stream")
     except Exception as e:
         logger.error(f"[ GEMINI_PROXY_STREAM_ERROR ]: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+async def _process_dynamic_artifact_block(full_response: str, prompt: str):
+    """
+    Parses LLM responses for dynamic artifact blocks or artifact creation prompts.
+    Saves the file under ./workspace/artifacts/{kind}/{YYYY-MM-DD}_{title_slug}/
+    and broadcasts artifact.open over WebSocket to slide open the side panel.
+    """
+    import re, os, uuid, json, datetime
+    body_lower = prompt.lower()
+    
+    # Check for explicit ```artifact block
+    art_match = re.search(r'```artifact\s+kind=["\']?([a-zA-Z0-9_\-]+)["\']?\s+title=["\']?([^"\n]+)["\']?\n([\s\S]*?)```', full_response)
+    
+    kind, title, content = None, None, None
+    if art_match:
+        kind = art_match.group(1).lower()
+        title = art_match.group(2).strip()
+        content = art_match.group(3).strip()
+    else:
+        # Fallback heuristic for prompts asking for presentation / html / code artifacts
+        is_artifact_req = any(w in body_lower for w in ["artifact", "slide deck", "presentation", "html app", "web app", "code file"])
+        if is_artifact_req:
+            if "presentation" in body_lower or "slide" in body_lower or "deck" in body_lower:
+                kind = "presentation"
+                title = "Executive Presentation"
+                content = full_response
+            elif "html" in body_lower or "web app" in body_lower or "dashboard" in body_lower:
+                kind = "html"
+                title = "Interactive Web Application"
+                code_m = re.search(r'```(?:html|xml)?\n([\s\S]*?)```', full_response)
+                content = code_m.group(1).strip() if code_m else full_response
+            elif "code" in body_lower or "python" in body_lower or "typescript" in body_lower:
+                kind = "code"
+                title = "Code Source File"
+                code_m = re.search(r'```(?:python|typescript|js|ts|cpp|c|sh|json)?\n([\s\S]*?)```', full_response)
+                content = code_m.group(1).strip() if code_m else full_response
+
+    if not kind or not content or not title:
+        return
+
+    clean_title = re.sub(r'[^a-zA-Z0-9]+', '_', (title or "artifact").lower()).strip('_')
+    slug_parts = [p for p in clean_title.split('_') if p][:4]
+    slug = "_".join(slug_parts) if slug_parts else "artifact"
+    date_str = datetime.date.today().strftime("%Y-%m-%d")
+    folder_name = f"{date_str}_{slug}"
+
+    artifacts_base = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "workspace", "artifacts"))
+    cat_dir = "presentations" if kind == "presentation" else ("code" if kind == "code" else ("documents" if kind == "text" else "documents"))
+    save_dir = os.path.join(artifacts_base, cat_dir, folder_name)
+    os.makedirs(save_dir, exist_ok=True)
+
+    ext = ".html" if kind in ["html", "web"] else (".md" if kind in ["presentation", "text"] else ".txt")
+    file_path = os.path.join(save_dir, f"source{ext}")
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write(content)
+
+    meta_path = os.path.join(save_dir, "metadata.json")
+    art_id = f"art_{uuid.uuid4().hex[:12]}"
+    try:
+        with open(meta_path, "w", encoding="utf-8") as mf:
+            json.dump({
+                "artifact_id": art_id,
+                "title": title,
+                "category": kind,
+                "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
+            }, mf, indent=2)
+    except Exception:
+        pass
+
+    from .. import services
+    if services.orchestrator and hasattr(services.orchestrator, "ws_gateway") and services.orchestrator.ws_gateway:
+        await services.orchestrator.ws_gateway.broadcast_event('artifact.open', {
+            "type": "artifact.open",
+            "artifactId": art_id,
+            "title": title,
+            "kind": kind,
+            "content": content,
+            "mimeType": "text/html" if kind in ["html", "web"] else "text/markdown",
+            "source": "system"
+        })
+        logger.info(f"[GeminiRouter] Intercepted and broadcasted dynamic artifact '{title}' ({kind})")
