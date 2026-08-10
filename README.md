@@ -68,10 +68,11 @@ The ACE aligns machine logic with human biology. It bridges raw data and human s
 
 ## 🛡️ Hardware-Level Security & Verus Identity
 
+- **3 Hard Security Guards & HITL Executive Approval Gate**: All destructive memory wipes or sensitive system modifications are intercepted by 3 hard security guards in `backend/routers/gemini.py`. Deletion intents (including E.164 phone numbers and 5-6 digit SMS short codes like `21093`) trigger the interactive `SecurityInterventionModal` requiring explicit user authorization (`[ Approve & Execute Memory Purge ]`) before any database operations occur.
 - **The Sovereign Kill Switch**: If the agent attempts a high-cognitive action (banking, database writes, crypto tx) and your Apple Watch is off-wrist or no pulse is detected, the execution is instantly aborted and memory is encrypted.
 - **Wallet & Verus Node Integration**: Full integration with the Verus blockchain. Operates a local Verus node to secure your identity (VerusID), manage sovereign funds, and sign transactions cryptographically within the vault.
 - **Federated Pheromone Sync**: The `AntNetworkProtocol` allows you to share problem-solving paths with other agents on the Verus network by broadcasting abstract "Topological Barcodes" (Pheromones)—achieving swarm intelligence without ever sharing raw text or private data.
-- **Multi-Modal Anti-Spoofing**: Defeats AI deepfakes. Cross-references audio micro-hesitations (jitter/breath pauses) from `Whisper.cpp` against your actual, live respiratory sync from the Apple Watch to ensure human liveness.
+- **Multi-Modal Anti-Spoofing**: Defeats AI deepfakes. Cross-references audio micro-hesitations (jitter/breath pauses) against your actual, live respiratory sync from the Apple Watch to ensure human liveness.
 - **Simplicial Vaults**: Every external bridge (Signal, iMessage, Slack, G-Drive) operates in its own isolated cryptographic container tied to your **VerusID**.
 
 ---
@@ -95,7 +96,7 @@ The new **Sovereignty Level Wizard** makes onboarding seamless. Choose between C
 ### Prerequisites
 - **Frontend**: [Node.js](https://nodejs.org/) (v20+)
 - **Backend**: [Python](https://www.python.org/) (v3.12+)
-- **Local Inference Tools**: [Ollama](https://ollama.com/), [Whisper.cpp](https://github.com/ggerganov/whisper.cpp), [Piper](https://github.com/rhasspy/piper)
+- **Local Inference Tools**: Apple MLX Python Frameworks (`mlx_lm`, `mlx_vlm`), python-native audio synthesis adapters
 
 ---
 
@@ -123,10 +124,10 @@ make init
 make start
 ```
 *Alternatively, run them manually:*
-- **Backend:** `source .venv/bin/activate && pip install -r requirements.txt && uvicorn backend.app:app --reload`
-- **Frontend:** `npm install && npm run dev`
+- **Backend (Port 8000):** `source .venv/bin/activate && pip install -r requirements.txt && uvicorn backend.app:app --port 8000`
+- **Frontend (Port 3000):** `npm install && npm run dev -- --port 3000`
 
-Open `http://localhost:5173` to access the Alluci Sovereign Gateway. Upon first launch, the **Sovereignty Wizard** will guide you through your stack configuration.
+Open `http://localhost:3000` to access the Alluci Sovereign Gateway. Upon first launch, the **Sovereignty Wizard** will guide you through your stack configuration.
 
 ---
 
