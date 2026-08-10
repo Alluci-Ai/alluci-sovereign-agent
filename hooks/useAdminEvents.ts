@@ -95,6 +95,14 @@ export const useAdminEvents = () => {
               if (setIsArtifactPaneCollapsed) {
                 setIsArtifactPaneCollapsed(false);
               }
+              if (params.completion_message) {
+                setTranscriptions(prev => [...prev, {
+                  id: `msg_ready_${Date.now()}`,
+                  text: params.completion_message,
+                  isUser: false,
+                  timestamp: new Date().toISOString()
+                }]);
+              }
             } else if (artifactId) {
               artifactEvents.emit({ type: 'artifact.open', artifactId });
             }

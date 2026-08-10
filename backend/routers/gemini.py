@@ -382,6 +382,23 @@ async def gemini_proxy_stream(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def _clean_inline_markdown(text: str) -> str:
+    """
+    Transforms raw Markdown bold/italic syntax and stray asterisks into clean HTML <strong> tags.
+    """
+    import re
+    # 1. Clean bold syntax: **text** -> <strong>text</strong>
+    t = re.sub(r'\*\*([^*]+)\*\*', r'<strong>\1</strong>', text)
+    # 2. Clean mismatched/nested bold: *text:** or *text:* or **text:* -> <strong>text</strong>
+    t = re.sub(r'\*+([^*:]+)(?::\*+|\*\*|\*)', r'<strong>\1</strong>', t)
+    # 3. Clean remaining italic markers: *text* -> <em>text</em>
+    t = re.sub(r'\*([^*]+)\*', r'<em>\1</em>', t)
+    # 4. Strip any remaining stray leading/trailing asterisks or colon-asterisk artifacts
+    t = re.sub(r'^\*+\s*', '', t)
+    t = re.sub(r'\s*\*+$', '', t)
+    return t.strip()
+
+
 def _build_html5_presentation_deck(title: str, content_raw: str) -> str:
     """
     Converts raw slide text into a self-contained, standalone HTML5 presentation slide deck
@@ -391,7 +408,15 @@ def _build_html5_presentation_deck(title: str, content_raw: str) -> str:
     if content_raw.strip().startswith("<!DOCTYPE html") or content_raw.strip().startswith("<html"):
         return content_raw
 
-    clean_text = re.sub(r'^#\s*ARTIFACT:[\s\S]*?(?=---|## SLIDE|## Slide)', '', content_raw, flags=re.I).strip()
+    # Locate the first actual slide header (e.g. ## SLIDE 1, # Title, or first '---' followed by '#')
+    first_slide_match = re.search(r'(?:---|##\s*SLIDE\s*1|##\s*Slide\s*1|#\s*TITLE:|#\s*Title:|\n(?=##\s+[A-Z]))', content_raw, flags=re.I)
+    if first_slide_match:
+        clean_text = content_raw[first_slide_match.start():].strip()
+    else:
+        clean_text = content_raw.strip()
+
+    # Strip leading '---' or '# ARTIFACT:' metadata lines
+    clean_text = re.sub(r'^(---|#\s*ARTIFACT:[^\n]*|\n)+', '', clean_text, flags=re.I).strip()
     slides_raw = re.split(r'\n(?=---|## SLIDE|## Slide)', clean_text)
     
     slides_html = []
@@ -406,6 +431,7 @@ def _build_html5_presentation_deck(title: str, content_raw: str) -> str:
         
         if lines and lines[0].startswith("#"):
             slide_title = re.sub(r'^#+\s*(SLIDE\s*\d+:?)?\s*', '', lines[0], flags=re.I).strip()
+            slide_title = _clean_inline_markdown(slide_title)
         
         if idx == 0:
             eyebrow = "STRATEGIC IMPERATIVE"
@@ -425,22 +451,25 @@ def _build_html5_presentation_deck(title: str, content_raw: str) -> str:
             if line.startswith("###") or line.startswith("**1.") or line.startswith("**2.") or line.startswith("**3.") or line.startswith("**I.") or line.startswith("**II.") or line.startswith("**III.") or line.startswith("**Phase"):
                 if current_bullets:
                     b_html = "".join([f"<li>{b}</li>" for b in current_bullets])
-                    cards_html.append(f'<div class="card"><h3>{current_card_title}</h3><ul>{b_html}</ul></div>')
+                    cards_html.append(f'<div class="card"><h3>{_clean_inline_markdown(current_card_title)}</h3><ul>{b_html}</ul></div>')
                     current_bullets = []
-                current_card_title = re.sub(r'^(###|\*\*[\w\.]+\*\*)\s*', '', line).replace('**', '').strip()
+                sec_raw = re.sub(r'^(###|\*\*[\w\.]+\*\*)\s*', '', line).replace('**', '').strip()
+                current_card_title = _clean_inline_markdown(sec_raw)
             elif line.startswith("*") or line.startswith("-"):
                 b_text = re.sub(r'^[\*\-]\s*', '', line)
-                b_formatted = re.sub(r'\*\*([^*]+)\*\*', r'<strong>\1</strong>', b_text)
-                current_bullets.append(b_formatted)
+                b_formatted = _clean_inline_markdown(b_text)
+                if b_formatted:
+                    current_bullets.append(b_formatted)
             elif ":" in line and not line.startswith("#"):
-                b_formatted = re.sub(r'\*\*([^*]+)\*\*', r'<strong>\1</strong>', line)
-                current_bullets.append(b_formatted)
+                b_formatted = _clean_inline_markdown(line)
+                if b_formatted:
+                    current_bullets.append(b_formatted)
 
         if current_bullets:
             b_html = "".join([f"<li>{b}</li>" for b in current_bullets])
-            cards_html.append(f'<div class="card"><h3>{current_card_title}</h3><ul>{b_html}</ul></div>')
+            cards_html.append(f'<div class="card"><h3>{_clean_inline_markdown(current_card_title)}</h3><ul>{b_html}</ul></div>')
 
-        grid_content = "".join(cards_html) if cards_html else f'<div class="card"><p>{block_clean}</p></div>'
+        grid_content = "".join(cards_html) if cards_html else f'<div class="card"><p>{_clean_inline_markdown(block_clean)}</p></div>'
 
         slides_html.append(f'''
         <section class="slide" id="slide-{idx+1}">
@@ -617,6 +646,7 @@ async def _process_dynamic_artifact_block(full_response: str, prompt: str):
             "kind": kind,
             "content": content,
             "mimeType": "text/html" if kind in ["presentation", "html", "web"] else "text/markdown",
-            "source": "system"
+            "source": "system",
+            "completion_message": "Your Executive Presentation is ready and surfaced in your Artifact Workspace."
         })
         logger.info(f"[GeminiRouter] Intercepted and broadcasted dynamic artifact '{title}' ({kind})")
