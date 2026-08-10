@@ -18,6 +18,21 @@ interface SlideSection {
 
 export const PresentationRenderer: React.FC<RendererProps> = ({ artifact, pageIndex, onPageChange }) => {
   const pages = artifact.pages || [];
+  const rawText = artifact.content || '';
+  const isFullHtmlDeck = rawText.trim().startsWith('<!DOCTYPE html') || rawText.trim().startsWith('<html');
+
+  if (isFullHtmlDeck) {
+    return (
+      <div style={{ width: '100%', height: '100%', borderRadius: '12px', overflow: 'hidden', border: '1px solid var(--glass-edge)', background: 'var(--bg-primary)' }}>
+        <iframe
+          srcDoc={rawText}
+          title={artifact.title || 'Presentation Slide Deck'}
+          sandbox="allow-scripts"
+          style={{ width: '100%', height: '100%', minHeight: '550px', border: 'none' }}
+        />
+      </div>
+    );
+  }
 
   // Parse slides and structure sections for PDF-quality rendering
   const parsedSlides = useMemo(() => {
@@ -180,15 +195,7 @@ export const PresentationRenderer: React.FC<RendererProps> = ({ artifact, pageIn
           padding: '32px'
         }}
       >
-        {isHtml ? (
-          <iframe
-            srcDoc={currentSlide.html}
-            title={currentSlide.title || `Slide ${pageIndex + 1}`}
-            sandbox="allow-scripts"
-            style={{ width: '100%', height: '100%', border: 'none' }}
-          />
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-between' }}>
             
             {/* Header: Eyebrow Tag & Title */}
             <div>
@@ -274,7 +281,6 @@ export const PresentationRenderer: React.FC<RendererProps> = ({ artifact, pageIn
             </div>
 
           </div>
-        )}
       </div>
 
       {/* Navigation Controls Bar */}

@@ -327,6 +327,11 @@ async def gemini_proxy_stream(
             body_lower = prompt.lower()
             is_artifact_req = any(w in body_lower for w in ["artifact", "slide deck", "presentation", "html app", "web app", "code file"])
 
+            if is_artifact_req:
+                # 1. Immediately stream start status message when artifact task begins
+                yield f"data: {json.dumps({'text': 'I am generating your Executive Presentation in standalone HTML5/CSS and will surface it in your Artifact Workspace when it finishes.'})}\n\n"
+                chat_intro_sent = True
+
             try:
                 async for chunk in router_inst.get_response_stream(
                     prompt=effective_prompt,
@@ -339,25 +344,16 @@ async def gemini_proxy_stream(
                     accumulated_chunks.append(chunk)
                     full_so_far = "".join(accumulated_chunks)
 
-                    # Check if stream entered artifact payload block (# ARTIFACT: or ```artifact or slide headers)
+                    # Check if stream entered artifact payload block
                     has_artifact_block = "# ARTIFACT:" in full_so_far or "```artifact" in full_so_far or "## SLIDE 1" in full_so_far
 
-                    if is_artifact_req or has_artifact_block:
-                        if not chat_intro_sent:
-                            # Extract conversational introductory text before artifact payload
-                            import re
-                            parts = re.split(r'(?=# ARTIFACT:|```artifact|---\n|## SLIDE 1)', full_so_far, maxsplit=1)
-                            intro_text = parts[0].strip() if parts else ""
-                            if intro_text:
-                                yield f"data: {json.dumps({'text': intro_text})}\n\n"
-                                chat_intro_sent = True
-                        # Suppress raw artifact payload chunks from chat stream
-                    else:
+                    if not is_artifact_req and not has_artifact_block:
                         yield f"data: {json.dumps({'text': chunk})}\n\n"
 
-                # Fallback if no intro was sent during artifact request
-                if (is_artifact_req or has_artifact_block) and not chat_intro_sent:
-                    yield f"data: {json.dumps({'text': 'Hello JJ. I have created your artifact and opened it for you in your Artifact Workspace.'})}\n\n"
+                # 2. Yield final completion status message when artifact task finishes
+                if is_artifact_req or has_artifact_block:
+                    done_text = "\n\nYour Executive Presentation is ready and surfaced in your Artifact Workspace."
+                    yield f"data: {json.dumps({'text': done_text})}\n\n"
 
             except Exception as e:
                 logger.error(f"[ STREAM_GENERATOR_ERROR ]: {e}")
@@ -384,6 +380,158 @@ async def gemini_proxy_stream(
     except Exception as e:
         logger.error(f"[ GEMINI_PROXY_STREAM_ERROR ]: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+def _build_html5_presentation_deck(title: str, content_raw: str) -> str:
+    """
+    Converts raw slide text into a self-contained, standalone HTML5 presentation slide deck
+    with embedded responsive CSS variables (light/dark HIG mode) and glassmorphism styling.
+    """
+    import re
+    if content_raw.strip().startswith("<!DOCTYPE html") or content_raw.strip().startswith("<html"):
+        return content_raw
+
+    clean_text = re.sub(r'^#\s*ARTIFACT:[\s\S]*?(?=---|## SLIDE|## Slide)', '', content_raw, flags=re.I).strip()
+    slides_raw = re.split(r'\n(?=---|## SLIDE|## Slide)', clean_text)
+    
+    slides_html = []
+    for idx, slide_block in enumerate(slides_raw):
+        block_clean = slide_block.replace("---", "").strip()
+        if not block_clean:
+            continue
+        
+        lines = [l.strip() for l in block_clean.split("\n") if l.strip()]
+        slide_title = f"Slide {idx + 1}"
+        eyebrow = "EXECUTIVE STRATEGY 2026"
+        
+        if lines and lines[0].startswith("#"):
+            slide_title = re.sub(r'^#+\s*(SLIDE\s*\d+:?)?\s*', '', lines[0], flags=re.I).strip()
+        
+        if idx == 0:
+            eyebrow = "STRATEGIC IMPERATIVE"
+        elif "spectrum" in slide_title.lower() or "utility" in slide_title.lower():
+            eyebrow = "CORE PARADIGM SPECTRUM"
+        elif "technical" in slide_title.lower() or "stack" in slide_title.lower():
+            eyebrow = "SOVEREIGN ARCHITECTURE MANDATE"
+        elif "financial" in slide_title.lower() or "roadmap" in slide_title.lower():
+            eyebrow = "FINANCIAL & CAPITAL HORIZON"
+
+        body_lines = lines[1:] if lines and lines[0].startswith("#") else lines
+        cards_html = []
+        current_card_title = "Core Directives"
+        current_bullets = []
+
+        for line in body_lines:
+            if line.startswith("###") or line.startswith("**1.") or line.startswith("**2.") or line.startswith("**3.") or line.startswith("**I.") or line.startswith("**II.") or line.startswith("**III.") or line.startswith("**Phase"):
+                if current_bullets:
+                    b_html = "".join([f"<li>{b}</li>" for b in current_bullets])
+                    cards_html.append(f'<div class="card"><h3>{current_card_title}</h3><ul>{b_html}</ul></div>')
+                    current_bullets = []
+                current_card_title = re.sub(r'^(###|\*\*[\w\.]+\*\*)\s*', '', line).replace('**', '').strip()
+            elif line.startswith("*") or line.startswith("-"):
+                b_text = re.sub(r'^[\*\-]\s*', '', line)
+                b_formatted = re.sub(r'\*\*([^*]+)\*\*', r'<strong>\1</strong>', b_text)
+                current_bullets.append(b_formatted)
+            elif ":" in line and not line.startswith("#"):
+                b_formatted = re.sub(r'\*\*([^*]+)\*\*', r'<strong>\1</strong>', line)
+                current_bullets.append(b_formatted)
+
+        if current_bullets:
+            b_html = "".join([f"<li>{b}</li>" for b in current_bullets])
+            cards_html.append(f'<div class="card"><h3>{current_card_title}</h3><ul>{b_html}</ul></div>')
+
+        grid_content = "".join(cards_html) if cards_html else f'<div class="card"><p>{block_clean}</p></div>'
+
+        slides_html.append(f'''
+        <section class="slide" id="slide-{idx+1}">
+          <div class="slide-header">
+            <div class="eyebrow">✦ {eyebrow}</div>
+            <h2>{slide_title}</h2>
+          </div>
+          <div class="grid">
+            {grid_content}
+          </div>
+          <div class="slide-footer">
+            <span>ALLUCI SOVEREIGN AGENT • TECHNICAL STRATEGY</span>
+            <span class="slide-counter">SLIDE 0{idx+1} / 0{len(slides_raw)}</span>
+          </div>
+        </section>
+        ''')
+
+    all_slides = "".join(slides_html)
+    return f'''<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{title}</title>
+<style>
+  :root {{
+    --bg-primary: #070B12;
+    --bg-card: rgba(255, 255, 255, 0.03);
+    --border-card: rgba(255, 255, 255, 0.08);
+    --text-primary: #FFFFFF;
+    --text-secondary: #94A3B8;
+    --accent: #10B981;
+    --accent-blue: #38BDF8;
+  }}
+  @media (prefers-color-scheme: light) {{
+    :root {{
+      --bg-primary: #F8FAFC;
+      --bg-card: #FFFFFF;
+      --border-card: #E2E8F0;
+      --text-primary: #0F172A;
+      --text-secondary: #475569;
+      --accent: #059669;
+      --accent-blue: #0284C7;
+    }}
+  }}
+  * {{ box-sizing: border-box; }}
+  body {{
+    margin: 0; padding: 24px;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+  }}
+  .slide-deck {{ display: flex; flex-direction: column; gap: 32px; max-width: 1100px; margin: 0 auto; }}
+  .slide {{
+    background: var(--bg-card);
+    border: 1px solid var(--border-card);
+    border-radius: 16px;
+    padding: 32px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+    backdrop-filter: blur(12px);
+  }}
+  .slide-header {{ margin-bottom: 20px; }}
+  .eyebrow {{
+    font-family: monospace; font-size: 11px; letter-spacing: 0.2em;
+    text-transform: uppercase; color: var(--accent); font-weight: 700; margin-bottom: 8px;
+  }}
+  h2 {{ font-size: 24px; font-weight: 800; margin: 0; color: var(--text-primary); letter-spacing: -0.02em; }}
+  .grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin: 20px 0; }}
+  .card {{
+    background: rgba(255,255,255,0.02);
+    border: 1px solid var(--border-card);
+    border-radius: 12px; padding: 20px;
+  }}
+  .card h3 {{ font-size: 15px; font-weight: 700; margin: 0 0 12px 0; color: var(--accent-blue); }}
+  ul {{ margin: 0; padding-left: 20px; }}
+  li {{ font-size: 13.5px; margin-bottom: 10px; color: var(--text-secondary); line-height: 1.6; }}
+  strong {{ color: var(--text-primary); font-weight: 700; }}
+  .slide-footer {{
+    display: flex; justify-content: space-between; align-items: center;
+    border-top: 1px solid var(--border-card); padding-top: 16px; margin-top: 24px;
+    font-family: monospace; font-size: 10px; color: var(--text-secondary);
+  }}
+  .slide-counter {{ color: var(--accent); font-weight: 700; }}
+</style>
+</head>
+<body>
+  <div class="slide-deck">
+    {all_slides}
+  </div>
+</body>
+</html>'''
 
 
 async def _process_dynamic_artifact_block(full_response: str, prompt: str):
@@ -426,6 +574,11 @@ async def _process_dynamic_artifact_block(full_response: str, prompt: str):
     if not kind or not content or not title:
         return
 
+    # Convert presentation artifacts into standalone HTML5 presentation slide decks
+    if kind == "presentation":
+        content = _build_html5_presentation_deck(title, content)
+        kind = "presentation"
+
     clean_title = re.sub(r'[^a-zA-Z0-9]+', '_', (title or "artifact").lower()).strip('_')
     slug_parts = [p for p in clean_title.split('_') if p][:4]
     slug = "_".join(slug_parts) if slug_parts else "artifact"
@@ -433,11 +586,11 @@ async def _process_dynamic_artifact_block(full_response: str, prompt: str):
     folder_name = f"{date_str}_{slug}"
 
     artifacts_base = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "workspace", "artifacts"))
-    cat_dir = "presentations" if kind == "presentation" else ("code" if kind == "code" else ("documents" if kind == "text" else "documents"))
+    cat_dir = "presentations" if kind in ["presentation", "html"] else ("code" if kind == "code" else "documents")
     save_dir = os.path.join(artifacts_base, cat_dir, folder_name)
     os.makedirs(save_dir, exist_ok=True)
 
-    ext = ".html" if kind in ["html", "web"] else (".md" if kind in ["presentation", "text"] else ".txt")
+    ext = ".html" if kind in ["presentation", "html", "web"] else ".txt"
     file_path = os.path.join(save_dir, f"source{ext}")
     with open(file_path, "w", encoding="utf-8") as f:
         f.write(content)
@@ -463,7 +616,7 @@ async def _process_dynamic_artifact_block(full_response: str, prompt: str):
             "title": title,
             "kind": kind,
             "content": content,
-            "mimeType": "text/html" if kind in ["html", "web"] else "text/markdown",
+            "mimeType": "text/html" if kind in ["presentation", "html", "web"] else "text/markdown",
             "source": "system"
         })
         logger.info(f"[GeminiRouter] Intercepted and broadcasted dynamic artifact '{title}' ({kind})")
