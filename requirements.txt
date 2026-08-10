@@ -15,7 +15,7 @@ pydantic==2.12.5
 pydantic-settings==2.4.0
 
 # ─── Database & Migrations ────────────────────────────────────────────────────
-sqlmodel==0.0.21
+sqlmodel==0.0.39
 alembic==1.13.2
 psycopg2-binary==2.9.11       # PostgreSQL sync driver (Alembic migrations)
 asyncpg==0.29.0              # PostgreSQL async driver (runtime)
@@ -36,7 +36,7 @@ greenlet==3.2.2              # Fixed conflict between playwright and gevent
 google-generativeai==0.8.3
 google-auth==2.34.0
 mlx>=0.29.0; sys_platform == "darwin"
-mlx-lm>=0.29.0; sys_platform == "darwin"
+mlx-lm>=0.31.3; sys_platform == "darwin"
 mlx-vlm>=0.1.15; sys_platform == "darwin"
 mlx-whisper>=0.1.0; sys_platform == "darwin"
 huggingface_hub[cli]>=0.23.0
@@ -54,7 +54,7 @@ python-telegram-bot==21.6    # Telegram bridge
 nostr-sdk==0.42.0             # Nostr bridge (Updated for Python 3.14 compatibility)
 aiosmtplib==3.0.1            # Async SMTP for email bridge
 
-pyicloud==2.0.1              # iCloud bridge (Updated for Python 3.14 compatibility)
+pyicloud==2.6.5              # iCloud bridge (Updated for Python 3.14 compatibility)
 pycryptodome==3.20.0          # WeCom AES decryption
 pyotp==2.9.0                  # iWatch pairing
 slack-sdk==3.42.0
