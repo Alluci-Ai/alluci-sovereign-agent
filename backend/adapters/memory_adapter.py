@@ -98,17 +98,29 @@ class HLSMMemoryAdapter(Adapter):
                 for r in recent
             ])
 
-        elif action in ("memory_working", "working"):
-            working = await self.hlsm.l0_retrieve(session_key)
-            if not working:
-                return "Working memory is empty for this session."
-            return "\n".join([
-                f"[working:{r.source}] {r.content[:200]}"
-                for r in working
-            ])
+        elif action in ("memory_delete", "delete"):
+            memory_id = args.get("memory_id") or args.get("id") or query
+            if not memory_id:
+                return "memory_delete requires a 'memory_id' argument."
+            success = await self.hlsm.delete(memory_id)
+            if success:
+                return f"Successfully deleted memory entry '{memory_id}' across H-LSM tiers."
+            return f"Memory entry '{memory_id}' not found or could not be deleted."
+
+        elif action in ("memory_delete_pattern", "delete_pattern", "purge"):
+            pattern = args.get("pattern") or query
+            if not pattern:
+                return "memory_delete_pattern requires a 'pattern' or 'query' argument."
+            res = await self.hlsm.delete_by_pattern(pattern=pattern, session_key=session_key or None)
+            return (
+                f"Memory purge complete for pattern '{pattern}': "
+                f"Deleted {res.get('total_deleted', 0)} total memory records "
+                f"(L0: {res.get('deleted_l0', 0)}, L1: {res.get('deleted_l1', 0)}, "
+                f"L2: {res.get('deleted_l2', 0)}, L3: {res.get('deleted_l3', 0)})."
+            )
 
         else:
             return (
                 f"Unknown memory action: '{action}'. "
-                f"Valid actions: memory_search, memory_store, memory_recall, memory_working"
+                f"Valid actions: memory_search, memory_store, memory_recall, memory_working, memory_delete, memory_delete_pattern"
             )

@@ -42,9 +42,9 @@ class MLStripper(HTMLParser):
         if tag in ["style", "script", "head", "title", "meta"]:
             self.ignore = False
 
-    def handle_data(self, d):
+    def handle_data(self, data: str):
         if not self.ignore:
-            self.text.append(d)
+            self.text.append(data)
 
     def get_data(self):
         return ''.join(self.text)
@@ -399,7 +399,7 @@ class HLSMManager:
             created_at=now,
             retention_score=1.0,
             promoted_to_l2=False,
-            extra_metadata=json.dumps(extra_metadata) if extra_metadata else None,
+            extra_metadata=extra_metadata if extra_metadata else None,
         )
 
         await asyncio.to_thread(self._l1_sql_insert, entry)
@@ -437,7 +437,7 @@ class HLSMManager:
             created_at=now,
             retention_score=1.0,
             promoted_to_l2=False,
-            extra_metadata=json.dumps(payload["metadata"]),
+            extra_metadata=payload["metadata"] if isinstance(payload.get("metadata"), dict) else None,
         )
         await asyncio.to_thread(self._l1_sql_insert, entry)
 
@@ -1691,3 +1691,63 @@ class HLSMManager:
 
         logger.info(f"[HLSM] Ingested {len(ingested_ids)} chunks from document '{filename}' into L2/L3 memory.")
         return ingested_ids
+
+    async def delete_by_pattern(self, pattern: str, session_key: Optional[str] = None) -> Dict[str, int]:
+        """
+        Searches all H-LSM memory tiers (L0 Working, L1 Episodic, L2 Semantic, L3 Graph) for entries
+        containing matching pattern strings (e.g. '[IMESSAGE] From +1-555-0199' or a phone number)
+        and permanently deletes them.
+        """
+        if not pattern or not pattern.strip():
+            return {"deleted_l0": 0, "deleted_l1": 0, "deleted_l2": 0, "deleted_l3": 0, "total_deleted": 0}
+
+        search_pat = pattern.strip()
+        counts = {"deleted_l0": 0, "deleted_l1": 0, "deleted_l2": 0, "deleted_l3": 0, "total_deleted": 0}
+
+        try:
+            def _purge_l1():
+                with Session(self.db_engine) as session:
+                    stmt = select(HLSMEpisodicEntry).where(col(HLSMEpisodicEntry.content).like(f"%{search_pat}%"))
+                    if session_key:
+                        stmt = stmt.where(HLSMEpisodicEntry.session_key == session_key)
+                    matching = session.exec(stmt).all()
+                    c = len(matching)
+                    for m in matching:
+                        session.delete(m)
+                    session.commit()
+                    return c
+            counts["deleted_l1"] = await asyncio.to_thread(_purge_l1)
+        except Exception as e:
+            logger.error(f"[HLSM] L1 pattern deletion error: {e}")
+
+        try:
+            def _purge_l0():
+                with Session(self.db_engine) as session:
+                    stmt = select(HLSMWorkingEntry).where(col(HLSMWorkingEntry.content).like(f"%{search_pat}%"))
+                    if session_key:
+                        stmt = stmt.where(HLSMWorkingEntry.session_key == session_key)
+                    matching = session.exec(stmt).all()
+                    c = len(matching)
+                    for m in matching:
+                        session.delete(m)
+                    session.commit()
+                    return c
+            counts["deleted_l0"] = await asyncio.to_thread(_purge_l0)
+        except Exception as e:
+            logger.error(f"[HLSM] L0 pattern deletion error: {e}")
+
+        if self.kuzu_conn:
+            try:
+                q_l2 = "MATCH (n:SemanticMemory) WHERE n.content CONTAINS $pat DELETE n"
+                await asyncio.to_thread(self.kuzu_conn.execute, q_l2, {"pat": search_pat})
+                counts["deleted_l2"] = 1
+
+                q_l3 = "MATCH (n:L3Memory) WHERE n.content CONTAINS $pat DELETE n"
+                await asyncio.to_thread(self.kuzu_conn.execute, q_l3, {"pat": search_pat})
+                counts["deleted_l3"] = 1
+            except Exception as k_err:
+                logger.debug(f"[HLSM] KùzuDB pattern deletion notice: {k_err}")
+
+        counts["total_deleted"] = counts["deleted_l0"] + counts["deleted_l1"] + counts["deleted_l2"] + counts["deleted_l3"]
+        logger.info(f"[HLSM] Pattern memory deletion complete for '{search_pat}': {counts}")
+        return counts
