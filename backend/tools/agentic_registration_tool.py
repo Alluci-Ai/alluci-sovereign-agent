@@ -276,6 +276,11 @@ class AgenticRegistrationTool:
         """
         discovery = await self.discover_agent_auth_metadata(target_domain)
         revocation_endpoint = discovery.get("revocation_endpoint")
+        if not revocation_endpoint or not isinstance(revocation_endpoint, str):
+            clean_domain = target_domain.rstrip('/')
+            if not clean_domain.startswith(('http://', 'https://')):
+                clean_domain = f"https://{clean_domain}"
+            revocation_endpoint = f"{clean_domain}/oauth2/revoke"
 
         payload = {
             "token": token,

@@ -10,19 +10,6 @@ logger = get_logger("GeminiRouter")
 
 router = APIRouter(tags=["Gemini Proxy"])
 
-@router.post("/gemini/proxy", dependencies=[Depends(verify_authenticated)])
-async def gemini_proxy(
-    request: Request,
-    prompt: str = Body(...),
-    complexity: Literal["LOW", "MEDIUM", "HIGH"] = Body("MEDIUM"),
-    privacy_level: Literal["PUBLIC", "SENSITIVE", "AIRGAPPED"] = Body("PUBLIC"),
-    inference_mode: Literal["LOCAL", "CLOUD", "TACTICAL", "HYBRID"] = Body("HYBRID"),
-    session_id: Optional[str] = Body(None)
-):
-    """
-    Proxies requests to the local Gemma 4 model or fallback providers.
-    Bypasses the need for a client-side Google API key by using the Sovereign LCE.
-    """
 def _check_local_research_reports(prompt: str) -> Optional[str]:
     """
     Scans artifacts/research/*/deep_research_report.md on disk when prompt
@@ -106,10 +93,11 @@ def _extract_text_from_pdf_bytes(pdf_bytes: bytes) -> str:
 
 
 def _process_attached_files(prompt: str, files: Optional[List[Dict[str, Any]]] = None) -> str:
-    """Decodes and appends attached file contents (TXT, MD, PDF, JSON, CSV, DOCX) to prompt context."""
+    """Decodes and appends attached file contents (TXT, MD, PDF, JSON, CSV, DOCX) to prompt context with KV cache safety bounds."""
     if not files:
         return prompt
 
+    MAX_FILE_CHARS = 30000
     appended_text = prompt
     for file_obj in files:
         file_name = file_obj.get("name", "attached_file.txt")
@@ -130,6 +118,8 @@ def _process_attached_files(prompt: str, files: Optional[List[Dict[str, Any]]] =
                 decoded_content = str(file_data)
 
         if decoded_content:
+            if len(decoded_content) > MAX_FILE_CHARS:
+                decoded_content = decoded_content[:MAX_FILE_CHARS] + f"\n... [ATTACHED FILE TRUNCATED AT {MAX_FILE_CHARS:,} CHARACTERS TO FIT KV CACHE BUDGET] ..."
             appended_text += f"\n\n--- [ATTACHED FILE: {file_name}] ---\n{decoded_content.strip()}\n--- [END ATTACHED FILE] ---"
 
     return appended_text
@@ -148,7 +138,8 @@ async def gemini_proxy(
     """
     Proxies requests to local or cloud models with Single-Pass execution.
     """
-    if not services.router:
+    router_inst = services.router
+    if not router_inst:
         raise HTTPException(status_code=503, detail="Inference router not ready")
 
     effective_prompt = _process_attached_files(prompt, files)
@@ -165,7 +156,7 @@ async def gemini_proxy(
             system_instruction, _ = await services.orchestrator._build_system_context()
 
         # Single-Pass Response Generation
-        response = await services.router.get_response(
+        response = await router_inst.get_response(
             prompt=effective_prompt,
             system_instruction=system_instruction,
             complexity=complexity,
@@ -191,7 +182,8 @@ async def gemini_proxy_stream(
     """
     Proxies requests to local or cloud models with Instant TTFT (< 10ms) SSE token streaming.
     """
-    if not services.router:
+    router_inst = services.router
+    if not router_inst:
         raise HTTPException(status_code=503, detail="Inference router not ready")
 
     effective_prompt = _process_attached_files(prompt, files)
@@ -226,6 +218,9 @@ async def gemini_proxy_stream(
         async def event_generator():
             import json
 
+            # Instant TTFT heartbeat signal to keep UI responsive
+            yield f"data: {json.dumps({'text': '', 'status': 'Ingesting document & initializing skill context...'})}\n\n"
+
             if local_report:
                 yield f"data: {json.dumps({'text': local_report})}\n\n"
                 return
@@ -235,7 +230,7 @@ async def gemini_proxy_stream(
                 return
 
             try:
-                async for chunk in services.router.get_response_stream(
+                async for chunk in router_inst.get_response_stream(
                     prompt=effective_prompt,
                     system_instruction=system_instruction,
                     complexity=complexity,

@@ -1181,19 +1181,32 @@ class ModelRouter(ExecutiveRouter):
                 return
             except Exception as e:
                 self.logger.warning(f"Local LCE streaming failed, falling back to standard router: {e}")
+            finally:
+                try:
+                    import mlx.core as mx
+                    mx.metal.clear_cache()
+                except Exception:
+                    pass
 
         # Fallback to standard blocking router response yielded in a single block
-        response = await self.get_response(
-            prompt=prompt,
-            complexity=complexity,
-            privacy_level=privacy_level,
-            psi=psi,
-            system_instruction=system_instruction,
-            inference_mode=inference_mode,
-            session_id=session_id,
-            agent_id=agent_id
-        )
-        yield self._sanitize_formatting(response)
+        try:
+            response = await self.get_response(
+                prompt=prompt,
+                complexity=complexity,
+                privacy_level=privacy_level,
+                psi=psi,
+                system_instruction=system_instruction,
+                inference_mode=inference_mode,
+                session_id=session_id,
+                agent_id=agent_id
+            )
+            yield self._sanitize_formatting(response)
+        finally:
+            try:
+                import mlx.core as mx
+                mx.metal.clear_cache()
+            except Exception:
+                pass
 
     async def get_structured_plan(self, prompt: str, system_instruction: str = "", tools: Optional[list] = None, agent_id: str = "executive") -> Dict[str, Any]:
         """
