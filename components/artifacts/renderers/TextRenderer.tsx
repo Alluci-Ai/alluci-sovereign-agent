@@ -2,7 +2,6 @@ import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Artifact } from '../../../types';
-import { useStore } from '../../../store/useStore';
 
 export interface RendererProps {
   artifact: Artifact;
@@ -11,9 +10,6 @@ export interface RendererProps {
 }
 
 export const TextRenderer: React.FC<RendererProps> = ({ artifact }) => {
-  const { theme } = useStore();
-  const isDark = theme === 'dark';
-
   const content = artifact.content || 'Empty text artifact.';
 
   return (
@@ -24,9 +20,10 @@ export const TextRenderer: React.FC<RendererProps> = ({ artifact }) => {
         height: '100%',
         minHeight: '450px',
         padding: '24px',
-        background: isDark ? 'var(--color-bg-tertiary, #181825)' : '#ffffff',
-        color: isDark ? 'var(--color-text-primary, #cdd6f4)' : '#1e293b',
+        background: 'var(--bg-elevated)',
+        color: 'var(--text-primary)',
         borderRadius: '8px',
+        border: '1px solid var(--glass-edge)',
         fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
         fontSize: '14px',
         lineHeight: '1.65',
@@ -44,8 +41,8 @@ export const TextRenderer: React.FC<RendererProps> = ({ artifact }) => {
                 fontWeight: 700,
                 marginBottom: '16px',
                 paddingBottom: '8px',
-                borderBottom: isDark ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e2e8f0',
-                color: isDark ? '#f5f5f7' : '#0f172a'
+                borderBottom: '1px solid var(--glass-edge)',
+                color: 'var(--text-primary)'
               }}
             >
               {children}
@@ -58,7 +55,7 @@ export const TextRenderer: React.FC<RendererProps> = ({ artifact }) => {
                 fontWeight: 600,
                 marginTop: '20px',
                 marginBottom: '12px',
-                color: isDark ? '#e2e8f0' : '#1e293b'
+                color: 'var(--text-primary)'
               }}
             >
               {children}
@@ -71,7 +68,7 @@ export const TextRenderer: React.FC<RendererProps> = ({ artifact }) => {
                 fontWeight: 600,
                 marginTop: '16px',
                 marginBottom: '8px',
-                color: isDark ? '#cbd5e1' : '#334155'
+                color: 'var(--text-secondary)'
               }}
             >
               {children}
@@ -86,7 +83,7 @@ export const TextRenderer: React.FC<RendererProps> = ({ artifact }) => {
                   fontSize: '13px',
                   borderRadius: '6px',
                   overflow: 'hidden',
-                  border: isDark ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e2e8f0'
+                  border: '1px solid var(--glass-edge)'
                 }}
               >
                 {children}
@@ -96,8 +93,8 @@ export const TextRenderer: React.FC<RendererProps> = ({ artifact }) => {
           thead: ({ children }) => (
             <thead
               style={{
-                background: isDark ? 'rgba(99,102,241,0.15)' : '#f1f5f9',
-                color: isDark ? '#818cf8' : '#4338ca',
+                background: 'var(--fill-tertiary)',
+                color: 'var(--text-primary)',
                 fontWeight: 600
               }}
             >
@@ -109,7 +106,7 @@ export const TextRenderer: React.FC<RendererProps> = ({ artifact }) => {
               style={{
                 padding: '10px 14px',
                 textAlign: 'left',
-                borderBottom: isDark ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e2e8f0'
+                borderBottom: '1px solid var(--glass-edge)'
               }}
             >
               {children}
@@ -119,7 +116,7 @@ export const TextRenderer: React.FC<RendererProps> = ({ artifact }) => {
             <td
               style={{
                 padding: '8px 14px',
-                borderBottom: isDark ? '1px solid rgba(255,255,255,0.05)' : '1px solid #f1f5f9'
+                borderBottom: '1px solid var(--glass-edge)'
               }}
             >
               {children}
@@ -131,7 +128,7 @@ export const TextRenderer: React.FC<RendererProps> = ({ artifact }) => {
               target="_blank"
               rel="noopener noreferrer"
               style={{
-                color: '#6366f1',
+                color: 'var(--accent, #30D158)',
                 textDecoration: 'underline',
                 fontWeight: 500
               }}
@@ -144,10 +141,10 @@ export const TextRenderer: React.FC<RendererProps> = ({ artifact }) => {
               style={{
                 padding: '2px 6px',
                 borderRadius: '4px',
-                background: isDark ? 'rgba(255,255,255,0.08)' : '#f1f5f9',
+                background: 'var(--fill-tertiary)',
                 fontFamily: 'monospace',
                 fontSize: '12px',
-                color: isDark ? '#f43f5e' : '#e11d48'
+                color: 'var(--text-primary)'
               }}
             >
               {children}
