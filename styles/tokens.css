@@ -703,6 +703,17 @@ body {
     transition: transform var(--lg-dur-press) var(--lg-ease-press);
 }
 
+.sidebar--collapsed .sidebar__new-chat-btn {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    margin: 0 auto;
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
 /* Recent Session Drawer Items */
 .sidebar__recent-session-item {
     position: relative;

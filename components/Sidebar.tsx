@@ -129,13 +129,13 @@ const Sidebar: React.FC<SidebarProps> = ({
             <nav className="sidebar__nav flex-1 overflow-y-auto overflow-x-hidden pb-4" style={{ paddingRight: isSidebarCollapsed ? 0 : '12px' }}>
                 
                 {/* + New Chat Action Button */}
-                <div className="px-2 mb-3">
+                <div className={isSidebarCollapsed ? "px-0 mb-3 flex justify-center" : "px-2 mb-3"}>
                     <button
                         onClick={() => createNewChat()}
                         className="sidebar__new-chat-btn"
-                        title="Start a new chat session"
+                        title={isSidebarCollapsed ? "Start a new chat session" : "Start a new chat session"}
                     >
-                        <Plus size={15} />
+                        <Plus size={16} strokeWidth={2.2} style={{ flexShrink: 0 }} />
                         {!isSidebarCollapsed && <span>New Chat</span>}
                     </button>
                 </div>
