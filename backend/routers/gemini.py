@@ -17,11 +17,11 @@ import uuid
 import time
 from ..utils.doc_parser import extract_text_from_file_payload
 
-def _check_local_research_reports(prompt: str) -> Optional[str]:
+async def _check_local_research_reports(prompt: str) -> Optional[str]:
     """
     Scans artifacts/research/*/deep_research_report.md on disk when prompt
-    explicitly requests a research report or dossier, returning the exact raw markdown.
-    Uses compound phrase matching and negative guardrails to avoid out-of-context triggers.
+    explicitly requests a research report or dossier, registering it as an ArtifactRecord
+    and broadcasting an artifact.open event to slide open the side panel.
     """
     body_lower = prompt.lower()
     
@@ -30,14 +30,10 @@ def _check_local_research_reports(prompt: str) -> Optional[str]:
     if any(kw in body_lower for kw in exclude_keywords):
         return None
         
-    explicit_phrases = [
-        "pull up the report", "show the report", "read the report", "open the report",
-        "display the dossier", "view the research dossier", "show me the deep research report",
-        "fetch latest research report", "open the deep research dossier", "show research dossier",
-        "pull up research report"
-    ]
+    action_verbs = ["show", "pull", "open", "display", "read", "view", "fetch"]
+    target_nouns = ["report", "dossier"]
     
-    is_explicit_request = any(phrase in body_lower for phrase in explicit_phrases)
+    is_explicit_request = any(verb in body_lower for verb in action_verbs) and any(noun in body_lower for noun in target_nouns)
     if is_explicit_request:
         import os, glob
         from .sessions import WORKSPACE_DIR
@@ -58,9 +54,32 @@ def _check_local_research_reports(prompt: str) -> Optional[str]:
             try:
                 with open(latest_path, "r", encoding="utf-8") as rf:
                     rep_content = rf.read()
-                file_url = f"file://{os.path.abspath(latest_path)}"
+                
                 folder_label = os.path.basename(os.path.dirname(latest_path))
-                return f"### 📊 Retrieved Deep Research Report (`{folder_label}`)\n\nDirect dossier link: [{os.path.basename(latest_path)}]({file_url})\n\n---\n\n{rep_content.strip()}"
+                topic_title = folder_label.replace("_", " ").strip().title() if folder_label and folder_label != "artifacts" else "Sovereign Intelligence"
+
+                # Auto-register as ArtifactRecord
+                from .artifacts import create_artifact
+                from .. import services
+                
+                art_payload = {
+                    "title": f"Deep Research Report: {topic_title}",
+                    "kind": "text",
+                    "mimeType": "text/markdown",
+                    "content": rep_content,
+                    "metadata": {"agent": "rocco", "topic": topic_title, "file_path": latest_path}
+                }
+                art_res = await create_artifact(art_payload)
+                art_id = art_res.get("id")
+
+                if services.orchestrator and hasattr(services.orchestrator, "ws_gateway") and services.orchestrator.ws_gateway:
+                    await services.orchestrator.ws_gateway.broadcast_event('artifact.open', {
+                        "type": "artifact.open",
+                        "artifactId": art_id,
+                        "source": "system"
+                    })
+
+                return f"Hello JJ. I have retrieved the **{topic_title}** report and opened it for you in your Artifact Workspace.\n\nYou can view, navigate, zoom, or download the full dossier in the side panel."
             except Exception as read_err:
                 logger.error(f"[ReportReader] Failed to read report from disk: {read_err}")
     return None
@@ -232,7 +251,7 @@ async def gemini_proxy_stream(
         mem_purge_reply = await _intercept_memory_deletion_request(prompt)
 
         # 2. Fast Local Hard Drive File Reader Check (< 50ms)
-        local_report = _check_local_research_reports(effective_prompt)
+        local_report = await _check_local_research_reports(effective_prompt)
 
         system_instruction = ""
         orch = services.orchestrator

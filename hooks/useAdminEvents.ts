@@ -2,6 +2,7 @@
 import { useEffect } from 'react';
 import { useStore } from '../store/useStore';
 import { adminService } from '../adminService';
+import { artifactEvents } from '../lib/artifactEvents';
 
 export const useAdminEvents = () => {
   const {
@@ -71,27 +72,30 @@ export const useAdminEvents = () => {
               sender: params.sender || 'rocco',
               timestamp: new Date().toISOString()
             }]);
-          } else if (method === 'orchestrator.artifact.updated') {
-            const storeState = useStore.getState() as any;
-            const setActiveArtifact = storeState.setActiveArtifact;
-            const setArtifacts = storeState.setArtifacts;
-            const setIsArtifactPaneCollapsed = storeState.setIsArtifactPaneCollapsed;
-            const newArtifact = {
-              id: `art_${Date.now()}`,
-              name: params.title || 'deep_research_report.md',
-              title: params.title || 'Deep Research Synthesis Report',
-              content: params.content || '',
-              language: params.language || 'markdown',
-              timestamp: new Date().toISOString()
-            };
-            if (setArtifacts) {
-              setArtifacts((prev: any[]) => [...(prev || []), newArtifact]);
-            }
-            if (setActiveArtifact) {
-              setActiveArtifact(newArtifact);
-            }
-            if (setIsArtifactPaneCollapsed) {
-              setIsArtifactPaneCollapsed(false);
+          } else if (method === 'artifact.created' || method === 'artifact.open' || method === 'orchestrator.artifact.updated') {
+            const artifactId = params.artifactId || params.id;
+            if (artifactId) {
+              artifactEvents.emit({ type: 'artifact.open', artifactId });
+            } else if (params.content) {
+              const storeState = useStore.getState();
+              const setActiveArtifact = storeState.setActiveArtifact;
+              const setIsArtifactPaneCollapsed = storeState.setIsArtifactPaneCollapsed;
+              const newArtifact = {
+                id: `art_${Date.now()}`,
+                title: params.title || 'Deep Research Synthesis Report',
+                kind: 'text' as const,
+                currentVersion: 1,
+                content: params.content,
+                mimeType: 'text/markdown',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+              };
+              if (setActiveArtifact) {
+                setActiveArtifact(newArtifact);
+              }
+              if (setIsArtifactPaneCollapsed) {
+                setIsArtifactPaneCollapsed(false);
+              }
             }
           } else if (method === 'security.resolution_required') {
             const { setPendingSecurityResolution } = useStore.getState();
