@@ -284,3 +284,65 @@ export interface ModalState {
   skillWizard: boolean;
   apiWizard: boolean;
 }
+
+// --- Artifact Workspace Interfaces ---
+
+export type ArtifactKind =
+  | 'code'
+  | 'html'
+  | 'web'
+  | 'presentation'
+  | 'pdf'
+  | 'image'
+  | 'text'
+  | 'data';
+
+export type ArtifactStatus =
+  | 'draft'
+  | 'generating'
+  | 'ready'
+  | 'updating'
+  | 'published'
+  | 'failed';
+
+export interface ArtifactPage {
+  id: string;
+  index: number;
+  title: string;
+  thumbnailUrl?: string;
+  renderUrl?: string;
+  html?: string;
+}
+
+export interface ArtifactVersion {
+  id: string;
+  version: number;
+  createdBy: string;
+  reason?: string;
+  createdAt: string;
+}
+
+export interface Artifact {
+  id: string;
+  workspaceId: string;
+  ownerId: string;
+  kind: ArtifactKind;
+  title: string;
+  mimeType: string;
+  status: ArtifactStatus;
+  currentVersion: number;
+  sourceUri?: string;
+  content?: string;
+  pages?: ArtifactPage[];
+  metadata: {
+    language?: string;
+    framework?: string;
+    entrypoint?: string;
+    width?: number;
+    height?: number;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    [key: string]: any;
+  };
+  createdAt: string;
+  updatedAt: string;
+}

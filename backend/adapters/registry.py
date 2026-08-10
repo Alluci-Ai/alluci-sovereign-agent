@@ -22,6 +22,7 @@ from .messaging_adapter import MessagingSendAdapter, MessagingReadAdapter
 from .workspace_bridge import WorkspaceSearchAdapter, WorkspaceSyncAdapter
 from .verus_rpc import VerusRPCExecuteAdapter, VerusTransactionAdapter
 from .client_pricing import ClientPricingCalculatorAdapter
+from .artifact_adapter import ArtifactAdapter
 
 class AdapterRegistry:
     def __init__(self, vault_root: Optional[str] = None, memory_manager = None, on_inbound: Callable = None):  # type: ignore
@@ -58,6 +59,7 @@ class AdapterRegistry:
         
         self.register(ClientPricingCalculatorAdapter())
         self.register(AgenticRegistrationAdapter())
+        self.register(ArtifactAdapter())
 
         if memory_manager:
             self.register(DocumentIngestAdapter(memory_manager))
@@ -92,6 +94,9 @@ class AdapterRegistry:
             
         if name in ["memory_search", "memory_store", "memory"]:
             return self._adapters.get("memory")
+            
+        if name in ["artifact", "artifact_create", "artifact_update", "artifact_open", "artifact_export"]:
+            return self._adapters.get("artifact")
             
         return self._adapters.get(name)
         

@@ -481,6 +481,8 @@ app.include_router(security.router, prefix="/api/v1")
 app.include_router(skills.router, prefix="/api/v1")
 app.include_router(tools.router, prefix="/api/v1")
 app.include_router(sync.router, prefix="/api/v1")
+from .routers import artifacts
+app.include_router(artifacts.router, prefix="/api/v1")
 app.include_router(models.router, prefix="/api/v1/models")
 
 # Health endpoints (custom)

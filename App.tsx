@@ -28,6 +28,9 @@ import { ToolDetailOverlay } from './components/ToolsPanel';
 import SkillBuilderWizard from './components/SkillBuilderWizard';
 import ToolBuilderWizard from './components/ToolBuilderWizard';
 
+import { ArtifactPanel } from './components/ArtifactPanel';
+import { artifactEvents } from './lib/artifactEvents';
+
 // Hooks
 import { useDaemonStatus } from './hooks/useDaemonStatus';
 import { useBiometrics } from './hooks/useBiometrics';
@@ -85,6 +88,7 @@ const App: React.FC = () => {
     isArtifactPaneCollapsed,
     setIsArtifactPaneCollapsed,
     activeArtifact,
+    setActiveArtifact,
     artifacts
   } = useStore();
 
@@ -99,6 +103,27 @@ const App: React.FC = () => {
 
   // Initialization
   useEffect(() => { hydrate(); }, [hydrate]);
+
+  useEffect(() => {
+    const unsubscribe = artifactEvents.subscribe(async (event) => {
+      if (event.type === 'artifact.created' || event.type === 'artifact.open' || event.type === 'artifact.updated') {
+        try {
+          const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || '';
+          const res = await fetch(`${DAEMON_URL}/api/v1/artifacts/${event.artifactId}`);
+          if (res.ok) {
+            const data = await res.json();
+            setActiveArtifact(data);
+            setIsArtifactPaneCollapsed(false);
+          }
+        } catch (err) {
+          console.error('Failed opening artifact:', err);
+        }
+      } else if (event.type === 'artifact.close') {
+        setIsArtifactPaneCollapsed(true);
+      }
+    });
+    return () => unsubscribe();
+  }, [setActiveArtifact, setIsArtifactPaneCollapsed]);
 
   useEffect(() => {
     if (bridgeManagerRef.current) {
@@ -405,44 +430,12 @@ const App: React.FC = () => {
               ) : (
                 <>
                   <div className={`pane-resizer ${isResizing ? 'active' : ''}`} onMouseDown={startResizing} />
-                  <aside className="artifact-pane relative transition-all duration-300 flex flex-col h-full overflow-hidden" style={{ width: artifactWidth }}>
-                    <div className="artifact-pane__header flex justify-between items-center px-4 py-3 border-b border-glass-edge bg-bg-elevated backdrop-blur-md">
-                      <div>
-                        <h3 className="artifact-pane__title text-[11px] font-bold tracking-wider uppercase text-text-primary truncate max-w-[200px]">
-                          {activeArtifact?.title || activeArtifact?.name || 'Alluci Artifacts'}
-                        </h3>
-                        <div className="artifact-pane__subtitle text-[8px] font-mono text-text-tertiary">COGNITIVE_OUTPUT_BUFFER</div>
-                      </div>
-                      <button
-                        onClick={() => setIsArtifactPaneCollapsed(true)}
-                        className="p-1.5 rounded-md text-text-tertiary hover:text-text-primary hover:bg-glass-hover transition-all cursor-pointer flex items-center justify-center"
-                        title="Collapse Artifact Pane (X)"
-                        aria-label="Collapse Artifact Pane"
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                    <div className="artifact-pane__body flex-1 overflow-y-auto p-4 md:p-6 bg-transparent">
-                      {activeArtifact ? (
-                        <div className="markdown-body text-xs leading-relaxed font-sans text-text-primary select-text whitespace-pre-wrap font-mono opacity-90">
-                          {(() => {
-                            let clean = String(activeArtifact.content || '');
-                            if (clean.startsWith("{'") || clean.startsWith('{"')) {
-                              const match = clean.match(/'(?:harvested_content|content)':\s*'(.*)'/s) || clean.match(/"(?:harvested_content|content)":\s*"(.*)"/s);
-                              if (match && match[1]) {
-                                clean = match[1].replace(/\\n/g, '\n').replace(/\\'/g, "'");
-                              }
-                            }
-                            return clean.replace(/\u001b\[\d+m/g, '').replace(/\x1B\[[0-9;]*[a-zA-Z]/g, '');
-                          })()}
-                        </div>
-                      ) : (
-                        <div className="p-10 opacity-20 text-center select-none pointer-events-none mt-20">
-                          <p className="text-[10px] glass-label tracking-widest">Awaiting Artifact</p>
-                        </div>
-                      )}
-                    </div>
-                  </aside>
+                  <div style={{ width: artifactWidth, height: '100%', overflow: 'hidden' }}>
+                    <ArtifactPanel
+                      artifact={activeArtifact}
+                      onClose={() => setIsArtifactPaneCollapsed(true)}
+                    />
+                  </div>
                 </>
               )}
             </>

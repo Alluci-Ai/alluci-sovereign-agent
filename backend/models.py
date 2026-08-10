@@ -453,3 +453,44 @@ class MessageLog(SQLModel, table=True):
     tool_id: Optional[str] = Field(default=None)
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+
+# --- Artifact Models ---
+
+class ArtifactRecord(SQLModel, table=True):
+    __tablename__ = "artifacts"  # type: ignore
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    workspace_id: str = Field(default="default", index=True)
+    owner_id: str = Field(default="user", index=True)
+    title: str = Field()
+    kind: str = Field(default="text")  # "code", "html", "web", "presentation", "pdf", "image", "text", "data"
+    mime_type: str = Field(default="text/plain")
+    status: str = Field(default="ready")  # "draft", "generating", "ready", "updating", "published", "failed"
+    current_version: int = Field(default=1)
+    source_uri: Optional[str] = Field(default=None)
+    content: Optional[str] = Field(default=None)
+    metadata_json: Optional[str] = Field(default=None)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class ArtifactVersionRecord(SQLModel, table=True):
+    __tablename__ = "artifact_versions"  # type: ignore
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    artifact_id: str = Field(index=True)
+    version: int = Field(index=True)
+    created_by: str = Field(default="agent")
+    reason: Optional[str] = Field(default=None)
+    content: Optional[str] = Field(default=None)
+    content_uri: Optional[str] = Field(default=None)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class ArtifactPageRecord(SQLModel, table=True):
+    __tablename__ = "artifact_pages"  # type: ignore
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    artifact_id: str = Field(index=True)
+    version: int = Field(default=1)
+    page_index: int = Field(default=0)
+    title: str = Field(default="")
+    thumbnail_uri: Optional[str] = Field(default=None)
+    render_uri: Optional[str] = Field(default=None)
+    html_content: Optional[str] = Field(default=None)
+
