@@ -28,6 +28,7 @@ alluci_vault/
 polytope_data.db
 polytope_data.db-journal
 backend/workspace/
+workspace/
 polytope_data.kuzu/
 
 # ── Build Artifacts ────────────────────────────────────────────────────────────
