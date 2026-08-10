@@ -25,6 +25,37 @@
 
 ---
 
+## The Sovereign Manifold
+
+Alluci empowers you to act across your entire digital life from a single, secure interface:
+- **Social_Manifold**: Targeted actualization across WhatsApp, Telegram, Discord, Signal, X, and Meta.
+- **Enterprise_Core**: Deep professional workflow integration with Slack, MS Teams, and the full G-Suite.
+- **Cloud_Manifold**: Sovereign file management and E2EE pulse dispatching via iCloud and iMessage secure tunnels.
+
+---
+
+## Multi-Modal Synthesis & API Orchestration
+
+Alluci coordinates across a secure multi-bridge ecosystem, providing unified access to state-of-the-art tools:
+
+#### 1. LLM_REASONING_&_LOGIC
+- **OpenAI**: GPT for deep strategic planning.
+- **Anthropic**: Claude for nuanced context and coding.
+- **Google Cloud**: Gemini for massive context and speed.
+- **Groq**: LPU-powered high-speed tactical execution.
+
+#### 2. CONVERSATIONAL_AUDIO
+- **OpenAI Realtime API**: emotionally resonant vocal interaction.
+- **ElevenLabs**: Specialized Agents API for high-fidelity voice synthesis.
+- **Retell AI**: Professional telephony and automated dialogue.
+
+#### 3. MULTI-MODAL CREATIVITY
+- **Music**: Udio, Soundraw, and AIVA for melodic composition.
+- **Image**: NanoBanana, Midjourney, DALL·E 3, & Fal.ai.
+- **Video**: Google Veo, Runway, & Luma Dream Machine for temporal genesis.
+
+---
+
 ## 🌌 The Polytope Manifold Architecture
 
 Alluci abandons traditional, hallucination-prone Euclidean vector spaces in favor of **Topologically Stable Geometric Intelligence** (The Polytope Projection Network).
@@ -165,37 +196,6 @@ To run tests manually:
 source .venv/bin/activate
 pytest backend/tests/ -v
 ```
-
----
-
-## The Sovereign Manifold
-
-Alluci empowers you to act across your entire digital life from a single, secure interface:
-- **Social_Manifold**: Targeted actualization across WhatsApp, Telegram, Discord, Signal, X, and Meta.
-- **Enterprise_Core**: Deep professional workflow integration with Slack, MS Teams, and the full G-Suite.
-- **Cloud_Manifold**: Sovereign file management and E2EE pulse dispatching via iCloud and iMessage secure tunnels.
-
----
-
-## Multi-Modal Synthesis & API Orchestration
-
-Alluci coordinates across a secure multi-bridge ecosystem, providing unified access to state-of-the-art tools:
-
-#### 1. LLM_REASONING_&_LOGIC
-- **OpenAI**: GPT for deep strategic planning.
-- **Anthropic**: Claude for nuanced context and coding.
-- **Google Cloud**: Gemini for massive context and speed.
-- **Groq**: LPU-powered high-speed tactical execution.
-
-#### 2. CONVERSATIONAL_AUDIO
-- **OpenAI Realtime API**: emotionally resonant vocal interaction.
-- **ElevenLabs**: Specialized Agents API for high-fidelity voice synthesis.
-- **Retell AI**: Professional telephony and automated dialogue.
-
-#### 3. MULTI-MODAL CREATIVITY
-- **Music**: Udio, Soundraw, and AIVA for melodic composition.
-- **Image**: NanoBanana, Midjourney, DALL·E 3, & Fal.ai.
-- **Video**: Google Veo, Runway, & Luma Dream Machine for temporal genesis.
 
 ---
 
