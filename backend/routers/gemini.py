@@ -58,24 +58,34 @@ async def _check_local_research_reports(prompt: str) -> Optional[str]:
                 folder_label = os.path.basename(os.path.dirname(latest_path))
                 topic_title = folder_label.replace("_", " ").strip().title() if folder_label and folder_label != "artifacts" else "Sovereign Intelligence"
 
-                # Auto-register as ArtifactRecord
-                from .artifacts import create_artifact
-                from .. import services
-                
-                art_payload = {
-                    "title": f"Deep Research Report: {topic_title}",
-                    "kind": "text",
-                    "mimeType": "text/markdown",
-                    "content": rep_content,
-                    "metadata": {"agent": "rocco", "topic": topic_title, "file_path": latest_path}
-                }
-                art_res = await create_artifact(art_payload)
-                art_id = art_res.get("id")
+                # 1. Attempt DB creation (Zero-Duplication Pointer)
+                import uuid
+                art_id = f"art_{uuid.uuid4().hex[:12]}"
+                try:
+                    from .artifacts import create_artifact
+                    art_payload = {
+                        "title": f"Deep Research Report: {topic_title}",
+                        "kind": "text",
+                        "mimeType": "text/markdown",
+                        "content": rep_content,
+                        "metadata": {"agent": "rocco", "topic": topic_title, "file_path": latest_path}
+                    }
+                    art_res = await create_artifact(art_payload)
+                    if isinstance(art_res, dict) and "id" in art_res:
+                        art_id = art_res["id"]
+                except Exception as db_err:
+                    logger.warning(f"[ReportReader] DB pointer registration note (using direct disk payload): {db_err}")
 
+                # 2. Direct Disk-to-Panel WebSocket Broadcast (Zero-DB-Dependency)
+                from .. import services
                 if services.orchestrator and hasattr(services.orchestrator, "ws_gateway") and services.orchestrator.ws_gateway:
                     await services.orchestrator.ws_gateway.broadcast_event('artifact.open', {
                         "type": "artifact.open",
                         "artifactId": art_id,
+                        "title": f"Deep Research Report: {topic_title}",
+                        "kind": "text",
+                        "content": rep_content,
+                        "mimeType": "text/markdown",
                         "source": "system"
                     })
 

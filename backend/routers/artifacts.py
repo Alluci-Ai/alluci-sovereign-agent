@@ -28,11 +28,37 @@ ARTIFACTS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".
 os.makedirs(ARTIFACTS_DIR, exist_ok=True)
 
 
-def _get_artifact_storage_path(artifact_id: str, version: int, filename: str = "source.txt") -> str:
-    """Returns absolute file storage path under ./workspace/artifacts/<artifact_id>/versions/<version>/."""
-    path = os.path.join(ARTIFACTS_DIR, artifact_id, "versions", str(version))
+def _build_topic_folder_path(category: str, title: str) -> str:
+    import re, datetime
+    clean_title = re.sub(r'[^a-zA-Z0-9]+', '_', title.lower()).strip('_')
+    parts = [p for p in clean_title.split('_') if p][:4]
+    slug = "_".join(parts) if parts else "artifact"
+    date_str = datetime.date.today().strftime("%Y-%m-%d")
+    folder_name = f"{date_str}_{slug}"
+    cat_dir = category if category in ["research", "code", "presentations", "documents"] else "documents"
+    path = os.path.join(ARTIFACTS_DIR, cat_dir, folder_name)
     os.makedirs(path, exist_ok=True)
-    return os.path.join(path, filename)
+    return path
+
+
+def _get_artifact_storage_path(artifact_id: str, version: int, filename: str = "source.txt", title: str = "artifact", category: str = "documents") -> str:
+    """Returns human-readable absolute file storage path under ./workspace/artifacts/<category>/<YYYY-MM-DD_topic_slug>/."""
+    folder = _build_topic_folder_path(category, title)
+    # Write metadata.json catalog index inside topic folder
+    meta_path = os.path.join(folder, "metadata.json")
+    if not os.path.exists(meta_path):
+        import datetime
+        try:
+            with open(meta_path, "w", encoding="utf-8") as mf:
+                json.dump({
+                    "artifact_id": artifact_id,
+                    "title": title,
+                    "category": category,
+                    "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
+                }, mf, indent=2)
+        except Exception:
+            pass
+    return os.path.join(folder, filename)
 
 
 def _format_artifact_response(artifact: ArtifactRecord, pages: Sequence[ArtifactPageRecord]) -> Dict[str, Any]:
@@ -86,8 +112,8 @@ async def create_artifact(payload: Dict[str, Any] = Body(...)):
     now = datetime.now(timezone.utc)
 
     # Save initial version content to disk
-    ext = ".html" if kind in ["html", "web"] else (".json" if kind == "data" else ".txt")
-    file_path = _get_artifact_storage_path(artifact_id, 1, f"source{ext}")
+    ext = ".html" if kind in ["html", "web"] else (".md" if kind in ["text", "markdown"] else (".json" if kind == "data" else ".txt"))
+    file_path = _get_artifact_storage_path(artifact_id, 1, f"source{ext}", title=title, category=kind)
     if content:
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(content)
