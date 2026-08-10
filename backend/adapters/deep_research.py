@@ -89,8 +89,8 @@ def get_research_task_dir(objective_text: str, agent_id: str = "rocco", subfolde
     
     date_str = datetime.date.today().strftime("%Y-%m-%d")
     folder_name = f"{date_str}_{slug}"
-    
-    task_dir = os.path.join(WORKSPACE_DIR, agent_id, subfolder, "research", folder_name)
+    artifacts_base = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "workspace", "artifacts"))
+    task_dir = os.path.join(artifacts_base, "research", folder_name)
     os.makedirs(task_dir, exist_ok=True)
     return task_dir
 

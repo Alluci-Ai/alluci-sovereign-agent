@@ -73,20 +73,19 @@ export const useAdminEvents = () => {
               timestamp: new Date().toISOString()
             }]);
           } else if (method === 'artifact.created' || method === 'artifact.open' || method === 'orchestrator.artifact.updated') {
-            const artifactId = params.artifactId || params.id;
-            if (artifactId) {
-              artifactEvents.emit({ type: 'artifact.open', artifactId });
-            } else if (params.content) {
-              const storeState = useStore.getState();
-              const setActiveArtifact = storeState.setActiveArtifact;
-              const setIsArtifactPaneCollapsed = storeState.setIsArtifactPaneCollapsed;
+            const storeState = useStore.getState();
+            const setActiveArtifact = storeState.setActiveArtifact;
+            const setIsArtifactPaneCollapsed = storeState.setIsArtifactPaneCollapsed;
+            const artifactId = params.artifactId || params.id || `art_${Date.now()}`;
+
+            if (params.content) {
               const newArtifact = {
-                id: `art_${Date.now()}`,
+                id: artifactId,
                 title: params.title || 'Deep Research Synthesis Report',
-                kind: 'text' as const,
-                currentVersion: 1,
+                kind: (params.kind || 'text') as any,
+                currentVersion: params.version || 1,
                 content: params.content,
-                mimeType: 'text/markdown',
+                mimeType: params.mimeType || 'text/markdown',
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString()
               };
@@ -96,6 +95,8 @@ export const useAdminEvents = () => {
               if (setIsArtifactPaneCollapsed) {
                 setIsArtifactPaneCollapsed(false);
               }
+            } else if (artifactId) {
+              artifactEvents.emit({ type: 'artifact.open', artifactId });
             }
           } else if (method === 'security.resolution_required') {
             const { setPendingSecurityResolution } = useStore.getState();

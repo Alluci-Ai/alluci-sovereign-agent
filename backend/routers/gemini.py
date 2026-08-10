@@ -38,19 +38,36 @@ async def _check_local_research_reports(prompt: str) -> Optional[str]:
         import os, glob
         from .sessions import WORKSPACE_DIR
         found_reports = []
+
+        # 1. Primary Search Location: ./workspace/artifacts/research/
+        primary_base = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "workspace", "artifacts", "research"))
+        if os.path.exists(primary_base):
+            for p in glob.glob(os.path.join(primary_base, "*", "deep_research_report.md")):
+                found_reports.append((os.path.getmtime(p), p))
+
+        # 2. Legacy Fallback Locations
         for search_agent in ["a32eb383", "rocco", "executive"]:
             research_base = os.path.join(WORKSPACE_DIR, search_agent, "artifacts", "research")
             if os.path.exists(research_base):
-                pattern = os.path.join(research_base, "*", "deep_research_report.md")
-                for p in glob.glob(pattern):
+                for p in glob.glob(os.path.join(research_base, "*", "deep_research_report.md")):
                     found_reports.append((os.path.getmtime(p), p))
-            flat_p = os.path.join(WORKSPACE_DIR, search_agent, "artifacts", "deep_research_report.md")
-            if os.path.exists(flat_p):
-                found_reports.append((os.path.getmtime(flat_p), flat_p))
 
         if found_reports:
-            found_reports.sort(key=lambda x: x[0], reverse=True)
-            latest_path = found_reports[0][1]
+            # Topic-Aware Matching: Check if prompt contains words matching folder name (e.g. "sovereign")
+            matched_report = None
+            for _, rpath in found_reports:
+                folder_name = os.path.basename(os.path.dirname(rpath)).lower()
+                # Check for significant words (>3 chars) in prompt
+                prompt_words = [w for w in body_lower.replace('"', '').replace("'", '').split() if len(w) > 3 and w not in action_verbs and w not in target_nouns]
+                if any(pw in folder_name for pw in prompt_words):
+                    matched_report = rpath
+                    break
+
+            if not matched_report:
+                found_reports.sort(key=lambda x: x[0], reverse=True)
+                matched_report = found_reports[0][1]
+
+            latest_path = matched_report
             try:
                 with open(latest_path, "r", encoding="utf-8") as rf:
                     rep_content = rf.read()
