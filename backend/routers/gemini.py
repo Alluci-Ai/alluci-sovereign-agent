@@ -7,8 +7,15 @@ from .. import services
 from ..logging_config import get_logger
 
 logger = get_logger("GeminiRouter")
-
 router = APIRouter(tags=["Gemini Proxy"])
+
+import base64
+import re
+import io
+import asyncio
+import uuid
+import time
+from ..utils.doc_parser import extract_text_from_file_payload
 
 def _check_local_research_reports(prompt: str) -> Optional[str]:
     """
@@ -58,42 +65,9 @@ def _check_local_research_reports(prompt: str) -> Optional[str]:
                 logger.error(f"[ReportReader] Failed to read report from disk: {read_err}")
     return None
 
-import base64
-import re
-import io
-
-def _extract_text_from_pdf_bytes(pdf_bytes: bytes) -> str:
-    """Extracts text streams from PDF raw bytes cleanly without requiring external binary tools."""
-    text_chunks = []
-    try:
-        import pypdf
-        reader = pypdf.PdfReader(io.BytesIO(pdf_bytes))
-        for page in reader.pages:
-            t = page.extract_text()
-            if t:
-                text_chunks.append(t)
-        if text_chunks:
-            return "\n".join(text_chunks)
-    except Exception:
-        pass
-
-    try:
-        matches = re.findall(rb'\((.*?)\)', pdf_bytes)
-        clean_strings = [
-            m.decode('utf-8', errors='ignore').strip() 
-            for m in matches 
-            if len(m) > 2 and any(c.isalnum() for c in m.decode('utf-8', errors='ignore'))
-        ]
-        if clean_strings:
-            return " ".join(clean_strings)
-    except Exception:
-        pass
-
-    return pdf_bytes.decode('utf-8', errors='ignore')
-
 
 def _process_attached_files(prompt: str, files: Optional[List[Dict[str, Any]]] = None) -> str:
-    """Decodes and appends attached file contents (TXT, MD, PDF, JSON, CSV, DOCX) to prompt context with KV cache safety bounds."""
+    """Decodes and appends attached file contents (TXT, MD, PDF, JSON, CSV, DOCX, Code) to prompt context with KV cache safety bounds."""
     if not files:
         return prompt
 
@@ -104,18 +78,7 @@ def _process_attached_files(prompt: str, files: Optional[List[Dict[str, Any]]] =
         file_data = file_obj.get("data", "")
         file_mime = file_obj.get("mimeType", "").lower()
 
-        decoded_content = ""
-        if file_data:
-            try:
-                raw_bytes = base64.b64decode(file_data)
-                is_pdf = file_mime == "application/pdf" or file_name.lower().endswith(".pdf") or raw_bytes.startswith(b"%PDF")
-                if is_pdf:
-                    decoded_content = _extract_text_from_pdf_bytes(raw_bytes)
-                else:
-                    decoded_content = raw_bytes.decode("utf-8", errors="replace")
-            except Exception as e:
-                logger.warning(f"[GeminiRouter] Could not decode base64 for file {file_name}: {e}")
-                decoded_content = str(file_data)
+        decoded_content = extract_text_from_file_payload(file_name, file_data, file_mime)
 
         if decoded_content:
             if len(decoded_content) > MAX_FILE_CHARS:
@@ -164,6 +127,22 @@ async def gemini_proxy(
             inference_mode=inference_mode,
             session_id=session_id
         )
+
+        # Record verbatim to message_log & ingest distilled intent to H-LSM
+        msg_id = f"msg_{uuid.uuid4().hex[:12]}"
+        analytics = getattr(services, "analytics", None)
+        if analytics:
+            analytics.record_message(session_key=session_id or "web_chat", role="user", content=prompt)
+            analytics.record_message(session_key=session_id or "web_chat", role="assistant", content=response)
+        if hasattr(services, "hlsm_manager") and services.hlsm_manager:
+            asyncio.create_task(services.hlsm_manager.ingest_distilled_intent(session_key=session_id or "web_chat", message_id=msg_id, prompt=prompt, response=response))
+            if files:
+                for f in files:
+                    fn, fdata, fmime = f.get("name", "attachment"), f.get("data", ""), f.get("mimeType", "")
+                    p_text = extract_text_from_file_payload(fn, fdata, fmime)
+                    if p_text and not p_text.startswith(("[BINARY", "[UNSUPPORTED")):
+                        asyncio.create_task(services.hlsm_manager.ingest_document_payload(filename=fn, content=p_text, session_key=session_id or "web_chat"))
+
         return {"result": response}
     except Exception as e:
         logger.error(f"[ GEMINI_PROXY_ERROR ]: {e}")
@@ -201,7 +180,7 @@ async def gemini_proxy_stream(
         orchestrator_reply = None
         if orch is not None and not local_report:
             try:
-                import asyncio, re
+                import re
                 body_lower = prompt.lower()
                 action_keywords = ["rocco", "deep research", "deep web research", "spin up", "execute dag", "run script", "schedule cron", "scour the web"]
                 proceed_pattern = bool(re.search(r'\b(proceed|approve|execute|\d+\s*runs?)\b', body_lower))
@@ -229,6 +208,7 @@ async def gemini_proxy_stream(
                 yield f"data: {json.dumps({'text': orchestrator_reply})}\n\n"
                 return
 
+            accumulated_chunks = []
             try:
                 async for chunk in router_inst.get_response_stream(
                     prompt=effective_prompt,
@@ -238,10 +218,31 @@ async def gemini_proxy_stream(
                     inference_mode=inference_mode,
                     session_id=session_id
                 ):
+                    accumulated_chunks.append(chunk)
                     yield f"data: {json.dumps({'text': chunk})}\n\n"
             except Exception as e:
                 logger.error(f"[ STREAM_GENERATOR_ERROR ]: {e}")
                 yield f"data: {json.dumps({'text': f'[ ERROR ]: {str(e)}'})}\n\n"
+
+            # Async background recording of message_log & H-LSM intent pointers
+            full_response = "".join(accumulated_chunks)
+            if full_response.strip():
+                try:
+                    msg_id = f"msg_{uuid.uuid4().hex[:12]}"
+                    analytics = getattr(services, "analytics", None)
+                    if analytics:
+                        analytics.record_message(session_key=session_id or "web_chat", role="user", content=prompt)
+                        analytics.record_message(session_key=session_id or "web_chat", role="assistant", content=full_response)
+                    if hasattr(services, "hlsm_manager") and services.hlsm_manager:
+                        asyncio.create_task(services.hlsm_manager.ingest_distilled_intent(session_key=session_id or "web_chat", message_id=msg_id, prompt=prompt, response=full_response))
+                        if files:
+                            for f in files:
+                                fn, fdata, fmime = f.get("name", "attachment"), f.get("data", ""), f.get("mimeType", "")
+                                p_text = extract_text_from_file_payload(fn, fdata, fmime)
+                                if p_text and not p_text.startswith(("[BINARY", "[UNSUPPORTED")):
+                                    asyncio.create_task(services.hlsm_manager.ingest_document_payload(filename=fn, content=p_text, session_key=session_id or "web_chat"))
+                except Exception as rec_err:
+                    logger.debug(f"[GeminiRouter] Post-stream memory recording notice: {rec_err}")
 
         return StreamingResponse(event_generator(), media_type="text/event-stream")
     except Exception as e:

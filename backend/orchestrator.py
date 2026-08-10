@@ -794,8 +794,8 @@ Here is what Rocco will be executing across our Deep Research pipeline:
                 except Exception as e:
                     self.logger.error(f"[ TOOLS ] Error scanning for tools: {e}")
 
-        # 3. H-LSM Memory Context (Bypassed in fast compact_index mode for instant 0ms TTFT)
-        if self.hlsm and include_memory and not compact_index:
+        # 3. H-LSM Memory Context (L2 Semantic Vector & L3 Graph Memory Recall)
+        if self.hlsm and include_memory:
             try:
                 psi = 0.0
                 if self.ace is not None:

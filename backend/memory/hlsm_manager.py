@@ -1559,3 +1559,135 @@ class HLSMManager:
                 session.commit()
                 return True
         return False
+
+    async def ingest_distilled_intent(
+        self,
+        session_key: str,
+        message_id: str,
+        prompt: str,
+        response: str,
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> Optional[str]:
+        """
+        Distills the core intent, objective, and entities from a chat turn and indexes them into
+        L2 Semantic Memory and L3 KùzuDB Graph Memory, with DB pointers (session_key & message_id)
+        back to the primary message_log table.
+        """
+        if not prompt and not response:
+            return None
+
+        clean_prompt = _sanitize_hlsm_text(prompt)
+        clean_resp = _sanitize_hlsm_text(response[:500])
+        distilled_content = f"INTENT OBJECTIVE: {clean_prompt}\nSUMMARY OUTCOME: {clean_resp}"
+
+        entry_id = f"mem_intent_{uuid.uuid4().hex[:12]}"
+        now = time.time()
+
+        if self.kuzu_conn:
+            try:
+                query = (
+                    "CREATE (m:SemanticMemory {"
+                    "id: $id, content: $content, source: 'distilled_intent', session_key: $session_key, "
+                    "psi_at_encoding: 0.0, topological_importance: 1.0, betti_1_support: 0.0, "
+                    "betti_signature: '', access_count: 1, created_at: $created_at, l1_id: $message_id, "
+                    "is_barcode: false, uri: $uri, blob_path: '', ttl: 0.0"
+                    "})"
+                )
+                await asyncio.to_thread(
+                    self.kuzu_conn.execute,
+                    query,
+                    {
+                        "id": entry_id,
+                        "content": distilled_content[:1500],
+                        "session_key": session_key or "",
+                        "created_at": now,
+                        "message_id": message_id or "",
+                        "uri": f"message_log:{message_id}"
+                    }
+                )
+                logger.info(f"[HLSM] Distilled chat intent stored into L2 Semantic Memory (ID: {entry_id}, pointer: message_log:{message_id})")
+            except Exception as e:
+                logger.warning(f"[HLSM] L2 Semantic Memory store failed: {e}")
+
+        try:
+            words = [w.strip(".,!?\"'") for w in clean_prompt.split() if len(w) > 4 and w.isalnum()]
+            key_entities = list(set(words))[:3]
+            if key_entities and self.kuzu_conn:
+                for entity in key_entities:
+                    node_q = "MERGE (g:GraphNode {name: $name})"
+                    await asyncio.to_thread(self.kuzu_conn.execute, node_q, {"name": entity.capitalize()})
+                if len(key_entities) >= 2:
+                    rel_q = (
+                        "MATCH (a:GraphNode {name: $source}), (b:GraphNode {name: $target}) "
+                        "MERGE (a)-[r:RELATES_TO {predicate: 'CO_OCCURS_IN_INTENT', source_memory: $mem_id, weight: 1.0}]->(b)"
+                    )
+                    await asyncio.to_thread(
+                        self.kuzu_conn.execute,
+                        rel_q,
+                        {"source": key_entities[0].capitalize(), "target": key_entities[1].capitalize(), "mem_id": entry_id}
+                    )
+        except Exception as graph_err:
+            logger.debug(f"[HLSM] L3 Graph entity extraction notice: {graph_err}")
+
+        return entry_id
+
+    async def ingest_document_payload(
+        self,
+        filename: str,
+        content: str,
+        session_key: str = "",
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> List[str]:
+        """
+        Asynchronously chunks and indexes an uploaded document into L2 Semantic Memory and
+        L3 Knowledge Graph Memory with file pointers back to original provenance.
+        """
+        if not content or not content.strip():
+            return []
+
+        clean_text = _sanitize_hlsm_text(content)
+        words = clean_text.split()
+        chunk_size = 500
+        overlap = 100
+        chunks = []
+        start = 0
+        while start < len(words):
+            chunk_words = words[start:start + chunk_size]
+            chunks.append(" ".join(chunk_words))
+            start += (chunk_size - overlap)
+
+        ingested_ids = []
+        now = time.time()
+
+        for idx, chunk in enumerate(chunks[:20]):
+            chunk_id = f"doc_{uuid.uuid4().hex[:12]}_c{idx}"
+            chunk_header = f"[DOCUMENT: {filename} | Chunk {idx+1}/{len(chunks)}]\n{chunk}"
+
+            if self.kuzu_conn:
+                try:
+                    query = (
+                        "CREATE (m:SemanticMemory {"
+                        "id: $id, content: $content, source: 'document_ingest', session_key: $session_key, "
+                        "psi_at_encoding: 0.0, topological_importance: 1.0, betti_1_support: 0.0, "
+                        "betti_signature: '', access_count: 1, created_at: $created_at, l1_id: $filename, "
+                        "is_barcode: false, uri: $uri, blob_path: '', ttl: 0.0"
+                        "})"
+                    )
+                    await asyncio.to_thread(
+                        self.kuzu_conn.execute,
+                        query,
+                        {
+                            "id": chunk_id,
+                            "content": chunk_header[:1500],
+                            "session_key": session_key or "",
+                            "created_at": now,
+                            "filename": filename or "",
+                            "uri": f"file:{filename}:chunk_{idx}"
+                        }
+                    )
+                    ingested_ids.append(chunk_id)
+                except Exception as e:
+                    logger.warning(f"[HLSM] Failed to store document chunk into L2: {e}")
+
+        logger.info(f"[HLSM] Ingested {len(ingested_ids)} chunks from document '{filename}' into L2/L3 memory.")
+        return ingested_ids
