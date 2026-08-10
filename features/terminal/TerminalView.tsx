@@ -457,9 +457,8 @@ const renderMarkdown = (text: string) => {
     return <div className="flex flex-col w-full text-left">{elements}</div>;
 };
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const TerminalView: React.FC<TerminalViewProps> = ({ getFormattedTime, copyText }) => {
-    const { transcriptions, isProcessing } = useStore();
+    const { transcriptions, isProcessing, isArtifactPaneCollapsed } = useStore();
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
     const scrollContainerRef = useRef<HTMLDivElement | null>(null);
     const [viewMode, setViewMode] = React.useState<'chat' | 'dispatch'>('chat');
@@ -493,7 +492,10 @@ const TerminalView: React.FC<TerminalViewProps> = ({ getFormattedTime, copyText 
                     </button>
                 </div>
                 {filteredTranscriptions.length > 0 && (
-                    <div className="pr-2 flex items-center">
+                    <div 
+                        className="flex items-center transition-all duration-200"
+                        style={{ paddingRight: isArtifactPaneCollapsed ? '124px' : '8px' }}
+                    >
                         <JumpToNewButton
                             scrollContainerRef={scrollContainerRef}
                             messagesEndRef={messagesEndRef}
