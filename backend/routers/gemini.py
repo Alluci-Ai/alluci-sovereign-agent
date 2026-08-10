@@ -322,6 +322,11 @@ async def gemini_proxy_stream(
                 return
 
             accumulated_chunks = []
+            chat_intro_sent = False
+            has_artifact_block = False
+            body_lower = prompt.lower()
+            is_artifact_req = any(w in body_lower for w in ["artifact", "slide deck", "presentation", "html app", "web app", "code file"])
+
             try:
                 async for chunk in router_inst.get_response_stream(
                     prompt=effective_prompt,
@@ -332,7 +337,28 @@ async def gemini_proxy_stream(
                     session_id=session_id
                 ):
                     accumulated_chunks.append(chunk)
-                    yield f"data: {json.dumps({'text': chunk})}\n\n"
+                    full_so_far = "".join(accumulated_chunks)
+
+                    # Check if stream entered artifact payload block (# ARTIFACT: or ```artifact or slide headers)
+                    has_artifact_block = "# ARTIFACT:" in full_so_far or "```artifact" in full_so_far or "## SLIDE 1" in full_so_far
+
+                    if is_artifact_req or has_artifact_block:
+                        if not chat_intro_sent:
+                            # Extract conversational introductory text before artifact payload
+                            import re
+                            parts = re.split(r'(?=# ARTIFACT:|```artifact|---\n|## SLIDE 1)', full_so_far, maxsplit=1)
+                            intro_text = parts[0].strip() if parts else ""
+                            if intro_text:
+                                yield f"data: {json.dumps({'text': intro_text})}\n\n"
+                                chat_intro_sent = True
+                        # Suppress raw artifact payload chunks from chat stream
+                    else:
+                        yield f"data: {json.dumps({'text': chunk})}\n\n"
+
+                # Fallback if no intro was sent during artifact request
+                if (is_artifact_req or has_artifact_block) and not chat_intro_sent:
+                    yield f"data: {json.dumps({'text': 'Hello JJ. I have created your artifact and opened it for you in your Artifact Workspace.'})}\n\n"
+
             except Exception as e:
                 logger.error(f"[ STREAM_GENERATOR_ERROR ]: {e}")
                 yield f"data: {json.dumps({'text': f'[ ERROR ]: {str(e)}'})}\n\n"
@@ -383,7 +409,8 @@ async def _process_dynamic_artifact_block(full_response: str, prompt: str):
         if is_artifact_req:
             if "presentation" in body_lower or "slide" in body_lower or "deck" in body_lower:
                 kind = "presentation"
-                title = "Executive Presentation"
+                title_m = re.search(r'# TITLE:\s*([^\n]+)', full_response)
+                title = title_m.group(1).strip() if title_m else "Executive Presentation"
                 content = full_response
             elif "html" in body_lower or "web app" in body_lower or "dashboard" in body_lower:
                 kind = "html"
