@@ -1,4 +1,5 @@
 # backend/config.py — MODULARIZED PRODUCTION SETTINGS
+import os
 import sys
 from typing import List, Optional, Literal
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -186,6 +187,14 @@ class Settings(BaseSettings):
         # Since the Sovereign Agent is a 100% local-first Electron application,
         # 'production' environments should indeed run on the local SQLite DB.
         # We no longer force a remote PostgreSQL URL here.
+        return v
+
+    @field_validator("GRAPH_DB_PATH")
+    @classmethod
+    def resolve_graph_db_path(cls, v: str) -> str:
+        if v and not os.path.isabs(v):
+            project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+            return os.path.normpath(os.path.join(project_root, v))
         return v
 
     @field_validator("AUTH_COOKIE_SECURE")

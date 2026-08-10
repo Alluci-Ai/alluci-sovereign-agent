@@ -83,14 +83,18 @@ async def resolve_security_block(req: SecurityResolutionRequest):
     if req.resolution_type in ["APPROVE_MEMORY_PURGE", "APPROVE_ACTION"]:
         import uuid
         from .. import services
-        pattern = (req.metadata.get("pattern") or "") if req.metadata else ""
+        meta = req.metadata or {}
+        pattern = str(meta.get("pattern") or meta.get("target") or "").strip()
         
         counts = {"deleted_l0": 0, "deleted_l1": 0, "deleted_l2": 0, "deleted_l3": 0, "total_deleted": 0}
-        if pattern and hasattr(services, "hlsm_manager") and services.hlsm_manager:
+        mgr = services.hlsm_manager or services.memory
+        if pattern and mgr:
             try:
-                counts = await services.hlsm_manager.delete_by_pattern(pattern)
+                counts = await mgr.delete_by_pattern(pattern)
             except Exception as e:
                 logger.error(f"[SecurityRouter] Memory purge execution error: {e}")
+        else:
+            logger.warning(f"[SecurityRouter] Memory purge approval pattern empty or manager unavailable (pattern='{pattern}')")
         
         total = counts.get("total_deleted", 0)
         card_msg = (

@@ -15,6 +15,14 @@ if db_url.startswith("postgresql+asyncpg://"):
     logger.info("Converting asyncpg URL to sync for SQLModel engine compatibility.")
     db_url = db_url.replace("postgresql+asyncpg://", "postgresql://")
 
+# Ensure relative SQLite URLs resolve to absolute paths anchored to project root
+if db_url.startswith("sqlite:///") and not db_url.startswith("sqlite:////") and db_url != "sqlite:///:memory:":
+    rel_path = db_url.replace("sqlite:///", "")
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    abs_db_path = os.path.normpath(os.path.join(project_root, rel_path))
+    db_url = f"sqlite:///{abs_db_path}"
+    logger.info(f"Resolved SQLite database URL to absolute path: {db_url}")
+
 connect_args = {}
 if "sqlite" in db_url:
     connect_args["check_same_thread"] = False
