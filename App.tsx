@@ -415,7 +415,7 @@ const App: React.FC = () => {
               {isArtifactPaneCollapsed ? (
                 <button
                   onClick={() => setIsArtifactPaneCollapsed(false)}
-                  className="absolute top-3 right-3 z-30 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-glass-2 border border-glass-edge text-text-secondary hover:text-accent hover:border-accent shadow-xl backdrop-blur-xl transition-all cursor-pointer text-[10px] font-mono tracking-wider uppercase group"
+                  className="absolute top-[6px] right-3 z-30 flex items-center gap-2 px-3 h-[28px] rounded-lg bg-glass-2 border border-glass-edge text-text-secondary hover:text-accent hover:border-accent shadow-xl backdrop-blur-xl transition-all cursor-pointer text-[10px] font-mono tracking-wider uppercase group"
                   title="Expand Artifact Pane"
                   aria-label="Expand Artifact Pane"
                 >
