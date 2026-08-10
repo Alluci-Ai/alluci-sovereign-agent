@@ -136,22 +136,23 @@ def _process_attached_files(prompt: str, files: Optional[List[Dict[str, Any]]] =
 
 async def _intercept_memory_deletion_request(prompt: str) -> Optional[str]:
     """
-    Detects memory deletion intent in chat prompts (e.g. 'delete memory', 'purge memory', 'scrub', 'delete [imessage]')
-    and executes immediate database deletion via hlsm_manager.delete_by_pattern(), returning empirical results.
+    Detects memory deletion intent in chat prompts using 3 Hard Security Guards and triggers
+    a mandatory Human-in-the-Loop (HITL) Executive Approval Gate prior to memory modification.
     """
+    import re, uuid
     body_lower = prompt.lower()
-    delete_keywords = [
-        "delete memory", "delete memories", "purge memory", "purge memories", 
-        "scrub memory", "scrub memories", "delete any [imessage]", "delete [imessage]",
-        "delete imessage", "purge imessage", "scrub imessage"
-    ]
-    
-    is_deletion_req = any(dk in body_lower for dk in delete_keywords) or (
-        ("delete" in body_lower or "purge" in body_lower or "scrub" in body_lower or "clear" in body_lower) and
-        ("memory" in body_lower or "memories" in body_lower or "hlsm" in body_lower or "imessage" in body_lower)
-    )
 
-    if not is_deletion_req:
+    # Guard 1: Technical & Code Context Bypass (html, clear_cache(), code, scripts, apps)
+    technical_code_terms = ["cache", "mx.metal", "clear_cache", "html", "code", "app", "dashboard", "script", "css", "component"]
+    if any(t in body_lower for t in technical_code_terms):
+        return None  # Bypass memory interceptor completely!
+
+    # Guard 2: Require EXPLICIT H-LSM memory purge intent
+    explicit_purge_intent = any(p in body_lower for p in [
+        "purge h-lsm memory", "delete h-lsm memory", "delete memory entry", 
+        "clear my memories", "forget memory matching", "delete memories tagged", "purge memory layer"
+    ])
+    if not explicit_purge_intent:
         return None
 
     phone_match = re.search(r'\+?\d{1,3}[\s\-\.]?\(?\d{3}\)?[\s\-\.]?\d{3}[\s\-\.]?\d{4}', prompt)
@@ -165,27 +166,30 @@ async def _intercept_memory_deletion_request(prompt: str) -> Optional[str]:
         else:
             pattern_to_delete = re.sub(r'^(hello alluci,?\s*|can you search through your h-lsm memories and delete\s*|delete memory\s*|purge memory\s*)', '', prompt, flags=re.IGNORECASE).strip()
 
-    if not pattern_to_delete:
+    # Guard 3: Minimum 3-Character Pattern Guard & Stop-Word Filtering
+    stop_words = ["a", "an", "the", "for", "and", "all", "in", "of", "to", "or", "is", "my", "me", "me."]
+    if len(pattern_to_delete) < 3 or pattern_to_delete.lower() in stop_words:
+        logger.warning(f"[MemoryGuard] Blocked unsafe short memory deletion pattern: '{pattern_to_delete}'")
         return None
 
-    if hasattr(services, "hlsm_manager") and services.hlsm_manager:
-        try:
-            res = await services.hlsm_manager.delete_by_pattern(pattern_to_delete)
-            total = res.get("total_deleted", 0)
-            if total > 0:
-                return (
-                    f"✅ **H-LSM Memory Purge Complete**\n\n"
-                    f"Successfully scanned all topological memory layers and permanently deleted **{total} matching memory entries** for `{pattern_to_delete}`.\n\n"
-                    f"- **L0 Working Memory:** {res.get('deleted_l0', 0)} entries purged\n"
-                    f"- **L1 Episodic Memory:** {res.get('deleted_l1', 0)} entries purged\n"
-                    f"- **L2 Semantic Memory:** {res.get('deleted_l2', 0)} entries purged\n"
-                    f"- **L3 Knowledge Graph:** {res.get('deleted_l3', 0)} entries purged"
-                )
-            else:
-                return f"🔍 **H-LSM Memory Scan Complete**\n\nScanned memory layers for `{pattern_to_delete}`, but found 0 matching memory entries to delete."
-        except Exception as err:
-            logger.error(f"[GeminiRouter] Memory deletion interceptor error: {err}")
-            return f"❌ **H-LSM Memory Purge Error:** Failed to execute memory deletion: {err}"
+    # HITL Gate: Emit Executive Approval Request instead of executing autonomously
+    from .. import services
+    if services.orchestrator and hasattr(services.orchestrator, "ws_gateway") and services.orchestrator.ws_gateway:
+        req_id = f"approval_mem_{uuid.uuid4().hex[:8]}"
+        await services.orchestrator.ws_gateway.broadcast_event('security.resolution_required', {
+            "type": "security.resolution_required",
+            "approval_id": req_id,
+            "action": "HLSM_MEMORY_PURGE",
+            "pattern": pattern_to_delete,
+            "title": "H-LSM Memory Purge Approval Required",
+            "description": f"Alluci is requesting permission to scan and permanently delete all H-LSM memory entries matching pattern: '{pattern_to_delete}'.",
+            "impact": "Permanent deletion of matching entries across L0 Working, L1 Episodic, L2 Semantic, and L3 Knowledge Graph layers."
+        })
+        return (
+            f"⚠️ **H-LSM Executive Approval Required**\n\n"
+            f"Scanning and memory deletion for pattern `{pattern_to_delete}` requires explicit human-in-the-loop verification.\n\n"
+            f"Please approve or decline the pending approval request modal to execute memory deletion."
+        )
 
     return None
 
