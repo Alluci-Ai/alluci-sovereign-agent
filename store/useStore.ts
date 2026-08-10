@@ -501,7 +501,7 @@ export const useStore = create<AppState>((set, get) => ({
     setModelFallbackMessage: (val) => set({ modelFallbackMessage: val }),
 
     // Artifact Pane State
-    isArtifactPaneCollapsed: false,
+    isArtifactPaneCollapsed: true,
     setIsArtifactPaneCollapsed: (val) => set({ isArtifactPaneCollapsed: val }),
     artifacts: [],
     setArtifacts: (val) => set((state) => ({ artifacts: typeof val === 'function' ? val(state.artifacts) : val })),

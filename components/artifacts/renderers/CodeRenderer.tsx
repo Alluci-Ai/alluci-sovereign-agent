@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import Editor, { DiffEditor } from '@monaco-editor/react';
 import { Artifact } from '../../../types';
+import { useStore } from '../../../store/useStore';
 
 export interface RendererProps {
   artifact: Artifact;
@@ -10,8 +11,10 @@ export interface RendererProps {
 }
 
 export const CodeRenderer: React.FC<RendererProps> = ({ artifact, previousVersionContent }) => {
+  const { theme } = useStore();
   const [showDiff, setShowDiff] = useState(false);
 
+  const monacoTheme = theme === 'dark' ? 'vs-dark' : 'vs';
   const language = (artifact.metadata?.language || 'typescript').toLowerCase();
   const content = artifact.content || '';
 
@@ -43,7 +46,7 @@ export const CodeRenderer: React.FC<RendererProps> = ({ artifact, previousVersio
             language={language}
             original={previousVersionContent}
             modified={content}
-            theme="vs-dark"
+            theme={monacoTheme}
             options={{
               readOnly: true,
               minimap: { enabled: false },
@@ -57,7 +60,7 @@ export const CodeRenderer: React.FC<RendererProps> = ({ artifact, previousVersio
             height="100%"
             language={language}
             value={content}
-            theme="vs-dark"
+            theme={monacoTheme}
             options={{
               readOnly: true,
               minimap: { enabled: true },

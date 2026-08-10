@@ -669,6 +669,7 @@ Based on the volume of data, I recommend **{est_runs} iterative Deep Research ru
                 logger.info("Global approval_processed state lock detected. Continuing DAG.")
                 approved = True
                 break
+            from ..database import engine as db_engine
             with Session(db_engine) as s:
                 user_msgs = s.exec(
                     select(MessageLog).where(
@@ -1443,6 +1444,31 @@ class DeepResearchChatReportAdapter(Adapter):
         
         # Surface full synthesized report directly into chat message without secondary LLM latency
         chat_content = summary_header + report.strip()
+
+        # Auto-register research report as a formal Artifact Workspace Record
+        try:
+            from ..routers.artifacts import create_artifact
+            topic_clean = _sanitize_regex_topic(report[:150])
+            art_payload = {
+                "title": f"Deep Research Report: {topic_clean.title() if topic_clean else 'Sovereign Intelligence'}",
+                "kind": "text",
+                "mimeType": "text/markdown",
+                "content": report,
+                "metadata": {"agent": "rocco", "topic": topic_clean}
+            }
+            art_res = await create_artifact(art_payload)
+            art_id = art_res.get("id")
+            logger.info(f"Auto-registered deep research report as Artifact Workspace Record (ID: {art_id})")
+
+            from .. import services
+            if services.orchestrator and hasattr(services.orchestrator, "ws_gateway") and services.orchestrator.ws_gateway:
+                await services.orchestrator.ws_gateway.broadcast_event('artifact.created', {
+                    "type": "artifact.created",
+                    "artifactId": art_id,
+                    "source": "rocco"
+                })
+        except Exception as art_err:
+            logger.warning(f"Failed auto-registering research report as artifact: {art_err}")
                 
         from .. import services
         if services.orchestrator and hasattr(services.orchestrator, "ws_gateway") and services.orchestrator.ws_gateway:
