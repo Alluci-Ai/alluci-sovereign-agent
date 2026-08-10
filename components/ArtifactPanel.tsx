@@ -30,6 +30,23 @@ export const ArtifactPanel: React.FC<Props> = ({ artifact, onClose }) => {
     }
   }, [artifact]);
 
+  const headerRef = React.useRef<HTMLDivElement>(null);
+  const [headerWidth, setHeaderWidth] = useState(500);
+
+  useEffect(() => {
+    if (!headerRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setHeaderWidth(entry.contentRect.width);
+      }
+    });
+    observer.observe(headerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  const isNarrow = headerWidth < 450;
+  const isCompact = headerWidth < 380;
+
   const pages = artifact?.pages ?? [];
   const pageCount = Math.max(pages.length, 1);
 
@@ -81,32 +98,34 @@ export const ArtifactPanel: React.FC<Props> = ({ artifact, onClose }) => {
     >
       {/* Header Toolbar */}
       <header
+        ref={headerRef}
         style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '10px 16px',
+          padding: '10px 14px',
           borderBottom: '1px solid var(--glass-edge)',
-          background: 'var(--bg-elevated)'
+          background: 'var(--bg-elevated)',
+          gap: '8px'
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
-          <strong style={{ fontSize: '14px', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: '1 1 auto' }}>
+          <strong style={{ fontSize: '13px', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {artifact?.title || 'Artifact Workspace'}
           </strong>
-          {artifact && (
-            <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '12px', background: 'var(--liquid-accent)', color: 'var(--accent)', fontWeight: 600 }}>
+          {artifact && !isNarrow && (
+            <span style={{ fontSize: '10px', padding: '2px 7px', borderRadius: '10px', background: 'var(--fill-tertiary)', color: 'var(--text-secondary)', border: '1px solid var(--glass-edge)', fontWeight: 600, flexShrink: 0 }}>
               {artifact.kind.toUpperCase()} v{artifact.currentVersion}
             </span>
           )}
-          {pageCount > 1 && (
-            <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+          {pageCount > 1 && !isCompact && (
+            <span style={{ fontSize: '11px', color: 'var(--text-secondary)', flexShrink: 0 }}>
               {pageIndex + 1} / {pageCount}
             </span>
           )}
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
           {artifact && (
             <>
               {/* Dual-View Mode Switcher */}
@@ -116,26 +135,27 @@ export const ArtifactPanel: React.FC<Props> = ({ artifact, onClose }) => {
                   display: 'flex',
                   alignItems: 'center',
                   gap: '4px',
-                  padding: '4px 10px',
+                  padding: '4px 8px',
                   borderRadius: '6px',
-                  border: '1px solid var(--glass-edge)',
-                  background: 'var(--liquid-accent)',
-                  color: 'var(--accent)',
+                  border: viewMode === 'code' ? '1px solid rgba(99, 102, 241, 0.4)' : '1px solid var(--glass-edge)',
+                  background: viewMode === 'code' ? 'rgba(99, 102, 241, 0.18)' : 'var(--fill-tertiary)',
+                  color: viewMode === 'code' ? '#818cf8' : 'var(--text-primary)',
                   fontSize: '11px',
                   fontWeight: 600,
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
                 }}
                 title={viewMode === 'formatted' ? 'Switch to Monaco Code View' : 'Switch to Formatted Document View'}
               >
                 {viewMode === 'formatted' ? (
                   <>
                     <Code2 size={13} />
-                    <span>Monaco Code</span>
+                    {!isNarrow && <span>Code</span>}
                   </>
                 ) : (
                   <>
                     <Eye size={13} />
-                    <span>Formatted View</span>
+                    {!isNarrow && <span>Formatted</span>}
                   </>
                 )}
               </button>
@@ -144,52 +164,56 @@ export const ArtifactPanel: React.FC<Props> = ({ artifact, onClose }) => {
                 <>
                   <button
                     onClick={() => setPageIndex(Math.max(0, pageIndex - 1))}
-                    style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--glass-edge)', background: 'var(--fill-tertiary)', color: 'var(--text-primary)', cursor: 'pointer' }}
+                    style={{ padding: '4px 6px', borderRadius: '4px', border: '1px solid var(--glass-edge)', background: 'var(--fill-tertiary)', color: 'var(--text-primary)', cursor: 'pointer' }}
                     title="Previous Slide"
                   >
-                    <ChevronLeft size={14} />
+                    <ChevronLeft size={13} />
                   </button>
                   <button
                     onClick={() => setPageIndex(Math.min(pageCount - 1, pageIndex + 1))}
-                    style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--glass-edge)', background: 'var(--fill-tertiary)', color: 'var(--text-primary)', cursor: 'pointer' }}
+                    style={{ padding: '4px 6px', borderRadius: '4px', border: '1px solid var(--glass-edge)', background: 'var(--fill-tertiary)', color: 'var(--text-primary)', cursor: 'pointer' }}
                     title="Next Slide"
                   >
-                    <ChevronRight size={14} />
+                    <ChevronRight size={13} />
                   </button>
                 </>
               )}
 
               <button
                 onClick={() => setZoom(Math.max(50, zoom - 10))}
-                style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--glass-edge)', background: 'var(--fill-tertiary)', color: 'var(--text-primary)', cursor: 'pointer' }}
+                style={{ padding: '4px 6px', borderRadius: '4px', border: '1px solid var(--glass-edge)', background: 'var(--fill-tertiary)', color: 'var(--text-primary)', cursor: 'pointer' }}
                 title="Zoom Out"
               >
-                <ZoomOut size={14} />
+                <ZoomOut size={13} />
               </button>
-              <span style={{ fontSize: '12px', color: 'var(--text-secondary)', width: '36px', textAlign: 'center' }}>{zoom}%</span>
+              {!isNarrow && (
+                <span style={{ fontSize: '11px', color: 'var(--text-secondary)', width: '32px', textAlign: 'center' }}>{zoom}%</span>
+              )}
               <button
                 onClick={() => setZoom(Math.min(180, zoom + 10))}
-                style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--glass-edge)', background: 'var(--fill-tertiary)', color: 'var(--text-primary)', cursor: 'pointer' }}
+                style={{ padding: '4px 6px', borderRadius: '4px', border: '1px solid var(--glass-edge)', background: 'var(--fill-tertiary)', color: 'var(--text-primary)', cursor: 'pointer' }}
                 title="Zoom In"
               >
-                <ZoomIn size={14} />
+                <ZoomIn size={13} />
               </button>
 
               <button
                 onClick={handleDownload}
-                style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--glass-edge)', background: 'var(--fill-tertiary)', color: 'var(--text-primary)', cursor: 'pointer' }}
+                style={{ padding: '4px 6px', borderRadius: '4px', border: '1px solid var(--glass-edge)', background: 'var(--fill-tertiary)', color: 'var(--text-primary)', cursor: 'pointer' }}
                 title="Download Artifact"
               >
-                <Download size={14} />
+                <Download size={13} />
               </button>
 
-              <button
-                onClick={() => setFullscreen((v) => !v)}
-                style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--glass-edge)', background: 'var(--fill-tertiary)', color: 'var(--text-primary)', cursor: 'pointer' }}
-                title="Toggle Fullscreen"
-              >
-                {fullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-              </button>
+              {!isCompact && (
+                <button
+                  onClick={() => setFullscreen((v) => !v)}
+                  style={{ padding: '4px 6px', borderRadius: '4px', border: '1px solid var(--glass-edge)', background: 'var(--fill-tertiary)', color: 'var(--text-primary)', cursor: 'pointer' }}
+                  title="Toggle Fullscreen"
+                >
+                  {fullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+                </button>
+              )}
             </>
           )}
 
@@ -201,19 +225,16 @@ export const ArtifactPanel: React.FC<Props> = ({ artifact, onClose }) => {
               onClose();
             }}
             style={{
-              padding: '4px 8px',
+              padding: '4px 6px',
               borderRadius: '4px',
               border: '1px solid var(--glass-edge)',
               background: 'var(--fill-tertiary)',
               color: 'var(--text-primary)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
+              cursor: 'pointer'
             }}
             title="Close Panel"
           >
-            <X size={14} />
+            <X size={13} />
           </button>
         </div>
       </header>
