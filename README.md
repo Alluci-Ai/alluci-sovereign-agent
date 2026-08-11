@@ -19,7 +19,10 @@
 <div id="mission" style="padding: 20px; border-radius: 15px; background-color: #f8fafc; border: 1px solid #e2e8f0;">
   <h2>Executive Intelligence</h2>
   <p>
-    The <strong>Alluci-Sovereign Agent</strong> is a distributed, agentic runtime acting as your primary digital interface. By merging strategic hierarchical planning with a local-first execution gateway, it coordinates across a secure multi-bridge ecosystem. It is engineered for 100% data sovereignty, ensuring your personal and professional digital life remains cryptographically secured and physically under your control.
+    The <strong>Alluci Sovereign Agent</strong> is a self-sovereign, multi-agent computational runtime that serves as your primary personal and professional interface acting as your high-level digital assistant, orchestrating complex workflows, multi-step research, and multi-channel communications.
+  </p>
+  <p>
+    Alluci unifies local on-device intelligence with policy-driven cloud model federation—allowing you to harness frontier AI capabilities while your data, memories, workflows, and intellectual property remain cryptographically secured and physically under your control within a single <strong>Self-Sovereign Agentic Operating System</strong>.
   </p>
 </div>
 
@@ -27,10 +30,42 @@
 
 ## The Sovereign Manifold
 
-Alluci empowers you to act across your entire digital life from a single, secure interface:
-- **Social_Manifold**: Targeted actualization across WhatsApp, Telegram, Discord, Signal, X, and Meta.
-- **Enterprise_Core**: Deep professional workflow integration with Slack, MS Teams, and the full G-Suite.
-- **Cloud_Manifold**: Sovereign file management and E2EE pulse dispatching via iCloud and iMessage secure tunnels.
+The **Sovereign Manifold** acts as your central neural dispatch for all digital communications, workflows, and biometric state tracking. Rather than forcing you to jump between fragmented apps and isolated browser tabs, Alluci unifies your entire digital life under a single sovereign interface.
+
+Every channel integration operates inside an isolated cryptographic **Simplicial Vault** bound to your **VerusID**, ensuring seamless multi-channel agency without cross-channel data leaks or unauthorized exposure across four core operational manifolds:
+
+### 1. Apple Ecosystem
+- **Apple iMessage & SMS:** Native macOS E2EE iMessage dispatching and SMS bridge.
+- **Apple Watch Biometrics & Sensors:** Real-time Heart Rate, HRV, Respiratory Rate, and physical stress score streaming into the ACE engine.
+- **iOS iPhone Gateway:** iOS Push Notifications and Shortcuts local relay.
+- **Apple iCloud Storage:** E2EE iCloud Drive, Photos, and Reminders integration.
+
+### 2. Social Manifold
+- **Signal:** Encrypted messaging via local E2EE daemon.
+- **WhatsApp:** WhatsApp Web & WhatsApp Cloud API integration.
+- **Telegram:** Telegram Bot API & Telethon user client gateway.
+- **BlueSky:** AT Protocol XRPC API feed posting, notification polling, and direct messaging.
+- **X / Twitter:** X API v2 Direct Messages, Mentions, and Post dispatching.
+- **Instagram:** Instagram Direct Messaging & Business Graph API.
+- **Facebook Messenger:** Meta Facebook Page & Messenger Graph API.
+- **WeChat & WeCom:** WeChat Personal & WeCom Enterprise Work Messenger.
+- **Nostr:** Decentralized Nostr relay protocol & NIP-04/NIP-44 encrypted direct messages.
+- **Discord:** Discord Bot API & Webhook gateway.
+
+### 3. Enterprise Core & Developer Workspace
+- **Slack:** Enterprise Slack Socket Mode workspace bridge.
+- **Microsoft Teams:** Microsoft Graph & Teams enterprise channel bridge.
+- **Google Workspace:** Gmail OAuth2/PubSub & Google Chat API.
+- **Google Drive & Docs:** Google Drive files, Docs, and Sheets synchronization.
+- **Universal Email:** Standard IMAP / SMTP email channel integration.
+- **Notion Workspace:** Notion databases, pages, and workplace memory sync.
+- **GitHub Workspace:** GitHub repos, issues, pull requests, and webhooks.
+- **WebChat Gateway:** Streaming WebSocket administrative chat gateway.
+
+### 4. Verus Sovereign Identity & Blockchain
+- **VerusID Sovereign Identity:** Decentralized cryptographic identity, claim signing, and vault access control.
+- **Verus Blockchain Node & Fund Management:** Local Verus node RPC, sovereign wallet fund management, and cryptographic transaction signing.
+- **Federated Pheromone Network (PPN):** Swarm intelligence problem-solving paths broadcasting topological barcodes over the Verus P2P network.
 
 ---
 
