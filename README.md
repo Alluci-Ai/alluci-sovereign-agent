@@ -44,13 +44,13 @@ Every channel integration operates inside an isolated cryptographic **Simplicial
 - **Signal:** Encrypted messaging via local E2EE daemon.
 - **WhatsApp:** WhatsApp Web & WhatsApp Cloud API integration.
 - **Telegram:** Telegram Bot API & Telethon user client gateway.
-- **BlueSky:** AT Protocol XRPC API feed posting, notification polling, and direct messaging.
-- **X / Twitter:** X API v2 Direct Messages, Mentions, and Post dispatching.
-- **Instagram:** Instagram Direct Messaging & Business Graph API.
-- **Facebook Messenger:** Meta Facebook Page & Messenger Graph API.
 - **WeChat & WeCom:** WeChat Personal & WeCom Enterprise Work Messenger.
 - **Nostr:** Decentralized Nostr relay protocol & NIP-04/NIP-44 encrypted direct messages.
 - **Discord:** Discord Bot API & Webhook gateway.
+**X / Twitter:** X API v2 Direct Messages, Mentions, and Post dispatching.
+- **Instagram:** Instagram Direct Messaging & Business Graph API.
+- **Facebook Messenger:** Meta Facebook Page & Messenger Graph API.
+- **BlueSky:** AT Protocol XRPC API feed posting, notification polling, and direct messaging.
 
 ### 3. Enterprise Core & Developer Workspace
 - **Slack:** Enterprise Slack Socket Mode workspace bridge.
@@ -71,52 +71,176 @@ Every channel integration operates inside an isolated cryptographic **Simplicial
 
 ## Multi-Modal Synthesis & API Orchestration
 
-Alluci coordinates across a secure multi-bridge ecosystem, providing unified access to state-of-the-art tools:
+The Multi-Modal Synthesis & API Orchestration engine serves as Alluci’s unified control plane for generative tools, token routers, and cognitive services. Rather than locking you into a single closed ecosystem, Alluci provides policy-driven model federation—dynamically routing tasks across specialized foundation models, voice synthesis engines, and generative media tools while respecting your local privacy constraints and token budge.
 
-#### 1. LLM_REASONING_&_LOGIC
-- **OpenAI**: GPT for deep strategic planning.
-- **Anthropic**: Claude for nuanced context and coding.
-- **Google Cloud**: Gemini for massive context and speed.
-- **Groq**: LPU-powered high-speed tactical execution.
+### 1. LLM & Reasoning
+- **OpenAI:** Advanced general reasoning, multi-modal synthesis, and strategic agentic planning.
+- **Anthropic:** Deep architectural code generation, complex context analysis, and safety-aligned logical reasoning.
+- **Google Cloud:** Massive multi-modal context windows, rapid token processing, and broad knowledge synthesis.
+- **Groq:** Ultra-high-speed LPU inference for real-time tactical execution and sub-second token delivery.
+- **xAI (Grok):** High-throughput real-time knowledge synthesis and conversational reasoning.
+- **DeepSeek:** High-efficiency open-architecture reasoning and mathematical problem-solving.
+- **Unsloth:** On-device memory-optimized model fine-tuning and low-VRAM model distillation.
+- **Token Router:** Dynamic token budget optimization, multi-provider latency balancing, and intelligent context distribution.
+- **OpenRouter:** Dynamic multi-provider API aggregation and intelligent failover routing.
+- **LM Studio:** Local open-weight model hosting and airgapped desktop inference.
+- **Together AI:** Scalable open-source model infrastructure and custom fine-tune deployment.
+- **Cohere:** Enterprise RAG, semantic retrieval, and structured business document intelligence.
+- **AWS Bedrock:** Enterprise security compliance, managed cloud foundation models, and scalable infrastructure.
 
-#### 2. CONVERSATIONAL_AUDIO
-- **OpenAI Realtime API**: emotionally resonant vocal interaction.
-- **ElevenLabs**: Specialized Agents API for high-fidelity voice synthesis.
-- **Retell AI**: Professional telephony and automated dialogue.
+### 2. Conversational Audio & Voice
+- **ElevenLabs:** High-fidelity voice synthesis and custom voice cloning.
+- **ElevenLabs Agents:** Autonomous conversational voice agent API.
+- **Retell AI:** Professional automated telephony and voice dialogue.
+- **OpenAI Realtime API:** Bidirectional low-latency streaming vocal interaction.
+- **Inworld AI:** Dynamic character and interactive persona voice engine.
 
-#### 3. MULTI-MODAL CREATIVITY
-- **Music**: Udio, Soundraw, and AIVA for melodic composition.
-- **Image**: NanoBanana, Midjourney, DALL·E 3, & Fal.ai.
-- **Video**: Google Veo, Runway, & Luma Dream Machine for temporal genesis.
+### 3. Image Generation
+- **Midjourney:** Cinematic & artistic image generation.
+- **Fal AI:** Ultra-fast FLUX.1 & SDXL image synthesis.
+- **Seedance:** Generative image synthesis.
+- **Google NanoBanana:** High-speed web-scale image creation.
+- **OpenAI DALL·E 3:** High-precision prompt-driven image generation.
+- **Adobe Firefly:** Commercial-grade generative image and vector design.
+
+### 4. Video Generation
+- **RunwayML:** Runway Gen-2 & Gen-3 Alpha video generation.
+- **Luma Dream Machine:** High-resolution realistic motion video.
+- **Google Veo:** Generative temporal video model.
+- **Google Genie:** Interactive generative world and video environment engine.
+- **HeyGen:** AI avatar and video spokesperson generation.
+- **Seedance Video:** Generative video synthesis.
+- **Livepeer:** Decentralized live video streaming and transcoding network.
+
+### 5. Music Generation
+- **ElevenLabs Music:** Instrumental and sonic music generation.
+- **Suno:** Full-track vocal and musical composition.
+- **Soundverse:** AI-driven audio and sonic structure creation.
+- **Google Lyria:** Generative music composition engine.
+- **Stable Audio:** High-resolution acoustic and electronic music generation.
+- **Udio:** Full-track vocal, pop, and orchestral composition.
 
 ---
 
-## 🌌 The Polytope Manifold Architecture
+## The Polytope Manifold Architecture
 
-Alluci abandons traditional, hallucination-prone Euclidean vector spaces in favor of **Topologically Stable Geometric Intelligence** (The Polytope Projection Network).
+The **Polytope Manifold Architecture** serves as the core cognitive blueprint governing how Alluci processes intelligence, preserves stateful memory, and executes multi-agent workflows.
+
+Alluci is powered by a hybrid computational runtime—combining native Python execution engines with high-performance compiled C++ extensions and specialized topological kernels. This architecture pairs proactive cognition and a native Apple MLX engine driving on-device foundation model evaluation on Unified Memory with Non-Euclidean geometric manifold mapping and Betti signature context indexing across a stateful 4-Tier Memory System.
+
+System execution is governed by a three-pillar action safety loop enforcing Lipschitz gradient smoothness and payload verification, integer simplicial boundary operators for Betti topology discrete manifold verification, high-frequency signal processing and harmonic lattice calculations, and cryptographic Simplicial Vault isolation encrypting credentials and bridge secrets via AES-256-GCM.
+
+---
 
 ### 1. The Local Cognitive Engine (LCE)
-- **Neural Decoupling Layer**: The `ExecutiveRouter` dynamically maps inputs to the local Gemma 4 model or 3rd-party APIs based on strict privacy checks, allowing underlying base weights to be hot-swapped without breaking your skill manifests.
-- **Adaptive Bit-Width Quantization**: Maintains high-fidelity reasoning in the first dense layers while crushing MoE weights down to a 1.58-bit footprint, allowing massive 30B+ parameter models to run on consumer hardware (M1/M2/RTX 4090).
-- **Draft-Verification Loop**: Utilizes native Speculative Decoding where a lightweight model (Gemma 4 E2B) drafts token sequences and the larger dense model verifies them in parallel, boosting inference speeds by 2-3x.
 
-### 2. Executive Orchestration & DAG Planner
-- **Hierarchical DAG Planner**: Complex user objectives are parsed into a Directed Acyclic Graph (DAG). Sub-tasks are executed in parallel across multiple worker agents, dramatically reducing latency for multi-step goals.
-- **Dynamic Model Switching Tiers**: The Orchestrator routes tasks dynamically based on privacy constraints, speed, and intelligence needs. Local Gemma 4 handles `SENSITIVE` tasks, Groq handles high-speed tactical actions, and Gemini/Claude handle massive context analysis.
-- **Token Optimization**: The `SupervisorAgent` condenses verbose worker node outputs into dense "Sovereign Context Tokens" before passing them to the next node in the DAG, preventing context-window bloat and keeping the agent comfortably within the 8K limit.
+The **Local Cognitive Engine (LCE)** serves as Alluci’s native, on-device foundation intelligence substrate. Built around a **Sovereign-First execution model**, the LCE evaluates neural network models locally on host hardware—delivering ultra-low latency, zero-copy memory access, dynamic VRAM safeguards, and privacy-preserving cloud federation without cloud vendor lock-in or un-sanctioned data egress.
+
+Official quantized model weights across all 5 tiers are hosted on [HuggingFace (Alluci LCE Models)](https://huggingface.co/Alluci).
+
+#### Apple Silicon Execution Plane
+- **Native MLX Engine:** Evaluates models 100% natively using Apple `mlx_lm` and `mlx_vlm` frameworks, leveraging Apple Silicon’s shared Unified Memory architecture for zero-copy tensor evaluation.
+- **Thread-Safe Singleton & Async Lock:** Operates as a thread-safe singleton managed by a strict Python `asyncio.Lock` inference semaphore, ensuring only one generation stream executes at any given moment to protect Metal GPU command buffers from memory panics.
+- **Single & Multi-Worker Compute Threads:** Offloads heavy non-blocking synchronous matrix calculations to a dedicated single-worker thread pool (`ThreadPoolExecutor`), while multi-agent task queues manage async token dispatching in parallel.
+- **Dynamic Architectural Binding:** Dynamically maps custom or fine-tuned model architectures to native `mlx_lm` model classes at runtime without monkey-patching codebase files.
+
+#### Non-Apple Operating Systems Execution Plane
+- **Cross-Platform PC & Linux Engine:** On Windows, Linux, and NVIDIA CUDA environments, the LCE routes local inference requests through `local_bridge.py` utilizing standard `llama.cpp` C++ GGUF bindings or CUDA-accelerated PyTorch/vLLM adapters.
+- **Unified API Parity:** Ensures identical privacy gating, PII pseudonymization, and 4-tier memory integration across non-Apple hardware.
+
+#### 5-Tier System Hardware Profiling Matrix
+Automatically profiles available System RAM and VRAM upon initialization, mapping the host environment to the optimal model size and precision tier:
+- **`TIER_0_ULTRA` ($\ge 96\text{ GB Unified RAM}$):** Unquantized 31B flagship dense model for workstation performance.
+- **`TIER_1_MAX` ($\ge 60\text{ GB Unified RAM}$):** High-density 31B 8-bit / 4-bit model for developer workstations.
+- **`TIER_2_PRO` ($\ge 30\text{ GB Unified RAM}$):** 26B Mixture-of-Experts (MoE) 4-bit model for high-efficiency laptops.
+- **`TIER_3_BASE` ($\ge 15\text{ GB Unified RAM}$):** 12B 4-bit model for consumer MacBooks and PC hardware.
+- **`TIER_4_EDGE` ($< 15\text{ GB Unified RAM}$):** 2B lightweight 4-bit model for low-power edge sentinels.
+
+#### VRAM Lifecycle, KV Cache & Offloading Safeguards
+- **Metal VRAM Cache Ceiling:** Metal GPU VRAM cache allocation (`mx.set_cache_limit`) to prevent host system slowdowns.
+- **RAM Ceiling Protection:** Restricts peak memory allocation to 75% of total system RAM.
+- **Dynamic Q4 KV Cache Quantization:** Automatically detects long prompts and activates 4-bit KV cache quantization while capping max generation tokens to prevent Metal buffer overflow crashes.
+- **Inter-Iteration VRAM Purging:** Compulsory `mx.clear_cache()` and Python garbage collection calls execute before, during, and after every generation stream.
+- **Idle Memory Auto-Offloader:** Spawns a background thread monitor that unloads model weights and releases VRAM after idle time.
+
+#### Zero-Restart LoRA Context Moat Ingestion
+- **Dynamic Adapter Hot-Swapping:** When specialized agents execute domain tasks (e.g. Legal, Financial, Coding), the LCE hot-swaps per-agent LoRA weights (`models/loras/agent_{id}_lora.safetensors`) directly into the active MLX model on the fly without restarting the engine process or breaking skill manifests.
+
+#### Bio-Affective Telemetry Attunement
+- **Silent System Directive Injection:** Injects a silent `<ACE_ATTUNEMENT_DIRECTIVE>` into system prompts matching real-time Apple Watch biometrics (HRV, respiratory rate, stress score).
+- **Dynamic Sampling Temperature Modulation:** Dynamically modulates sampling temperature during high human stress (for hyper-focused, deterministic outputs) to relaxed states (for creative exploration).
+
+#### Speculative Token Drafting & Acceleration
+- **Draft-Verification Acceleration:** Pairs a fast, lightweight speculator model (e.g. `alluci-polytope-e2b`) with a dense verifier model (e.g. `alluci-polytope4-31b-it`). The draft model generates candidate token sequences rapidly, and the target model verifies them in parallel, achieving **2–3x faster local inference speeds**.
+
+#### Model Router & Cross-Platform Scoping
+- **Policy-Driven Execution:** Routes requests dynamically based on privacy classifications (`AIRGAPPED`, `SENSITIVE`, `PUBLIC`) and token complexity requirements.
+- **Cross-Platform PC Scoping:** On non-Apple Silicon nodes (Windows, Linux, NVIDIA CUDA), automatically falls back to standard cross-platform backends (`llama.cpp` bindings or CUDA PyTorch/vLLM adapters) via `local_bridge.py`.
+
+#### Neural Decoupling Layer
+- **Abstract Engine Interface:** Implemented by the abstract `ExecutiveRouter` interface, decoupling the high-level Agent Harness (skills, tools, memory, bridges) from underlying model weights so base weights can be upgraded without breaking skill manifests.
+
+#### Draft-Verification Loop
+- **Parallel Sequence Validation:** Verifies speculated token streams natively across dense model layers, ensuring output fidelity while maintaining high generation speed.
+
+#### User Defined Privacy Gating
+- **On-Device Isolation:** Automatically intercepts tasks classified as `AIRGAPPED` or `SENSITIVE`, hard-routing them 100% on-device inside the local MLX engine with zero network egress.
+
+#### Local PII Extraction & Pseudonymization
+- **Inline Egress Firewall:** When tasks are policy-routed to cloud model providers, outbound prompts pass through the `AlluciSecureProxy`. Sensitive names, phone numbers, email addresses, and private keys are extracted into a local ephemeral vault and replaced in the outbound prompt by abstract placeholders (e.g., `<PERSON_1>`, `<PHONE_1>`).
+
+#### Local Response Re-Hydration
+- **Local Vault Token Restoration:** When external API models return their text response, the `AlluciSecureProxy` restores the original vault data locally on your device, delivering complete answers without external cloud providers ever receiving raw user PII.
+
+---
+
+### 2. Executive Orchestration Engine for Tasks, Crons & DAGs
+
+The **Executive Orchestrator** serves as Alluci’s high-level planning and task execution engine. It transforms complex, ambiguous user objectives into structured, non-blocking execution pipelines. By combining hierarchical task decomposition, recurring background cron scheduling, real-time context compression, and continuous statistical safety calibration, the Orchestrator manages multi-agent Constellations with sub-second execution efficiency.
+
+#### Tasks & Goal Management
+- **Autonomous Task Lifecycle:** Manages long-running, multi-step goals from initial user prompt to final artifact generation. Tasks are tracked as stateful execution records with real-time status updates, error recovery, and pause/resume capabilities.
+
+#### Cron Engine & Recurring Schedules
+- **Autonomous Background Crons:** Schedules and executes recurring background jobs (e.g. daily memory summarization, automated channel polling, market monitoring, or system health sweeps) without requiring active user presence.
+
+#### Hierarchical DAG Planner
+- **Directed Acyclic Graph Decomposition:** Parses multi-agent goals into Directed Acyclic Graphs (DAGs). Sub-tasks are dispatched in parallel across specialized worker agents (e.g., Deep Research, Code Architect, Financial Analyst), dramatically accelerating execution speed for complex workflows.
+
+#### Supervisor Agent Context Compression
+- **Token Optimization & Bloat Prevention:** The `SupervisorAgent` condenses verbose worker node outputs into dense "Sovereign Context Tokens" before passing state to downstream nodes in the DAG, preventing context-window bloat and maximizing token efficiency.
+
+#### Dynamic Multi-Tier Model Routing
+- **Policy-Driven Provider Selection:** Routes individual Task, Cron, and DAG nodes dynamically based on privacy classifications (`AIRGAPPED`, `SENSITIVE`, `PUBLIC`), model strengths, and execution speed—dispatching private data locally to the LCE engine while routing high-density web synthesis to fast cloud APIs.
+
+#### Action Verification Loop (AVL Gate) Integration
+- **Three-Pillar Structural Safety:** Intercepts LLM action payloads before tool execution to enforce structural schema compliance, cryptographic attribution, and Lipschitz gradient smoothness limits.
+- **Discovery Mode Learning & Evolving Thresholds:** The `ContinuousCalibrationManager` dynamically tracks tool history, skill execution logs, and affective tension. The system self-adjusts safety rejection thresholds over time—learning normal operational baselines to eliminate false positives while maintaining zero-trust security.
+
+---
 
 ### 3. Simplicial H-LSM Memory
-- **The Discrete Projection Kernel (DPK)**: Replaces slow floating-point database math with $\mathcal{O}(1)$ complexity integer-based lookups, providing sub-microsecond latency for biometric and state synchronization.
-- **Topological Barcodes**: Memory isn't retrieved via keyword search. The agent generates Betti Signatures (Topological Barcodes) and retrieves context based on "Structural Homeomorphism" (logical shape), guaranteeing context relevance.
+
+- **The Hierarchical Long-Short Manifold (H-LSM)** is Alluci’s 4‑tier stateful memory architecture. Managed by `HLSMManager`.
+
+- **H-LSM** enables the agent to retain personal and organizational memory over time without context‑window bloat, context degradation, or hallucinations.
+
+- **H-LSM operates across four cognitive memory storage tiers:**
+  • **L0 Working Memory:** Ultra‑fast, session‑level expiring context backed by Redis (Key‑Value) with automatic fallback to SQLite table `hlsm_working`.
+  • **L1 Episodic Memory:** Full chat turns, interaction history, and episodic event logs backed by SQLite table `hlsm_episodic` with a high‑performance SQLite FTS5 full‑text search index (`hlsm_episodic_fts`).
+  • **L2 Semantic Memory:** Long‑term vector embeddings for retrieval‑augmented generation (RAG), backed by Sentence‑Transformers (`all‑MiniLM‑L6‑v2`) and KùzuDB graph nodes.
+  • **L3 Knowledge Graph:** Permanent structured entity‑relationship graph nodes backed by the KùzuDB embedded graph database engine (`polytope_data.kuzu`).
+
+---
 
 ### 4. Local Fine-Tuning (SFT) & The LoRA Forge
-Alluci utilizes a specialized "Training Sandbox" mode that leverages the Unsloth library (optimized for 80% less VRAM usage) to perform Supervised Fine-Tuning (SFT) directly on your hardware.
-- **The Data Pipeline**: Alluci’s H-LSM Memory acts as the dataset generator. It continuously scrapes and cleans your local usage logs, business documents, and chat history into a secure "Sovereign Dataset."
-- **Native DPO & LoRA Forge**: You can trigger a "Skill Distillation" session where Alluci uses your specific data and a native PyTorch Direct Preference Optimization (DPO) kernel to forge custom LoRA (Low-Rank Adaptation) adapters for Gemma 4.
+Alluci utilizes a specialized "Training Sandbox" mode that leverages the Unsloth library (optimized for 80% less VRAM usage) to perform Supervised Fine‑Tuning (SFT) directly on your hardware.
+- **The Data Pipeline:** Alluci’s H‑LSM Memory acts as the dataset generator. It continuously scrapes and cleans your local usage logs, business documents, and chat history into a secure "Sovereign Dataset."
+- **Native DPO & LoRA Forge:** You can trigger a "Skill Distillation" session where Alluci uses your specific data and a native PyTorch Direct Preference Optimization (DPO) kernel to forge custom LoRA (Low‑Rank Adaptation) adapters for Gemma 4.
 
 ### 5. The "Dream" Cycle & Autonomous Evolution
 When the system detects low cognitive load (you are asleep or away), the daemon halts external polling and reallocates 100% of hardware resources to internal evolution:
-- **Cognitive Distillation**: Analyzes the day's interactions using Socratic questioning, distilling episodic logs into permanent Semantic Truths.
+- **Cognitive Distillation:** Analyzes the day's interactions using Socratic questioning, distilling episodic logs into permanent Semantic Truths.
 - **Teacher-Student Harvest**: Records high-quality reasoning from interactions with 3rd-party cloud models and queues them as "Chosen" preference pairs for the local DPO forge—crystallizing cloud intelligence into your local machine overnight.
 
 ---
