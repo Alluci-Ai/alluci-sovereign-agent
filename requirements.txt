@@ -37,7 +37,7 @@ google-generativeai==0.8.3
 google-auth==2.34.0
 mlx>=0.29.0; sys_platform == "darwin"
 mlx-lm>=0.31.3; sys_platform == "darwin"
-mlx-vlm>=0.1.15; sys_platform == "darwin"
+mlx-vlm>=0.6.10; sys_platform == "darwin"
 mlx-whisper>=0.1.0; sys_platform == "darwin"
 huggingface_hub[cli]>=0.23.0
 openai==1.12.0
