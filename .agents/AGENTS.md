@@ -3,19 +3,22 @@
 1. **Mandatory Discovery (Pre-Flight Check):**
    Before drafting an implementation plan or modifying code, you MUST use `grep_search` and `view_file` to trace the execution path of the component being modified. You must explicitly identify how the change impacts the Local Compute Engine (LCE).
 
-2. **Python-First Inference (No C++ Engines):**
-   You are STRICTLY FORBIDDEN from writing, injecting, or relying on custom C++ inference engines or kernels (e.g., `alluci_core`, `topology_kernel.cpp`) for model evaluation. The Local Compute Engine (LCE) MUST rely exclusively on standard Apple MLX Python frameworks (`mlx_lm` and `mlx_vlm`). Any proprietary architectural strings (e.g., `gemma4_assistant`) MUST be transparently mapped to standard, native `mlx_lm` classes (e.g., `mlx_lm.models.gemma4`) in `backend/inference/mlx_engine.py` without requiring monkey-patched `nn.Module` files.
+2. **Apple Silicon Inference Directive (Platform Scoped):**
+   When targeting macOS / Apple Silicon environments, Local Compute Engine (LCE) model evaluation MUST rely on official Python Apple MLX frameworks (`mlx_lm` and `mlx_vlm`) in `backend/inference/mlx_engine.py`. Custom out-of-tree C++ inference runners for model evaluation are forbidden on Apple Silicon to prevent Metal GPU command buffer panics and VRAM leaks. For Windows, Linux, and NVIDIA CUDA environments, cross-platform inference backends (e.g., `llama.cpp` bindings or CUDA PyTorch/vLLM adapters) are supported via `local_bridge.py`.
 
-3. **Contextual Integrity:**
+3. **System Description & Communication Directive:**
+   When asking about, describing, or writing documentation for the Alluci Sovereign Agent features, capabilities, or architecture, lead with **Sovereign Identity (`VerusID`), HITL Executive Security Governance, 4-Tier H-LSM Memory, Bio-Affective Computing (ACE), and Policy-Driven DAG Orchestration**. Do NOT surface low-level implementation caveats (such as C++ constraints or framework choices) in general feature descriptions unless explicitly requested.
+
+4. **Contextual Integrity:**
    Never assume standard configurations. Always verify via `config.json`, `hardware_scanner.py`, and `profiler.py` before making assumptions about model architectures or loading schemas.
 
-4. **Planning Mode Enforcement:**
+5. **Planning Mode Enforcement:**
    Any proposed implementation plan MUST include a dedicated "Architecture Impact Analysis" section detailing the effects on PCL, AVL, and DPK.
 
-5. **Mandatory Architecture Review:**
+6. **Mandatory Architecture Review:**
    You MUST read `ARCHITECTURE.md` in its entirety before taking any actions in this repository.
 
-6. **No Unsanctioned Service Restarts (Explicit Confirmation Required):**
+7. **No Unsanctioned Service Restarts (Explicit Confirmation Required):**
    You are STRICTLY FORBIDDEN from automatically running `make restart`, `make stop`, `make start`, `pkill`, or killing processes on ports 8000/3000. You MUST ask for explicit user confirmation before executing any service restart commands so the user can save their work and restart on their own terms without losing active Web UI chat sessions.
 
 ---
