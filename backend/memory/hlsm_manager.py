@@ -1704,10 +1704,28 @@ class HLSMManager:
         search_pat = pattern.strip()
         counts = {"deleted_l0": 0, "deleted_l1": 0, "deleted_l2": 0, "deleted_l3": 0, "total_deleted": 0}
 
+        # Extract digit patterns if searching for phone numbers
+        raw_digits = re.sub(r'\D', '', search_pat)
+        digit_variants = []
+        if len(raw_digits) >= 6:
+            digit_variants.append(raw_digits)
+            if len(raw_digits) > 10:
+                digit_variants.append(raw_digits[-10:])
+
         try:
             def _purge_l1():
+                from sqlalchemy import or_
                 with Session(self.db_engine) as session:
-                    stmt = select(HLSMEpisodicEntry).where(col(HLSMEpisodicEntry.content).like(f"%{search_pat}%"))
+                    conditions = [
+                        col(HLSMEpisodicEntry.content).like(f"%{search_pat}%"),
+                        col(HLSMEpisodicEntry.source).like(f"%{search_pat}%"),
+                        col(HLSMEpisodicEntry.session_key).like(f"%{search_pat}%"),
+                    ]
+                    for d in digit_variants:
+                        conditions.append(col(HLSMEpisodicEntry.content).like(f"%{d}%"))
+                        conditions.append(col(HLSMEpisodicEntry.session_key).like(f"%{d}%"))
+
+                    stmt = select(HLSMEpisodicEntry).where(or_(*conditions))
                     if session_key:
                         stmt = stmt.where(HLSMEpisodicEntry.session_key == session_key)
                     matching = session.exec(stmt).all()
@@ -1722,8 +1740,18 @@ class HLSMManager:
 
         try:
             def _purge_l0():
+                from sqlalchemy import or_
                 with Session(self.db_engine) as session:
-                    stmt = select(HLSMWorkingEntry).where(col(HLSMWorkingEntry.content).like(f"%{search_pat}%"))
+                    conditions = [
+                        col(HLSMWorkingEntry.content).like(f"%{search_pat}%"),
+                        col(HLSMWorkingEntry.source).like(f"%{search_pat}%"),
+                        col(HLSMWorkingEntry.session_key).like(f"%{search_pat}%"),
+                    ]
+                    for d in digit_variants:
+                        conditions.append(col(HLSMWorkingEntry.content).like(f"%{d}%"))
+                        conditions.append(col(HLSMWorkingEntry.session_key).like(f"%{d}%"))
+
+                    stmt = select(HLSMWorkingEntry).where(or_(*conditions))
                     if session_key:
                         stmt = stmt.where(HLSMWorkingEntry.session_key == session_key)
                     matching = session.exec(stmt).all()

@@ -147,27 +147,37 @@ async def _intercept_memory_deletion_request(prompt: str) -> Optional[str]:
     if any(t in body_lower for t in technical_code_terms):
         return None  # Bypass memory interceptor completely!
 
-    # Guard 2: Require EXPLICIT H-LSM memory purge intent (Comprehensive matchers)
-    explicit_purge_intent = any(p in body_lower for p in [
-        "purge h-lsm memory", "purge h-lsm memories", "delete h-lsm memory", "delete h-lsm memories",
-        "delete memory", "delete memories", "purge memory", "purge memories",
-        "scrub memory", "scrub memories", "clear memory", "clear memories",
-        "delete imessage", "purge imessage", "scrub imessage",
-        "forget memory", "forget memories", "delete memory entry", "delete memory entries"
-    ])
-    if not explicit_purge_intent:
+    # Guard 2: Flexible Regex Intent Matching for Memory Purge Requests
+    purge_regex = r'\b(delete|purge|scrub|clear|forget|wipe|remove)\b.*\b(memor(y|ies)|h-lsm|imessage|signal|slack|telegram|whatsapp)\b'
+    if not re.search(purge_regex, body_lower):
         return None
 
+    # Pattern Extraction: Extract channel tags, phone numbers, or target filters
+    channel_tag = ""
+    tag_match = re.search(r'\[(IMESSAGE|SIGNAL|SLACK|TELEGRAM|WHATSAPP|SMS)\]', prompt, re.IGNORECASE)
+    if tag_match:
+        channel_tag = f"[{tag_match.group(1).upper()}]"
+
     phone_match = re.search(r'\+?\d{1,3}[\s\-\.]?\(?\d{3}\)?[\s\-\.]?\d{3}[\s\-\.]?\d{4}|\b\d{5,6}\b', prompt)
-    pattern_to_delete = ""
+    extracted_target = ""
     if phone_match:
-        pattern_to_delete = phone_match.group(0).strip().rstrip(":")
+        extracted_target = phone_match.group(0).strip().rstrip(":")
     else:
         pattern_match = re.search(r'(?:from|pattern|tagged|matching|containing|for)\s+[\'"]?([^\'"\.\,\?\!\n]+)', prompt, re.IGNORECASE)
         if pattern_match:
-            pattern_to_delete = pattern_match.group(1).strip().rstrip(":")
+            extracted_target = pattern_match.group(1).strip().rstrip(":")
         else:
-            pattern_to_delete = re.sub(r'^(hello alluci,?\s*|can you search through your h-lsm memories and delete\s*|delete memory\s*|delete memories\s*|purge memory\s*|purge memories\s*)', '', prompt, flags=re.IGNORECASE).strip().rstrip(":")
+            extracted_target = re.sub(r'^(hello alluci,?\s*|can you search through your h-lsm memories and delete\s*|delete memory\s*|delete memories\s*|purge memory\s*|purge memories\s*)', '', prompt, flags=re.IGNORECASE).strip().rstrip(":")
+
+    # Build final composite pattern to delete (preserving channel tag if present)
+    if channel_tag and extracted_target:
+        pattern_to_delete = f"{channel_tag} {extracted_target}".strip()
+    elif extracted_target:
+        pattern_to_delete = extracted_target
+    elif channel_tag:
+        pattern_to_delete = channel_tag
+    else:
+        pattern_to_delete = prompt.strip()
 
     # Guard 3: Minimum 3-Character Pattern Guard & Stop-Word Filtering
     stop_words = ["a", "an", "the", "for", "and", "all", "in", "of", "to", "or", "is", "my", "me", "me."]
