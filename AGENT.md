@@ -1,83 +1,40 @@
-# AGENT.md — Read This First, Every Session
-# Last updated: 2026-03-18
+# AGENT.md — Enterprise Developer & System Reference Guide
+# Last updated: 2026-08-12
 
 ## What This Codebase Is
-Alluci Sovereign Agent: self-hosted AI executive assistant with biometric-aware autonomy, 
-AES-256-GCM encrypted local vault, and 21 messaging bridge adapters.
+Alluci Sovereign Agent: A self-hosted, biometric-aware AI executive assistant with 4-tier Simplicial H-LSM memory, AES-256-GCM encrypted local vault, VerusID sovereign identity, and multi-bridge messaging gateway.
 
-## Stack Assignment — NEVER Cross These
-- **Python** (`backend/`): FastAPI HTTP API, all 21 bridge adapters, vault, auth, AI inference, 
-  ChromaDB memory, ACE engine, cron engine, DAG executor. 23,945 lines. DO NOT REWRITE.
-- **TypeScript** (`features/`, `components/`, `hooks/`, `store/`): React UI only. 14,098 lines. DO NOT REWRITE.
-- **Swift** (`watchos/`): Apple Watch + iOS companion — HealthKit only.
-- **Shell** (`scripts/`): Platform installers for macOS, Linux, Windows, Raspberry Pi.
+## Core Architectural Pillars (See ARCHITECTURE.md)
+1. **Sovereign Identity (`VerusID`):** Self-sovereign identity (`identity@`) and Ed25519 manifest signing.
+2. **HITL Executive Security Governance:** Hard security guards & `SecurityInterventionModal.tsx` intercepting critical action tasks.
+3. **4-Tier Simplicial H-LSM Memory:** L0 Working, L1 Episodic (FTS5), L2 Semantic, and L3 KùzuDB Knowledge Graph (`hlsm_manager.py`).
+4. **Bio-Affective Computing (ACE):** Apple Watch biometrics (HRV, stress, respiratory sync) modulating LLM sampling temperature (`backend/ace/`).
+5. **Policy-Driven DAG Orchestration:** Autonomous task decomposition, recurring background crons, and multi-tier model routing (`orchestrator.py`).
 
-## Golden Rules — Breaking These Creates Production Incidents
-1. Never `.unwrap()` or swallow exceptions silently — every error must be handled or propagated
-2. Never store credentials in the database — always call `vault.store_connection_secret(bridge_id, account_id, creds)`
-3. Every new API endpoint needs: handler function, `app.include_router()`, `RateLimiter` dependency
-4. Every new OAuth bridge needs: Redis PKCE state via `oauth_store`, background token refresh loop
-5. All WebSocket endpoints must call `authenticate_ws(websocket, token)` before `handle_connection()`
-6. Swift session tokens go in Keychain (`SecItemAdd`), not `UserDefaults`
-7. Never duplicate router registration in `backend/app.py` — each router appears exactly once
-8. All `@router.post()` auth endpoints need `dependencies=[Depends(RateLimiter(times=N, minutes=1))]`
-9. All routers must be registered with `prefix="/api/v1"` in `app.py`. Internal router paths must NOT start with `/api/`.
+## Golden Operational Laws — NEVER Violate These
+1. **Zero-Stub & Real End-to-End Wiring Law:** NO stubs, NO mocks, NO simulated responses, NO incomplete scaffolding, and NO dummy fallbacks. Every feature, API route, database query, security guard, and React component MUST be 100% complete, fully implemented, and wired end-to-end to real backend data providers.
+2. **Anti-Monkey-Patch & Engineering Excellence Law:** NO dynamic monkey-patching, NO superficial band-aids, NO `unittest.mock` in production code, and NO ad-hoc hacks. Always fix root-cause architecture in the authoritative source file adhering to principal engineer industry standards.
+3. **Empirical Proof & Verification Directive:** NEVER declare a task resolved or feature completed without running real execution commands (`pytest`, `npx tsc --noEmit`, `make quality`) and verifying clean test success.
+4. **Strict Cryptographic Vault Storage:** Never store credentials in plaintext—always call `vault.store_connection_secret(bridge_id, account_id, creds)`.
+5. **Robust Exception Propagation:** Never `.unwrap()` or swallow exceptions silently—every error must be explicitly handled, logged, or propagated.
+6. **Complete Endpoint Registration & Rate Limiting:** Every new API route requires a handler function, registration in `app.py` under `prefix="/api/v1"`, and a `RateLimiter` dependency.
+7. **Secure OAuth PKCE & Refresh Loops:** Every OAuth bridge requires Redis PKCE state tracking (`oauth_store`) and a background token refresh loop.
+8. **WebSocket Session Authentication:** All WebSocket endpoints must execute `authenticate_ws(websocket, token)` before initiating streaming handlers.
+9. **Secure iOS/Watch Token Storage:** Swift session tokens must be saved in Keychain (`SecItemAdd`), never `UserDefaults`.
+10. **HITL Security Interception:** Critical action endpoints (memory purges, schema changes, OS operations, financial operations) must implement rate limiting and trigger `SecurityInterventionModal.tsx`.
 
-# REQUIRED keys (app will not start without these):
-#   POLYTOPE_MASTER_KEY, JWT_SECRET_KEY, CSRF_SECRET_KEY
+## 5-Tier Local Cognitive Engine (LCE) Precision Matrix
+- **`TIER_0_ULTRA` ($\ge 96\text{ GB}$ VRAM/RAM):** `Alluci/alluci-polytope-gemma-4-31b-it-bf16`
+- **`TIER_1_MAX` ($\ge 60\text{ GB}$ VRAM/RAM):** `Alluci/alluci-polytope-gemma-4-31b-it-4bit` (or 8bit)
+- **`TIER_2_PRO` ($\ge 30\text{ GB}$ VRAM/RAM):** `Alluci/alluci-polytope-gemma-4-26b-a4b-it-4bit` (MoE)
+- **`TIER_3_BASE` ($\ge 15\text{ GB}$ VRAM/RAM):** `Alluci/alluci-polytope-gemma-4-12b-it-4bit`
+- **`TIER_4_EDGE` ($< 15\text{ GB}$ VRAM/RAM):** `Alluci/alluci-polytope-gemma-4-e2b-it-4bit`
 
-## Current Correct LLM Model IDs
-- **Google (flash):** `gemini-2.0-flash`
-- **Google (pro)::** `gemini-2.5-pro-preview-05-06` 
-- **Anthropic (strong):** `claude-3-7-sonnet-20250219`
-- **Anthropic (light):** `claude-3-5-haiku-20241022`
-- **OpenAI (strong):** `gpt-4o`
-- **OpenAI (light):** `gpt-4o-mini`
-- **Local:** `llama3.2` via Ollama at `OLLAMA_URL`
-
-## Where Everything Lives
-| What | Where |
-|------|-------|
-| HTTP route handlers | `backend/routers/{name}.py` |
-| Bridge adapters | `backend/bridges/{name}.py` |
-| Vault operations | `backend/security/vault.py` → `VaultManager` |
-| Auth logic | `backend/security/auth.py` + `backend/routers/auth.py` |
-| CSRF Settings & Key | `backend/security/csrf.py` & `.env` (`CSRF_SECRET_KEY`) |
-| OAuth PKCE state | `backend/security/oauth_store.py` → `OAuthStateStore` |
-| WebAuthn challenges | `backend/security/webauthn_store.py` → `WebAuthnChallengeStore` |
-| WebAuthn Passkeys | `backend/security/credential_store.py` → `Simplicial Vault` |
-| OTel tracing | `backend/tracing_config.py` |
-| Structured logging | `backend/logging_config.py` → `get_logger(__name__)` |
-| All Pydantic models | `backend/models.py` |
-| Zustand global state | `store/useStore.ts` |
-| React features | `features/{name}/` |
-| Watch Swift app | `watchos/AlluciWatch/` |
-| iOS companion app | `watchos/AlluciCompanion/` |
-
-## Verification Commands (Run After Every Change)
+## Verification Commands (Must Pass After Every Change)
 ```bash
-python -m pytest backend/tests/ -x -q                    # all Python tests pass
-python -m mypy backend/ --ignore-missing-imports          # no Python type errors  
-npx tsc --noEmit                                           # no TypeScript errors
-npx vitest run                                             # frontend unit tests pass
-curl -s http://127.0.0.1:8000/api/v1/health | python3 -m json.tool  # backend running
+source .venv/bin/activate
+pytest backend/tests/ -v                                 # Full Python test suite
+npx tsc --noEmit                                           # TypeScript type check
+make quality                                               # Full SRE production quality gate
+curl -s http://127.0.0.1:8000/api/v1/health                # Health check
 ```
-
-- [x] WebAuthn assertion/login endpoints (`backend/routers/auth.py`)
-- [x] Background token refresh loops (all OAuth bridges in `backend/bridges/`)
-- [x] Frontend state hydration on page refresh (`store/useStore.ts`)
-- [x] Android PWA (`vite.config.ts` + `public/manifest.json`)
-- [x] Xcode project file (`watchos/AlluciWatch/AlluciWatch.xcodeproj`) - *Follow A4_XCODE_GUIDE.md*
-- [x] Windows MSIX build script
-- [x] Fix watchOS URL: `/api/v1/channels/iwatch/biometrics`
-- [x] `WKExtendedRuntimeSession` for background HRV collection
-- [x] iOS companion app (`watchos/AlluciCompanion/`)
-- [x] Fix `gemini_pro` model ID in `backend/inference/router.py` line 67
-- [x] nginx HTTPS/TLS server block + Let's Encrypt
-- [x] CSRF Protection & Security Headers
-- [x] Database connection pooling (Postgres)
-- [x] All 21 bridge adapters registered and functional
-- [x] Sprint 1.1: Add CSRF_SECRET_KEY configuration and validators
-- [x] Sprint 1.2: Fill CSRF coverage gaps across routers
-- [x] Sprint 1.3: Fix Alembic target_metadata
-- [x] Sprint 1.4: Fix TelemetrySender UserDefaults keychain read
