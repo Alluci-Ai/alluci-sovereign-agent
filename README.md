@@ -317,7 +317,26 @@ Automatically profiles available System RAM and VRAM upon initialization, mappin
 
 ---
 
-### 2. Executive Orchestration Engine for Tasks, Crons & DAGs
+### 2. Local Voice & Conversational Speech Engine
+
+The **Local Voice & Conversational Speech Engine** (`AlluciVoiceOrchestrator` in `backend/inference/voice_orchestrator.py`) provides native, zero-latency audio transcription and cross-device voice interaction. Operating natively on host hardware, the Voice Engine pairs Apple Silicon `mlx_whisper` speech-to-text with hybrid voice synthesis, dynamically routing audio payloads based on host device capabilities.
+
+#### Streaming Audio Processing & Utterance Finalization (`/ws/voice`)
+- **Streaming 200ms Audio Fragments:** Ingests live PCM audio streams (16kHz float32 arrays) over streaming WebSocket RPC channels (`backend/routers/voice.py`).
+- **End-of-Speech Utterance Finalization:** Accumulates audio fragments in a rolling buffer, automatically detecting sustained silence to finalize complete speech utterances (`finalize_utterance`) and dispatch text tokens to the LCE for reasoning.
+
+#### Hybrid Cross-Device Voice Synthesis (`synthesize_response`)
+- **Native Apple OS Speech (`WATCH_ULTRA` & `IPHONE_17_PRO`):** Delivers lightweight text tokens (`type: "text_for_native_tts"`) to edge devices, triggering native Apple OS `AVSpeechSynthesizer` (Siri Voice Engine) on the Apple Watch and paired iPhone for battery-efficient, natural voice playback.
+- **Neural Kokoro MLX Engine (`MACBOOK_WORKSTATION`):** On developer workstations, synthesizes neural 24kHz PCM audio buffers using `kokoro_mlx` (`kokoro_bridge.py`), rendering studio-quality custom voice profiles directly on Metal GPU.
+
+#### Cross-Device Model Topology Map (`TIER_MODEL_MAP`)
+- **`MACBOOK_WORKSTATION` (Workstation Core):** Runs unquantized `whisper-large-v3-turbo` for high-precision transcription coupled directly to local 31B foundation models.
+- **`IPHONE_17_PRO` (Mobile Hub):** Runs 8-bit `whisper-base-8bit` alongside lightweight edge models (`EDGE_2B_4BIT`) for offline mobile speech recognition.
+- **`WATCH_ULTRA` (Edge Sentinel):** Uses native WatchOS audio capture (`AVAudioEngine`) and native speech synthesis (`AVSpeechSynthesizer`), delegating all cognitive reasoning and heavy transcription to the paired iPhone or host workstation over encrypted P2P WebSocket tunnels.
+
+---
+
+### 3. Executive Orchestration Engine for Tasks, Crons & DAGs
 
 The **Executive Orchestrator** serves as Alluci’s high-level planning and task execution engine. It transforms complex, ambiguous user objectives into structured, non-blocking execution pipelines. By combining hierarchical task decomposition, recurring background cron scheduling, real-time context compression, and continuous statistical safety calibration, the Orchestrator manages multi-agent Constellations with sub-second execution efficiency.
 
@@ -338,7 +357,7 @@ The **Executive Orchestrator** serves as Alluci’s high-level planning and task
 
 ---
 
-### 3. Simplicial H-LSM Memory
+### 4. Simplicial H-LSM Memory
 
 - **The Hierarchical Long-Short Manifold (H-LSM)** is Alluci’s 4‑tier stateful memory architecture. Managed by `HLSMManager`.
 
@@ -352,12 +371,12 @@ The **Executive Orchestrator** serves as Alluci’s high-level planning and task
 
 ---
 
-### 4. Local Fine-Tuning (SFT) & The LoRA Forge
+### 5. Local Fine-Tuning (SFT) & The LoRA Forge
 Alluci utilizes a specialized "Training Sandbox" mode that leverages the Unsloth library (optimized for 80% less VRAM usage) to perform Supervised Fine‑Tuning (SFT) directly on your hardware.
 - **The Data Pipeline:** Alluci’s H‑LSM Memory acts as the dataset generator. It continuously scrapes and cleans your local usage logs, business documents, and chat history into a secure "Sovereign Dataset."
 - **Native DPO & LoRA Forge:** You can trigger a "Skill Distillation" session where Alluci uses your specific data and a native PyTorch Direct Preference Optimization (DPO) kernel to forge custom LoRA (Low‑Rank Adaptation) adapters for Gemma 4.
 
-### 5. The "Dream" Cycle & Autonomous Evolution
+### 6. The "Dream" Cycle & Autonomous Evolution
 When the system detects low cognitive load (you are asleep or away), the daemon halts external polling and reallocates 100% of hardware resources to internal evolution:
 - **Cognitive Distillation:** Analyzes the day's interactions using Socratic questioning, distilling episodic logs into permanent Semantic Truths.
 - **Teacher-Student Harvest**: Records high-quality reasoning from interactions with 3rd-party cloud models and queues them as "Chosen" preference pairs for the local DPO forge—crystallizing cloud intelligence into your local machine overnight.
