@@ -15,9 +15,11 @@ export const SessionsPanel: React.FC = () => {
     const { sessions, setSessions, setActiveSessionKey, accessToken } = useStore();
     const [loading, setLoading] = useState(false);
 
-    const fetchSessions = async () => {
+    const fetchSessions = async (isBackgroundPoll = false) => {
         if (loading) return;
-        setLoading(true);
+        if (!isBackgroundPoll) {
+            setLoading(true);
+        }
 
         const controller = new AbortController();
         const tId = setTimeout(() => controller.abort(), 5000); // 5s timeout
@@ -47,13 +49,15 @@ export const SessionsPanel: React.FC = () => {
                 setSessions([]);
             }
         } finally {
-            setLoading(false);
+            if (!isBackgroundPoll) {
+                setLoading(false);
+            }
         }
     };
 
     useEffect(() => {
-        fetchSessions();
-        const interval = setInterval(() => fetchSessions(), 30000);
+        fetchSessions(false);
+        const interval = setInterval(() => fetchSessions(true), 30000);
         return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [accessToken]);

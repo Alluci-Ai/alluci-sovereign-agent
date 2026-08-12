@@ -22,8 +22,10 @@ export function useDAGRuns({ status, limit = 20, autoRefresh = true, agent_id = 
   const [error, setError] = useState<string | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const fetchRuns = useCallback(async (currentOffset = 0, replace = true) => {
-    setLoading(true);
+  const fetchRuns = useCallback(async (currentOffset = 0, replace = true, isBackgroundPoll = false) => {
+    if (!isBackgroundPoll) {
+      setLoading(true);
+    }
     setError(null);
     try {
       const params = new URLSearchParams({ limit: String(limit), offset: String(currentOffset), agent_id });
@@ -40,22 +42,24 @@ export function useDAGRuns({ status, limit = 20, autoRefresh = true, agent_id = 
     } catch (e: any) {
       setError(e.message);
     } finally {
-      setLoading(false);
+      if (!isBackgroundPoll) {
+        setLoading(false);
+      }
     }
   }, [accessToken, status, limit, agent_id]);
 
-  const refresh = useCallback(() => fetchRuns(0, true), [fetchRuns]);
+  const refresh = useCallback(() => fetchRuns(0, true, false), [fetchRuns]);
 
   const loadMore = useCallback(() => {
     const nextOffset = offset + limit;
     setOffset(nextOffset);
-    fetchRuns(nextOffset, false);
+    fetchRuns(nextOffset, false, false);
   }, [offset, limit, fetchRuns]);
 
   useEffect(() => {
-    fetchRuns(0, true);
+    fetchRuns(0, true, false);
     if (autoRefresh) {
-      intervalRef.current = setInterval(() => fetchRuns(0, true), POLL_INTERVAL_MS);
+      intervalRef.current = setInterval(() => fetchRuns(0, true, true), POLL_INTERVAL_MS);
     }
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);

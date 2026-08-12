@@ -16,8 +16,10 @@ export const SystemHealthCard: React.FC = () => {
     const [health, setHealth] = useState<HealthPayload | null>(null);
     const [loading, setLoading] = useState(true);
 
-    const checkHealth = async () => {
-        setLoading(true);
+    const checkHealth = async (isBackgroundPoll = false) => {
+        if (!isBackgroundPoll) {
+            setLoading(true);
+        }
         try {
             const res = await fetch(`${DAEMON_URL}/api/v1/system/health`, {
                 headers: { 'Authorization': `Bearer ${accessToken}` },
@@ -29,14 +31,16 @@ export const SystemHealthCard: React.FC = () => {
         } catch (err) {
             console.error('[SystemHealthCard] Failed running diagnostic check:', err);
         } finally {
-            setLoading(false);
+            if (!isBackgroundPoll) {
+                setLoading(false);
+            }
         }
     };
 
     useEffect(() => {
-        checkHealth();
-        // Check health periodically every 30s
-        const interval = setInterval(checkHealth, 30000);
+        checkHealth(false);
+        // Check health periodically every 30s silently
+        const interval = setInterval(() => checkHealth(true), 30000);
         return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [accessToken]);
@@ -60,7 +64,7 @@ export const SystemHealthCard: React.FC = () => {
                 </div>
 
                 <button
-                    onClick={checkHealth}
+                    onClick={() => checkHealth(false)}
                     className={`p-1 rounded-md text-text-tertiary hover:text-accent hover:bg-glass-edge transition-all ${loading ? 'animate-spin opacity-50' : ''}`}
                     title="Run Diagnostics"
                 >

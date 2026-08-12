@@ -1206,9 +1206,9 @@ body {
     transition:
         transform var(--lg-dur-release) var(--lg-spring),
         box-shadow var(--dur-normal) ease,
-        border-color var(--dur-fast) ease,
-        backdrop-filter var(--dur-fast) ease;
+        border-color var(--dur-fast) ease;
     will-change: transform, box-shadow;
+    transform: translateZ(0);
 }
 
 /* Specular glint overlay — tracks cursor position via CSS custom props */
@@ -1296,8 +1296,7 @@ body {
         transform var(--lg-dur-release) var(--lg-spring),
         background var(--dur-fast) ease,
         box-shadow var(--dur-normal) ease,
-        border-color var(--dur-fast) ease,
-        backdrop-filter var(--dur-fast) ease;
+        border-color var(--dur-fast) ease;
     will-change: transform, box-shadow;
     transform: scale(1) translateZ(0);
     /* Perspective for Z-axis depth */
@@ -1329,8 +1328,7 @@ body {
     transition:
         transform var(--lg-dur-hover) var(--lg-spring),
         background var(--lg-dur-hover) ease,
-        box-shadow var(--lg-dur-hover) ease,
-        backdrop-filter var(--lg-dur-hover) ease;
+        box-shadow var(--lg-dur-hover) ease;
 }
 
 /* On hover, specular glint intensifies */
@@ -1465,8 +1463,8 @@ body {
     position: relative;
     transition:
         border-color var(--lg-dur-hover) var(--lg-spring),
-        box-shadow var(--lg-dur-hover) var(--lg-spring),
-        backdrop-filter var(--dur-fast) ease;
+        box-shadow var(--lg-dur-hover) var(--lg-spring);
+    transform: translateZ(0);
 }
 
 /* Focus: "Surface break" — ring expands with spring physics */
