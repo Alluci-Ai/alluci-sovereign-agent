@@ -1,7 +1,7 @@
 import asyncio
 import httpx
 import trafilatura
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from duckduckgo_search import DDGS
 from .base import Adapter
 from ..logging_config import get_logger
@@ -69,29 +69,56 @@ def _sanitize_regex_topic(topic: str) -> str:
     )
     return cleaned if len(cleaned) > 2 else _deduplicate_phrase(topic.strip(' .\'\":;?“”'))
 
-def get_research_task_dir(objective_text: str, agent_id: str = "rocco", subfolder: str = "artifacts") -> str:
+import contextvars, hashlib, json
+
+active_run_context: contextvars.ContextVar[Optional[Dict[str, Any]]] = contextvars.ContextVar("active_run_context", default=None)
+
+def get_research_task_dir(objective_text: str, agent_id: str = "rocco", subfolder: str = "artifacts", run_id: Optional[str] = None) -> str:
     """
-    Generates a dated & topic-categorized task folder on local disk.
-    Taxonomy: backend/workspace/<agent_id>/<subfolder>/research/<YYYY-MM-DD>_<topic_slug>/
-    Example: backend/workspace/rocco/artifacts/research/2026-08-03_sovereign_ai/
+    Generates an isolated, dated & topic-categorized task folder on local disk.
+    Taxonomy: backend/workspace/artifacts/research/<YYYY-MM-DD>_<RUN_ID>_<TOPIC_SLUG>/
+    Example: backend/workspace/artifacts/research/2026-08-12_run_a32eb383_ai_ml_research_grants/
     """
     import os, re, datetime
-    from ..routers.sessions import WORKSPACE_DIR
+    
+    ctx = active_run_context.get()
+    effective_run_id = run_id or (ctx.get("run_id") if ctx else None) or "run_1"
+    clean_run_id = re.sub(r'[^a-zA-Z0-9_-]+', '', str(effective_run_id)).strip('_')
+    if not clean_run_id.startswith("run_"):
+        clean_run_id = f"run_{clean_run_id[:8]}"
     
     clean_topic = _sanitize_regex_topic(objective_text) or "deep_research"
-    # Convert clean_topic to clean snake_case slug
     slug = re.sub(r'[^a-zA-Z0-9]+', '_', clean_topic.lower()).strip('_')
     if not slug or len(slug) < 2:
         slug = "deep_research"
-    # Truncate long slugs to 4 words max
     slug_parts = [p for p in slug.split('_') if p][:4]
     slug = "_".join(slug_parts)
     
     date_str = datetime.date.today().strftime("%Y-%m-%d")
-    folder_name = f"{date_str}_{slug}"
+    folder_name = f"{date_str}_{clean_run_id}_{slug}"
     artifacts_base = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "workspace", "artifacts"))
     task_dir = os.path.join(artifacts_base, "research", folder_name)
     os.makedirs(task_dir, exist_ok=True)
+    
+    # Generate cryptographic provenance metadata.json
+    metadata_path = os.path.join(task_dir, "metadata.json")
+    if not os.path.exists(metadata_path):
+        obj_bytes = objective_text.encode('utf-8')
+        metadata_payload = {
+            "run_id": clean_run_id,
+            "agent_id": agent_id,
+            "subfolder": subfolder,
+            "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
+            "topic_slug": slug,
+            "objective_hash": hashlib.sha256(obj_bytes).hexdigest(),
+            "objective_text": objective_text[:500]
+        }
+        try:
+            with open(metadata_path, "w", encoding="utf-8") as f:
+                json.dump(metadata_payload, f, indent=2)
+        except Exception as meta_err:
+            logger.warning(f"Failed writing metadata.json to {task_dir}: {meta_err}")
+
     return task_dir
 
 def _clean_harvested_markdown(text: str) -> str:
@@ -1164,7 +1191,8 @@ class DeepResearchEvaluateAdapter(Adapter):
 
                 task_obj = args.get("task")
                 agent_id = args.get("assignee") or args.get("agent_id") or (getattr(task_obj, "assignee", "rocco") if task_obj else "rocco")
-                scratch_dir = get_research_task_dir(report, agent_id, "scratch")
+                raw_objective = args.get("context") or args.get("objective") or args.get("prompt") or report
+                scratch_dir = get_research_task_dir(raw_objective, agent_id, "scratch")
 
                 failed_chunk_count = 0
                 for idx, chunk in enumerate(chunks):
@@ -1252,6 +1280,8 @@ class DeepResearchEvaluateAdapter(Adapter):
                 logger.info("[Stage 2] Synthesizing Page 1 (Sections 1-3)...")
                 page1_file = os.path.join(scratch_dir, "report_page_1.md")
                 pass1_prompt = (
+                    f"PRIMARY RESEARCH OBJECTIVE:\n{raw_objective}\n\n"
+                    "CRITICAL INSTRUCTION: All synthesized findings, executive summaries, and tables MUST directly focus on and address this objective.\n\n"
                     "Synthesize the research summaries below into the FIRST 3 SECTIONS of a deep research report:\n"
                     "# Executive Summary\n"
                     "# Dual-Taxonomy Overview & Core Spectrum Analysis\n"
@@ -1287,6 +1317,8 @@ class DeepResearchEvaluateAdapter(Adapter):
                 logger.info("[Stage 3] Synthesizing Page 2 (Sections 4-6)...")
                 page2_file = os.path.join(scratch_dir, "report_page_2.md")
                 pass2_prompt = (
+                    f"PRIMARY RESEARCH OBJECTIVE:\n{raw_objective}\n\n"
+                    "CRITICAL INSTRUCTION: All synthesized findings, tools, media, and papers MUST directly focus on and address this objective.\n\n"
                     "Synthesize the research summaries below into SECTIONS 4, 5, AND 6 of a deep research report:\n"
                     "# Platforms, Runtimes & Developer Tools\n"
                     "# Media, Podcasts & Video Transcripts\n"
@@ -1322,6 +1354,8 @@ class DeepResearchEvaluateAdapter(Adapter):
                 logger.info("[Stage 4] Synthesizing Page 3 (Sections 7-9)...")
                 page3_file = os.path.join(scratch_dir, "report_page_3.md")
                 pass3_prompt = (
+                    f"PRIMARY RESEARCH OBJECTIVE:\n{raw_objective}\n\n"
+                    "CRITICAL INSTRUCTION: Synthesize strategic analysis, epistemic audits, and citations directly tailored to this objective.\n\n"
                     "Synthesize the research summaries below into SECTIONS 7, 8, AND 9 of a deep research report:\n"
                     "# Strategic Outlook & Market Trade-offs\n"
                     "# Epistemic Audit: Verified Facts vs. Disputed Claims & Blind Spots\n"
@@ -1373,7 +1407,8 @@ class DeepResearchEvaluateAdapter(Adapter):
             import os, json, datetime
             task_obj = args.get("task")
             agent_id = args.get("assignee") or args.get("agent_id") or (getattr(task_obj, "assignee", "rocco") if task_obj else "rocco")
-            art_dir = get_research_task_dir(report, agent_id, "artifacts")
+            raw_objective = args.get("context") or args.get("objective") or args.get("prompt") or report
+            art_dir = get_research_task_dir(raw_objective, agent_id, "artifacts")
             dossier_path = os.path.join(art_dir, "deep_research_dossier.md")
             
             with open(dossier_path, "a", encoding="utf-8") as f:
@@ -1434,7 +1469,8 @@ class DeepResearchChatReportAdapter(Adapter):
         import os
         task_obj = args.get("task")
         agent_id = args.get("assignee") or args.get("agent_id") or (getattr(task_obj, "assignee", "rocco") if task_obj else "rocco")
-        art_dir = get_research_task_dir(report, agent_id, "artifacts")
+        raw_objective = args.get("context") or args.get("objective") or args.get("prompt") or report
+        art_dir = get_research_task_dir(raw_objective, agent_id, "artifacts")
         file_path = os.path.join(art_dir, "deep_research_report.md")
         with open(file_path, "w", encoding="utf-8") as rf:
             rf.write(report)
