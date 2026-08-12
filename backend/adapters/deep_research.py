@@ -108,7 +108,7 @@ def get_research_task_dir(objective_text: str, agent_id: str = "rocco", subfolde
             "run_id": clean_run_id,
             "agent_id": agent_id,
             "subfolder": subfolder,
-            "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "topic_slug": slug,
             "objective_hash": hashlib.sha256(obj_bytes).hexdigest(),
             "objective_text": objective_text[:500]

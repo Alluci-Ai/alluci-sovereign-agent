@@ -67,7 +67,7 @@ def run_migration():
         "run_id": "run_1",
         "agent_id": "rocco",
         "subfolder": "artifacts",
-        "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "topic_slug": "ai_ml_research_grants",
         "objective_hash": hashlib.sha256(obj_bytes).hexdigest(),
         "objective_text": run_1_objective[:500],
