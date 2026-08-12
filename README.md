@@ -430,10 +430,28 @@ For enterprise environments requiring strict GDPR or Schrems II compliance, the 
 
 The **Sovereignty Level Wizard** makes onboarding seamless. Choose between Cloud-only (Level 1), Local Edge (Level 2), or the Full Sovereign Base (Level 3).
 
-### Prerequisites
-- **Frontend Runtime**: [Node.js](https://nodejs.org/) (v20+) & `npm`
+### 📋 System Prerequisites & Dependency Matrix
+
+Before installing Alluci, verify that your host environment meets the following requirements:
+
+#### 1. Core Runtimes & Build Toolchains
+- **Frontend Runtime**: [Node.js](https://nodejs.org/) (v20+) & `npm` (v10+)
 - **Backend Runtime**: [Python](https://www.python.org/) (v3.12+) & `pip`
-- **Local Inference Engines**: Apple MLX Python Frameworks (`mlx_lm`, `mlx_vlm`), native `llama.cpp` bindings, python-native audio synthesis adapters
+- **Native Build Tools**: C++ Compiler (`clang++` on macOS, `g++` on Linux, `MSVC` on Windows), `make`, `git`, and `lsof` *(Required to compile native DPK security kernels)*
+
+#### 2. Inference & Acceleration Engines
+- **Apple Silicon (macOS)**: Native Apple MLX frameworks (`mlx`, `mlx-lm`, `mlx-vlm`, `mlx-whisper`) leveraging Unified Memory
+- **PC & Linux (NVIDIA CUDA / CPU)**: PyTorch (`torch>=2.4.0`), `sentence-transformers`, or `llama.cpp` GGUF bindings via `local_bridge.py`
+- **Model Provisioning**: `huggingface_hub` CLI for downloading model weights from [HuggingFace (Alluci Models)](https://huggingface.co/Alluci)
+
+#### 3. Data & Storage Engines
+- **Relational & Search**: SQLite3 with FTS5 enabled *(Built into Python standard library)*
+- **Embedded Graph DB**: KùzuDB (`kuzu` embedded C++ engine) powering H-LSM Knowledge Graph
+- **In-Memory Cache**: Redis (`v7.0+`, optional for high-speed L0 Working Memory; automatically falls back to SQLite in zero-config `LITE_MODE`)
+
+#### 4. Optional Sovereign Services
+- **Verus Identity & Blockchain Node**: Local `verusd` node RPC daemon for VerusID decentralized identity, VDXF content maps, and on-chain audit ledger anchoring
+- **Biometric Telemetry Webhooks**: Apple Watch bridge (`bridges/iwatch.py`) or wearable webhooks (Garmin, Whoop, Oura) for bio-affective stress attunement and the Sovereign Kill Switch
 
 ---
 
