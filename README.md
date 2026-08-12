@@ -154,7 +154,68 @@ The **Polytope Projection Network (PPN)** serves as Alluci’s non-Euclidean geo
 
 #### Federated Digital Pheromones & Swarm Synchronization
 - **Structural Barcode Extraction:** Distills complex problem-solving paths into compact, invariant topological barcodes.
+
 - **Zero-Knowledge Swarm Broadcast:** Broadcasts structural barcodes over the Verus P2P network, enabling federated multi-agent swarm intelligence without exposing raw prompt context or private user data.
+
+### Discrete Projection Kernel (DPK)
+
+The **Discrete Projection Kernel (DPK)** serves as the high-speed, zero-trust cryptographic gatekeeper of the Alluci execution runtime. Operating at sub-microsecond speeds, DPK replaces floating-point topological calculations with integer boundary operators ($\partial_k: C_k \to C_{k-1}$) and modular arithmetic. DPK validates state transition vectors ($\mathbf{x}_{t-1} \to \mathbf{x}_t$), enforcing topological Euler characteristic invariants ($\chi = V - E + F$) and preventing unauthorized state mutations before any tool or agent action executes.
+
+#### Integer Boundary Operators & $\mathcal{O}(1)$ Discrete Verification
+- **Exact Simplicial Arithmetic:** Evaluates topological state transitions using integer simplicial boundary operators ($\partial_k$), computing Euler invariants ($\chi$) in $\mathcal{O}(1)$ time complexity without floating-point rounding errors.
+- **Native C++ Performance Acceleration:** Dispatches validation queries through a compiled native C++ shared library (`dpk_kernel.cpp` / `ctypes`), falling back to a pure Python implementation when hardware constraints dictate.
+
+#### Dynamic Manifold Tearing & Topology Shift Detection
+- **State Shift Calculation ($\Delta \text{Topology}$):** Monitors directional topological shift between consecutive execution steps ($\mathbf{s}_{t-1}$ and $\mathbf{s}_t$).
+- **Tearing Threshold Enforcement:** If topological shift breaches the calibrated dynamic threshold ($\Delta \text{Shift} > \theta_{\text{dynamic}}$), DPK raises a `TearingException`, instantly halting execution to prevent state corruption or hallucinated loop cascades.
+
+#### Cryptographic Attribution Hashing (`AAP-003`)
+- **Sovereign Hash Chain:** Computes deterministic 64-bit signature hashes ($\text{Hash}_{64}$) derived from SHA-256 for every `PolytopeState`.
+- **VerusID Cryptographic Anchoring:** Anchors state transitions and action payloads to the host's VerusID sovereign cryptographic identity, establishing an un-forgeable audit trail for execution history.
+
+#### Continuous Statistical Safety Calibration & Human-in-the-Loop Override
+- **Dynamic Risk Calibration:** Integrates with the `CalibrationManager` to dynamically calibrate safety rejection thresholds based on execution history, affective tension ($\psi$), and active workspace permissions.
+- **HITL Executive Security Governance:** Supports explicit Human-in-the-Loop (HITL) administrative overrides (`is_override=True`), allowing authorized users to bypass false-positive manifold halts while preserving audit logs.
+
+### Action Verification Loop (AVL Gate)
+
+The **Action Verification Loop (AVL Gate)** serves as Alluci’s zero-trust safety and payload verification engine. Functioning as an inline firewall between LLM generation outputs and tool execution adapters, the AVL Gate enforces a mathematical three-pillar security protocol. It prevents unauthorized code execution, prompt injections, and structural hallucinations by verifying cryptographic attribution, gradient smoothness limits, and topological continuity before any action payload is committed.
+
+#### Three-Pillar Structural Safety Protocol
+- **Pillar 1: Sovereign Attribution Verification:** Checks signature hashes ($\text{Hash}_{64} \neq 0$), hard-rejecting any unsigned or external manifold completions that lack cryptographic proof of origin.
+- **Pillar 2: ALCE Gradient Smoothness Verification:** Enforces Lipschitz continuity budget limits ($\text{Budget}_{\text{used}} \leq \text{Budget}_{\text{dynamic}}$). Rejects actions that breach Relational Boundary Manifolds ($\text{RBM}$) to eliminate gradient explosion and execution runaways.
+- **Pillar 3: Topological Continuity Verification:** Validates Euler characteristic consistency ($|\chi - \beta_{\chi}| \leq \text{Euler}_{\text{tolerance}}$, where $\chi = V - E + F$), detecting structural ruptures and hallucinated sequence jumps.
+
+#### GJK Convex Boundary Projection & Action Refinement
+- **Gilbert-Johnson-Keerthi (GJK) Distance Algorithm:** Evaluates out-of-bounds action vectors against admissible manifold boundaries.
+- **Deterministic Action Refinement (`project_to_boundary`):** Projects near-boundary prompt violations back into admissible Lipschitz bounds, neutralizing prompt injection attacks without disrupting execution flow.
+
+#### Self-Healing Executive Loop & HITL Fallback Protocol
+- **Corrective Prompt Injection:** When an action payload fails verification, the `ExecutiveOrchestrator` self-healing loop injects a high-priority `<SECURITY_RUPTURE>` prompt directive, instructing the agent to regenerate a safe, strictly bounded plan.
+- **Human-in-the-Loop (HITL) State Lock:** If self-healing fails across 3 consecutive iterations, the AVL Gate forces a hard exit to `HUMAN-IN-THE-LOOP REQUIRED` mode, preserving workspace integrity.
+
+#### Discovery Mode Learning & Evolving Thresholds
+- **Dynamic Baseline Calibration:** Integrates with the `CalibrationManager` (`avl_calibration_cache.json`) to continuously track execution history, tool success rates, and affective tension ($\psi$).
+- **Adaptive Rejection Calibration:** Automatically adjusts safety rejection thresholds over time—learning routine operational baselines to eliminate false positives while maintaining zero-trust governance.
+
+### Proactive Cognition Layer (PCL)
+
+The **Proactive Cognition Layer (PCL)** serves as Alluci’s continuous background reasoning and autonomous intelligence engine. Architecturally distinct from passive event watchers or simple cron pollers, PCL operates as an autonomous cognitive loop—continuously observing system signals, constructing stateful world models, identifying execution opportunities, and executing proactive workstreams without requiring explicit user prompting.
+
+#### Five-Stage Cognitive Lifecycle (`OBSERVE → MODEL → DETECT → JUDGE → ACT`)
+- **Observe:** Scans multi-modal signal sources across active goals, inbound channel threads, H-LSM episodic memory, and real-time biometrics.
+- **Model:** Synthesizes raw environmental metrics into a structured, unified `WorldModel` snapshot persisted to SQLite database tables (`pcl_world_snapshot`).
+- **Detect:** Executes pluggable opportunity detection engines (`StalledGoalDetector`, `UnresolvedThreadDetector`, `HardwareAnomalyDetector`, `AffectiveStressDetector`) to discover actionable tasks.
+- **Judge:** Evaluates candidate opportunities against affective stress ($\psi$), quiet-hours boundaries ($22:00–07:00$), and workspace policy constraints, assigning calibrated confidence scores ($S_{\text{conf}} \in [0.0, 1.0]$).
+- **Act / Notify:** Dispatches verified low-risk background execution pipelines directly to the `ExecutiveOrchestrator` or broadcasts non-intrusive administrative notifications via streaming WebSockets (`JsonRpcGateway`).
+
+#### Persistent World Model Synthesis
+- **Stateful Snapshot Engine:** Tracks long-term goal trajectories, project deadlines, and unresolved memory threads over rolling 48-hour windows.
+- **Dream Cycle Integration:** Feeds compressed world model snapshots into the nightly "Dream" cycle, enabling Socratic self-reflection and teacher-student preference harvests while hardware load is low.
+
+#### Bio-Affective & Autonomy Calibration (`ACE` Integration)
+- **Affective Stress Gating:** Reads real-time valence, arousal, and stress scores ($\psi$) from the Affective Computing Engine (ACE).
+- **Dynamic Intrusiveness Control:** Automatically deprioritizes non-critical notifications and background task dispatches during high user stress, preserving focus and aligning system behavior with human physiology.
 
 ---
 
