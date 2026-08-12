@@ -217,6 +217,23 @@ The **Proactive Cognition Layer (PCL)** serves as Alluci’s continuous backgrou
 - **Affective Stress Gating:** Reads real-time valence, arousal, and stress scores ($\psi$) from the Affective Computing Engine (ACE).
 - **Dynamic Intrusiveness Control:** Automatically deprioritizes non-critical notifications and background task dispatches during high user stress, preserving focus and aligning system behavior with human physiology.
 
+### PVT Manifold Health Monitor (PVT)
+
+The **PVT Manifold Health Monitor (PVT)** serves as Alluci’s real-time thermodynamic health and stability engine. Operating as a continuous diagnostic monitor within the `ExecutiveOrchestrator`, PVT models the cognitive state space using a thermodynamic triple ($P, V, T$). It measures manifold pressure, available agency volume, and entropy temperature to prevent system instability, topological drift, and unauthorized execution runaways.
+
+#### Thermodynamic State Triple ($P, V, T$)
+- **Pressure ($P \in [0.0, 1.0]$):** Measures constraint density relative to admissible volume ($P = \frac{\text{Active Constraints}}{4.0 \cdot V_{\text{agency}} + \epsilon}$). High pressure ($P > 0.8$) indicates hyper-constrained cognitive state space.
+- **Volume ($V \in [0.0, 1.0]$):** Quantifies admissible polytope hyper-volume and agent agency space ($V = (1 - \text{Budget}_{\text{used}}) \cdot \text{Coherence}$). Low volume ($V < 0.2$) indicates restricted operational autonomy.
+- **Temperature ($T \in [0.0, 1.0]$):** Tracks entropy spikes and topological instability ($T = \Delta \beta_{\text{norm}} + D_{\text{KL}}(P_t \parallel P_{t-1})$). Evaluates normalized Betti signature shifts ($\Delta \beta$) and Kullback-Leibler divergence between execution steps.
+
+#### Real-Time Rupture Threshold & Safe-Halt Protocol
+- **Rupture Detection ($T > 0.8$):** When entropy temperature breaches the critical rupture threshold ($T > 0.8$), PVT flags a `CRITICAL` state.
+- **Emergency Safe-Halt ($g=0$):** The `ExecutiveOrchestrator` immediately engages an emergency safe-halt ($g=0$), freezing tool actions and locking execution to protect workspace state.
+
+#### Real-Time Telemetry & Audit Ledger Integration
+- **WebSocket Streaming Gateway (`manifold.pvt`):** Pushes live PVT telemetry triples ($P, V, T$) over WebSocket RPC to client dashboards.
+- **Cryptographic Audit Persistence (`pvt_json`):** Serializes PVT diagnostic state triples into SQLite audit log ledgers (`pvt_json`), generating an immutable record of system thermodynamic stability.
+
 ---
 
 ### 1. The Local Cognitive Engine (LCE)
