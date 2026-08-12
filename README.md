@@ -132,6 +132,32 @@ System execution is governed by a three-pillar action safety loop enforcing Lips
 
 ---
 
+### Polytope Projection Network (PPN)
+
+The **Polytope Projection Network (PPN)** serves as Alluci’s non-Euclidean geometric intelligence engine. Moving beyond traditional, hallucination-prone vector similarity lookups, PPN projects unstructured multi-modal data streams—text, biometrics, tool actions, and execution traces—into topologically stable geometric manifolds. Governed by algebraic topology and simplicial homology, PPN evaluates state continuity using Betti signatures ($\beta_0, \beta_1, \beta_2$), ensuring that cognitive operations maintain structural integrity across execution cycles.
+
+#### Topological Manifold Projection & Simplicial Homology
+- **Non-Euclidean Representation:** Transforms high-dimensional embeddings into low-dimensional geometric manifolds ($d=32$) using fixed deterministic projection matrices, constructing Rips complexes to compute real graph-theoretic simplicial homology.
+- **Betti Signature Extraction:** Computes invariant Betti topological invariants ($\beta_0$ connected components, $\beta_1$ 1-skeleton cycles, $\beta_2$ 3-clique voids) to quantify topological coherence without relying on fragile keyword matching.
+
+#### Fixed-Point Quantization & Deterministic Safety (`SEC-005`)
+- **Deterministic Fixed-Point Normalization:** Quantizes tensor projections to fixed-point precision ($1/\text{scale}$ steps clamped to int16 boundaries), eliminating floating-point non-determinism across host CPU and Metal GPU runtimes.
+- **Side-Channel Mitigation:** Prevents timing attacks and numerical drift, ensuring identical manifold states across independent execution nodes and background iterations.
+
+#### Multimodal Polytope Fusion & Bio-Affective Attunement (`ACE`)
+- **Direct Physiological Coupling:** Dynamically couples real-time Apple Watch biometrics (HRV, respiratory rate, stress scores) and affective tension ($\psi$) directly into manifold geometry.
+- **Topological Coherence Scoring:** Adjusts manifold elasticity and coherence scores ($C \in [0.1, 0.95]$) based on user valence and arousal, modulating agent autonomy without requiring string-to-vector language conversion.
+
+#### Real-Time Manifold Stability & Tearing Detection
+- **Pre-Execution Manifold Checks (`_perform_ppn_check`):** Evaluates candidate task objectives and tool actions for topological tearing ($\Delta \beta$ norm spikes, entropy threshold breaches) before committing steps to execution pipelines.
+- **Self-Healing State Recovery:** Triggers immediate execution halts or corrective prompt injections when manifold tearing is detected, preventing cascade failures and hallucinated state drift.
+
+#### Federated Digital Pheromones & Swarm Synchronization
+- **Structural Barcode Extraction:** Distills complex problem-solving paths into compact, invariant topological barcodes.
+- **Zero-Knowledge Swarm Broadcast:** Broadcasts structural barcodes over the Verus P2P network, enabling federated multi-agent swarm intelligence without exposing raw prompt context or private user data.
+
+---
+
 ### 1. The Local Cognitive Engine (LCE)
 
 The **Local Cognitive Engine (LCE)** serves as Alluci’s native, on-device foundation intelligence substrate. Built around a **Sovereign-First execution model**, the LCE evaluates neural network models locally on host hardware—delivering ultra-low latency, zero-copy memory access, dynamic VRAM safeguards, and privacy-preserving cloud federation without cloud vendor lock-in or un-sanctioned data egress.
