@@ -393,6 +393,8 @@ Alluci is built natively around the **Verus DREAM (Decentralized Real-time Encry
 - **Decentralized Real-Time Encrypted Runtime:** Implements the DREAM paradigm by anchoring agent state, user authorization, and executive manifests directly to self-sovereign identity handles (`identity@`).
 - **Zero-Trust Peer-to-Peer Protocol:** Replaces central server infrastructure with encrypted P2P messaging and VDXF data structures. Agent instances communicate peer-to-peer using Ed25519 cryptographic signatures without exposing raw data to central relays.
 
+---
+
 #### 2. Local Verus Blockchain Node & PBaaS Architecture (`verus_rpc.py`)
 - **Native Local Node Execution:** Interacts directly with a local Verus blockchain node via high-performance JSON-RPC (`verus_get_info`, `verus_get_identity`).
 - **Self-Sovereign Fund & Asset Control:** Manages local wallet funds, executes cross-chain transfers (`verus_send_currency`), and creates decentralized marketplace orders (`verus_make_offer`) natively on-device.
@@ -426,74 +428,87 @@ For enterprise environments requiring strict GDPR or Schrems II compliance, the 
 
 ## 🚀 Comprehensive Onboarding Guide
 
-The new **Sovereignty Level Wizard** makes onboarding seamless. Choose between Cloud-only (Level 1), Local Edge (Level 2), or the Full Sovereign Base (Level 3).
+The **Sovereignty Level Wizard** makes onboarding seamless. Choose between Cloud-only (Level 1), Local Edge (Level 2), or the Full Sovereign Base (Level 3).
 
 ### Prerequisites
-- **Frontend**: [Node.js](https://nodejs.org/) (v20+)
-- **Backend**: [Python](https://www.python.org/) (v3.12+)
-- **Local Inference Tools**: Apple MLX Python Frameworks (`mlx_lm`, `mlx_vlm`), python-native audio synthesis adapters
+- **Frontend Runtime**: [Node.js](https://nodejs.org/) (v20+) & `npm`
+- **Backend Runtime**: [Python](https://www.python.org/) (v3.12+) & `pip`
+- **Local Inference Engines**: Apple MLX Python Frameworks (`mlx_lm`, `mlx_vlm`), native `llama.cpp` bindings, python-native audio synthesis adapters
 
 ---
 
-### 1. The Air-Gap Boundary
-End users need to understand the lifecycle of the setup for absolute data sovereignty.
-Step 1 (`install.sh` or `install.ps1`) requires a **high-bandwidth internet connection** to pull the multi-gigabyte models and embedding `.safetensors` from HuggingFace into your local `mirror_cache/`. 
+### 1. Air-Gap Boundary & Automated Model Provisioning
 
-Once the terminal outputs `[ INFO ]: Setup Complete.`, the setup is finalized. You can now **physically sever the ethernet cable or disable Wi-Fi**, and the Sovereign Agent will run indefinitely offline without ever pinging an external server again.
+Alluci features an automated, hardware-aware model downloader (`scripts/download_models.py`).
+
+1. **Hardware-Aware Model Provisioning (Online Setup):** 
+   Running `./scripts/setup_sovereign_stack.sh` triggers `HardwareProfiler.get_system_profile()`. The profiler scans host System RAM, VRAM, and GPU architecture, automatically downloading the optimal model weights directly from [HuggingFace (Alluci Models)](https://huggingface.co/Alluci) into your local `mirror_cache/`:
+   - Automatically pulls your assigned primary tier model (`TIER_0_ULTRA` through `TIER_4_EDGE`).
+   - Automatically pulls the lightweight speculator model (`EDGE_2B_4BIT`) for draft-verification token acceleration.
+   - Automatically pulls the offline PPN embedding model (`all-MiniLM-L6-v2`) for local RAG vector search.
+
+2. **Air-Gap Activation (100% Offline Sovereignty):** 
+   Once the setup script outputs `[ INFO ]: Setup Complete`, all model weights, tokenizer manifests, and embedding models are cached locally. You can physically disconnect network cables or disable Wi-Fi, and the Sovereign Agent will execute indefinitely offline with zero external network dependencies.
 
 ---
 
-### 2. Running locally
+### 2. Local Stack Execution & Automation
 
-**Automated Stack Setup**
-Run the setup script to install local binaries and pull the required models:
+**Automated Stack Initialization**
 ```bash
 chmod +x scripts/setup_sovereign_stack.sh
 ./scripts/setup_sovereign_stack.sh
 ```
 
-**Start the Stack via Makefile**
+**Managing the Stack via Makefile**
 The easiest way to run the entire stack locally is using our pre-configured Makefile:
 ```bash
-make init
-make start
+make init     # Initialize .env, virtualenv, and install dependencies via bootstrap_all.sh
+make start    # Cleanly start Backend (Port 8000) and Frontend (Port 3000)
+make status   # Verify port 8000/3000 status and active services
+make doctor   # Run diagnostic check on toolchain and local environment (scripts/verify_local.py)
+make stop     # Gracefully terminate active background processes
 ```
-*Alternatively, run them manually:*
-- **Backend (Port 8000):** `source .venv/bin/activate && pip install -r requirements.txt && uvicorn backend.app:app --port 8000`
-- **Frontend (Port 3000):** `npm install && npm run dev -- --port 3000`
 
-Open `http://localhost:3000` to access the Alluci Sovereign Gateway. Upon first launch, the **Sovereignty Wizard** will guide you through your stack configuration.
+*Manual Startup Alternative:*
+- **Backend (Port 8000):** `source .venv/bin/activate && uvicorn backend.app:app --port 8000 --host 0.0.0.0`
+- **Frontend (Port 3000):** `npm run dev -- --port 3000 --host 0.0.0.0`
+
+Open `http://localhost:3000` to launch the Alluci Sovereign Gateway. Upon first launch, the **Sovereignty Wizard** will guide your configuration.
 
 ---
 
-### 3. Configuring vault secrets
+### 3. Configuring Vault Secrets & Sovereign Credentials
 
-The Sovereign Agent uses a strictly local `.env` file to seed its Verus Vault and configuration parameters. 
-
-Clone the template to initialize your environment:
+The Sovereign Agent uses a strictly local `.env` file to seed its Verus Vault and configuration parameters:
 ```bash
 cp .env.example .env
 ```
-Fill in your critical environment variables:
-- `POLYTOPE_MASTER_KEY`: Your core cryptographic seed for Vault 2FA and AES-256 encryption. Keep this safe!
-- `JWT_SECRET_KEY`: Used for secure session management.
-- `DATA_REGION`: Set to `EU` to enforce the SecureProxy pseudonymization firewall.
-- `ENFORCE_EU_ENDPOINTS`: Set to `True` for strict Schrems II physical endpoint enforcement.
+
+Configure core environment keys in `.env`:
+- `POLYTOPE_MASTER_KEY`: Master seed for AES-256 vault encryption and 2FA secrets.
+- `JWT_SECRET_KEY`: Used for secure session token signing.
+- `VERUS_ID_IDENTITY`: Sovereign VerusID identity handle (`YourIdentity@`).
+- `VERUS_ID_PRIVATE_KEY`: Ed25519 private key seed for executive manifest signing.
+- `REQUIRE_WATCH_TELEMETRY`: Set to `True` to enforce biometric kill switch liveness checks.
+- `DATA_REGION`: Set to `EU` to enforce the SecureProxy PII firewall.
+- `ENFORCE_EU_ENDPOINTS`: Set to `True` for strict physical EU cloud datacenter routing.
 
 ---
 
-### 4. Running the test suite
+### 4. Sovereign Reliability Engineering (SRE) & Quality Gate
 
-We enforce a rigorous zero-trust testing philosophy. To validate your local deployment, run the full quality gate:
+Alluci incorporates a rigorous quality gate to guarantee local system stability, zero-trust security, and immutable supply-chain integrity:
 
 ```bash
 make quality
 ```
 
-**This executes the following suite:**
-- **Preflight**: Validates your python and node toolchains.
-- **Testing**: Runs the `pytest` backend suite and the frontend unit tests.
-- **Security**: Performs `npm audit`, `pip-audit`, and `detect-secrets` scanning to prevent supply chain attacks.
+**The Quality Gate Executes:**
+- **Preflight Checks:** Validates toolchain dependencies, virtualenv setup, and environment integrity (`scripts/production_readiness/preflight.sh`).
+- **Test Suite Execution:** Runs full backend pytest suites (`pytest backend/tests/ -v`) and performance benchmarks (`pytest backend/tests/performance/test_benchmarks.py`).
+- **Security & Dependency Audits:** Performs `npm audit`, `pip-audit`, and static secret detection scanning.
+- **Automated Release Reporting:** Generates timestamped diagnostic reports in `reports/` (`generate_release_report.py`).
 
 To run tests manually:
 ```bash
@@ -503,39 +518,11 @@ pytest backend/tests/ -v
 
 ---
 
-## 🛠️ Sovereign Reliability Engineering (SRE)
+### 🔧 Debug & Diagnostic Mode
 
-The Alluci Sovereign Agent incorporates a rigorous Sovereign Reliability Engineering (SRE) suite to mathematically ensure local stability, zero-trust security, and immutable supply-chain integrity.
-
-To run the full quality gate locally:
-```bash
-make quality
-```
-
-This script executes:
-- **Preflight**: Validates toolchain and registry reachability.
-- **Quality**: Runs full frontend and backend test suites, linting, and type checking.
-- **Security**: Performs `npm audit`, `pip-audit`, and `detect-secrets` scanning.
-- **Deploy**: Validates deployment manifests for immutable image digests.
-- **Reporting**: Generates a timestamped markdown report in `reports/`.
-
-### ⚡ Load Testing Harness
-To validate system stability under extreme concurrent load, a **Locust** load-testing harness is integrated. It simulates hundreds of concurrent agents processing multi-step DAG workflows:
-```bash
-locust -f load_test.py --headless -u 50 -r 10
-```
-
-### 🛡️ Continuous Licensing Compliance
-The CI pipeline incorporates a strict `license_finder` firewall to protect proprietary IP. Any attempt to introduce GPL, AGPL, or incompatible copyleft dependencies will automatically fail the build, ensuring **zero IP contamination risk**.
-
----
-
-## 🔧 Debug Mode
-
-The `DEBUG` environment variable (default `False`) controls error verbosity.
-
-- **Production (`DEBUG=False`)** – JSON‑RPC errors omit the `data` field and FastAPI exception details are masked.
-- **Development (`DEBUG=True`)** – Detailed validation errors are included in the `data` field and full exception messages are returned.
+The `DEBUG` environment variable controls system diagnostic verbosity:
+- **Production (`DEBUG=False`):** Mutes internal exception tracebacks, masks FastAPI error details, and sanitizes JSON-RPC response payloads.
+- **Development (`DEBUG=True`):** Enables full exception tracebacks, detailed validation data, and verbose topological log output.
 
 Set `DEBUG=True` in your `.env` or export the variable locally to enable detailed diagnostics during development.
 
