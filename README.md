@@ -385,6 +385,31 @@ Alluci implements a zero-trust, hardware-anchored security model that couples sy
 - **Isolated Bridge Containers:** Sandboxes every external communication channel and tool integration (Signal, iMessage, Slack, Google Drive, Email) within isolated cryptographic containers.
 - **AES-256-GCM Envelope Encryption:** Protects channel secrets, tokens, and bridge state using AES-256-GCM envelope encryption, preventing cross-bridge context leaks or unauthorized data access.
 
+### Verus Sovereign Identity & DREAM Architecture
+
+Alluci is built natively around the **Verus DREAM (Decentralized Real-time Encrypted Application Model)** framework. By abandoning centralized cloud application servers, API keys, and third-party database proxies, Alluci pairs local-first machine intelligence with VerusID self-sovereign identities, structured VDXF data namespaces, local blockchain nodes, and encrypted peer-to-peer (P2P) state synchronization.
+
+#### 1. Alignment with the Verus DREAM Application Model
+- **Decentralized Real-Time Encrypted Runtime:** Implements the DREAM paradigm by anchoring agent state, user authorization, and executive manifests directly to self-sovereign identity handles (`identity@`).
+- **Zero-Trust Peer-to-Peer Protocol:** Replaces central server infrastructure with encrypted P2P messaging and VDXF data structures. Agent instances communicate peer-to-peer using Ed25519 cryptographic signatures without exposing raw data to central relays.
+
+#### 2. Local Verus Blockchain Node & PBaaS Architecture (`verus_rpc.py`)
+- **Native Local Node Execution:** Interacts directly with a local Verus blockchain node via high-performance JSON-RPC (`verus_get_info`, `verus_get_identity`).
+- **Self-Sovereign Fund & Asset Control:** Manages local wallet funds, executes cross-chain transfers (`verus_send_currency`), and creates decentralized marketplace orders (`verus_make_offer`) natively on-device.
+- **Public Blockchains as a Service (PBaaS):** Leverages Verus PBaaS multichain infrastructure for cross-chain identity verification and sovereign token settlement across interconnected blockchain networks.
+
+#### 3. Verus Data eXchange Format (VDXF) Data Layer (`vdxf_store.py`)
+- **Structured Sovereign Data Namespaces:** Utilizes standardized, typed VDXF keys (`verus_get_vdxf_id`) to structure application data, skill manifests, and agent configurations without vendor lock-in.
+- **Identity-Bound Content Mapping (`contentmultimap`):** Stores and retrieves encrypted agent manifests and peer messages directly on the `VerusID` content multimap (`VDXFStore`), creating a portable, decentralized state storage layer.
+
+#### 4. On-Chain Audit Ledger Anchoring (`audit_ledger.py` / `verus_txid`)
+- **Cryptographic State Invariance Proxies:** Periodically computes SHA-256 state hashes ($\text{Hash}_{\text{integrity}}$) across the `AuditLedger` and H-LSM memory manifolds.
+- **Immutable On-Chain Proofs (`verus_txid`):** Anchors state integrity hashes and executive action summaries directly to the Verus blockchain (`verus_txid` and `vdxf_key`), generating an un-alterable, mathematically verifiable audit log of agent history.
+
+#### 5. Federated Swarm Intelligence & Digital Pheromones (`AntNetworkProtocol`)
+- **P2P Swarm Problem Solving:** Uses the `AntNetworkProtocol` (`Alluci_Ant_v1`) over Verus VDXF messaging channels to coordinate multi-agent constellations across distributed devices.
+- **Zero-Knowledge Digital Pheromones:** Broadcasts abstract, invariant "Topological Barcodes" (Betti signature pheromones) over the Verus P2P network. Agents harvest collective problem-solving paths to achieve swarm intelligence without ever transmitting raw prompts, private text, or personal credentials.
+
 ---
 
 ## 🌍 Data Residency & EU Compliance
