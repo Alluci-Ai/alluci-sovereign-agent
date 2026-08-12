@@ -157,6 +157,8 @@ The **Polytope Projection Network (PPN)** serves as Alluci’s non-Euclidean geo
 
 - **Zero-Knowledge Swarm Broadcast:** Broadcasts structural barcodes over the Verus P2P network, enabling federated multi-agent swarm intelligence without exposing raw prompt context or private user data.
 
+---
+
 ### Discrete Projection Kernel (DPK)
 
 The **Discrete Projection Kernel (DPK)** serves as the high-speed, zero-trust cryptographic gatekeeper of the Alluci execution runtime. Operating at sub-microsecond speeds, DPK replaces floating-point topological calculations with integer boundary operators ($\partial_k: C_k \to C_{k-1}$) and modular arithmetic. DPK validates state transition vectors ($\mathbf{x}_{t-1} \to \mathbf{x}_t$), enforcing topological Euler characteristic invariants ($\chi = V - E + F$) and preventing unauthorized state mutations before any tool or agent action executes.
@@ -176,6 +178,8 @@ The **Discrete Projection Kernel (DPK)** serves as the high-speed, zero-trust cr
 #### Continuous Statistical Safety Calibration & Human-in-the-Loop Override
 - **Dynamic Risk Calibration:** Integrates with the `CalibrationManager` to dynamically calibrate safety rejection thresholds based on execution history, affective tension ($\psi$), and active workspace permissions.
 - **HITL Executive Security Governance:** Supports explicit Human-in-the-Loop (HITL) administrative overrides (`is_override=True`), allowing authorized users to bypass false-positive manifold halts while preserving audit logs.
+
+---
 
 ### Action Verification Loop (AVL Gate)
 
@@ -198,6 +202,8 @@ The **Action Verification Loop (AVL Gate)** serves as Alluci’s zero-trust safe
 - **Dynamic Baseline Calibration:** Integrates with the `CalibrationManager` (`avl_calibration_cache.json`) to continuously track execution history, tool success rates, and affective tension ($\psi$).
 - **Adaptive Rejection Calibration:** Automatically adjusts safety rejection thresholds over time—learning routine operational baselines to eliminate false positives while maintaining zero-trust governance.
 
+---
+
 ### Proactive Cognition Layer (PCL)
 
 The **Proactive Cognition Layer (PCL)** serves as Alluci’s continuous background reasoning and autonomous intelligence engine. Architecturally distinct from passive event watchers or simple cron pollers, PCL operates as an autonomous cognitive loop—continuously observing system signals, constructing stateful world models, identifying execution opportunities, and executing proactive workstreams without requiring explicit user prompting.
@@ -216,6 +222,8 @@ The **Proactive Cognition Layer (PCL)** serves as Alluci’s continuous backgrou
 #### Bio-Affective & Autonomy Calibration (`ACE` Integration)
 - **Affective Stress Gating:** Reads real-time valence, arousal, and stress scores ($\psi$) from the Affective Computing Engine (ACE).
 - **Dynamic Intrusiveness Control:** Automatically deprioritizes non-critical notifications and background task dispatches during high user stress, preserving focus and aligning system behavior with human physiology.
+
+---
 
 ### PVT Manifold Health Monitor (PVT)
 
@@ -240,7 +248,7 @@ The **PVT Manifold Health Monitor (PVT)** serves as Alluci’s real-time thermod
 
 The **Local Cognitive Engine (LCE)** serves as Alluci’s native, on-device foundation intelligence substrate. Built around a **Sovereign-First execution model**, the LCE evaluates neural network models locally on host hardware—delivering ultra-low latency, zero-copy memory access, dynamic VRAM safeguards, and privacy-preserving cloud federation without cloud vendor lock-in or un-sanctioned data egress.
 
-Official quantized model weights across all 5 tiers are hosted on [HuggingFace (Alluci LCE Models)](https://huggingface.co/Alluci).
+Official quantized model weights across all tiers are hosted on [HuggingFace (Alluci LCE Models)](https://huggingface.co/Alluci).
 
 #### Apple Silicon Execution Plane
 - **Native MLX Engine:** Evaluates models 100% natively using Apple `mlx_lm` and `mlx_vlm` frameworks, leveraging Apple Silicon’s shared Unified Memory architecture for zero-copy tensor evaluation.
@@ -253,12 +261,12 @@ Official quantized model weights across all 5 tiers are hosted on [HuggingFace (
 - **Unified API Parity:** Ensures identical privacy gating, PII pseudonymization, and 4-tier memory integration across non-Apple hardware.
 
 #### 5-Tier System Hardware Profiling Matrix
-Automatically profiles available System RAM and VRAM upon initialization, mapping the host environment to the optimal model size and precision tier:
-- **`TIER_0_ULTRA` ($\ge 96\text{ GB Unified RAM}$):** Unquantized 31B flagship dense model for workstation performance.
-- **`TIER_1_MAX` ($\ge 60\text{ GB Unified RAM}$):** High-density 31B 8-bit / 4-bit model for developer workstations.
-- **`TIER_2_PRO` ($\ge 30\text{ GB Unified RAM}$):** 26B Mixture-of-Experts (MoE) 4-bit model for high-efficiency laptops.
-- **`TIER_3_BASE` ($\ge 15\text{ GB Unified RAM}$):** 12B 4-bit model for consumer MacBooks and PC hardware.
-- **`TIER_4_EDGE` ($< 15\text{ GB Unified RAM}$):** 2B lightweight 4-bit model for low-power edge sentinels.
+Automatically profiles available System RAM and VRAM upon initialization, mapping the host environment to Apple’s product lineup and optimal model precision tiers:
+- **`TIER_0_ULTRA` ($\ge 128\text{ GB} - 512\text{ GB}$ Unified RAM / $\ge 96\text{ GB}$ Code Threshold):** Flagship Workstations & Sovereign Server Nodes (Mac Studio / Mac Pro Ultra) running unquantized 31B 16-bit (`BF16`) dense models.
+- **`TIER_1_MAX` ($64\text{ GB} - 96\text{ GB}$ Unified RAM / $\ge 60\text{ GB}$ Code Threshold):** High-Performance Studio & Pro Workstations (MacBook Pro / Mac Studio Max) running high-density 31B 8-bit / 4-bit models.
+- **`TIER_2_PRO` ($32\text{ GB} - 48\text{ GB}$ Unified RAM / $\ge 30\text{ GB}$ Code Threshold):** Executive & Developer Laptops (MacBook Pro Pro/Max Series) running 26B Mixture-of-Experts (MoE) 4-bit models.
+- **`TIER_3_BASE` ($16\text{ GB} - 24\text{ GB}$ Unified RAM / $\ge 15\text{ GB}$ Code Threshold):** Standard Consumer Hardware (MacBook Air, Mac mini, iMac) running 12B 4-bit dense models.
+- **`TIER_4_EDGE` ($8\text{ GB} - 12\text{ GB}$ Unified RAM / $< 15\text{ GB}$ Code Threshold):** Mobile Devices & Sentinels (iPhone 17 Series / Base Macs) running lightweight 2B 4-bit models.
 
 #### VRAM Lifecycle, KV Cache & Offloading Safeguards
 - **Metal VRAM Cache Ceiling:** Metal GPU VRAM cache allocation (`mx.set_cache_limit`) to prevent host system slowdowns.
