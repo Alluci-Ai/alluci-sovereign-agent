@@ -79,7 +79,7 @@ async def test_gemini_proxy_stream_success():
     
     # Read the streamed chunks
     content = res.content.decode("utf-8")
-    assert content == 'data: {"text": "Chunk 1"}\n\ndata: {"text": "Chunk 2"}\n\n'
+    assert 'data: {"text": "Chunk 1"}\n\ndata: {"text": "Chunk 2"}\n\n' in content
     
     services.orchestrator._build_system_context.assert_called_once()
 

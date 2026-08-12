@@ -29,6 +29,11 @@ async def _check_local_research_reports(prompt: str) -> Optional[str]:
     exclude_keywords = ["skill", "hcd", "framework", "json", "code", "mindset", "methodology", "ethnographic", "concept", "definition"]
     if any(kw in body_lower for kw in exclude_keywords):
         return None
+
+    # Execution/Creation Guardrail: Never intercept commands attempting to trigger a NEW research run
+    execution_keywords = ["do deep", "do web", "conduct", "run", "deep research", "deep web research", "scour", "investigate", "rocco", "spin up", "execute dag", "research grants", "grants"]
+    if any(ek in body_lower for ek in execution_keywords):
+        return None
         
     action_verbs = ["show", "pull", "open", "display", "read", "view", "fetch"]
     target_nouns = ["report", "dossier"]
@@ -236,14 +241,15 @@ async def gemini_proxy(
             return {"result": mem_purge_reply}
 
         # 2. Fast Local Hard Drive File Reader Check (< 50ms)
-        local_report = _check_local_research_reports(effective_prompt)
+        local_report = await _check_local_research_reports(effective_prompt)
         if local_report:
             return {"result": local_report}
 
         # 3. Fetch system context (lightweight capability index)
         system_instruction = ""
         if services.orchestrator:
-            system_instruction, _ = await services.orchestrator._build_system_context()
+            ctx_res = await services.orchestrator._build_system_context()
+            system_instruction = ctx_res[0] if isinstance(ctx_res, (tuple, list)) else str(ctx_res)
 
         # Single-Pass Response Generation
         response = await router_inst.get_response(
@@ -303,7 +309,8 @@ async def gemini_proxy_stream(
         system_instruction = ""
         orch = services.orchestrator
         if orch is not None and not local_report and not mem_purge_reply:
-            system_instruction, _ = await orch._build_system_context(compact_index=True)
+            ctx_res = await orch._build_system_context(compact_index=True)
+            system_instruction = ctx_res[0] if isinstance(ctx_res, (tuple, list)) else str(ctx_res)
 
         # 3. 3-Layer Parallel Intent Switchboard (< 5ms Check)
         orchestrator_reply = None
