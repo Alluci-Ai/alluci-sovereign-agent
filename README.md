@@ -244,6 +244,17 @@ The **PVT Manifold Health Monitor (PVT)** serves as Alluci’s real-time thermod
 
 ---
 
+## Affective Computing Engine (ACE)
+
+The ACE aligns machine logic with human biology. It bridges raw data and human sentiment, ensuring the assistant works in resonance with your current physiological and mental state.
+
+### Multi-Modal Polytope Fusion
+- **Zero-Latency Biometrics**: Streams Heart Rate, HRV, and Respiratory Rate directly from your Apple Watch into a shared "Affective Polytope". The agent intrinsically "feels" your physical stress without relying on string-to-vector language conversions.
+- **Resonance Mapping**: ACE adjusts agent autonomy and notification intensity in real-time. If physical strain is high, the Assistant deprioritizes non-urgent tasks.
+- **Ambient ACE Dashboard**: An SVG-based dynamic visualizer in the Terminal header. A pulsating Polytope shifts color (Valence), animation speed (Arousal), and structural complexity (Tension) in real-time to mirror your physical state.
+
+---
+
 ### 1. The Local Cognitive Engine (LCE)
 
 The **Local Cognitive Engine (LCE)** serves as Alluci’s native, on-device foundation intelligence substrate. Built around a **Sovereign-First execution model**, the LCE evaluates neural network models locally on host hardware—delivering ultra-low latency, zero-copy memory access, dynamic VRAM safeguards, and privacy-preserving cloud federation without cloud vendor lock-in or un-sanctioned data egress.
@@ -262,7 +273,7 @@ Official quantized model weights across all tiers are hosted on [HuggingFace (Al
 
 #### 5-Tier System Hardware Profiling Matrix
 Automatically profiles available System RAM and VRAM upon initialization, mapping the host environment to Apple’s product lineup and optimal model precision tiers:
-- **`TIER_0_ULTRA` ($\ge 128\text{ GB} - 512\text{ GB}$ Unified RAM / $\ge 96\text{ GB}$ Code Threshold):** Flagship Workstations & Sovereign Server Nodes (Mac Studio / Mac Pro Ultra) running unquantized 31B 16-bit (`BF16`) dense models.
+- **`TIER_0_ULTRA` ($\ge 128\text{ GB} - 512\text{ GB}$ Unified RAM / $\ge 96\text{ GB}$ Code Threshold):** Flagship Workstations & Sovereign Server Nodes (MacBook Pro / Mac Studio / Mac Pro Ultra) running unquantized 31B 16-bit (`BF16`) dense models.
 - **`TIER_1_MAX` ($64\text{ GB} - 96\text{ GB}$ Unified RAM / $\ge 60\text{ GB}$ Code Threshold):** High-Performance Studio & Pro Workstations (MacBook Pro / Mac Studio Max) running high-density 31B 8-bit / 4-bit models.
 - **`TIER_2_PRO` ($32\text{ GB} - 48\text{ GB}$ Unified RAM / $\ge 30\text{ GB}$ Code Threshold):** Executive & Developer Laptops (MacBook Pro Pro/Max Series) running 26B Mixture-of-Experts (MoE) 4-bit models.
 - **`TIER_3_BASE` ($16\text{ GB} - 24\text{ GB}$ Unified RAM / $\ge 15\text{ GB}$ Code Threshold):** Standard Consumer Hardware (MacBook Air, Mac mini, iMac) running 12B 4-bit dense models.
@@ -325,10 +336,6 @@ The **Executive Orchestrator** serves as Alluci’s high-level planning and task
 #### Dynamic Multi-Tier Model Routing
 - **Policy-Driven Provider Selection:** Routes individual Task, Cron, and DAG nodes dynamically based on privacy classifications (`AIRGAPPED`, `SENSITIVE`, `PUBLIC`), model strengths, and execution speed—dispatching private data locally to the LCE engine while routing high-density web synthesis to fast cloud APIs.
 
-#### Action Verification Loop (AVL Gate) Integration
-- **Three-Pillar Structural Safety:** Intercepts LLM action payloads before tool execution to enforce structural schema compliance, cryptographic attribution, and Lipschitz gradient smoothness limits.
-- **Discovery Mode Learning & Evolving Thresholds:** The `ContinuousCalibrationManager` dynamically tracks tool history, skill execution logs, and affective tension. The system self-adjusts safety rejection thresholds over time—learning normal operational baselines to eliminate false positives while maintaining zero-trust security.
-
 ---
 
 ### 3. Simplicial H-LSM Memory
@@ -357,25 +364,26 @@ When the system detects low cognitive load (you are asleep or away), the daemon 
 
 ---
 
-## 🧬 Affective Computing Engine (ACE)
+## Hardware-Level Security Governance
 
-The ACE aligns machine logic with human biology. It bridges raw data and human sentiment, ensuring the assistant works in resonance with your current physiological and mental state.
+Alluci implements a zero-trust, hardware-anchored security model that couples system execution directly to physical human presence and device liveness. Rather than relying solely on software passwords or API key tokens, Alluci enforces multi-modal biometric liveness, hardware kill switches, interactive executive governance, and isolated cryptographic vault containers to guarantee absolute data sovereignty and prevent unauthorized execution.
 
-### Multi-Modal Polytope Fusion
-- **Zero-Latency Biometrics**: Streams Heart Rate, HRV, and Respiratory Rate directly from your Apple Watch into a shared "Affective Polytope". The agent intrinsically "feels" your physical stress without relying on string-to-vector language conversions.
-- **Resonance Mapping**: ACE adjusts agent autonomy and notification intensity in real-time. If physical strain is high, the Assistant deprioritizes non-urgent tasks.
-- **Ambient ACE Dashboard**: An SVG-based dynamic visualizer in the Terminal header. A pulsating Polytope shifts color (Valence), animation speed (Arousal), and structural complexity (Tension) in real-time to mirror your physical state.
+### HITL Executive Security Governance & Intercept Guards
+- **Three-Tier Hard Security Interceptors:** Intercepts high-risk critical action tasks—such as destructive memory wipes, database schema alterations, file overwrites, financial transactions, or administrative configuration changes—before any backend execution occurs (`backend/routers/gemini.py`).
+- **Interactive Security Intervention Modal:** Any execution intent classified as a critical action task triggers an interactive user approval modal (`SecurityInterventionModal.tsx`), requiring explicit administrative authorization (`[ Approve & Execute Action ]`) before operations proceed.
 
----
+### Sovereign Biometric Kill Switch Daemon (`BioTelemetryAuth` / `PPN-017`)
+- **Multi-Device Hardware Support:** Monitors biological telemetry natively from Apple Watch as well as cross-platform wearable streams (Garmin, Whoop, Oura) via `BioTelemetryAuth`.
+- **On-Wrist & Pulse Liveness Verification:** Validates physical on-wrist presence (`is_on_wrist=True`) and active heart rate pulse before executing sensitive operations (`banking`, `db_write`, `file_overwrite`, `os_exec`, `crypto_tx`).
+- **Configurable Policy Enforcement:** When strict biometric enforcement is enabled (`REQUIRE_WATCH_TELEMETRY=True`), loss of wrist contact or missing pulse instantly activates the Sovereign Kill Switch—aborting execution, locking the agent, and encrypting active working memory.
 
-## 🛡️ Hardware-Level Security & Verus Identity
+### Multi-Modal Anti-Spoofing & Deepfake Defense (`PPN-018`)
+- **Acoustic Micro-Hesitation Analysis:** Analyzes incoming voice streams for sub-audible jitter, acoustic tremor, and natural vocal breath pauses to detect synthetic AI voice clones.
+- **Live Respiratory Cross-Verification:** Cross-references vocal micro-hesitations against real-time Apple Watch respiratory telemetry to verify physical human liveness before executing privileged commands.
 
-- **3 Hard Security Guards & HITL Executive Approval Gate**: All destructive memory wipes or sensitive system modifications are intercepted by 3 hard security guards in `backend/routers/gemini.py`. Deletion intents (including E.164 phone numbers and 5-6 digit SMS short codes like `21093`) trigger the interactive `SecurityInterventionModal` requiring explicit user authorization (`[ Approve & Execute Memory Purge ]`) before any database operations occur.
-- **The Sovereign Kill Switch**: If the agent attempts a high-cognitive action (banking, database writes, crypto tx) and your Apple Watch is off-wrist or no pulse is detected, the execution is instantly aborted and memory is encrypted.
-- **Wallet & Verus Node Integration**: Full integration with the Verus blockchain. Operates a local Verus node to secure your identity (VerusID), manage sovereign funds, and sign transactions cryptographically within the vault.
-- **Federated Pheromone Sync**: The `AntNetworkProtocol` allows you to share problem-solving paths with other agents on the Verus network by broadcasting abstract "Topological Barcodes" (Pheromones)—achieving swarm intelligence without ever sharing raw text or private data.
-- **Multi-Modal Anti-Spoofing**: Defeats AI deepfakes. Cross-references audio micro-hesitations (jitter/breath pauses) against your actual, live respiratory sync from the Apple Watch to ensure human liveness.
-- **Simplicial Vaults**: Every external bridge (Signal, iMessage, Slack, G-Drive) operates in its own isolated cryptographic container tied to your **VerusID**.
+### Simplicial Cryptographic Vault Isolation
+- **Isolated Bridge Containers:** Sandboxes every external communication channel and tool integration (Signal, iMessage, Slack, Google Drive, Email) within isolated cryptographic containers.
+- **AES-256-GCM Envelope Encryption:** Protects channel secrets, tokens, and bridge state using AES-256-GCM envelope encryption, preventing cross-bridge context leaks or unauthorized data access.
 
 ---
 
