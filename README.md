@@ -357,6 +357,34 @@ The **Executive Orchestrator** serves as Alluci’s high-level planning and task
 
 ---
 
+### Multi-Agent Constellations & Sub-Agent Configurations
+
+Alluci is built from the ground up as a **Self-Sovereign Multi-Agent Operating System**. Rather than executing all workloads within a single monolithic prompt loop, Alluci allows you to instantiate, configure, and orchestrate arrays of specialized agents (`AgentRecord`) operating as autonomous background daemons, channel handlers, or parallel DAG worker nodes.
+
+#### 1. Independent Agent Record & Engine Matrix (`AgentRecord`)
+Each agent in the Constellation is backed by a stateful `AgentRecord` table in SQLite, defining its identity, underlying foundation model, and operational parameters:
+- **Model Provisioning:** Assign specific primary foundation models per agent—ranging from local MLX/LCE models (`alluci-polytope4-31b`) to cloud foundation models (OpenAI `gpt-4o`, Anthropic `claude-3-5-sonnet`, Google `gemini-1.5-pro`).
+- **Resilient Fallback Chains (`fallback_chain`):** Configures ordered model failover routes (e.g., `gpt-4o -> claude-3-5-sonnet -> local_mlx`), guaranteeing execution continuity if primary cloud endpoints experience outages or rate limits.
+- **Engine Matrix Controls (`engine_manifest`):** Fine-tunes cognitive execution parameters per agent, including Thinking Depth (`thinking_level`), Verbose Output Scales (`verbose_level`), and Multi-Step Reasoning Intensity (`reasoning_level`).
+
+#### 2. Sub-Agent Domain Specialization & Scoped Manifests
+To prevent cross-domain context contamination, sub-agents are provisioned with granular access controls across seven dedicated configuration tabs (`AgentDetailTabs.tsx`):
+- **Scoped Skill Profiles (`skills_manifest`):** Grants or restricts domain-specific skill manifests (e.g. Legal Contract Audit, Compensation Strategy, Deep Research, SFT LoRA Forge).
+- **Tool Access Grants (`tools_manifest`):** Enforces fine-grained permissioning over available executable tools (Shell Executor, Memory Adapter, Web Browser, Vault Keys), ensuring sub-agents operate strictly within authorized boundaries.
+- **Soul Profile Overrides (`soul_profile_id` / `soul_manifest_override`):** Allows sub-agents to inherit or override the system's global Soul Manifest with specialized domain personas.
+- **Automated Heartbeat Orders (`HeartbeatOrderRecord`):** Schedules periodic diagnostic probes (`fired_at`, `probe_type`, `action_type`) to execute background health sweeps, channel monitoring, or memory maintenance automatically.
+
+#### 3. Hierarchical DAG Swarm & Supervisor Context Compression
+- **Parallel Sub-Task Decomposition:** The `ExecutiveOrchestrator` parses complex, ambiguous user goals into Directed Acyclic Graphs (DAGs). Sub-tasks are dispatched in parallel across specialized sub-agents running concurrently.
+- **Supervisor Context Compression:** To prevent context-window bloat during long-running multi-agent workflows, the `SupervisorAgent` condenses verbose worker node outputs into dense **Sovereign Context Tokens** before propagating state to downstream DAG nodes.
+- **Multi-Channel Subscriptions:** Sub-agents can be assigned to dedicated communication bridges (iMessage, Slack, Signal, Telegram, Discord, WebChat), acting as specialized channel handlers for inbound messages.
+
+#### 4. Zero-Trust Security & Sub-Agent Privacy Controls
+- **Granular PII Masking Overrides (`pii_override_enabled`):** Allows administrative override or enforcement of inline PII pseudonymization for specific sub-agents handling sensitive data streams through the `AlluciSecureProxy`.
+- **Biometric & Executive Safety Interceptors:** All sub-agent tool executions—regardless of autonomy level—remain strictly governed by the **AVL Gate**, **DPK integer boundary checks**, and the **HITL Security Intervention Modal**.
+
+---
+
 ### 4. Simplicial H-LSM Memory
 
 - **The Hierarchical Long-Short Manifold (H-LSM)** is Alluci’s 4‑tier stateful memory architecture. Managed by `HLSMManager`.
@@ -380,6 +408,57 @@ Alluci utilizes a specialized "Training Sandbox" mode that leverages the Unsloth
 When the system detects low cognitive load (you are asleep or away), the daemon halts external polling and reallocates 100% of hardware resources to internal evolution:
 - **Cognitive Distillation:** Analyzes the day's interactions using Socratic questioning, distilling episodic logs into permanent Semantic Truths.
 - **Teacher-Student Harvest**: Records high-quality reasoning from interactions with 3rd-party cloud models and queues them as "Chosen" preference pairs for the local DPO forge—crystallizing cloud intelligence into your local machine overnight.
+
+---
+
+## Soul Configuration & Persona Architecture
+
+The **Soul Manifest** serves as Alluci’s core behavioral blueprint and active cognitive runtime engine. Moving beyond static system prompts and plain `.md` files, Alluci decouples persona configuration into a stateful, auditable **Soul Manifest** that actively drives model sampling parameters, dynamic neural-weight adapters, zero-trust security gates, and bio-affective attunement loops in real time.
+
+### 1. Active Dynamic Runtime Execution
+- **Zero-Restart Neural LoRA Injection (`apply_lora_adapter`):** Rather than cluttering context windows with lengthy text instructions, Soul Profiles hot-swap compiled LoRA neural weights (`agent_{id}_lora.safetensors`) directly into VRAM on the fly without restarting the inference engine process.
+- **Bio-Affective Parameter Attunement:** Dynamically couples user biometrics (HRV, stress score $\psi$) from the ACE Engine, continuously modulating sampling temperature, memory retention thresholds, and intrusiveness limits in real time.
+- **Topological Boundary Gating:** Candidate actions generated under an active Soul Profile are continuously validated by the Discrete Projection Kernel (DPK) and AVL Gate to prevent structural hallucinations and out-of-bounds execution.
+- **Dual Persistent Identity (VerusID VDXF & AES-256 Vault):** Serializes manifests into decentralized VerusID VDXF keys (`contentmultimap`) for portable identity, with local AES-256-GCM envelope encryption for air-gapped sovereignty.
+
+### 2. Behavioral Parameters & Reasoning Frameworks
+- **Identity Core & Boot Directives:** Defines the foundational identity handle (`identityCore`), voice profiles (`voiceProfile`), system directives, and boot sequence parameters (`bootSequence`).
+- **Cognitive Control Sliders:** Quantifies reasoning styles via dynamic scalar controls including Creativity, Verbosity, Humor, Conciseness, Tone, and Empathy (`SoulPreferences`).
+- **Structured Thought Frameworks:** Injects granular cognitive guidelines into execution loops, including specific Mindsets, Methodologies, Decision Frameworks, Logic Constraints, Chains-of-Thought, and Domain Best Practices.
+- **Active Skill & Tool Bindings:** Maps specific active skill IDs (`active_skill_ids`) and executable tool IDs (`active_tool_ids`) directly to the soul context, restricting or expanding agency based on active persona.
+
+### 3. Reusable Soul Profiles & Real-Time Preview Engine
+- **Profile Library (`SoulProfileRecord`):** Supports creating, updating, listing, and switching between pre-configured Soul Profiles stored in the local SQLite database (`/soul/profiles`), allowing users to toggle between executive, technical, creative, or analytical personas on the fly.
+- **Interactive Persona Preview (`/soul/preview`):** Features a dedicated preview endpoint that executes candidate prompts through the current Soul Manifest before committing updates to active agent sessions, providing instant feedback on persona alignment and safety constraints.
+
+---
+
+## Dynamic Skills, Tools & Builder Engines
+
+Traditional AI agent frameworks define "Skills" and "Tools" as static markdown text files (`SKILL.md`) or simple string descriptions embedded in system prompts. This legacy approach suffers from severe limitations: high context window bloat, steep API token costs, floating-point non-determinism, soft pattern-matching hallucinations, and a complete lack of runtime execution validation.
+
+The **Alluci Sovereign Agent** completely re-architects Skills and Tools from passive text documents into **Active Cognitive Python Runtimes** and **Skill-Specific Deterministic Tool Engines**. Managed by the `SkillManager` (`backend/routers/skills.py`) and `ToolRegistry` (`backend/routers/tools.py`), Skills and Tools operate as compiled, stateful runtimes driven by five deterministic cognitive parameters (**Knowledge, Mindsets, Methodologies, Chains of Thought, and Logic**), zero-trust security gates, and hardware biometric governance.
+
+### 1. Skills & The Skill Builder Engine
+When creating or instantiating a Skill, the **Skill Builder Engine** configures five deterministic parameters that govern the active Python Skill Runtime:
+
+- **Knowledge Parameters:** Binds the skill directly to the 4-Tier H-LSM Memory manifold—retrieving real-time entity-relationship subgraphs from KùzuDB (`L3 Knowledge Graph`), semantic embeddings (`L2 Vector RAG`), and indexed interaction history (`L1 Episodic FTS5`) without factual drift.
+- **Mindset Parameters:** Injects structured cognitive framing vectors (e.g., *Zero-Trust Security*, *First-Principles Engineering*, *Sovereign Capital Optimization*) that govern how sub-agents frame complex problems, weigh risks, and prioritize tradeoffs.
+- **Methodology Parameters:** Enforces rigid, multi-step operational algorithms (e.g., RACI/RAPID decision governance, 30-60-90 milestone roadmaps, total rewards auditing) that mandate the exact sequence of workflow execution.
+- **Chain of Thought (CoT) Parameters:** Specifies prescriptive reasoning trajectories where intermediate reasoning steps must satisfy topological continuity rules before downstream execution steps are granted.
+- **Logic Parameters:** Enforces bit-exact execution using fixed-point quantization (`SEC-005` int16 clamping) and discrete integer simplicial boundary operators ($\partial_k: C_k \to C_{k-1}$), eliminating floating-point non-determinism across Host CPU, CUDA GPU, and Apple Metal GPU runtimes.
+
+### 2. Python Skill Runtime & LoRA Neural Distillation
+- **Direct Preference Optimization (DPO) Forge:** As agents execute skills, high-quality interaction trajectories are harvested into DPO preference pairs. The local `LoRAForge` (`backend/engine/lora_forge.py`) crystallizes these trajectories into native PyTorch/MLX LoRA adapters (e.g., `coding_lora.safetensors`, `legal_lora.safetensors`).
+- **Zero-Restart Neural Swapping:** Activating a skill hot-swaps its fine-tuned LoRA weights directly into inference memory via `apply_lora_adapter()`, delivering domain expertise with zero prompt-window bloat.
+- **Swarm Skill Synchronization (`AntNetworkProtocol`):** Skill execution paths are mapped into Betti topological barcodes ($\beta_0, \beta_1, \beta_2$) and broadcast over the Verus P2P network, allowing multi-agent constellations to share skill intelligence zero-knowledge across devices.
+
+### 3. Tools & The Tool Builder Engine
+Tools in Alluci are **Skill-Specific Deterministic Tool Engines** backed by sandboxed Python runtimes, Model Context Protocol (`MCP`) servers, JSON-RPC daemons, and compiled C++ kernels:
+
+- **The Tool Builder Engine & Sandboxed Runtimes:** Enables users and autonomous agents to create, test, register, and update custom Python tool adapters dynamically (`alluci_vault/tools/` and `core_tools/`) with explicit JSON Schema contracts, rate limits, and timeout boundaries.
+- **Multi-Runtime Adapter Support:** Native execution support for sandboxed Python modules, MCP servers, REST/RPC endpoints, CLI scripts, and compiled C++ DPK security kernels.
+- **Integrated Zero-Trust Interception:** Tool executions from Python Skill Runtimes pass through the AVL Gate, DPK integer boundary checks, and biometric pulse liveness guards before payload commitment.
 
 ---
 
@@ -442,6 +521,28 @@ For enterprise environments requiring strict GDPR or Schrems II compliance, the 
 
 > [!NOTE]
 > See the full [Data Residency & Compliance Architecture](Documentation/Data_Residency_and_Compliance.md) for legal and technical implementation details.
+
+---
+
+## 📊 Token Usage, Spending Monitoring & Budget Controls
+
+Alluci includes an integrated **Usage & Cost Analytics Engine** (`UsageTracker` in `backend/analytics.py` and `backend/routers/usage.py`) that delivers real-time token tracking, financial telemetry, multi-provider model cost rollups, and spending optimization across all cloud and local execution paths.
+
+### 1. Real-Time Token & Financial Cost Telemetry (`/usage`)
+- **Granular Token Tracking:** Automatically tracks Input Tokens, Output Tokens, KV Cache Read Tokens, KV Cache Write Tokens, and calculated financial costs in USD for every interaction.
+- **Time-Series Analytics Endpoints:** Exposes dedicated REST endpoints for aggregate cost summaries (`/usage/summary`), daily usage rollups (`/usage/daily`), and turn-by-turn cumulative session curves (`/usage/sessions/{session_key}/timeseries`).
+- **Session-Aggregated Breakdown (`/usage/sessions`):** Provides session-level audit metrics detailing agent identities, provider distributions, model selection, total turn counts, and timestamp logs.
+
+### 2. Multi-Provider & Heterogeneous Model Cost Allocation
+- **Unified Multi-Cloud Costing:** Accurately calculates costs across heterogeneous cloud APIs (OpenAI, Anthropic, Google Cloud, Groq, DeepSeek, OpenRouter, AWS Bedrock) as well as zero-cost local MLX/LCE models ($0.00/token).
+- **Cache Efficiency Telemetry:** Monitors cache hit ratios and KV cache reuse savings, optimizing prompt caching efficiency across OpenAI, Anthropic, and Google Cloud context windows.
+
+### 3. Policy-Driven Spending Controls & Token Budgeting
+- **Intelligent Token Router:** Dynamically routes tasks based on cost thresholds, model performance profiles, and user-defined privacy tiers (`AIRGAPPED`, `SENSITIVE`, `PUBLIC`).
+- **Air-Gapped Zero-Cost Fallback:** Automatically diverts high-volume background tasks, memory summarization crons, and sensitive document indexing to local on-device MLX/LCE models, capping cloud API expenditure.
+
+### 4. Auditable Enterprise CSV Exports (`/usage/sessions/export/csv`)
+- **Downloadable CSV Reports:** Generates downloadable CSV exports containing turn-by-turn usage records, agent tags, provider breakdowns, cache metrics, and total expenditure for accounting, cost allocation, and financial compliance auditing.
 
 ---
 
