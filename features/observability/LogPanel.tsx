@@ -18,7 +18,8 @@ interface LogEntry {
 }
 
 export const LogPanel: React.FC = () => {
-    const { accessToken } = useStore();
+    const { accessToken, theme } = useStore();
+    const isDark = theme === 'dark';
     const [logs, setLogs] = useState<LogEntry[]>([]);
 
     // Filters
@@ -113,17 +114,29 @@ export const LogPanel: React.FC = () => {
     const flushLogs = () => setLogs([]);
 
     const filteredLogs = logs.filter(l => {
-        if (levelFilter !== 'ALL' && l.level !== levelFilter) return false;
+        if (levelFilter !== 'ALL' && (l.level || '').toUpperCase() !== levelFilter) return false;
         if (sessionFilter && !(l.session_key || '').includes(sessionFilter) && !(l.message || '').includes(sessionFilter)) return false;
         return true;
     });
 
     const getLevelColor = (level: string) => {
-        switch (level) {
-            case 'ERROR': case 'CRITICAL': return 'text-tension';
-            case 'WARNING': return 'text-amber-400';
-            case 'DEBUG': return 'text-cyan-400 opacity-70';
-            case 'INFO': default: return 'text-text-primary';
+        const lvl = (level || '').toUpperCase();
+        if (!isDark) {
+            // LIGHT MODE: Full-line Greyscale Graduation
+            switch (lvl) {
+                case 'ERROR': case 'CRITICAL': return 'text-zinc-900 font-extrabold';
+                case 'WARNING': case 'WARN': return 'text-zinc-500 font-bold';
+                case 'DEBUG': return 'text-zinc-400 font-medium';
+                case 'INFO': default: return 'text-black font-normal';
+            }
+        } else {
+            // DARK MODE: Color level differentiation
+            switch (lvl) {
+                case 'ERROR': case 'CRITICAL': return 'text-tension font-bold';
+                case 'WARNING': case 'WARN': return 'text-amber-400 font-bold';
+                case 'DEBUG': return 'text-cyan-400 opacity-70 font-medium';
+                case 'INFO': default: return 'text-text-primary font-normal';
+            }
         }
     };
 
@@ -166,7 +179,7 @@ export const LogPanel: React.FC = () => {
                         <div className="flex items-center gap-1 px-2">
                             <button
                                 onClick={() => setIsPaused(!isPaused)}
-                                className={`p-1.5 rounded-md transition-colors ${isPaused ? 'bg-amber-500/20 text-amber-500' : 'hover:bg-glass-edge text-text-secondary hover:text-text-primary'}`}
+                                className={`p-1.5 rounded-md transition-colors ${isPaused ? (isDark ? 'bg-amber-500/20 text-amber-500 font-bold' : 'bg-zinc-200 text-black font-bold') : 'hover:bg-glass-edge text-text-secondary hover:text-text-primary'}`}
                                 title={isPaused ? "Resume Stream" : "Pause Stream"}
                             >
                                 {isPaused ? <Play size={14} /> : <Pause size={14} />}
@@ -200,12 +213,12 @@ export const LogPanel: React.FC = () => {
                         </div>
                     ) : (
                         filteredLogs.map((log, idx) => (
-                            <div key={idx} className={`flex gap-3 py-1 hover:bg-glass-edge border-b border-white/5 transition-colors ${getLevelColor(log.level)}`}>
-                                <span className="opacity-50 whitespace-nowrap hidden md:inline">
+                            <div key={idx} className={`flex gap-3 py-1 hover:bg-glass-hover border-b border-glass-edge transition-colors ${getLevelColor(log.level)}`}>
+                                <span className="whitespace-nowrap hidden md:inline font-mono opacity-60">
                                     {(log.timestamp || new Date().toISOString()).split('T')[1]?.slice(0, 12)}
                                 </span>
                                 <span className="w-16 font-bold flex-shrink-0">{log.level}</span>
-                                <span className="w-32 opacity-70 truncate hidden lg:inline flex-shrink-0" title={log.logger}>{log.logger}</span>
+                                <span className="w-32 truncate hidden lg:inline flex-shrink-0 opacity-80" title={log.logger}>{log.logger}</span>
                                 <span className="flex-1 break-all">{log.message}</span>
                             </div>
                         ))

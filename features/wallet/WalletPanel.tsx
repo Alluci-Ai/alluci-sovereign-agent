@@ -108,7 +108,7 @@ export const WalletPanel: React.FC = () => {
 
     return (
         <div className="flex-1 overflow-y-auto w-full h-full pb-12 glass-container">
-            <div className="top-bar sticky top-0 z-20 px-6 py-4 border-b border-white/5 bg-surface-base/40 backdrop-blur-xl flex items-center justify-between">
+            <div className="top-bar sticky top-0 z-20 px-6 py-4 border-b border-glass-edge bg-glass-1 backdrop-blur-xl flex items-center justify-between">
                 <div className="flex items-center gap-4">
                     <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${walletMode === 'sovereign' ? 'from-accent to-indigo-600' : 'from-indigo-400 to-indigo-600'} flex items-center justify-center shadow-lg shadow-indigo-500/20`}>
                         <div className="text-white">
@@ -122,7 +122,7 @@ export const WalletPanel: React.FC = () => {
                     <div>
                         <h2 className="text-xl font-semibold text-text-primary tracking-tight flex items-center gap-2">
                             Sovereign Wallet
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${walletMode === 'sovereign' ? 'bg-accent/20 text-accent border border-accent/30' : 'bg-white/10 text-white/60 border border-white/10'}`}>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${walletMode === 'sovereign' ? 'bg-accent/20 text-accent border border-accent/30' : 'bg-glass-pressed text-text-tertiary border border-glass-edge'}`}>
                                 {walletMode}
                             </span>
                         </h2>
@@ -145,7 +145,7 @@ export const WalletPanel: React.FC = () => {
 
                     <button
                         onClick={toggleSovereignMode}
-                        className={`glass-btn text-[11px] font-bold px-4 py-2 uppercase tracking-wider transition-all duration-500 ${walletMode === 'sovereign' ? 'border-status-success/40 text-status-success bg-status-success/5 shadow-inner' : 'border-white/10 text-text-secondary hover:border-accent/40 hover:text-accent'}`}
+                        className={`glass-btn text-[11px] font-bold px-4 py-2 uppercase tracking-wider transition-all duration-500 ${walletMode === 'sovereign' ? 'border-status-success/40 text-status-success bg-status-success/5 shadow-inner' : 'border-glass-edge text-text-secondary hover:border-accent/40 hover:text-accent'}`}
                     >
                         {walletMode === 'lite' ? 'Go Sovereign' : 'Sovereign Active'}
                     </button>
@@ -153,17 +153,17 @@ export const WalletPanel: React.FC = () => {
             </div>
 
             <div className="px-8 pt-4">
-                <div className="flex items-center gap-1 bg-white/5 p-1 rounded-xl w-fit border border-white/5 backdrop-blur-md">
+                <div className="flex items-center gap-1 bg-glass-pressed p-1 rounded-xl w-fit border border-glass-edge backdrop-blur-md">
                     <button
                         onClick={() => setActiveTab('dashboard')}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all duration-300 ${activeTab === 'dashboard' ? 'bg-accent text-white shadow-lg shadow-accent/20' : 'hover:bg-white/5 text-text-tertiary'}`}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-extrabold uppercase tracking-widest transition-all duration-300 ${activeTab === 'dashboard' ? 'bg-glass-2 text-text-primary border border-glass-edge shadow-sm' : 'hover:bg-glass-hover text-text-tertiary hover:text-text-primary'}`}
                     >
                         <LayoutDashboard size={14} />
                         Dashboard
                     </button>
                     <button
                         onClick={() => setActiveTab('node')}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all duration-300 ${activeTab === 'node' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'hover:bg-white/5 text-text-tertiary'}`}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-extrabold uppercase tracking-widest transition-all duration-300 ${activeTab === 'node' ? 'bg-glass-2 text-indigo-400 border border-glass-edge shadow-sm' : 'hover:bg-glass-hover text-text-tertiary hover:text-text-primary'}`}
                     >
                         <Server size={14} />
                         Node Manager

@@ -133,7 +133,7 @@ export const AnalyticsPanel: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="bg-glass-1 border border-glass-edge rounded-xl p-5 relative overflow-hidden flex flex-col justify-between h-32">
                         <div className="text-xs font-semibold tracking-wider text-text-secondary uppercase">Total Tokens</div>
-                        <div className="text-4xl font-light text-indigo-400 mt-2 tracking-tight">{formatTokens(totalTokens)}</div>
+                        <div className="text-4xl font-light text-indigo-600 dark:text-indigo-400 mt-2 tracking-tight">{formatTokens(totalTokens)}</div>
                         <div className="text-xs text-text-secondary mt-auto">This period</div>
 
                         {/* Compact Cost Breakdown inside Token tile or near it */}
@@ -147,13 +147,13 @@ export const AnalyticsPanel: React.FC = () => {
 
                     <div className="bg-glass-1 border border-glass-edge rounded-xl p-5 h-32 flex flex-col justify-between">
                         <div className="text-xs font-semibold tracking-wider text-text-secondary uppercase">Total Cost</div>
-                        <div className="text-4xl font-light text-rose-400 mt-2 tracking-tight">{formatCost(summary?.total_cost || 0)}</div>
+                        <div className="text-4xl font-light text-rose-600 dark:text-rose-400 mt-2 tracking-tight">{formatCost(summary?.total_cost || 0)}</div>
                         <div className="text-xs text-text-secondary mt-auto">This period</div>
                     </div>
 
                     <div className="bg-glass-1 border border-glass-edge rounded-xl p-5 h-32 flex flex-col justify-between">
                         <div className="text-xs font-semibold tracking-wider text-text-secondary uppercase">Sessions</div>
-                        <div className="text-4xl font-light text-emerald-400 mt-2 tracking-tight">{summary?.session_count || 0}</div>
+                        <div className="text-4xl font-light text-emerald-600 dark:text-emerald-400 mt-2 tracking-tight">{summary?.session_count || 0}</div>
                         <div className="text-xs text-text-secondary mt-auto">This period</div>
                     </div>
                 </div>
@@ -176,13 +176,13 @@ export const AnalyticsPanel: React.FC = () => {
                         <div className="flex items-center rounded-lg border border-glass-edge p-1 bg-glass-2">
                             <button
                                 onClick={() => setChartMode('tokens')}
-                                className={`px-4 py-1.5 text-xs rounded-md transition-all ${chartMode === 'tokens' ? 'bg-indigo-600/30 border border-indigo-500/30 text-indigo-300' : 'text-text-secondary hover:text-text-primary'}`}
+                                className={`px-4 py-1.5 text-xs rounded-md transition-all font-bold ${chartMode === 'tokens' ? 'bg-indigo-500/20 border border-indigo-500/40 text-text-primary shadow-sm' : 'text-text-tertiary hover:text-text-primary'}`}
                             >
                                 Tokens
                             </button>
                             <button
                                 onClick={() => setChartMode('cost')}
-                                className={`px-4 py-1.5 text-xs rounded-md transition-all ${chartMode === 'cost' ? 'bg-rose-600/30 border border-rose-500/30 text-rose-300' : 'text-text-secondary hover:text-text-primary'}`}
+                                className={`px-4 py-1.5 text-xs rounded-md transition-all font-bold ${chartMode === 'cost' ? 'bg-rose-500/20 border border-rose-500/40 text-text-primary shadow-sm' : 'text-text-tertiary hover:text-text-primary'}`}
                             >
                                 Cost
                             </button>

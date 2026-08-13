@@ -25,7 +25,7 @@ export const WalletOverview: React.FC<WalletOverviewProps> = ({ data }) => {
     return (
         <div className="space-y-6">
             {/* Multi-Chain Selector Panel */}
-            <div className="glass-panel p-4 flex flex-wrap gap-2 items-center bg-white/[0.01] border-white/5">
+            <div className="glass-panel p-4 flex flex-wrap gap-2 items-center bg-glass-1 border-glass-edge">
                 <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest mr-4 flex items-center gap-2">
                     <Globe size={14} /> Sovereign_Chains_Index
                 </span>
@@ -35,7 +35,7 @@ export const WalletOverview: React.FC<WalletOverviewProps> = ({ data }) => {
                         onClick={() => setActiveChain(chain)}
                         className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all duration-300 border ${activeChain === chain
                             ? 'bg-accent/20 border-accent/40 text-accent shadow-[0_0_12px_rgba(56,189,248,0.2)]'
-                            : 'bg-white/5 border-white/10 text-text-tertiary hover:border-white/20'
+                            : 'bg-glass-pressed border-glass-edge text-text-tertiary hover:text-text-primary'
                             }`}
                     >
                         {chain}
@@ -45,11 +45,11 @@ export const WalletOverview: React.FC<WalletOverviewProps> = ({ data }) => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {/* Identity Tile */}
-                <div className="glass-panel p-6 relative overflow-hidden group border-white/5 bg-white/[0.02]">
+                <div className="glass-panel p-6 relative overflow-hidden group border-glass-edge bg-glass-1">
                     <div className="absolute inset-0 bg-gradient-to-br from-accent/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
                     <div className="flex items-center justify-between mb-6">
                         <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest leading-none">Identity Manifest</span>
-                        <div className={`p-2 rounded-lg ${data.identity ? 'bg-accent/10 text-accent' : 'bg-white/5 text-text-muted'}`}>
+                        <div className={`p-2 rounded-lg ${data.identity ? 'bg-accent/10 text-accent' : 'bg-glass-pressed text-text-muted'}`}>
                             <ShieldCheck size={16} />
                         </div>
                     </div>
@@ -57,7 +57,7 @@ export const WalletOverview: React.FC<WalletOverviewProps> = ({ data }) => {
                         <h3 className="text-xl font-semibold text-text-primary tracking-tight truncate">
                             {data.identity ? data.identity.name : "Anonymous Node"}
                         </h3>
-                        <p className="text-[10px] font-mono text-text-tertiary mt-2 truncate bg-black/20 px-2 py-1 rounded inline-block">
+                        <p className="text-[10px] font-mono text-text-tertiary mt-2 truncate bg-glass-pressed border border-glass-edge px-2 py-1 rounded inline-block">
                             {data.identity ? data.identity.identityaddress : "Create VerusID@"}
                         </p>
                     </div>
@@ -80,7 +80,7 @@ export const WalletOverview: React.FC<WalletOverviewProps> = ({ data }) => {
                             <span className="text-sm font-bold text-accent tracking-widest uppercase">{activeChain}</span>
                         </div>
                         <div className="mt-4">
-                            <span className="text-[9px] font-bold text-text-tertiary items-center flex gap-1.5 bg-black/30 px-2 py-1 rounded border border-white/5 backdrop-blur-md uppercase tracking-tighter">
+                            <span className="text-[9px] font-bold text-text-tertiary items-center flex gap-1.5 bg-glass-pressed px-2 py-1 rounded border border-glass-edge backdrop-blur-md uppercase tracking-tighter">
                                 <span className={`w-1.5 h-1.5 rounded-full ${data.unconfirmed > 0 && activeChain === 'VRSC' ? 'bg-status-warning animate-pulse' : 'bg-status-success'}`} />
                                 {data.unconfirmed > 0 && activeChain === 'VRSC' ? `${formatter.format(data.unconfirmed)} Unconfirmed` : 'System Verified'}
                             </span>
@@ -137,7 +137,7 @@ export const WalletOverview: React.FC<WalletOverviewProps> = ({ data }) => {
             </div>
 
             {/* Consensus Yield Panel */}
-            <div className="glass-panel p-6 relative overflow-hidden group border-white/5 bg-white/[0.02] mt-6">
+            <div className="glass-panel p-6 relative overflow-hidden group border-glass-edge bg-glass-1 mt-6">
                 <div className="absolute inset-0 bg-gradient-to-r from-accent/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
                 <div className="flex items-center justify-between mb-4">
                     <span className="text-xs font-bold text-text-tertiary uppercase tracking-widest flex items-center gap-2">
@@ -149,15 +149,15 @@ export const WalletOverview: React.FC<WalletOverviewProps> = ({ data }) => {
                     </span>
                 </div>
                 <div className="grid grid-cols-3 gap-4">
-                    <div className="bg-black/20 p-3 rounded border border-white/5">
+                    <div className="bg-glass-pressed p-3 rounded border border-glass-edge">
                         <span className="block text-[10px] font-bold text-text-tertiary uppercase mb-1">Estimated Annual Yield</span>
                         <span className="text-lg font-mono text-text-primary">~14.5%</span>
                     </div>
-                    <div className="bg-black/20 p-3 rounded border border-white/5">
+                    <div className="bg-glass-pressed p-3 rounded border border-glass-edge">
                         <span className="block text-[10px] font-bold text-text-tertiary uppercase mb-1">Total Staked</span>
                         <span className="text-lg font-mono text-text-primary">{formatter.format(data.total_staked || 0)}</span>
                     </div>
-                    <div className="bg-black/20 p-3 rounded border border-white/5">
+                    <div className="bg-glass-pressed p-3 rounded border border-glass-edge">
                         <span className="block text-[10px] font-bold text-text-tertiary uppercase mb-1">Network Hashrate</span>
                         <span className="text-lg font-mono text-text-primary">{data.network_hashrate || '845 GH/s'}</span>
                     </div>
