@@ -24,9 +24,7 @@ def main():
             local_dir = os.path.join(BASE_DIR, repo_id.split("/")[-1])
             path = snapshot_download(
                 repo_id=repo_id,
-                local_dir=local_dir,
-                local_dir_use_symlinks=False,
-                resume_download=True
+                local_dir=local_dir
             )
             print(f"✅ Successfully downloaded {repo_id} to {path}")
         except Exception as e:

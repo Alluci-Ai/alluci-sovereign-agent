@@ -12,7 +12,6 @@ def download_gemma(model_id: str, local_dir: str):
         path = snapshot_download(
             repo_id=model_id,
             local_dir=local_dir,
-            local_dir_use_symlinks=False,
             ignore_patterns=["*.msgpack", "*.h5", "coreml/*"] # Ignore unnecessary formats
         )
         print(f"✅ Successfully downloaded {model_id} to {path}")
