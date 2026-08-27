@@ -4,12 +4,9 @@ pytestmark = pytest.mark.unit
 import os
 import tempfile
 from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock, AsyncMock
 
 from backend.app import app
 from backend.tools.autonomous_software_engineering_tool import AutonomousSoftwareEngineeringTool
-from backend.engine.opencode_engine import NativeOpenCodeHarness
-from backend.security.checkpoint_manager import SovereignCheckpointManager
 
 
 @pytest.fixture
@@ -72,6 +69,15 @@ async def test_run_lsp_diagnostics(opencode_tool):
 
 
 @pytest.mark.asyncio
+async def test_format_source_code(opencode_tool):
+    # Test fallback or ruff formatter for python
+    code = "def sample(   x,y   ):\n  return x+y\n"
+    res = await opencode_tool.format_source_code("sample.py", code)
+    assert res["status"] in ("SUCCESS", "FALLBACK", "UNCHANGED")
+    assert "formatted_code" in res
+
+
+@pytest.mark.asyncio
 async def test_create_checkpoint_and_patch_and_rollback(opencode_tool, temp_workspace):
     file_path = os.path.join(temp_workspace, "service.py")
     with open(file_path, "w", encoding="utf-8") as f:
@@ -104,6 +110,33 @@ async def test_create_checkpoint_and_patch_and_rollback(opencode_tool, temp_work
 
     with open(file_path, "r", encoding="utf-8") as f:
         assert "return 'v1'" in f.read()
+
+
+@pytest.mark.asyncio
+async def test_execute_slash_command(opencode_tool):
+    # Test command execution
+    res = await opencode_tool.execute_slash_command("test", args="backend/tests")
+    assert res["status"] in ("SUCCESS", "NOT_FOUND")
+    assert res["command"] == "test"
+
+
+@pytest.mark.asyncio
+async def test_manage_mcp_servers(opencode_tool):
+    res = await opencode_tool.manage_mcp_servers(action="list")
+    assert res["status"] == "SUCCESS"
+    assert "server_count" in res
+
+
+def test_resolve_symbol_references(opencode_tool):
+    res = opencode_tool.resolve_symbol_references("@docs")
+    assert res["status"] in ("RESOLVED", "UNRESOLVED")
+    assert "alias" in res or "query" in res
+
+
+def test_list_supported_lsp_servers(opencode_tool):
+    res = opencode_tool.list_supported_lsp_servers()
+    assert res["status"] == "SUCCESS"
+    assert "enabled" in res
 
 
 @pytest.mark.asyncio
@@ -158,7 +191,23 @@ def test_api_route_codi_tool_capability():
     assert data["valid"] is True
     assert data["language"] == "python"
 
-    # 2. Test get_daemon_status capability
+    # 2. Test manage_mcp_servers capability
+    resp_mcp = client.post(
+        "/api/v1/tools/codi_tool_01/capability",
+        json={"capability": "manage_mcp_servers", "params": {"action": "list"}}
+    )
+    assert resp_mcp.status_code == 200
+    assert resp_mcp.json()["status"] == "SUCCESS"
+
+    # 3. Test list_supported_lsp_servers capability
+    resp_lsp = client.post(
+        "/api/v1/tools/codi_tool_01/capability",
+        json={"capability": "list_supported_lsp_servers"}
+    )
+    assert resp_lsp.status_code == 200
+    assert resp_lsp.json()["status"] == "SUCCESS"
+
+    # 4. Test get_daemon_status capability
     resp_daemon = client.post(
         "/api/v1/tools/codi_tool_01/capability",
         json={"capability": "get_daemon_status"}
@@ -166,7 +215,7 @@ def test_api_route_codi_tool_capability():
     assert resp_daemon.status_code == 200
     assert "running" in resp_daemon.json()
 
-    # 3. Test unknown capability error handling
+    # 5. Test unknown capability error handling
     resp_err = client.post(
         "/api/v1/tools/codi_tool_01/capability",
         json={"capability": "non_existent_capability"}

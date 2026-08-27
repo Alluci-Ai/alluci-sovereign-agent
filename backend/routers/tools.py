@@ -659,6 +659,11 @@ async def execute_codi_tool_capability(payload: Dict[str, Any] = Body(...)):
         file_path = params.get("file_path", "")
         proposed_code = params.get("proposed_code", "")
         return await tool_instance.run_lsp_diagnostics(file_path, proposed_code)
+    elif capability == "format_source_code":
+        file_path = params.get("file_path", "")
+        code = params.get("code", "")
+        formatter_name = params.get("formatter_name")
+        return await tool_instance.format_source_code(file_path, code, formatter_name)
     elif capability == "create_atomic_checkpoint":
         task_id = params.get("task_id", "default_task")
         description = params.get("description", "Pre-state checkpoint")
@@ -676,6 +681,22 @@ async def execute_codi_tool_capability(payload: Dict[str, Any] = Body(...)):
         command = params.get("command", "pytest")
         timeout = float(params.get("timeout", 30.0))
         return await tool_instance.run_automated_tests(command, timeout)
+    elif capability == "execute_slash_command":
+        command_name = params.get("command_name", "test")
+        args = params.get("args", "")
+        target_file = params.get("target_file")
+        return await tool_instance.execute_slash_command(command_name, args, target_file)
+    elif capability == "manage_mcp_servers":
+        action = params.get("action", "list")
+        server_name = params.get("server_name")
+        tool_name = params.get("tool_name")
+        tool_args = params.get("tool_args")
+        return await tool_instance.manage_mcp_servers(action, server_name, tool_name, tool_args)
+    elif capability == "resolve_symbol_references":
+        reference_query = params.get("reference_query", "@docs")
+        return tool_instance.resolve_symbol_references(reference_query)
+    elif capability == "list_supported_lsp_servers":
+        return tool_instance.list_supported_lsp_servers()
     elif capability == "request_hitl_approval":
         task_id = params.get("task_id", "default_task")
         context_summary = params.get("context_summary", "")

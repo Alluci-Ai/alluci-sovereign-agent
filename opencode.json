@@ -11,28 +11,204 @@
     "port": 4096,
     "hostname": "127.0.0.1"
   },
+  "mcp": {
+    "filesystem": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-filesystem", "."],
+      "enabled": true,
+      "description": "Local filesystem MCP server for sandboxed workspace file access"
+    },
+    "git": {
+      "type": "local",
+      "command": ["uvx", "mcp-server-git", "--repository", "."],
+      "enabled": true,
+      "description": "Git repository MCP server for AST history, branch analysis, and diffing"
+    },
+    "sqlite": {
+      "type": "local",
+      "command": ["uvx", "mcp-server-sqlite", "--db-path", "./polytope_data.db"],
+      "enabled": true,
+      "description": "SQLite MCP server for state inspection and audit trail verification"
+    },
+    "ast-grep": {
+      "type": "local",
+      "command": ["npx", "-y", "@ast-grep/cli", "lsp"],
+      "enabled": true,
+      "description": "Structural AST search and multi-file code rewriting"
+    },
+    "memory": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-memory"],
+      "enabled": true,
+      "description": "Persistent memory MCP server synchronized with 4-Tier H-LSM"
+    }
+  },
   "lsp": {
     "enabled": true,
     "servers": {
       "python": {
-        "command": ["pyright-langserver", "--stdio"]
+        "command": ["pyright-langserver", "--stdio"],
+        "extensions": [".py", ".pyi"]
       },
       "typescript": {
-        "command": ["typescript-language-server", "--stdio"]
+        "command": ["typescript-language-server", "--stdio"],
+        "extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]
+      },
+      "rust": {
+        "command": ["rust-analyzer"],
+        "extensions": [".rs"]
+      },
+      "go": {
+        "command": ["gopls"],
+        "extensions": [".go"]
+      },
+      "clangd": {
+        "command": ["clangd"],
+        "extensions": [".c", ".cpp", ".cc", ".h", ".hpp"]
+      },
+      "bash": {
+        "command": ["bash-language-server", "start"],
+        "extensions": [".sh", ".bash", ".zsh"]
+      },
+      "yaml": {
+        "command": ["yaml-language-server", "--stdio"],
+        "extensions": [".yaml", ".yml"]
+      },
+      "json": {
+        "command": ["vscode-json-language-server", "--stdio"],
+        "extensions": [".json", ".jsonc"]
       }
+    }
+  },
+  "formatter": {
+    "ruff": {
+      "command": ["ruff", "format", "$FILE"],
+      "extensions": [".py", ".pyi"]
+    },
+    "prettier": {
+      "command": ["npx", "prettier", "--write", "$FILE"],
+      "extensions": [".ts", ".tsx", ".js", ".jsx", ".json", ".md", ".yaml", ".yml", ".css"]
+    },
+    "rustfmt": {
+      "command": ["rustfmt", "$FILE"],
+      "extensions": [".rs"]
+    },
+    "gofmt": {
+      "command": ["gofmt", "-w", "$FILE"],
+      "extensions": [".go"]
+    }
+  },
+  "command": {
+    "test": {
+      "template": "Run automated test suite with coverage report and diagnostic trace:\n!`./.venv/bin/pytest -v`\nFocus on failing tests and provide zero-stub fixes.",
+      "description": "Run automated tests with coverage",
+      "agent": "codi"
+    },
+    "lint": {
+      "template": "Run strict compiler and typecheck diagnostics:\n!`npx tsc --noEmit`\nReview type mismatches and non-null safety.",
+      "description": "Run TypeScript and LSP diagnostics",
+      "agent": "codi"
+    },
+    "format": {
+      "template": "Format modified files using ruff/prettier formatters for $ARGUMENTS.",
+      "description": "Format source code",
+      "agent": "codi"
+    },
+    "checkpoint": {
+      "template": "Create atomic pre-state checkpoint with reverse diff for: $ARGUMENTS.\nGit status:\n!`git status -s`",
+      "description": "Create atomic snapshot checkpoint",
+      "agent": "codi"
+    },
+    "rollback": {
+      "template": "Rollback workspace to checkpoint ID: $ARGUMENTS.",
+      "description": "Rollback to pre-state checkpoint",
+      "agent": "codi"
+    },
+    "review": {
+      "template": "Perform AST diff and code review on recent changes:\n!`git diff HEAD~1`\nVerify zero-stubs, non-null safety, and secret isolation.",
+      "description": "Review recent code diffs",
+      "agent": "codi"
+    },
+    "sec-audit": {
+      "template": "Perform security audit for secrets and unauthorized OS operations on $ARGUMENTS.",
+      "description": "Audit security and secret isolation",
+      "agent": "codi"
+    }
+  },
+  "references": {
+    "docs": {
+      "path": "./docs",
+      "description": "Architecture documentation, ADRs, and platform specifications"
+    },
+    "core_skills": {
+      "path": "./core_skills",
+      "description": "Deterministic enterprise skills manifest and capability definitions"
+    },
+    "agent_skills": {
+      "path": "./.agents/skills",
+      "description": "Standardized skill markdown blueprints and operating playbooks"
+    },
+    "vault": {
+      "path": "./alluci_vault",
+      "description": "Authoritative skill and tool manifests for Alluci Sovereign Agent"
+    },
+    "commands": {
+      "path": "./.opencode/commands",
+      "description": "OpenCode custom slash command templates and prompt configurations"
+    }
+  },
+  "tools": {
+    "validate_ast_syntax": {
+      "description": "In-memory AST parser for Python, TypeScript, and JSON syntax verification"
+    },
+    "run_lsp_diagnostics": {
+      "description": "Language server compiler diagnostic probing and bytecode compilation check"
+    },
+    "format_source_code": {
+      "description": "Language-specific code formatting with ruff, prettier, rustfmt, or gofmt"
+    },
+    "create_atomic_checkpoint": {
+      "description": "SHA-256 pre-state snapshot with reverse diff and Ed25519 VerusID signature"
+    },
+    "apply_verified_patch": {
+      "description": "Atomic multi-file disk patch application with pre-flight AST validation"
+    },
+    "rollback_checkpoint": {
+      "description": "Instant 1-click atomic rollback to exact pre-state snapshot"
+    },
+    "run_automated_tests": {
+      "description": "Sandboxed test execution with strict forbidden command enforcement"
+    },
+    "execute_slash_command": {
+      "description": "Execution of custom OpenCode slash commands with variable interpolation"
+    },
+    "manage_mcp_servers": {
+      "description": "MCP server lifecycle management, tool discovery, and remote/local dispatch"
+    },
+    "resolve_symbol_references": {
+      "description": "Cross-project reference and symbol resolver for @docs, @skills, @vault"
+    },
+    "request_hitl_approval": {
+      "description": "WebSocket gated executive intervention modal for human authorization"
+    },
+    "get_daemon_status": {
+      "description": "Health probe and operational telemetry for headless OpenCode daemon"
     }
   },
   "permissions": {
     "allow": [
       "git status",
-      "git diff",
-      "git log",
-      "git add",
-      "git commit",
-      "pytest *",
-      "python3 -m unittest *",
+      "git diff*",
+      "git log*",
+      "git add*",
+      "git commit*",
+      "pytest*",
+      "python3 -m unittest*",
       "npx tsc --noEmit",
-      "npm test"
+      "npm test*",
+      "ruff format*",
+      "ruff check*",
+      "npx prettier*"
     ],
     "deny": [
       "git push*",

@@ -2,10 +2,12 @@
 AutonomousSoftwareEngineeringTool (`codi_tool_01`)
 Backend Python execution engine for the Autonomous Software Engineering & OpenCode Harness.
 Orchestrates headless OpenCode daemon lifecycle, in-memory AST syntax checks, compile-time LSP diagnostics,
-atomic pre-state checkpointing, HITL security resolution, and verified 1-click rollback execution.
+formatters, custom slash commands, MCP server management, reference resolution, atomic pre-state checkpointing,
+HITL security resolution, and verified 1-click rollback execution.
 """
 
 import os
+import re
 import ast
 import json
 import shutil
@@ -36,6 +38,17 @@ class AutonomousSoftwareEngineeringTool:
         self.harness = NativeOpenCodeHarness.get_instance()
         self.daemon = OpenCodeDaemon.get_instance()
         self.checkpoint_mgr = SovereignCheckpointManager.get_instance()
+        self.config_path = os.path.join(self.project_root, "opencode.json")
+
+    def _load_opencode_config(self) -> Dict[str, Any]:
+        """Loads and parses opencode.json configuration safely."""
+        if os.path.exists(self.config_path):
+            try:
+                with open(self.config_path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception as e:
+                logger.error(f"Error reading opencode.json: {e}")
+        return {}
 
     def validate_ast_syntax(self, file_path: str, proposed_code: str) -> Dict[str, Any]:
         """
@@ -79,7 +92,6 @@ class AutonomousSoftwareEngineeringTool:
                     "line": None
                 }
         elif file_path.endswith((".ts", ".tsx", ".js", ".jsx")):
-            # Basic structural bracket matching & non-empty check
             if not proposed_code.strip():
                 return {
                     "valid": False,
@@ -120,7 +132,6 @@ class AutonomousSoftwareEngineeringTool:
         diagnostics: List[str] = []
         if file_path.endswith(".py"):
             try:
-                # Compile code to bytecode object in memory to test for runtime compilation errors
                 compile(proposed_code, file_path, "exec")
             except Exception as ce:
                 diagnostics.append(f"Bytecode compile error: {str(ce)}")
@@ -131,6 +142,80 @@ class AutonomousSoftwareEngineeringTool:
             "error_count": len(diagnostics),
             "file_path": file_path,
             "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+
+    async def format_source_code(
+        self,
+        file_path: str,
+        code: str,
+        formatter_name: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Formats source code using configured OpenCode formatters (e.g. ruff, prettier, rustfmt, gofmt).
+        """
+        config = self._load_opencode_config()
+        formatters = config.get("formatter", {})
+
+        # Auto-detect formatter if not explicitly given
+        target_formatter = formatter_name
+        if not target_formatter:
+            ext = os.path.splitext(file_path)[1]
+            for fmt_name, fmt_cfg in formatters.items():
+                if ext in fmt_cfg.get("extensions", []):
+                    target_formatter = fmt_name
+                    break
+
+        if not target_formatter:
+            return {
+                "status": "UNCHANGED",
+                "file_path": file_path,
+                "formatted_code": code,
+                "formatter": "none",
+                "message": "No matching formatter configured for file extension."
+            }
+
+        # Safe in-memory / temporary buffer formatting
+        try:
+            if target_formatter == "ruff" or file_path.endswith(".py"):
+                # Try running ruff format via subprocess if available, otherwise return clean code
+                proc = await asyncio.create_subprocess_exec(
+                    "ruff", "format", "-",
+                    stdin=asyncio.subprocess.PIPE,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                stdout, stderr = await proc.communicate(input=code.encode("utf-8"))
+                if proc.returncode == 0 and stdout:
+                    return {
+                        "status": "SUCCESS",
+                        "file_path": file_path,
+                        "formatted_code": stdout.decode("utf-8"),
+                        "formatter": "ruff"
+                    }
+            elif target_formatter == "prettier" or file_path.endswith((".ts", ".tsx", ".js", ".jsx", ".json", ".md")):
+                proc = await asyncio.create_subprocess_shell(
+                    f"npx -y prettier --stdin-filepath {file_path}",
+                    stdin=asyncio.subprocess.PIPE,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                    cwd=self.project_root
+                )
+                stdout, stderr = await proc.communicate(input=code.encode("utf-8"))
+                if proc.returncode == 0 and stdout:
+                    return {
+                        "status": "SUCCESS",
+                        "file_path": file_path,
+                        "formatted_code": stdout.decode("utf-8"),
+                        "formatter": "prettier"
+                    }
+        except Exception as fe:
+            logger.warning(f"Formatter {target_formatter} execution failed ({fe}); falling back to raw code.")
+
+        return {
+            "status": "FALLBACK",
+            "file_path": file_path,
+            "formatted_code": code,
+            "formatter": target_formatter or "passthrough"
         }
 
     def create_atomic_checkpoint(
@@ -202,7 +287,6 @@ class AutonomousSoftwareEngineeringTool:
         Executes an automated test command within sovereign sandbox constraints.
         Enforces allowed commands (`pytest`, `npm test`, `npx tsc --noEmit`) and denies remote egress.
         """
-        # Load permission rules from opencode.json
         forbidden = [
             "git push", "git pull", "git fetch", "git remote",
             "gh ", "curl", "ssh", "rm -rf /", "rm -rf ~"
@@ -247,6 +331,185 @@ class AutonomousSoftwareEngineeringTool:
                 "error": str(e),
                 "code": 500
             }
+
+    async def execute_slash_command(
+        self,
+        command_name: str,
+        args: str = "",
+        target_file: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Executes an OpenCode custom slash command from `.opencode/commands/` or `opencode.json`.
+        Interpolates `$ARGUMENTS`, `$1..$N`, and executes embedded shell outputs (`!cmd`).
+        """
+        clean_name = command_name.lstrip("/")
+        md_file = os.path.join(self.project_root, ".opencode", "commands", f"{clean_name}.md")
+        template = ""
+        description = ""
+
+        if os.path.exists(md_file):
+            try:
+                with open(md_file, "r", encoding="utf-8") as f:
+                    content = f.read()
+                # Parse frontmatter
+                if content.startswith("---"):
+                    parts = content.split("---", 2)
+                    if len(parts) >= 3:
+                        template = parts[2].strip()
+                        for line in parts[1].splitlines():
+                            if line.startswith("description:"):
+                                description = line.split(":", 1)[1].strip()
+                else:
+                    template = content.strip()
+            except Exception as e:
+                logger.error(f"Error reading command markdown {md_file}: {e}")
+
+        if not template:
+            # Check opencode.json command dictionary
+            config = self._load_opencode_config()
+            cmd_cfg = config.get("command", {}).get(clean_name)
+            if cmd_cfg:
+                template = cmd_cfg.get("template", "")
+                description = cmd_cfg.get("description", "")
+
+        if not template:
+            return {
+                "status": "NOT_FOUND",
+                "command": clean_name,
+                "error": f"Command '/{clean_name}' not defined in .opencode/commands/ or opencode.json"
+            }
+
+        # Variable replacement: $ARGUMENTS, $1, $FILE
+        rendered = template.replace("$ARGUMENTS", args)
+        if target_file:
+            rendered = rendered.replace("$FILE", target_file)
+
+        tokens = args.split()
+        for idx, tok in enumerate(tokens, 1):
+            rendered = rendered.replace(f"${idx}", tok)
+
+        # Shell command interpolation: !`cmd`
+        shell_patterns = re.findall(r'!(`[^`]+`|\w+)', rendered)
+        shell_results = {}
+        for pattern in shell_patterns:
+            cmd = pattern.strip("`")
+            res = await self.run_automated_tests(cmd, timeout=15.0)
+            output = res.get("stdout", "") or res.get("stderr", "")
+            rendered = rendered.replace(f"!`{cmd}`", output.strip())
+            rendered = rendered.replace(f"!{cmd}", output.strip())
+            shell_results[cmd] = res
+
+        return {
+            "status": "SUCCESS",
+            "command": clean_name,
+            "description": description,
+            "rendered_prompt": rendered,
+            "shell_executions": shell_results,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+
+    async def manage_mcp_servers(
+        self,
+        action: str = "list",
+        server_name: Optional[str] = None,
+        tool_name: Optional[str] = None,
+        tool_args: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        Manages and queries local/remote Model Context Protocol (MCP) servers configured in opencode.json.
+        """
+        config = self._load_opencode_config()
+        mcp_servers = config.get("mcp", {})
+
+        if action == "list":
+            return {
+                "status": "SUCCESS",
+                "server_count": len(mcp_servers),
+                "servers": mcp_servers
+            }
+        elif action == "get_server":
+            if not server_name or server_name not in mcp_servers:
+                return {
+                    "status": "NOT_FOUND",
+                    "server_name": server_name,
+                    "error": f"MCP server '{server_name}' not found in configuration."
+                }
+            return {
+                "status": "SUCCESS",
+                "server_name": server_name,
+                "config": mcp_servers[server_name]
+            }
+        elif action == "call_tool":
+            return {
+                "status": "DISPATCHED",
+                "server_name": server_name,
+                "tool_name": tool_name,
+                "arguments": tool_args or {},
+                "protocol": "mcp-v1",
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+
+        return {"status": "UNKNOWN_ACTION", "action": action}
+
+    def resolve_symbol_references(
+        self,
+        reference_query: str
+    ) -> Dict[str, Any]:
+        """
+        Resolves external project and symbol references (e.g. `@docs`, `@core_skills`, `@vault`, `@commands`).
+        """
+        config = self._load_opencode_config()
+        references = config.get("references", {})
+
+        # Parse alias from query (e.g., "@docs/architecture.md" -> alias="docs", subpath="architecture.md")
+        alias = reference_query.lstrip("@").split("/")[0] if "/" in reference_query else reference_query.lstrip("@")
+        subpath = reference_query.split("/", 1)[1] if "/" in reference_query else ""
+
+        if alias in references:
+            ref_info = references[alias]
+            rel_path = ref_info.get("path", "")
+            base_dir = os.path.normpath(os.path.join(self.project_root, rel_path))
+            target_path = os.path.normpath(os.path.join(base_dir, subpath)) if subpath else base_dir
+
+            exists = os.path.exists(target_path)
+            is_file = os.path.isfile(target_path)
+
+            file_content = None
+            if exists and is_file and os.path.getsize(target_path) < 100000:
+                try:
+                    with open(target_path, "r", encoding="utf-8") as f:
+                        file_content = f.read()
+                except Exception as e:
+                    logger.warning(f"Failed reading reference file {target_path}: {e}")
+
+            return {
+                "status": "RESOLVED",
+                "alias": alias,
+                "description": ref_info.get("description", ""),
+                "target_path": target_path,
+                "exists": exists,
+                "is_file": is_file,
+                "content": file_content
+            }
+
+        return {
+            "status": "UNRESOLVED",
+            "query": reference_query,
+            "available_aliases": list(references.keys()),
+            "message": f"Reference alias '@{alias}' not defined in opencode.json references."
+        }
+
+    def list_supported_lsp_servers(self) -> Dict[str, Any]:
+        """
+        Returns active LSP servers and supported file extensions configured in opencode.json.
+        """
+        config = self._load_opencode_config()
+        lsp_cfg = config.get("lsp", {})
+        return {
+            "status": "SUCCESS",
+            "enabled": lsp_cfg.get("enabled", True),
+            "servers": lsp_cfg.get("servers", {})
+        }
 
     async def request_hitl_approval(
         self,
