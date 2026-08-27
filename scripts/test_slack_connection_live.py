@@ -20,7 +20,7 @@ async def main():
         
         # Test socket mode
         print("Starting socket mode connection test...")
-        handler = AsyncSocketModeHandler(app, app_token)
+        handler = AsyncSocketModeHandler(app, slack_app_auth)
         await handler.client.connect()
         print("Socket Mode connected successfully!")
         await handler.client.close()
