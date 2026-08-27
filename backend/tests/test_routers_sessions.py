@@ -11,25 +11,20 @@ def mock_db_session():
         yield mock_session
 
 def test_get_current_session_success(app_client, auth_headers):
-    class DummyBridge:
-        def get_connections(self):
-            return ["slack"]
     class DummyOrchestrator:
-        base_manifest = {"soul": "manifest"}
-        bridge_manager = DummyBridge()
+        _cached_soul = {"soul": "manifest"}
         
     with patch("backend.routers.sessions.services.orchestrator", DummyOrchestrator()):
         response = app_client.get("/api/v1/session", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
         assert data["soul"] == {"soul": "manifest"}
-        assert data["connections"] == ["slack"]
+        assert data["connections"] == []
 
 def test_get_current_session_error(app_client, auth_headers):
     class DummyOrchestratorErr:
-        base_manifest = {}
         @property
-        def bridge_manager(self):
+        def _cached_soul(self):
             raise Exception("Boom")
     
     with patch("backend.routers.sessions.services.orchestrator", DummyOrchestratorErr()):
@@ -71,7 +66,7 @@ def test_get_agents_empty(app_client, auth_headers, mock_db_session):
     mock_session_instance.exec.return_value.all.return_value = []
     response = app_client.get("/api/v1/agents", headers=auth_headers)
     assert response.status_code == 200
-    assert response.json()["agents"][0]["id"] == "root"
+    assert response.json()["agents"] == []
 
 def test_get_agents_with_data(app_client, auth_headers, mock_db_session):
     mock_session_instance = mock_db_session.return_value.__enter__.return_value

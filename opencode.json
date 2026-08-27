@@ -1,10 +1,15 @@
 {
-  "$schema": "https://opencode.ai/config.json",
   "provider": {
     "alluci": {
       "name": "Alluci Sovereign MLX Engine",
       "options": {
         "baseURL": "http://127.0.0.1:8000/v1"
+      },
+      "models": {
+        "mlx-community/GLM-4-32B-0414-4bit": {
+          "id": "mlx-community/GLM-4-32B-0414-4bit",
+          "name": "GLM-4 32B 4-bit (Sovereign Local MLX)"
+        }
       }
     }
   },

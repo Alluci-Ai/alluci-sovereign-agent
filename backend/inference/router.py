@@ -935,8 +935,10 @@ class ModelRouter(ExecutiveRouter):
                                 agent_fallback = agent.fallback_chain
                             if agent.engine_manifest:
                                 try:
-                                    engine_manifest = json.loads(agent.engine_manifest)
-                                except:
+                                    engine_manifest = json.loads(agent.engine_manifest) if isinstance(agent.engine_manifest, str) else agent.engine_manifest
+                                    if not isinstance(engine_manifest, dict):
+                                        engine_manifest = {}
+                                except Exception:
                                     pass
                 except Exception as e:
                     self.logger.error(f"Failed to load agent record {agent_id}: {e}")

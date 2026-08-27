@@ -121,7 +121,9 @@ def seed_rocco_agent() -> None:
             manifest = {}
             if target_agent.tools_manifest:
                 try:
-                    manifest = json.loads(target_agent.tools_manifest)
+                    manifest = json.loads(target_agent.tools_manifest) if isinstance(target_agent.tools_manifest, str) else target_agent.tools_manifest
+                    if not isinstance(manifest, dict):
+                        manifest = {}
                 except Exception:
                     manifest = {}
             updated = False
@@ -210,7 +212,9 @@ def seed_codi_agent() -> None:
             manifest = {}
             if codi_agent.tools_manifest:
                 try:
-                    manifest = json.loads(codi_agent.tools_manifest)
+                    manifest = json.loads(codi_agent.tools_manifest) if isinstance(codi_agent.tools_manifest, str) else codi_agent.tools_manifest
+                    if not isinstance(manifest, dict):
+                        manifest = {}
                 except Exception:
                     manifest = {}
             updated = False

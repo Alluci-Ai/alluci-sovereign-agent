@@ -86,6 +86,32 @@ async def synthesize_session_history(
         }
     return {"status": "FAILED", "reason": "HLSM Manager not initialized"}
 
+def _safe_json_loads(val: Any) -> dict:
+    if not val:
+        return {}
+    if isinstance(val, dict):
+        return val
+    if isinstance(val, str):
+        try:
+            res = json.loads(val)
+            return res if isinstance(res, dict) else {}
+        except Exception:
+            return {}
+    return {}
+
+def _safe_json_list(val: Any) -> list:
+    if not val:
+        return []
+    if isinstance(val, list):
+        return val
+    if isinstance(val, str):
+        try:
+            res = json.loads(val)
+            return res if isinstance(res, list) else []
+        except Exception:
+            return []
+    return []
+
 # ─── Agent Constellation CRUD ───────────────
 @router.get("/agents", dependencies=[Depends(verify_authenticated)])
 async def list_agents():
@@ -118,8 +144,8 @@ async def list_agents():
             active_tools = 0
             if a.tools_manifest:
                 try:
-                    t_manifest = json.loads(a.tools_manifest)
-                    active_tools = sum(1 for v in t_manifest.values() if v.get("enabled"))
+                    t_manifest = _safe_json_loads(a.tools_manifest)
+                    active_tools = sum(1 for v in t_manifest.values() if isinstance(v, dict) and v.get("enabled"))
                 except Exception:
                     pass
 
@@ -131,11 +157,11 @@ async def list_agents():
                 "description": a.description,
                 "fallback": a.fallback_chain,
                 "soul_profile_id": a.soul_profile_id,
-                "engine_manifest": json.loads(a.engine_manifest or "{}"),
+                "engine_manifest": _safe_json_loads(a.engine_manifest),
                 "active_skills": active_skills,
                 "active_tools": active_tools,
                 "channels": channels,
-                "heartbeat_orders": json.loads(a.heartbeat_orders or "[]"),
+                "heartbeat_orders": _safe_json_list(a.heartbeat_orders),
                 "created_at": a.created_at.isoformat() if a.created_at else None,
             })
 
@@ -179,12 +205,12 @@ async def get_agent(agent_id: str):
             "fallback": agent.fallback_chain,
             "system_prompt": agent.system_prompt,
             "soul_profile_id": agent.soul_profile_id,
-            "engine_manifest": json.loads(agent.engine_manifest or "{}"),
+            "engine_manifest": _safe_json_loads(agent.engine_manifest),
             "active_skills": active_skills,
             "channels": channels,
-            "heartbeat_orders": json.loads(agent.heartbeat_orders or "[]"),
-            "soul_manifest_override": json.loads(
-                agent.soul_manifest_override or "{}"
+            "heartbeat_orders": _safe_json_list(agent.heartbeat_orders),
+            "soul_manifest_override": _safe_json_loads(
+                agent.soul_manifest_override
             ),
             "created_at": agent.created_at.isoformat() if agent.created_at else None,
             "updated_at": (
@@ -439,16 +465,6 @@ async def get_root_heartbeat_history(limit: int = 30):
     }
 
 WORKSPACE_DIR = os.path.abspath("backend/workspace")
-
-def _safe_json_loads(val: Any) -> dict:
-    if not val:
-        return {}
-    if isinstance(val, dict):
-        return val
-    try:
-        return json.loads(val)
-    except Exception:
-        return {}
 
 @router.get("/registry/skills", dependencies=[Depends(verify_authenticated)])
 async def get_registry_skills():

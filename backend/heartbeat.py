@@ -706,11 +706,12 @@ class HeartbeatDaemon:
                 if not agent.heartbeat_orders:
                     continue
                 try:
-                    orders = json.loads(agent.heartbeat_orders)
-                    for order in orders:
-                        if isinstance(order, dict) and order.get("active", False):
-                            result.append((agent.id, order))
-                except json.JSONDecodeError as exc:
+                    orders = json.loads(agent.heartbeat_orders) if isinstance(agent.heartbeat_orders, str) else agent.heartbeat_orders
+                    if isinstance(orders, list):
+                        for order in orders:
+                            if isinstance(order, dict) and order.get("active", False):
+                                result.append((agent.id, order))
+                except (json.JSONDecodeError, TypeError) as exc:
                     self.logger.warning(
                         "[HB] Agent %s has invalid heartbeat_orders JSON: %s",
                         agent.id,

@@ -19,9 +19,11 @@ def test_seed_codi_agent(temp_db):
             assert codi.name == "Codi"
             assert codi.status == "ACTIVE"
             assert "GLM-4-32B" in codi.model
+            assert codi.system_prompt is not None
             assert "CODI AUTONOMOUS SOFTWARE ENGINEER" in codi.system_prompt
             
             # Tools verification
+            assert codi.tools_manifest is not None
             tools = json.loads(codi.tools_manifest)
             assert tools.get("opencode_ast_diff", {}).get("enabled") is True
             assert tools.get("opencode_lsp_diagnose", {}).get("enabled") is True
@@ -29,6 +31,7 @@ def test_seed_codi_agent(temp_db):
             assert tools.get("sovereign_checkpoint_rollback", {}).get("enabled") is True
 
             # Skills verification
+            assert codi.skills_manifest is not None
             skills = json.loads(codi.skills_manifest)
             assert skills.get("codi_01", {}).get("enabled") is True
 
