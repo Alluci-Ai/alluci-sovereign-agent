@@ -637,6 +637,55 @@ async def execute_agentic_registration_capability(payload: Dict[str, Any] = Body
     else:
         raise HTTPException(status_code=400, detail=f"Unknown capability: {capability}")
 
+@router.post("/tools/codi_tool_01/capability")
+async def execute_codi_tool_capability(payload: Dict[str, Any] = Body(...)):
+    """Executes specific capabilities on the AutonomousSoftwareEngineeringTool (codi_tool_01)."""
+    from .. import services
+    from ..tools.autonomous_software_engineering_tool import AutonomousSoftwareEngineeringTool
+
+    capability = payload.get("capability")
+    params = payload.get("params", {})
+
+    tool_instance = AutonomousSoftwareEngineeringTool(
+        vault_manager=services.vault,
+        exec_approval_mgr=getattr(services, "exec_approval_manager", None)
+    )
+
+    if capability == "validate_ast_syntax":
+        file_path = params.get("file_path", "")
+        proposed_code = params.get("proposed_code", "")
+        return tool_instance.validate_ast_syntax(file_path, proposed_code)
+    elif capability == "run_lsp_diagnostics":
+        file_path = params.get("file_path", "")
+        proposed_code = params.get("proposed_code", "")
+        return await tool_instance.run_lsp_diagnostics(file_path, proposed_code)
+    elif capability == "create_atomic_checkpoint":
+        task_id = params.get("task_id", "default_task")
+        description = params.get("description", "Pre-state checkpoint")
+        target_files = params.get("target_files", [])
+        return tool_instance.create_atomic_checkpoint(task_id, description, target_files)
+    elif capability == "apply_verified_patch":
+        task_id = params.get("task_id", "default_task")
+        description = params.get("description", "Verified patch")
+        files_to_modify = params.get("files_to_modify", {})
+        return await tool_instance.apply_verified_patch(task_id, description, files_to_modify)
+    elif capability == "rollback_checkpoint":
+        checkpoint_id = params.get("checkpoint_id", "")
+        return tool_instance.rollback_checkpoint(checkpoint_id)
+    elif capability == "run_automated_tests":
+        command = params.get("command", "pytest")
+        timeout = float(params.get("timeout", 30.0))
+        return await tool_instance.run_automated_tests(command, timeout)
+    elif capability == "request_hitl_approval":
+        task_id = params.get("task_id", "default_task")
+        context_summary = params.get("context_summary", "")
+        unified_diff = params.get("unified_diff", "")
+        return await tool_instance.request_hitl_approval(task_id, context_summary, unified_diff)
+    elif capability == "get_daemon_status":
+        return await tool_instance.get_daemon_status()
+    else:
+        raise HTTPException(status_code=400, detail=f"Unknown capability: {capability}")
+
 @router.post("/tools/test_sandbox")
 async def test_sandbox(payload: Dict[str, Any] = Body(...)):
     """Executes a tool dynamically without permanently saving it to the registry."""
