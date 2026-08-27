@@ -174,6 +174,16 @@ export class AlluciSovereignService {
             body: JSON.stringify(payload)
         });
     }
+
+    // ─── Tools & Skills Registry API ──────────────────────────────────────────
+
+    async listRegistryTools() {
+        return this._fetch('/registry/tools');
+    }
+
+    async listRegistrySkills() {
+        return this._fetch('/registry/skills');
+    }
 }
 
 export const sovereignService = new AlluciSovereignService();

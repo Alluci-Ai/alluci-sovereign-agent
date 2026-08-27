@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { ToolManifest } from '../types';
 import { 
     Zap, 
@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { PerToolKeyInput } from '../features/tools/PerToolKeyInput';
 import { useStore } from '../store/useStore';
+import { sovereignService } from '../sovereignService';
 
 const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || '';
 
@@ -46,9 +47,28 @@ export const ToolsPanel: React.FC<ToolsPanelProps> = ({
     onCreate,
     onImport
 }) => {
+    const { accessToken, setTools } = useStore();
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
     const [selectedToolForOverlay, setSelectedToolForOverlay] = useState<ToolManifest | null>(null);
+    const [loading, setLoading] = useState(tools.length === 0);
+
+    const refreshTools = useCallback(async () => {
+        try {
+            const data = await sovereignService.listRegistryTools();
+            if (data && Array.isArray(data.tools)) {
+                setTools(data.tools);
+            }
+        } catch (err) {
+            console.error('[ToolsPanel] Failed to sync registry tools', err);
+        } finally {
+            setLoading(false);
+        }
+    }, [setTools]);
+
+    useEffect(() => {
+        refreshTools();
+    }, [refreshTools, accessToken]);
 
     const handleExport = (tool: ToolManifest) => {
         const exportable = JSON.parse(JSON.stringify(tool));
@@ -167,8 +187,16 @@ export const ToolsPanel: React.FC<ToolsPanelProps> = ({
                 </div>
             </div>
 
-            {/* Empty State */}
-            {tools.length === 0 && (
+            {/* Loading / Empty State */}
+            {loading && tools.length === 0 ? (
+                <div style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                    padding: '56px 20px', textAlign: 'center', color: 'var(--text-tertiary)',
+                }}>
+                    <Loader2 size={32} className="animate-spin text-accent mb-3" />
+                    <p className="font-mono text-[11px] tracking-widest uppercase">BOOTING_TOOL_MATRIX...</p>
+                </div>
+            ) : tools.length === 0 ? (
                 <div style={{
                     display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
                     padding: '56px 20px', textAlign: 'center', color: 'var(--text-tertiary)',
@@ -177,7 +205,7 @@ export const ToolsPanel: React.FC<ToolsPanelProps> = ({
                     <p style={{ fontSize: 15, marginBottom: 8, fontWeight: 600 }}>No Tools Loaded</p>
                     <p style={{ fontSize: 13 }}>Create a new tool or import an STP package to get started.</p>
                 </div>
-            )}
+            ) : null}
 
             {/* Grouped Tool Matrices */}
             <div className="flex flex-col gap-8">
