@@ -143,16 +143,32 @@ def seed_codi_agent() -> None:
     """
     import json
     from datetime import datetime, timezone
-    from sqlmodel import Session
+    from sqlmodel import Session, select
     from ..database import engine
-    from ..models import AgentRecord
+    from ..models import AgentRecord, AgentSkillBinding
 
     codi_tools = {
+        "codi_tool_01": {"enabled": True, "params": "{\n  \n}"},
         "opencode_ast_diff": {"enabled": True},
         "opencode_lsp_diagnose": {"enabled": True},
         "opencode_test_runner": {"enabled": True},
         "sovereign_checkpoint_create": {"enabled": True},
         "sovereign_checkpoint_rollback": {"enabled": True}
+    }
+
+    codi_skills = {
+        "codi_01": {"enabled": True},
+        "auth_01": {"enabled": True},
+        "ws_01": {"enabled": True},
+        "msg_01": {"enabled": True}
+    }
+
+    engine_manifest = {
+        "llm": [
+            "local/GLM-4-32B-0414-4bit",
+            "local/alluci-polytope-gemma-4-31b-it-bf16",
+            "local/GLM-4.7-4bit"
+        ]
     }
 
     with Session(engine) as session:
@@ -161,16 +177,28 @@ def seed_codi_agent() -> None:
             codi_agent = AgentRecord(
                 id="codi",
                 name="Codi",
-                status="active",
+                status="ACTIVE",
                 description="Autonomous Software Engineer & Codebase Refactoring Sub-Agent powered by OpenCode harness",
-                model="mlx-community/GLM-4-32B-0414-4bit",
+                model="local/GLM-4-32B-0414-4bit",
+                fallback_chain="local/alluci-polytope-gemma-4-31b-it-bf16,local/alluci-polytope-gemma-4-26b-a4b-it-4bit",
                 system_prompt=(
-                    "You are Codi, the sovereign autonomous software engineering sub-agent of Alluci. "
-                    "Your core role is to analyze, refactor, implement, and maintain the codebase with 100% precision. "
-                    "Always enforce zero stubs, zero mocks in production code, strict non-null type safety, "
-                    "and comprehensive unit test verification. Before proposing changes, validate syntax via LSP diagnostics."
+                    "[SYSTEM PROMPT DNA: CODI AUTONOMOUS SOFTWARE ENGINEER & OPENCODE HARNESS]\n\n"
+                    "ROLE DEFINITION:\n"
+                    "You are Codi (agent_id=\"codi\"), the dedicated Sovereign Software Engineering and Codebase Refactoring Sub-Agent "
+                    "within the Alluci Sovereign Agent constellation. You leverage the local OpenCode Headless Engine and on-device Apple MLX "
+                    "Local Cognitive Engine with zero cloud dependencies and zero external network egress.\n\n"
+                    "NON-NEGOTIABLE SOVEREIGN ENGINEERING LAWS:\n"
+                    "1. ZERO-STUB & REAL END-TO-END WIRING LAW: NO stubs, NO mocks, NO simulated responses, NO partial scaffolding, and NO dummy fallbacks. "
+                    "Every feature, API route, database query, security guard, and React component MUST be 100% complete, fully implemented, and wired end-to-end.\n"
+                    "2. ANTI-MONKEY-PATCH & AUTHORITATIVE ROOT-CAUSE LAW: NO dynamic monkey-patching, NO superficial band-aids, NO unittest.mock in production code. "
+                    "Always fix root-cause architecture in the authoritative source file.\n"
+                    "3. DEFENSIVE TYPE SAFETY & NON-NULL CONTRACTS: Verify non-null state before dereferencing. Enforce strict Pydantic v2 schemas and TypeScript interfaces.\n"
+                    "4. ATOMIC PRE-STATE CHECKPOINTING & ROLLBACK: Always create an atomic pre-state checkpoint before mutating filesystem state. Generate exact reverse patch diffs for 1-click rollback.\n"
+                    "5. HITL EXECUTIVE GOVERNANCE: All destructive operations, file writes, and test executions must be gated by explicit sovereign HITL authorization."
                 ),
+                engine_manifest=json.dumps(engine_manifest),
                 tools_manifest=json.dumps(codi_tools),
+                skills_manifest=json.dumps(codi_skills),
                 created_at=datetime.now(timezone.utc),
                 updated_at=datetime.now(timezone.utc)
             )
@@ -190,9 +218,34 @@ def seed_codi_agent() -> None:
                 if tool not in manifest or not manifest[tool].get("enabled"):
                     manifest[tool] = config
                     updated = True
+            
+            if codi_agent.status != "ACTIVE":
+                codi_agent.status = "ACTIVE"
+                updated = True
+
+            if not codi_agent.engine_manifest:
+                codi_agent.engine_manifest = json.dumps(engine_manifest)
+                updated = True
+
+            if not codi_agent.skills_manifest:
+                codi_agent.skills_manifest = json.dumps(codi_skills)
+                updated = True
+
             if updated:
                 codi_agent.tools_manifest = json.dumps(manifest)
                 codi_agent.updated_at = datetime.now(timezone.utc)
                 session.add(codi_agent)
                 session.commit()
+
+        # Ensure AgentSkillBindings exist for Codi
+        for skill_id in codi_skills.keys():
+            existing = session.exec(
+                select(AgentSkillBinding).where(
+                    AgentSkillBinding.agent_id == "codi",
+                    AgentSkillBinding.skill_id == skill_id
+                )
+            ).first()
+            if not existing:
+                session.add(AgentSkillBinding(agent_id="codi", skill_id=skill_id))
+        session.commit()
 

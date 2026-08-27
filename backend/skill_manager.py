@@ -163,6 +163,11 @@ class SkillManager:
                 hcd_aliases = ["user experience", "user research", "empathy mapping", "design thinking", "human-centered", "human centered"]
                 if any(alias in prompt_lower for alias in hcd_aliases):
                     is_match = True
+
+            if not is_match and skill_id == "codi_01":
+                codi_aliases = ["opencode", "codi", "ast diff", "lsp diagnose", "lsp", "checkpoint", "rollback", "refactor", "software engineer", "codebase", "unit test", "type safety", "coding"]
+                if any(alias in prompt_lower for alias in codi_aliases):
+                    is_match = True
                     
             if is_match and skill not in matched_skills:
                 matched_skills.append(skill)

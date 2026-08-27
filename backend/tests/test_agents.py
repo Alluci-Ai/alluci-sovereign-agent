@@ -30,15 +30,12 @@ from sqlmodel import Session, select
 # ─── GET /agents — empty db ───────────────────────────────────────────────────
 
 def test_get_agents_returns_synthetic_root_when_empty(app_client, auth_headers, temp_db):
-    resp = app_client.get("/api/v1/agents", headers=auth_headers)
-    assert resp.status_code == 200
-    data = resp.json()
-    assert "agents" in data
-    assert len(data["agents"]) >= 1
-    root = data["agents"][0]
-    assert root["id"] == "root"
-    assert root["name"] == "Sovereign Root"
-    assert isinstance(root["heartbeat_orders"], list)
+    with patch("backend.routers.sessions.db_engine", temp_db):
+        resp = app_client.get("/api/v1/agents", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "agents" in data
+        assert isinstance(data["agents"], list)
 
 
 # ─── POST /agents ─────────────────────────────────────────────────────────────

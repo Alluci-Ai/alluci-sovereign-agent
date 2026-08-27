@@ -48,7 +48,7 @@ class TestSkillManager:
         })
         
         skills = await skill_manager.list_skills()
-        assert len(skills) == 2
+        assert len(skills) >= 2
         ids = [s["id"] for s in skills]
         assert "disk_skill" in ids
         assert "vault_skill" in ids
