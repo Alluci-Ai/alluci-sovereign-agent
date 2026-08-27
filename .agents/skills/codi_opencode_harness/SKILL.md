@@ -1,9 +1,9 @@
 ---
-name: Codi Autonomous Software Engineering & OpenCode Harness
+name: Autonomous Software Engineering & OpenCode Harness
 description: Deterministic framework for Codi sub-agent to orchestrate local OpenCode sessions, AST multi-file diffing, LSP compiler diagnostics, atomic checkpoint creation, and verified 1-click rollback execution.
 ---
 
-# Codi Autonomous Software Engineering & OpenCode Harness (`codi_01`)
+# Autonomous Software Engineering & OpenCode Harness (`codi_01`)
 
 ## 1. Overview & Sovereign Mandate
 
