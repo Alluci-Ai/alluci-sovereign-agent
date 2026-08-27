@@ -459,7 +459,14 @@ class AutonomousSoftwareEngineeringTool:
         Resolves external project and symbol references (e.g. `@docs`, `@core_skills`, `@vault`, `@commands`).
         """
         config = self._load_opencode_config()
-        references = config.get("references", {})
+        DEFAULT_REFERENCES = {
+            "docs": {"path": "./docs", "description": "Architecture documentation, ADRs, and platform specifications"},
+            "core_skills": {"path": "./core_skills", "description": "Deterministic enterprise skills manifest and capability definitions"},
+            "agent_skills": {"path": "./.agents/skills", "description": "Standardized skill markdown blueprints and operating playbooks"},
+            "vault": {"path": "./alluci_vault", "description": "Authoritative skill and tool manifests for Alluci Sovereign Agent"},
+            "commands": {"path": "./.opencode/commands", "description": "OpenCode custom slash command templates and prompt configurations"}
+        }
+        references = config.get("references") or DEFAULT_REFERENCES
 
         # Parse alias from query (e.g., "@docs/architecture.md" -> alias="docs", subpath="architecture.md")
         alias = reference_query.lstrip("@").split("/")[0] if "/" in reference_query else reference_query.lstrip("@")
@@ -505,10 +512,20 @@ class AutonomousSoftwareEngineeringTool:
         """
         config = self._load_opencode_config()
         lsp_cfg = config.get("lsp", {})
+        if isinstance(lsp_cfg, dict) and "servers" in lsp_cfg:
+            servers = lsp_cfg.get("servers", {})
+            enabled = lsp_cfg.get("enabled", True)
+        elif isinstance(lsp_cfg, dict):
+            servers = {k: v for k, v in lsp_cfg.items() if isinstance(v, dict)}
+            enabled = True
+        else:
+            servers = {}
+            enabled = bool(lsp_cfg)
+
         return {
             "status": "SUCCESS",
-            "enabled": lsp_cfg.get("enabled", True),
-            "servers": lsp_cfg.get("servers", {})
+            "enabled": enabled,
+            "servers": servers
         }
 
     async def request_hitl_approval(
