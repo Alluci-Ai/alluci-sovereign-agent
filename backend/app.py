@@ -66,10 +66,11 @@ configure_logging(app_env=settings.APP_ENV)
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
-    from .core.startup_checks import assert_secrets_are_set, warn_on_stale_model_ids, seed_rocco_agent
+    from .core.startup_checks import assert_secrets_are_set, warn_on_stale_model_ids, seed_rocco_agent, seed_codi_agent
     assert_secrets_are_set()
     warn_on_stale_model_ids()
     seed_rocco_agent()
+    seed_codi_agent()
     
     logger.info("[ POLYTOPE_DAEMON ] # 1. Initialize global system components")
     await services.init_services(app)
@@ -428,6 +429,10 @@ async def csrf_protect_middleware(request: Request, call_next):
             "/api/v1/auth/webauthn/assertion/verify",
             "/api/v1/gemini/proxy", 
             "/api/v1/objective/execute",
+            "/v1/chat/completions",
+            "/api/v1/chat/completions",
+            "/v1/models",
+            "/api/v1/models",
         ]
         
         is_testing = settings.APP_ENV == "testing"
@@ -486,6 +491,11 @@ app.include_router(usage.router, prefix="/api/v1")
 from .routers import artifacts
 app.include_router(artifacts.router, prefix="/api/v1")
 app.include_router(models.router, prefix="/api/v1/models")
+from .routers import v1_compat
+app.include_router(v1_compat.router, prefix="/v1")
+app.include_router(v1_compat.router, prefix="/api/v1")
+from .routers import checkpoints
+app.include_router(checkpoints.router, prefix="/api/v1")
 
 # Health endpoints (custom)
 app.include_router(health_router)

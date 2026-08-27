@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { TaskItem } from '../types';
 import { useStore } from '../store/useStore';
+import CodiRollbackCard, { CheckpointManifest } from './CodiRollbackCard';
 
 const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || '';
 
@@ -40,6 +41,7 @@ export const ConfirmationModal: React.FC<{
 export const TaskPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     const { activeAgentId } = useStore();
     const [tasks, setTasks] = useState<TaskItem[]>([]);
+    const [checkpoints, setCheckpoints] = useState<CheckpointManifest[]>([]);
     const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'completed'>('all');
     const [priorityFilter, setPriorityFilter] = useState<string>('ALL');
     const [timelineFilter, setTimelineFilter] = useState<string>('ALL');
@@ -57,11 +59,23 @@ export const TaskPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             if (timelineFilter !== 'ALL') params.append('timeline', timelineFilter);
             const res = await fetch(`${DAEMON_URL}/api/v1/tasks?${params.toString()}`).catch(() => null);
             if (res && res.ok) setTasks(await res.json());
-        // eslint-disable-next-line no-empty
         } catch (e) { }
     }, [statusFilter, priorityFilter, timelineFilter, activeAgentId]);
 
-    useEffect(() => { fetchTasks(); }, [fetchTasks]);
+    const fetchCheckpoints = useCallback(async () => {
+        try {
+            const res = await fetch(`${DAEMON_URL}/api/v1/checkpoints?limit=5`).catch(() => null);
+            if (res && res.ok) {
+                const data = await res.json();
+                setCheckpoints(data);
+            }
+        } catch (e) { }
+    }, []);
+
+    useEffect(() => {
+        fetchTasks();
+        fetchCheckpoints();
+    }, [fetchTasks, fetchCheckpoints]);
 
     const handleAddTask = async () => {
         if (!newTaskDesc.trim()) return;
@@ -171,6 +185,22 @@ export const TaskPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                     </div>
                 </div>
             </div>
+
+            {/* Sovereign Codebase Checkpoints & Rollback Section */}
+            {checkpoints.length > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.05em' }}>
+                        Active Codi Checkpoints & Rollbacks
+                    </div>
+                    {checkpoints.map(chk => (
+                        <CodiRollbackCard
+                            key={chk.checkpoint_id}
+                            checkpoint={chk}
+                            onRollbackComplete={() => fetchCheckpoints()}
+                        />
+                    ))}
+                </div>
+            )}
 
             {/* Task List */}
             <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16, paddingRight: 2 }} className="scrollbar-hide">

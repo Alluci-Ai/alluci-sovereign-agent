@@ -134,3 +134,65 @@ def seed_rocco_agent() -> None:
                 target_agent.tools_manifest = json.dumps(manifest)
                 session.add(target_agent)
                 session.commit()
+
+
+def seed_codi_agent() -> None:
+    """
+    [ PPN-036 ] Ensures the Sovereign Codi Autonomous Software Engineering Agent is seeded
+    in SQLite agent_record with OpenCode harness bindings, AST diff tools, and local MLX model.
+    """
+    import json
+    from datetime import datetime, timezone
+    from sqlmodel import Session
+    from ..database import engine
+    from ..models import AgentRecord
+
+    codi_tools = {
+        "opencode_ast_diff": {"enabled": True},
+        "opencode_lsp_diagnose": {"enabled": True},
+        "opencode_test_runner": {"enabled": True},
+        "sovereign_checkpoint_create": {"enabled": True},
+        "sovereign_checkpoint_rollback": {"enabled": True}
+    }
+
+    with Session(engine) as session:
+        codi_agent = session.get(AgentRecord, "codi")
+        if not codi_agent:
+            codi_agent = AgentRecord(
+                id="codi",
+                name="Codi",
+                status="active",
+                description="Autonomous Software Engineer & Codebase Refactoring Sub-Agent powered by OpenCode harness",
+                model="mlx-community/GLM-4-32B-0414-4bit",
+                system_prompt=(
+                    "You are Codi, the sovereign autonomous software engineering sub-agent of Alluci. "
+                    "Your core role is to analyze, refactor, implement, and maintain the codebase with 100% precision. "
+                    "Always enforce zero stubs, zero mocks in production code, strict non-null type safety, "
+                    "and comprehensive unit test verification. Before proposing changes, validate syntax via LSP diagnostics."
+                ),
+                tools_manifest=json.dumps(codi_tools),
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc)
+            )
+            session.add(codi_agent)
+            session.commit()
+            import logging
+            logging.getLogger(__name__).info("[ Constellation ] Seeded Sovereign Codi Sub-Agent (id='codi').")
+        else:
+            manifest = {}
+            if codi_agent.tools_manifest:
+                try:
+                    manifest = json.loads(codi_agent.tools_manifest)
+                except Exception:
+                    manifest = {}
+            updated = False
+            for tool, config in codi_tools.items():
+                if tool not in manifest or not manifest[tool].get("enabled"):
+                    manifest[tool] = config
+                    updated = True
+            if updated:
+                codi_agent.tools_manifest = json.dumps(manifest)
+                codi_agent.updated_at = datetime.now(timezone.utc)
+                session.add(codi_agent)
+                session.commit()
+

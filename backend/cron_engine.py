@@ -254,8 +254,21 @@ class CronEngine:
                 except Exception as e:
                     logger.debug(f"[ DREAMING CYCLE ] ACE baseline extraction failed: {e}")
 
+            # 1e. Quarantine Pool: Fetch failed/rejected coding tasks for DPO preference harvesting
+            quarantine_contents = []
+            quarantine_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "models", "quarantine"))
+            if os.path.exists(quarantine_dir):
+                for qf in sorted(os.listdir(quarantine_dir))[:15]:
+                    if qf.endswith(".json"):
+                        try:
+                            with open(os.path.join(quarantine_dir, qf), "r", encoding="utf-8") as q_file:
+                                q_data = json.load(q_file)
+                                quarantine_contents.append(q_data)
+                        except Exception:
+                            continue
+
             # Check if there is enough material to learn from
-            total_entries = len(episodic_contents) + len(healing_contents)
+            total_entries = len(episodic_contents) + len(healing_contents) + len(quarantine_contents)
             if total_entries < 3:
                 logger.info(
                     f"[ DREAMING CYCLE ] Insufficient material ({total_entries} entries). "
@@ -265,7 +278,7 @@ class CronEngine:
 
             logger.info(
                 f"[ DREAMING CYCLE ] Extracted {len(episodic_contents)} episodic memories, "
-                f"{len(healing_contents)} self-healing deltas, "
+                f"{len(healing_contents)} self-healing deltas, {len(quarantine_contents)} quarantined anti-patterns, "
                 f"PCL world model: {'available' if world_model_summary else 'unavailable'}"
             )
 
@@ -281,11 +294,15 @@ class CronEngine:
             healing_block = "\n".join([
                 f"[HEALING] {h['content'][:400]}" for h in healing_contents[:10]
             ])
+            quarantine_block = "\n".join([
+                f"[ANTI-PATTERN REVERTED] Task: {q.get('task_id')} | Description: {q.get('description')} | Reason: {q.get('reason')}"
+                for q in quarantine_contents[:10]
+            ])
 
             synthesis_system = (
                 "You are the Alluci Knowledge Synthesizer. Your role is to distill "
                 "a day's worth of user interactions, episodic memories, self-healing events, "
-                "and world state into high-quality instruction-response training pairs. "
+                "quarantined anti-patterns, and world state into high-quality instruction-response training pairs. "
                 "Each pair should capture a reusable insight, behavioral pattern, or knowledge "
                 "connection that would improve the agent's future responses.\n\n"
                 "Output EXACTLY a JSON array of objects with 'prompt' and 'response' keys. "
@@ -293,6 +310,7 @@ class CronEngine:
                 "- Patterns in how the user communicates and what they value\n"
                 "- Domain knowledge connections the user frequently references\n"
                 "- Corrections from self-healing events (what went wrong and the fix)\n"
+                "- Quarantined anti-patterns: synthesize correct solutions avoiding the reverted mistakes\n"
                 "- Goal-relevant knowledge that would accelerate progress\n\n"
                 "Do NOT generate generic or obvious pairs. Every pair must reflect "
                 "specific insights from the provided memories."
@@ -303,6 +321,8 @@ class CronEngine:
             )
             if healing_block:
                 synthesis_prompt += f"=== SELF-HEALING EVENTS ===\n{healing_block}\n\n"
+            if quarantine_block:
+                synthesis_prompt += f"=== QUARANTINED ANTI-PATTERNS (NEGATIVE EXAMPLES) ===\n{quarantine_block}\n\n"
             if world_model_summary:
                 synthesis_prompt += f"=== WORLD MODEL ===\n{world_model_summary}\n\n"
             if ace_summary:
@@ -429,12 +449,14 @@ class CronEngine:
                 ]
                 historical_data.extend(older_memories[:10])
 
-            # Determine dominant domain from world model
+            # Determine dominant domain from world model and quarantine signals
             domain = "general"
-            if world_model_summary:
+            if len(quarantine_contents) > 0:
+                domain = "codi"
+            elif world_model_summary:
                 domain_lower = world_model_summary.lower()
-                if any(kw in domain_lower for kw in ["code", "python", "script", "debug", "api"]):
-                    domain = "coding"
+                if any(kw in domain_lower for kw in ["code", "python", "script", "debug", "api", "codi"]):
+                    domain = "codi"
                 elif any(kw in domain_lower for kw in ["research", "paper", "study", "analysis"]):
                     domain = "research"
                 elif any(kw in domain_lower for kw in ["creative", "write", "story", "design"]):

@@ -1,0 +1,53 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "alluci": {
+      "baseURL": "http://127.0.0.1:8000/v1",
+      "name": "Alluci Sovereign MLX Engine"
+    }
+  },
+  "model": "alluci/mlx-community/GLM-4-32B-0414-4bit",
+  "server": {
+    "port": 4096,
+    "hostname": "127.0.0.1"
+  },
+  "lsp": {
+    "enabled": true,
+    "servers": {
+      "python": {
+        "command": ["pyright-langserver", "--stdio"]
+      },
+      "typescript": {
+        "command": ["typescript-language-server", "--stdio"]
+      }
+    }
+  },
+  "permissions": {
+    "allow": [
+      "git status",
+      "git diff",
+      "git log",
+      "git add",
+      "git commit",
+      "pytest *",
+      "python3 -m unittest *",
+      "npx tsc --noEmit",
+      "npm test"
+    ],
+    "deny": [
+      "git push*",
+      "git pull*",
+      "git fetch*",
+      "git remote*",
+      "gh *",
+      "curl *github.com*",
+      "ssh *github.com*",
+      "rm -rf /",
+      "rm -rf ~"
+    ]
+  },
+  "plugins": [
+    "-opencode.telemetry",
+    "-opencode.analytics"
+  ]
+}

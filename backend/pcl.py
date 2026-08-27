@@ -748,6 +748,7 @@ class ProactiveCognitionLoop:
         self.cycle_interval = cycle_interval
 
         # Detector registry — order determines priority in ties
+        from .engine.code_health_detector import CodeHealthDetector
         self.detectors: List[BaseDetector] = [
             GoalDeadlineDetector(),
             HeartbeatSignalDetector(),
@@ -757,6 +758,7 @@ class ProactiveCognitionLoop:
             RecurringTopicDetector(),
             MemoryGapDetector(),
             PeakOpportunityDetector(),
+            CodeHealthDetector(),
         ]
 
         self.judge = InterventionJudge(db_engine, settings_obj=self.settings)

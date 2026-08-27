@@ -61,6 +61,7 @@ sop_engine = sop_engine_instance
 pcl: Optional[ProactiveCognitionLoop] = None
 updater = updater_instance
 channel_registry: Dict[str, Any] = {}
+opencode_daemon = None
 
 async def init_services(app_instance):
     global vault, router, ace, orchestrator, task_manager, skill_manager, tool_manager, sovereign_identity
@@ -469,6 +470,10 @@ async def shutdown_services():
     if orchestrator: await orchestrator.stop_background_services()
     if updater is not None: await updater.stop()
     
+    if opencode_daemon:
+        await opencode_daemon.stop()
+        logger.info("[ OPENCODE ] Daemon stopped cleanly")
+
     for ch_name, adapter in channel_registry.items():
         if hasattr(adapter, "disconnect"):
             await adapter.disconnect()

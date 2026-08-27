@@ -105,13 +105,18 @@ class MultiLoRAMoERouter:
         self.lora_dir = lora_dir
         
     def route_domain(self, domain: str) -> str:
-        """Determines the correct LoRA to load based on the domain string (e.g. 'finance')."""
+        """Determines the correct LoRA to load based on the domain string (e.g. 'codi', 'coding', 'finance')."""
+        os.makedirs(self.lora_dir, exist_ok=True)
+        if domain.lower() in ("codi", "coding"):
+            target_path = os.path.join(self.lora_dir, "agent_codi_lora.safetensors")
+            logger.info(f"[MoE Router] Selected Codi Autonomous Coding domain: {target_path}")
+            return target_path
         target_path = os.path.join(self.lora_dir, f"{domain}_lora.safetensors")
         if os.path.exists(target_path):
             logger.info(f"[MoE Router] Selected specialized domain: {domain}")
             return target_path
-        logger.info("[MoE Router] No domain specialization found. Routing to Base LoRA.")
-        return os.path.join(self.lora_dir, "base_lora.safetensors")
+        logger.info(f"[MoE Router] Routing to domain target: {target_path}")
+        return target_path
 
 class TeacherStudentAuditor:
     """
