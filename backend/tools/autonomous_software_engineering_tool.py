@@ -19,7 +19,7 @@ from typing import Dict, Any, List, Optional
 
 from ..logging_config import get_logger
 from ..engine.opencode_engine import NativeOpenCodeHarness
-from ..services.opencode_daemon import OpenCodeDaemon
+from ..engine.opencode_daemon import OpenCodeDaemon
 from ..security.checkpoint_manager import SovereignCheckpointManager
 
 logger = get_logger("AutonomousSoftwareEngineeringTool")
@@ -238,7 +238,7 @@ class AutonomousSoftwareEngineeringTool:
             "checkpoint_id": chk["checkpoint_id"],
             "task_id": chk["task_id"],
             "description": chk["description"],
-            "target_files": chk["target_files"],
+            "target_files": list(chk.get("files", {}).keys()) or target_files,
             "timestamp": chk["timestamp"],
             "signature": chk.get("signature", "sys-signed")
         }

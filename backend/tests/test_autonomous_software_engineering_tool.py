@@ -87,7 +87,7 @@ async def test_create_checkpoint_and_patch_and_rollback(opencode_tool, temp_work
     chk_res = opencode_tool.create_atomic_checkpoint(
         task_id="task_refactor_01",
         description="Refactor service.py to v2",
-        target_files=["service.py"]
+        target_files=[file_path]
     )
     assert chk_res["status"] == "SUCCESS"
     assert "checkpoint_id" in chk_res
@@ -97,7 +97,7 @@ async def test_create_checkpoint_and_patch_and_rollback(opencode_tool, temp_work
     patch_res = await opencode_tool.apply_verified_patch(
         task_id="task_refactor_01",
         description="Update to v2",
-        files_to_modify={"service.py": "def original_function():\n    return 'v2_updated'\n"}
+        files_to_modify={file_path: "def original_function():\n    return 'v2_updated'\n"}
     )
     assert patch_res["status"] == "applied"
 

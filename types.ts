@@ -154,6 +154,20 @@ export interface ToolManifest {
   // Legacy or simplified params
   params?: string;
   reference_docs?: string[];
+  dependencies?: string[];
+  verified?: boolean;
+  source?: string;
+  version?: string;
+  author?: string;
+  signature?: string;
+  last_active?: string;
+
+  // Subsystems mapping
+  mcp?: Record<string, any>;
+  lsp?: Record<string, any>;
+  formatter?: Record<string, any>;
+  command?: Record<string, any>;
+  references?: Record<string, any>;
   
   // Security PCL (Permission Control List)
   permissions?: string[];

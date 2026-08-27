@@ -56,19 +56,24 @@ class SovereignCheckpointManager:
             abs_path = os.path.abspath(os.path.join(self.project_root, rel_path)) if not os.path.isabs(rel_path) else rel_path
             rel_name = os.path.relpath(abs_path, self.project_root)
 
+            backup_filename = hashlib.sha256(abs_path.encode("utf-8")).hexdigest()
             if os.path.exists(abs_path):
                 sha256 = self._compute_sha256(abs_path)
                 file_manifest[rel_name] = {
                     "existed": True,
+                    "abs_path": abs_path,
+                    "backup_filename": backup_filename,
                     "sha256": sha256,
                     "size_bytes": os.path.getsize(abs_path)
                 }
                 # Copy original file to backup dir
-                dest_backup = os.path.join(backup_files_dir, rel_name.replace("/", "__"))
+                dest_backup = os.path.join(backup_files_dir, backup_filename)
                 shutil.copy2(abs_path, dest_backup)
             else:
                 file_manifest[rel_name] = {
                     "existed": False,
+                    "abs_path": abs_path,
+                    "backup_filename": backup_filename,
                     "sha256": None,
                     "size_bytes": 0
                 }
@@ -92,8 +97,8 @@ class SovereignCheckpointManager:
 
     def rollback_checkpoint(self, checkpoint_id: str) -> Dict[str, Any]:
         """
-        Executes a 1-click atomic rollback, restoring all files to their exact pre-state condition.
-        Deletes any newly created files that did not exist prior to the checkpoint.
+        Executes atomic 1-click rollback of all mutated files to their exact pre-state snapshot.
+        Re-validates SHA-256 integrity and logs event to audit chain.
         """
         checkpoint_dir = os.path.join(self.vault_dir, checkpoint_id)
         manifest_path = os.path.join(checkpoint_dir, "manifest.json")
@@ -109,10 +114,11 @@ class SovereignCheckpointManager:
         deleted_new_files = []
 
         for rel_name, meta in manifest_data.get("files", {}).items():
-            abs_path = os.path.abspath(os.path.join(self.project_root, rel_name))
+            abs_path = meta.get("abs_path") or os.path.abspath(os.path.join(self.project_root, rel_name))
+            backup_filename = meta.get("backup_filename") or rel_name.replace("/", "__")
+            backup_file = os.path.join(backup_files_dir, backup_filename)
 
             if meta.get("existed"):
-                backup_file = os.path.join(backup_files_dir, rel_name.replace("/", "__"))
                 if os.path.exists(backup_file):
                     os.makedirs(os.path.dirname(abs_path), exist_ok=True)
                     shutil.copy2(backup_file, abs_path)
