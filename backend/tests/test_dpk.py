@@ -18,7 +18,8 @@ async def test_dpk_authorize_dynamic_ffi(MockCM):
     call_count = [0]
     # First call returns True (stable), second returns False (tearing)
     def mock_auth(kernel, state, thresh, out_shift):
-        if thresh == 0.5:
+        thresh_val = getattr(thresh, "value", thresh)
+        if pytest.approx(thresh_val) == 0.5:
             # We'll use a hack to set out_shift value
             if out_shift:
                 out_shift._obj.value = 8.0 # Simulate the shift

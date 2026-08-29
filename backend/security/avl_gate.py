@@ -58,18 +58,20 @@ class AVLGate:
             self.calibration_manager.log_avl_override(state.budget_used, origin=state.origin, psi=state.affective_tension_psi)
             return True, "OK"
 
+        effective_budget = min(self.BUDGET_LIMIT, dynamic_budget) if dynamic_budget > 0 else self.BUDGET_LIMIT
+
         # Pillar 2: ALCE Gradient Smoothness Check
-        if state.budget_used > dynamic_budget:
-            logger.warning(f"[AVL] Lipschitz budget exceeded: {state.budget_used:.3f} > {dynamic_budget:.3f}")
+        if state.budget_used > effective_budget:
+            logger.warning(f"[AVL] Lipschitz budget exceeded: {state.budget_used:.3f} > {effective_budget:.3f}")
             AVL_GATE_REJECTIONS_TOTAL.inc()
             
             # Context-Aware Plan Verification (RBM Integration)
-            violation_amt = state.budget_used - dynamic_budget
+            violation_amt = state.budget_used - effective_budget
             sigma_approx = violation_amt / 0.05
             
             return False, (
-                f"Node exceeds the Relational Boundary Manifold (RBM) by {sigma_approx:.1f} sigma "
-                f"(budget {state.budget_used:.2f} > {dynamic_budget:.2f})"
+                f"Lipschitz budget exceeded: node exceeds Relational Boundary Manifold (RBM) by {sigma_approx:.1f} sigma "
+                f"(budget {state.budget_used:.2f} > {effective_budget:.2f})"
             )
 
         # Pillar 3: Topological Continuity Check
@@ -119,19 +121,21 @@ class AVLGate:
             self.calibration_manager.log_avl_override(state.budget_used, origin=state.origin, psi=state.affective_tension_psi)
             return True, "OK", None
 
+        effective_budget = min(self.BUDGET_LIMIT, dynamic_budget) if dynamic_budget > 0 else self.BUDGET_LIMIT
+
         # Pillar 2: ALCE Budget Check with GJK Projection
-        if state.budget_used > dynamic_budget:
+        if state.budget_used > effective_budget:
             # GJK Projection: if within 50% over budget, project to boundary
-            if state.budget_used <= dynamic_budget * 1.5:
-                refined = self.project_to_boundary(completion, state, dynamic_budget)
+            if state.budget_used <= effective_budget * 1.5:
+                refined = self.project_to_boundary(completion, state, effective_budget)
                 logger.warning(
-                    f"[AVL] Budget exceeded ({state.budget_used:.2f} > {dynamic_budget:.2f}), "
+                    f"[AVL] Budget exceeded ({state.budget_used:.2f} > {effective_budget:.2f}), "
                     f"GJK projection applied → REFINED"
                 )
                 return True, "REFINED", refined
             else:
-                logger.error(f"[AVL] Budget catastrophically exceeded: {state.budget_used:.2f} > {dynamic_budget:.2f}")
-                return False, f"Budget exceeded beyond refinement threshold (> {dynamic_budget * 1.5:.2f})", None
+                logger.error(f"[AVL] Budget catastrophically exceeded: {state.budget_used:.2f} > {effective_budget:.2f}")
+                return False, f"Budget exceeded beyond refinement threshold (> {effective_budget * 1.5:.2f})", None
 
         # Pillar 3: Topological Continuity
         chi = state.vertices_V - state.edges_E + state.faces_F
@@ -145,7 +149,7 @@ class AVLGate:
         return True, "ADMISSIBLE", None
 
     @staticmethod
-    def project_to_boundary(completion: str, state: PolytopeState, dynamic_budget: float) -> str:
+    def project_to_boundary(completion: str, state: PolytopeState, dynamic_budget: float = 1.0) -> str:
         """
         Simplified GJK Boundary Projection.
         Source: PPN §AVL — project_to_boundary()

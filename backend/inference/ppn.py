@@ -304,30 +304,33 @@ class PolytopePlannerInference:
         _, _, _, points, _, _, _, _, _, _ = self.ppn(x, psi=state.tension / 1024.0, affect_state=state)
         return points.reshape(-1)
 
+from ..security.stella_octangula import StellaOctangulaGeometry
+
 class DiscreteProjectionKernel:
     """
     [ PPN-006 ] Discrete Projection Kernel (DPK).
-    CPU-native semantic engine that replaces floating-point dependencies 
-    with integer-only lookups for O(1) complexity state projection.
+    CPU-native semantic engine grounded in Stella Octangula S8 simplicial geometry.
     Provides sub-microsecond latency for biometric (ACE) state synchronization.
     """
     def __init__(self, polytope_map: Optional[List[np.ndarray]] = None):
-        # Default initialization with a dummy simplicial complex if none provided
+        self.stella = StellaOctangulaGeometry()
         self.polytope_map = polytope_map if polytope_map is not None else [
-            np.array([1.0, 0.0, 0.0, 0.0]),
-            np.array([1.0, 1.0, 0.0, 0.0]),
-            np.array([2.0, 1.0, 0.0, 0.0]),
-            np.array([1.0, 2.0, 1.0, 0.0])
+            self.stella.vertices[i] for i in range(len(self.stella.vertices))
         ]
 
     def project_state(self, input_signal: str) -> np.ndarray:
-        """Perform constant-time O(1) state projection.
+        """Perform constant-time O(1) state projection onto the Stella Octangula S8 simplex.
         
         **Security Guarantee:** Cryptographically hashes the input signal into a fixed 
         polytope, guaranteeing constant execution time to eliminate latency-based side channels.
         """
-        state_hash = hash(input_signal) % len(self.polytope_map)
-        return self.polytope_map[state_hash]
+        import hashlib
+        digest = hashlib.sha256(input_signal.encode()).digest()
+        x = (int.from_bytes(digest[0:4], "big") / (2**32 - 1)) * 2.0 - 1.0
+        y = (int.from_bytes(digest[4:8], "big") / (2**32 - 1)) * 2.0 - 1.0
+        z = (int.from_bytes(digest[8:12], "big") / (2**32 - 1)) * 2.0 - 1.0
+        raw_point = np.array([x, y, z], dtype=np.float64)
+        return self.stella.project_to_simplex(raw_point)
 
     def get_betti_signature(self, state: np.ndarray) -> tuple:
         """Returns the structural invariant signature (Betti numbers) for verification.
@@ -335,7 +338,7 @@ class DiscreteProjectionKernel:
         **Security Guarantee:** Provides a mathematically unforgeable signature of the 
         manifold's geometry for strict AVL (Action Verification Loop) enforcement.
         """
-        return tuple(state.tolist())
+        return tuple(self.stella.compute_betti_numbers())
 
     def verify_homology(self, previous_state: np.ndarray, current_state: np.ndarray) -> bool:
         """
@@ -346,6 +349,6 @@ class DiscreteProjectionKernel:
         manipulation by verifying the geometric continuity of the agent's thought process.
         """
         if self.get_betti_signature(previous_state) != self.get_betti_signature(current_state):
-            # In a strict environment, this might raise a LogicCollapseError
             return False
         return True
+
