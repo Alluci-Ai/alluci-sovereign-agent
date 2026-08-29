@@ -13,6 +13,8 @@ Reference: Sovereign Spec Sections 3.1–3.8
 """
 
 import asyncio
+import json
+import os
 from .logging_config import get_logger
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Optional, List
@@ -342,7 +344,6 @@ class CronEngine:
             )
 
             # Call the Teacher model via the inference router
-            import json as json_mod
             raw_response = await router.get_response(
                 prompt=synthesis_prompt,
                 system_instruction=synthesis_system,
@@ -362,13 +363,13 @@ class CronEngine:
                     cleaned = cleaned.rsplit("```", 1)[0]
                 cleaned = cleaned.strip()
 
-                parsed = json_mod.loads(cleaned)
+                parsed = json.loads(cleaned)
                 if isinstance(parsed, list):
                     synthetic_pairs = [
                         p for p in parsed
                         if isinstance(p, dict) and "prompt" in p and "response" in p
                     ]
-            except (json_mod.JSONDecodeError, ValueError) as e:
+            except (json.JSONDecodeError, ValueError) as e:
                 logger.error(f"[ DREAMING CYCLE ] Teacher output parsing failed: {e}")
                 logger.debug(f"[ DREAMING CYCLE ] Raw Teacher output: {raw_response[:500]}")
                 return

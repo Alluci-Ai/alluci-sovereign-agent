@@ -161,7 +161,13 @@ The **Polytope Projection Network (PPN)** serves as Alluci’s non-Euclidean geo
 
 ### Discrete Projection Kernel (DPK)
 
-The **Discrete Projection Kernel (DPK)** serves as the high-speed, zero-trust cryptographic gatekeeper of the Alluci execution runtime. Operating at sub-microsecond speeds, DPK replaces floating-point topological calculations with integer boundary operators ($\partial_k: C_k \to C_{k-1}$) and modular arithmetic. DPK validates state transition vectors ($\mathbf{x}_{t-1} \to \mathbf{x}_t$), enforcing topological Euler characteristic invariants ($\chi = V - E + F$) and preventing unauthorized state mutations before any tool or agent action executes.
+The **Discrete Projection Kernel (DPK)** serves as the high-speed, zero-trust cryptographic gatekeeper of the Alluci execution runtime. Grounded in Kepler's **Stella Octangula $S_8$** geometry (compound of dual regular tetrahedra $T_+ \cup T_-$ with 8 vertices, 12 edges, 8 faces, and central octahedron $O_6$), DPK validates state transition vectors ($\mathbf{x}_{t-1} \to \mathbf{x}_t$), enforcing topological boundary nilpotence, Euler characteristic invariants ($\chi = V - E + F$), and idempotent fusion projections before any tool or agent action executes.
+
+#### Kepler's Stella Octangula $S_8$ & Simplicial Boundary Nilpotence
+- **Simplicial Boundary Matrices ($B_1, B_2$):** Maps chains $C_2 \xrightarrow{\partial_2} C_1 \xrightarrow{\partial_1} C_0$ using integer boundary matrices $B_1 \in \mathbb{R}^{8 \times 12}$ and $B_2 \in \mathbb{R}^{12 \times 8}$, verifying the Fundamental Theorem of Algebraic Topology:
+  $$\partial_1 \circ \partial_2 = 0 \quad (\text{Exact Boundary Composition Nilpotence: } B_1 B_2 = 0)$$
+- **Idempotent Fusion Simplex Operator ($F_n^1$):** Projects continuous state vectors onto the convex hull of $S_8$, enforcing exact idempotence $\Pi(\Pi(x)) = \Pi(x)$ for all $x \in \mathbb{R}^3$.
+- **Entropic Arrow of Time Monotonicity:** Verifies that conditional Shannon entropy across execution states is non-decreasing: $H(X_n \mid X_1) \ge H(X_{n-1} \mid X_1) - \epsilon$.
 
 #### Integer Boundary Operators & $\mathcal{O}(1)$ Discrete Verification
 - **Exact Simplicial Arithmetic:** Evaluates topological state transitions using integer simplicial boundary operators ($\partial_k$), computing Euler invariants ($\chi$) in $\mathcal{O}(1)$ time complexity without floating-point rounding errors.
@@ -190,13 +196,14 @@ The **Action Verification Loop (AVL Gate)** serves as Alluci’s zero-trust safe
 - **Pillar 2: ALCE Gradient Smoothness Verification:** Enforces Lipschitz continuity budget limits ($\text{Budget}_{\text{used}} \leq \text{Budget}_{\text{dynamic}}$). Rejects actions that breach Relational Boundary Manifolds ($\text{RBM}$) to eliminate gradient explosion and execution runaways.
 - **Pillar 3: Topological Continuity Verification:** Validates Euler characteristic consistency ($|\chi - \beta_{\chi}| \leq \text{Euler}_{\text{tolerance}}$, where $\chi = V - E + F$), detecting structural ruptures and hallucinated sequence jumps.
 
-#### GJK Convex Boundary Projection & Action Refinement
-- **Gilbert-Johnson-Keerthi (GJK) Distance Algorithm:** Evaluates out-of-bounds action vectors against admissible manifold boundaries.
+#### GJK Convex Boundary Projection & Structured Tool Clamping
+- **Gilbert-Johnson-Keerthi (GJK) Distance Algorithm:** Evaluates out-of-bounds action vectors against admissible manifold boundaries using support point functions $S_{S8}(d)$.
 - **Deterministic Action Refinement (`project_to_boundary`):** Projects near-boundary prompt violations back into admissible Lipschitz bounds, neutralizing prompt injection attacks without disrupting execution flow.
+- **Structured Tool Payload Clamping (`verify_action_payload`):** Dynamically scales and clamps numeric tool parameters (`top_k`, `limit`, `timeout`, `depth`, `steps`, `count`, `max_tokens`) proportionally to available Lipschitz budget capacity.
 
-#### Self-Healing Executive Loop & HITL Fallback Protocol
+#### Self-Healing Executive Loop & Protocol 3 Lipschitz Saturation
 - **Corrective Prompt Injection:** When an action payload fails verification, the `ExecutiveOrchestrator` self-healing loop injects a high-priority `<SECURITY_RUPTURE>` prompt directive, instructing the agent to regenerate a safe, strictly bounded plan.
-- **Human-in-the-Loop (HITL) State Lock:** If self-healing fails across 3 consecutive iterations, the AVL Gate forces a hard exit to `HUMAN-IN-THE-LOOP REQUIRED` mode, preserving workspace integrity.
+- **Protocol 3 Lipschitz Saturation (3-Strike Lock):** If gradient smoothness violations persist across 3 consecutive iterations, the AVL Gate forces a hard exit to `HUMAN-IN-THE-LOOP REQUIRED` mode, halting autonomous execution to preserve workspace integrity.
 
 #### Discovery Mode Learning & Evolving Thresholds
 - **Dynamic Baseline Calibration:** Integrates with the `CalibrationManager` (`avl_calibration_cache.json`) to continuously track execution history, tool success rates, and affective tension ($\psi$).
@@ -227,19 +234,25 @@ The **Proactive Cognition Layer (PCL)** serves as Alluci’s continuous backgrou
 
 ### PVT Manifold Health Monitor (PVT)
 
-The **PVT Manifold Health Monitor (PVT)** serves as Alluci’s real-time thermodynamic health and stability engine. Operating as a continuous diagnostic monitor within the `ExecutiveOrchestrator`, PVT models the cognitive state space using a thermodynamic triple ($P, V, T$). It measures manifold pressure, available agency volume, and entropy temperature to prevent system instability, topological drift, and unauthorized execution runaways.
+The **PVT Manifold Health Monitor (PVT)** serves as Alluci’s real-time thermodynamic health and stability engine. Operating as a continuous diagnostic monitor within the `ExecutiveOrchestrator`, PVT models the cognitive state space using a thermodynamic triple ($P, V, T$) and Frenet-Serret state trajectory kinematics. It measures manifold pressure, available agency volume, entropy temperature, and trajectory curvature to prevent system instability, topological drift, and unauthorized execution runaways.
 
 #### Thermodynamic State Triple ($P, V, T$)
 - **Pressure ($P \in [0.0, 1.0]$):** Measures constraint density relative to admissible volume ($P = \frac{\text{Active Constraints}}{4.0 \cdot V_{\text{agency}} + \epsilon}$). High pressure ($P > 0.8$) indicates hyper-constrained cognitive state space.
 - **Volume ($V \in [0.0, 1.0]$):** Quantifies admissible polytope hyper-volume and agent agency space ($V = (1 - \text{Budget}_{\text{used}}) \cdot \text{Coherence}$). Low volume ($V < 0.2$) indicates restricted operational autonomy.
-- **Temperature ($T \in [0.0, 1.0]$):** Tracks entropy spikes and topological instability ($T = \Delta \beta_{\text{norm}} + D_{\text{KL}}(P_t \parallel P_{t-1})$). Evaluates normalized Betti signature shifts ($\Delta \beta$) and Kullback-Leibler divergence between execution steps.
+- **Temperature ($T \in [0.0, 1.0]$):** Tracks entropy spikes, topological instability, and trajectory curvature ($T = \Delta \beta_{\text{norm}} + D_{\text{KL}}(P_t \parallel P_{t-1}) + 0.3 \cdot \kappa_{\text{norm}}$). Evaluates normalized Betti signature shifts ($\Delta \beta$) and Kullback-Leibler divergence between execution steps.
+
+#### Polytope Trajectory Continuity & Frenet-Serret Curvature (`trajectory.py`)
+- **Geodesic Kinematics:** Continuously tracks state trajectory vectors $\gamma(t) \in \mathbb{R}^d$, computing velocity $v(t) = \gamma(t) - \gamma(t-1)$ and acceleration $a(t) = \gamma(t) - 2\gamma(t-1) + \gamma(t-2)$.
+- **Frenet-Serret Curvature Calculation:** Derives instantaneous trajectory curvature:
+  $$\kappa(t) = \frac{\sqrt{\|v\|^2 \|a\|^2 - (v \cdot a)^2}}{\|v\|^3 + \epsilon}$$
+- **Curvature Rupture Detection:** Detects abrupt cognitive shocks or prompt injection snaps when $\kappa(t) > 5.0$.
 
 #### Real-Time Rupture Threshold & Safe-Halt Protocol
-- **Rupture Detection ($T > 0.8$):** When entropy temperature breaches the critical rupture threshold ($T > 0.8$), PVT flags a `CRITICAL` state.
+- **Rupture Detection ($T > 0.8$ or $\kappa > 5.0$):** When entropy temperature breaches the critical rupture threshold ($T > 0.8$) or trajectory curvature snaps ($\kappa > 5.0$), PVT flags a `CRITICAL` state.
 - **Emergency Safe-Halt ($g=0$):** The `ExecutiveOrchestrator` immediately engages an emergency safe-halt ($g=0$), freezing tool actions and locking execution to protect workspace state.
 
 #### Real-Time Telemetry & Audit Ledger Integration
-- **WebSocket Streaming Gateway (`manifold.pvt`):** Pushes live PVT telemetry triples ($P, V, T$) over WebSocket RPC to client dashboards.
+- **WebSocket Streaming Gateway (`manifold.pvt`):** Pushes live PVT telemetry triples ($P, V, T$) and curvature metrics over WebSocket RPC to client dashboards (`PVTDashboard.tsx`).
 - **Cryptographic Audit Persistence (`pvt_json`):** Serializes PVT diagnostic state triples into SQLite audit log ledgers (`pvt_json`), generating an immutable record of system thermodynamic stability.
 
 ---
@@ -387,15 +400,22 @@ To prevent cross-domain context contamination, sub-agents are provisioned with g
 
 ### 4. Simplicial H-LSM Memory
 
-- **The Hierarchical Long-Short Manifold (H-LSM)** is Alluci’s 4‑tier stateful memory architecture. Managed by `HLSMManager`.
+- **The Hierarchical Long-Short Manifold (H-LSM)** is Alluci’s 4‑tier stateful memory architecture. Managed by `HLSMManager` (`backend/memory/hlsm_manager.py`) augmented by the **Markov Trace & Spectral Geometry Engine** (`backend/memory/markov_trace.py`).
 
 - **H-LSM** enables the agent to retain personal and organizational memory over time without context‑window bloat, context degradation, or hallucinations.
 
 - **H-LSM operates across four cognitive memory storage tiers:**
-  • **L0 Working Memory:** Ultra‑fast, session‑level expiring context backed by Redis (Key‑Value) with automatic fallback to SQLite table `hlsm_working`.
+  • **L0 Working Memory:** Ultra‑fast, session‑level expiring context backed by Redis (Key‑Value) with automatic zero-config fallback to SQLite table `hlsm_working`.
   • **L1 Episodic Memory:** Full chat turns, interaction history, and episodic event logs backed by SQLite table `hlsm_episodic` with a high‑performance SQLite FTS5 full‑text search index (`hlsm_episodic_fts`).
-  • **L2 Semantic Memory:** Long‑term vector embeddings for retrieval‑augmented generation (RAG), backed by Sentence‑Transformers (`all‑MiniLM‑L6‑v2`) and KùzuDB graph nodes.
+  • **L2 Semantic Memory:** Long‑term vector embeddings for retrieval‑augmented generation (RAG), backed by Sentence‑Transformers (`all‑MiniLM‑L6‑v2`) and KùzuDB graph nodes (`polytope_data.kuzu`).
   • **L3 Knowledge Graph:** Permanent structured entity‑relationship graph nodes backed by the KùzuDB embedded graph database engine (`polytope_data.kuzu`).
+
+- **Markov Trace Multi-Hop Rescoring & Scale-Dependent Spectral Geometry (`markov_trace.py`):**
+  • **Schur Complement Trace Operator:** Uncovers multi-hop hidden excursion pathways across visible and hidden memory nodes:
+    $$\text{Tr}_A(P) = A + B(I - C + \epsilon I)^{-1} D$$
+    boosting visible candidate scores (80% direct semantic relevance + 20% topological excursion boost) and promoting high-coupling hidden bridge nodes.
+  • **Symmetrized Normalized Laplacian ($L_A$):** Computes normalized Laplacian eigenvalues $\lambda_i \ge 0$, Fiedler algebraic connectivity ($\lambda_2$), and heat return probability $P_A(\sigma) = \frac{1}{|A|} \sum e^{-\sigma \lambda_i}$.
+  • **Dynamic Context Depth Scaling:** Derives the scale-dependent spectral dimension $d_s^A(\sigma) = 2\sigma \frac{\sum \lambda_i e^{-\sigma \lambda_i}}{\sum e^{-\sigma \lambda_i}}$, dynamically expanding retrieval depth (`max_per_tier`) when mixing is sparse ($d_s^A > 1.5$).
 
 ---
 
@@ -406,8 +426,13 @@ Alluci utilizes a specialized "Training Sandbox" mode that leverages the Unsloth
 
 ### 6. The "Dream" Cycle & Autonomous Evolution
 When the system detects low cognitive load (you are asleep or away), the daemon halts external polling and reallocates 100% of hardware resources to internal evolution:
-- **Cognitive Distillation:** Analyzes the day's interactions using Socratic questioning, distilling episodic logs into permanent Semantic Truths.
-- **Teacher-Student Harvest**: Records high-quality reasoning from interactions with 3rd-party cloud models and queues them as "Chosen" preference pairs for the local DPO forge—crystallizing cloud intelligence into your local machine overnight.
+- **5-Stage Nightly Evolution Pipeline:** 1) Extraction (Episodic memories, PCL world model snapshot, ACE baseline, quarantine pool), 2) Teacher Synthesis (air-gapped local 31B Dense model instruction pair synthesis), 3) Verification, 4) Cognitive Distillation (Socratic questioning of episodic logs into permanent Semantic Truths), and 5) Preference Harvesting.
+- **Direct Preference Optimization (DPO) Harvesting (`dpo_harvester.py`):** Automatically harvests teacher-student preference triplets $(x, y_w, y_l)$ from:
+  1. *H-LSM Self-Healing Deltas:* Resolved failure-to-healing plan pairs (`failed_plan` $\to$ `successful_plan`).
+  2. *Quarantined AST Anti-Patterns:* Quarantined execution traces (`reverted_code` $\to$ `repaired_code`).
+- **Analytical Softplus DPO Loss:** Evaluates model preference margin using analytical softplus loss:
+  $$\mathcal{L}_{\text{DPO}} = \ln\left(1 + \exp\left(-\beta \left[(\log \pi_\theta(y_w \mid x) - \log \pi_{\text{ref}}(y_w \mid x)) - (\log \pi_\theta(y_l \mid x) - \log \pi_{\text{ref}}(y_l \mid x))\right]\right)\right)$$
+  persisting atomic JSONL preference datasets for local LoRA adapter fine-tuning without mutating immutable base model weights.
 
 ---
 

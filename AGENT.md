@@ -1,15 +1,15 @@
 # AGENT.md — Enterprise Developer & System Reference Guide
-# Last updated: 2026-08-12
+# Last updated: 2026-08-29 (Phase 1–5 Verification Complete)
 
 ## What This Codebase Is
-Alluci Sovereign Agent: A self-hosted, biometric-aware AI executive assistant with 4-tier Simplicial H-LSM memory, AES-256-GCM encrypted local vault, VerusID sovereign identity, and multi-bridge messaging gateway.
+Alluci Sovereign Agent: A self-hosted, biometric-aware AI executive assistant with 4-tier Simplicial H-LSM memory, AES-256-GCM encrypted local vault, VerusID sovereign identity, Stella Octangula $S_8$ geometric verification, and multi-bridge messaging gateway.
 
 ## Core Architectural Pillars (See ARCHITECTURE.md)
-1. **Sovereign Identity (`VerusID`):** Self-sovereign identity (`identity@`) and Ed25519 manifest signing.
-2. **HITL Executive Security Governance:** Hard security guards & `SecurityInterventionModal.tsx` intercepting critical action tasks.
-3. **4-Tier Simplicial H-LSM Memory:** L0 Working, L1 Episodic (FTS5), L2 Semantic, and L3 KùzuDB Knowledge Graph (`hlsm_manager.py`).
-4. **Bio-Affective Computing (ACE):** Apple Watch biometrics (HRV, stress, respiratory sync) modulating LLM sampling temperature (`backend/ace/`).
-5. **Policy-Driven DAG Orchestration:** Autonomous task decomposition, recurring background crons, and multi-tier model routing (`orchestrator.py`).
+1. **Sovereign Identity (`VerusID`):** Self-sovereign identity (`identity@`) and Ed25519 manifest signing (`verus.py`, `verusid_auth.py`).
+2. **HITL Executive Security Governance & Geometric Firewall:** Hard security guards, `SecurityInterventionModal.tsx`, Discrete Projection Kernel grounded in Kepler's Stella Octangula $S_8$ ($\partial_1 \circ \partial_2 = 0$, $F_n^1: \Pi \circ \Pi = \Pi$), AVLGate GJK boundary refinement, Protocol 3 Lipschitz saturation, and Thermodynamic PVT Trajectory Curvature safe-halt ($\kappa \le 5.0$, $T \le 0.8$).
+3. **4-Tier Simplicial H-LSM Memory:** L0 Working, L1 Episodic (FTS5), L2 Semantic, and L3 KùzuDB Knowledge Graph (`hlsm_manager.py`) augmented with the **Markov Trace Engine** ($\text{Tr}_A(P) = A + B(I-C)^{-1}D$) and scale-dependent spectral dimension context scaling (`markov_trace.py`).
+4. **Bio-Affective Computing (ACE):** Apple Watch biometrics (HRV, stress, respiratory sync) modulating LLM sampling temperature and affective tension ($\psi/1024$) (`backend/ace/`).
+5. **Policy-Driven DAG Orchestration & Nightly Evolution:** Autonomous task decomposition, recurring background crons, multi-tier model routing (`orchestrator.py`), and the 5-stage **Overnight Dreaming Cycle** with DPO preference harvesting (`dpo_harvester.py`, `cron_engine.py`).
 
 ## Golden Operational Laws — NEVER Violate These
 1. **Zero-Stub & Real End-to-End Wiring Law:** NO stubs, NO mocks, NO simulated responses, NO incomplete scaffolding, and NO dummy fallbacks. Every feature, API route, database query, security guard, and React component MUST be 100% complete, fully implemented, and wired end-to-end to real backend data providers.
@@ -19,9 +19,9 @@ Alluci Sovereign Agent: A self-hosted, biometric-aware AI executive assistant wi
 5. **Robust Exception Propagation:** Never `.unwrap()` or swallow exceptions silently—every error must be explicitly handled, logged, or propagated.
 6. **Complete Endpoint Registration & Rate Limiting:** Every new API route requires a handler function, registration in `app.py` under `prefix="/api/v1"`, and a `RateLimiter` dependency.
 7. **Secure OAuth PKCE & Refresh Loops:** Every OAuth bridge requires Redis PKCE state tracking (`oauth_store`) and a background token refresh loop.
-8. **WebSocket Session Authentication:** All WebSocket endpoints must execute `authenticate_ws(websocket, token)` before initiating streaming handlers.
+8. **WebSocket Session Authentication & Real-Time Sync:** All WebSocket endpoints must execute `authenticate_ws(websocket, token)` and synchronize live administrative events (`manifold.pvt`, `security.resolution_required`, `memory.deleted`).
 9. **Secure iOS/Watch Token Storage:** Swift session tokens must be saved in Keychain (`SecItemAdd`), never `UserDefaults`.
-10. **HITL Security Interception:** Critical action endpoints (memory purges, schema changes, OS operations, financial operations) must implement rate limiting and trigger `SecurityInterventionModal.tsx`.
+10. **HITL Security Interception & Protocol 3 Escalation:** Critical action endpoints (memory purges, schema changes, OS operations, financial operations) and Protocol 3 Lipschitz saturated violations ($\ge 3$ strikes) must trigger `SecurityInterventionModal.tsx` for explicit sovereign authorization.
 
 ## 5-Tier Local Cognitive Engine (LCE) Precision Matrix
 - **`TIER_0_ULTRA` ($\ge 96\text{ GB}$ VRAM/RAM):** `Alluci/alluci-polytope-gemma-4-31b-it-bf16`
@@ -38,3 +38,4 @@ npx tsc --noEmit                                           # TypeScript type che
 make quality                                               # Full SRE production quality gate
 curl -s http://127.0.0.1:8000/api/v1/health                # Health check
 ```
+

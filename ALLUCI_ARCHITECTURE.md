@@ -49,14 +49,17 @@ Converts objectives into mathematically validated Directed Acyclic Graphs (DAGs)
 
 ### 06 Simplicial H-LSM Memory
 A biologically-inspired, four-tier memory model:
-- **L0 (Working Memory)**: Redis-backed current session context.
-- **L1 (Episodic Memory)**: SQLite/PostgreSQL store with 30-day half-life decay.
-- **L2 (Semantic Memory)**: ChromaDB vector store.
-- **L3 (Dream Layer)**: Cognitive Distillation output.
-Retrieval is modulated by Apple Watch affective tension (ψ), surfacing different memory topologies depending on biological stress levels.
+- **L0 (Working Memory)**: Redis-backed current session context (with zero-config SQLite fallback).
+- **L1 (Episodic Memory)**: SQLite store with SQLite FTS5 full-text indexing and 30-day half-life decay.
+- **L2 (Semantic Memory)**: Vector embeddings (`all-MiniLM-L6-v2`) and KùzuDB graph nodes (`polytope_data.kuzu`).
+- **L3 (Knowledge Graph / Dream Layer)**: Permanent structured entity-relationship graph backed by KùzuDB.
+- **Markov Trace & Spectral Geometry**: Implements the Markov Trace Operator $\text{Tr}_A(P) = A + B(I-C)^{-1}D$ (`markov_trace.py`) and normalized Laplacian spectral dimension $d_s^A(\sigma)$ to boost multi-hop excursion couplings and dynamically scale context depth. Retrieval is modulated by Apple Watch affective tension (ψ).
 
-### 07 The Discrete Projection Kernel (DPK)
-A compiled C++ execution gatekeeper (loaded via Python ctypes) validating topological integrity before high-stakes actions. Enforces the **Sovereign Kill Switch** if biometrics fail or a rupture occurs.
+### 07 The Discrete Projection Kernel (DPK) & Stella Octangula S8
+A compiled C++ execution gatekeeper (with full-fidelity Python fallback) grounded in Kepler's **Stella Octangula $S_8$** compound of dual regular tetrahedra $T_+ \cup T_-$.
+- **Boundary Nilpotence**: Verifies exact simplicial boundary matrix composition ($\partial_1 \circ \partial_2 = 0$, $B_1 B_2 = 0$).
+- **Idempotent Fusion Simplex**: Enforces idempotent projection condition $F_n^1: \Pi(\Pi(x)) = \Pi(x)$.
+- **Zero-Trust Safety**: Validates topological integrity and enforces the **Sovereign Kill Switch** if biological telemetry or manifold coherence fails.
 
 ### 08 Topological Barcodes
 Betti Signatures represent the logical "shape" of knowledge instead of keyword overlap. Drives "Structural Homeomorphism" matching for highly accurate memory retrieval and federated pheromone broadcasting.
@@ -66,13 +69,14 @@ Tuned via LoRA Forge for topological reasoning. Uses **Voice Alignment via Cross
 
 ### 10 The "Dream" Cycle & Autonomous Evolution
 When asleep (low arousal & tension), the agent allocates 100% resources to internal evolution:
-1. Cognitive Distillation (Socratic questioning of episodic memory).
-2. Teacher-Student Harvest.
-3. LoRA DPO Forge (Preference optimization on local weights).
-4. Voice Micro-Tuning.
+1. Cognitive Distillation (Socratic questioning of episodic memory into permanent Semantic Truths).
+2. Teacher-Student Harvest via air-gapped local 31B Dense model.
+3. Direct Preference Optimization (DPO) Harvesting (`dpo_harvester.py`) extracting $(x, y_w, y_l)$ triplets from H-LSM self-healing deltas and quarantined AST anti-patterns.
+4. LoRA DPO Forge (Preference optimization on local adapter weights).
+5. Voice Micro-Tuning.
 
 ### 11 Local Fine-Tuning & The LoRA Forge
-Hardware-local SFT leveraging MLX. Generates Preference Pairs from user corrections to train LoRA adapters (saving only `.safetensors` deltas).
+Hardware-local SFT leveraging MLX. Generates Preference Pairs from user corrections and self-healing execution deltas to train LoRA adapters (saving only `.safetensors` deltas).
 
 ### 12 User Context Moat
 The compounding intelligence effect makes the agent irreplaceable over time by accumulating professional vocabulary, biological rhythms, relationship context, and semantic truths.
@@ -98,7 +102,9 @@ Three-Tier Sovereign Security Architecture:
 - **Tier 1 (Passkey)**: WebAuthn/FIDO2 hardware-bound authentication.
 - **Tier 2 (Vault)**: PolytopeSecretManager with AES-256-GCM.
 - **Tier 3 (Ledger)**: VerusID (VDXF) decentralized audit ledger.
-Features **Multi-Modal Anti-Spoofing** to defeat deepfakes by cross-referencing acoustic jitter with live Apple Watch respiratory rates. **Simplicial Vaults** ensure zero-trust inter-bridge isolation.
+- **PVT Manifold Health & Trajectory Curvature**: Continuously evaluates Thermodynamic Pressure, Volume, Temperature ($P, V, T$) and Frenet-Serret trajectory curvature ($\kappa \le 5.0$), triggering emergency safe-halt ($g=0$) upon manifold rupture.
+- **AVL Gate & GJK Boundary Projection**: Zero-trust 3-pillar safety gate enforcing Protocol 3 Lipschitz saturation and Gilbert-Johnson-Keerthi structured payload parameter clamping.
+- Features **Multi-Modal Anti-Spoofing** to defeat deepfakes by cross-referencing acoustic jitter with live Apple Watch respiratory rates. **Simplicial Vaults** ensure zero-trust inter-bridge isolation.
 
 ### 18 Verus Integrations & Capabilities
 Deep native integration to the Verus blockchain ecosystem.
@@ -135,13 +141,14 @@ Automated setup via `setup_sovereign_stack.sh`. Production readiness suite enfor
 - **Executive Orchestrator**: `backend/orchestrator.py` (Handles DAG routing, swarm intelligence dispatch, and core logic)
 - **Task Management**: `backend/tasks.py`
 - **Proactive Cognition Loop (PCL)**: `backend/pcl.py` (5-stage cognitive pipeline)
-- **Heartbeat & Crons**: `backend/heartbeat.py`, `backend/cron_engine.py`
+- **Heartbeat & Crons**: `backend/heartbeat.py`, `backend/cron_engine.py` (Overnight Dreaming Cycle & DPO harvesting)
 - **Execution Approval**: `backend/exec_approval.py` (Human-in-the-loop gating)
 
 #### 2. Native Inference & MLX
 - **Model Router**: `backend/inference/router.py` (Manages failover chain, Sovereign Mode, and MLX vs Cloud routing)
 - **MLX Engine**: `backend/inference/mlx_engine.py` (Local Apple Silicon execution)
 - **Topology Kernel**: `backend/inference/topology_kernel.cpp`
+- **DPO Preference Harvester**: `backend/engine/dpo_harvester.py` (Preference triplet extraction & analytical loss)
 
 #### 3. Affective Computing Engine (ACE)
 - **ACE Engine**: `backend/ace/engine.py` (Biometric fusion, flow state detection)
@@ -150,14 +157,18 @@ Automated setup via `setup_sovereign_stack.sh`. Production readiness suite enfor
 - **Watch Integrations**: `backend/ace/watch_auth.py`, `backend/ace/btm_kernel.cpp`
 
 #### 4. Memory (H-LSM)
-- **H-LSM Manager**: `backend/memory/hlsm_manager.py` (L0 Redis, L1 SQLite, L2 ChromaDB, L3 Distillation)
+- **H-LSM Manager**: `backend/memory/hlsm_manager.py` (L0 Redis, L1 SQLite FTS5, L2 Semantic, L3 KùzuDB Graph)
+- **Markov Trace Engine**: `backend/memory/markov_trace.py` (Schur complement trace reductions & scale-dependent spectral geometry)
 - **FTS Manager**: `backend/memory/fts_manager.py`
 - **Adapter**: `backend/adapters/memory_adapter.py`
 
 #### 5. Hardware-Level Security
 - **Discrete Projection Kernel (DPK)**: `backend/security/dpk_kernel.cpp` & `backend/security/dpk.py` (Euler validation and Sovereign Kill Switch)
+- **Stella Octangula S8 Geometry**: `backend/security/stella_octangula.py` (Simplicial boundary complex, $\partial_1 \circ \partial_2 = 0$, and idempotent fusion $F_n^1$)
+- **PVT Health Monitor**: `backend/security/health_monitor.py` (Thermodynamic state space modeling & safe-halt)
+- **Trajectory Tracker**: `backend/security/trajectory.py` (Geodesic velocity, acceleration, and Frenet-Serret curvature $\kappa$)
+- **AVL Gate**: `backend/security/avl_gate.py` (3-pillar safety gate, GJK boundary projection, Protocol 3 saturation)
 - **Vault Manager**: `backend/security/vault.py` (AES-256-GCM PolytopeSecretManager)
-- **AVL Gate**: `backend/security/avl_gate.py`
 - **Guardrails**: `backend/security/guardrail.py`
 
 #### 6. Verus & Identity
