@@ -931,6 +931,15 @@ Here is what Rocco will be executing across our Deep Research pipeline:
                         "threshold": e.dynamic_threshold
                     }
                 return {"status": "blocked", "reason": "Manifold Security Violation"}
+
+            # 1.b Structured Tool Payload GJK Verification
+            if polytope_state:
+                is_payload_safe, payload_reason, refined_args = self.avl.verify_action_payload(tool_id, args, polytope_state)
+                if not is_payload_safe:
+                    if getattr(self.settings, "APP_ENV", "development") not in ["development", "testing"]:
+                        return {"status": "blocked", "reason": f"AVL Tool Payload Security Violation: {payload_reason}"}
+                elif refined_args is not None:
+                    args = refined_args
                 
             # 2. Execute via Executor
             # The Executor internally uses AdapterRegistry, but this entry point satisfies the ToolManager routing logic
@@ -1281,18 +1290,21 @@ Here is what Rocco will be executing across our Deep Research pipeline:
 
                 await sync_audit_entry(audit_entry, topo=topo)
            
-            # --- AVL Security Gate (PPN-006) ---
-            # Verify the completion against the manifold state
+            # --- AVL Security Gate (PPN-006 & Protocol 3) ---
+            # Verify the completion against the manifold state with GJK refinement
             is_safe = True
             avl_reason = ""
             if polytope_state:
-                is_safe, avl_reason = self.avl.verify(results_summary, polytope_state)
+                is_safe, avl_reason, refined_summary = self.avl.verify_with_refinement(results_summary, polytope_state)
+                if is_safe and refined_summary is not None:
+                    results_summary = refined_summary
+
                 # Add dev context
                 is_dev = False
                 if getattr(self, 'settings', None):
                     is_dev = getattr(self.settings, 'APP_ENV', 'development') in ['development', 'testing']
                 
-                if is_dev:
+                if is_dev and not is_safe and not self.avl.is_lipschitz_saturated(polytope_state.origin):
                     is_safe = True
                     
                 if not is_safe:

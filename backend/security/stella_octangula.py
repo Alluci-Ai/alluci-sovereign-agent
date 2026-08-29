@@ -185,6 +185,55 @@ class StellaOctangulaGeometry:
         p2 = self.project_to_simplex(p1)
         return bool(np.allclose(p1, p2, atol=atol))
 
+    def get_support_point(self, direction: np.ndarray) -> np.ndarray:
+        """
+        [ GJK Support Function S_{S8}(d) ]
+        Returns the vertex v ∈ V(S8) that maximizes the dot product (v · d).
+        """
+        d = np.asarray(direction, dtype=np.float64).flatten()
+        if len(d) != 3:
+            if len(d) < 3:
+                d_3d = np.pad(d, (0, 3 - len(d)))
+            else:
+                d_3d = np.array([
+                    float(np.mean(d[0::3])),
+                    float(np.mean(d[1::3])),
+                    float(np.mean(d[2::3]))
+                ], dtype=np.float64)
+        else:
+            d_3d = d
+            
+        dots = self.vertices @ d_3d  # (8,)
+        max_idx = int(np.argmax(dots))
+        return self.vertices[max_idx].copy()
+
+    def compute_gjk_distance(self, point: np.ndarray) -> Tuple[float, np.ndarray]:
+        """
+        [ GJK Convex Polytope Distance & Projection ]
+        Computes the Euclidean distance d(p, S8) from an arbitrary point p to the 
+        convex hull of the Stella Octangula S8, and returns (distance, projected_boundary_point).
+        
+        If point is strictly inside Conv(S8), distance is 0.0.
+        If point is outside, distance > 0.0 and projected_boundary_point is the nearest point on the hull.
+        """
+        p_flat = np.asarray(point, dtype=np.float64).flatten()
+        if len(p_flat) != 3:
+            if len(p_flat) < 3:
+                p_3d = np.pad(p_flat, (0, 3 - len(p_flat)))
+            else:
+                p_3d = np.array([
+                    float(np.mean(p_flat[0::3])),
+                    float(np.mean(p_flat[1::3])),
+                    float(np.mean(p_flat[2::3]))
+                ], dtype=np.float64)
+        else:
+            p_3d = p_flat
+
+        # Convex hull of S8 is the cube [-1, 1]^3
+        projected = np.clip(p_3d, -1.0, 1.0)
+        distance = float(np.linalg.norm(p_3d - projected))
+        return distance, projected
+
     def compute_conditional_entropy(self, p_xn_given_x1: np.ndarray) -> float:
         """
         Computes conditional Shannon entropy H(X_n | X_1) = - sum p log p.
