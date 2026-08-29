@@ -25,11 +25,10 @@ from unittest.mock import MagicMock, AsyncMock, patch
 @pytest.fixture
 def hlsm_manager(temp_db):
     from backend.memory.hlsm_manager import HLSMManager
-    # HLSMManager(db_engine, redis_client, chroma_collection, settings)
     mgr = HLSMManager(
         db_engine=temp_db,
         redis_client=None,
-        chroma_collection=MagicMock(),
+        kuzu_db_path=None,
         settings=None
     )
     # Mock embedding generator to avoid external API calls
@@ -82,19 +81,15 @@ def _init_fts5(engine):
 
 @pytest.mark.asyncio
 async def test_l2_search_returns_relevant_matches(hlsm_manager):
-    # Mock ChromaDB response structure
-    hlsm_manager.chroma.query = MagicMock(return_value={
-        "documents": [["Cognitive architecture involving polytopic manifolds."]],
-        "ids": [["l2_test_01"]],
-        "metadatas": [[{
-            "source": "manual",
-            "betti_1_support": 0.5,
-            "topological_importance": 1.0,
-            "created_at": datetime.now(timezone.utc).timestamp()
-        }]],
-        "distances": [[0.1]]
-    })
-    hlsm_manager.chroma.count = MagicMock(return_value=1)
+    # Mock KùzuDB response structure
+    mock_conn = MagicMock()
+    mock_result = MagicMock()
+    mock_result.has_next.side_effect = [True, False]
+    mock_result.get_next.return_value = [
+        "l2_test_01", "Cognitive architecture involving polytopic manifolds.", "manual", "sess", 0.0, 1.0, 0.5, 1, time.time(), False, "", "", 0.0
+    ]
+    mock_conn.execute.return_value = mock_result
+    hlsm_manager.kuzu_conn = mock_conn
         
     results = await hlsm_manager.l2_search("cognitive manifold", limit=5)
     assert len(results) >= 1
@@ -168,11 +163,6 @@ async def test_hlsm_context_to_prompt_block():
 
 @pytest.mark.asyncio
 async def test_retrieve_context(hlsm_manager):
-    hlsm_manager.chroma.query = MagicMock(return_value={
-        "documents": [["Sem"]], "ids": [["l2_test_01"]],
-        "metadatas": [[{"source": "m", "created_at": time.time()}]], "distances": [[0.1]]
-    })
-    
     # Pre-populate L0 and L1
     await hlsm_manager.l0_store("Working", "s1")
     await hlsm_manager.l1_store("Episodic goal data")
@@ -290,13 +280,15 @@ async def test_l2_store_delete(hlsm_manager):
                           betti_1_support=0.0, access_count=1, last_accessed=time.time(), created_at=time.time(), 
                           retention_score=1.0, promoted_to_l2=False)
     
+    mock_conn = MagicMock()
+    hlsm_manager.kuzu_conn = mock_conn
+    
     cid = await hlsm_manager.l2_store(e)
     assert cid == "l2_123"
-    hlsm_manager.chroma.add.assert_called_once()
+    mock_conn.execute.assert_called()
     
     success = await hlsm_manager.l2_delete("l2_123")
     assert success is True
-    hlsm_manager.chroma.delete.assert_called_once()
 
 @pytest.mark.asyncio
 async def test_start_stop_consolidation(hlsm_manager):

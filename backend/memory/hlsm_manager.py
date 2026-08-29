@@ -24,6 +24,8 @@ import time
 import uuid
 import re
 from html.parser import HTMLParser
+import numpy as np
+from .markov_trace import MarkovTraceEngine
 
 class MLStripper(HTMLParser):
     def __init__(self):
@@ -128,6 +130,7 @@ class HLSMContext:
     semantic_memories: List[HLSMRetrievalResult] = field(default_factory=list)
     total_chars: int = 0
     total_tokens: int = 0
+    spectral_metrics: Optional[Dict[str, Any]] = None
 
     def to_prompt_block(self) -> str:
         """
@@ -223,12 +226,16 @@ class HLSMManager:
         
         # [ PPN-007 ] Simplicial H-LSM: Initialize the Discrete Projection Kernel
         self.dpk = DiscreteProjectionKernel()
+        
+        # Markov Trace & Spectral Geometry Engine (PPN Trace Logic)
+        self.trace_engine = MarkovTraceEngine()
 
         logger.info(
             "[HLSM] Initialized. "
             f"L0={'Redis' if redis_client else 'SQL-fallback'}, "
             f"L1=SQL, "
-            f"L2={'KùzuDB' if self.kuzu_conn else 'disabled'}"
+            f"L2={'KùzuDB' if self.kuzu_conn else 'disabled'}, "
+            "Trace=MarkovEngine"
         )
 
     def _get_token_count(self, text: str) -> int:
@@ -252,6 +259,35 @@ class HLSMManager:
             except ImportError:
                 logger.warning("[HLSM] sentence-transformers not available — L2 semantic search disabled")
         return self._embed_model
+
+    def _compute_candidate_embeddings(self, texts: List[str]) -> np.ndarray:
+        """
+        Generates vector representations for memory candidates to compute Markov Trace affinities.
+        Uses sentence-transformers if available, otherwise fast deterministic hash n-grams.
+        """
+        if not texts:
+            return np.empty((0, 128), dtype=np.float32)
+        
+        embed_model = self._get_embed_model()
+        if embed_model is not None:
+            try:
+                embeddings = embed_model.encode(texts, convert_to_numpy=True)
+                return embeddings
+            except Exception as e:
+                logger.debug(f"[HLSM Trace] Neural embedding fallback: {e}")
+
+        # Deterministic hash n-gram embedding fallback
+        dim = 128
+        matrix = np.zeros((len(texts), dim), dtype=np.float32)
+        for i, text in enumerate(texts):
+            words = text.lower().split()
+            for w in words:
+                h = int(hashlib.md5(w.encode("utf-8")).hexdigest(), 16) % dim
+                matrix[i, h] += 1.0
+            norm = np.linalg.norm(matrix[i])
+            if norm > 0:
+                matrix[i] /= norm
+        return matrix
 
     # ─── L0 Working Memory ────────────────────────────────────────────────────
 
@@ -495,16 +531,31 @@ class HLSMManager:
                     ).bindparams(q=clean_query, limit=limit)).fetchall()
                 except Exception as e:
                     logger.debug(f"[HLSM L1] FTS5 search failed: {e} - falling back to LIKE")
-                    # Fallback to standard LIKE
-                    raw = session.exec(sa_text(  # type: ignore
-                        "SELECT id, content, source, session_key, psi_at_encoding, "
-                        "topological_importance, betti_1_support, access_count, "
-                        "last_accessed, retention_score "
-                        "FROM hlsm_episodic "
-                        "WHERE content LIKE :q "
-                        "ORDER BY last_accessed DESC "
-                        "LIMIT :limit"
-                    ).bindparams(q=f"%{clean_query}%", limit=limit)).fetchall()
+                    # Robust keyword-split fallback to standard LIKE
+                    words = [w for w in clean_query.split() if len(w) > 2]
+                    if words:
+                        like_clauses = " OR ".join([f"content LIKE :w{i}" for i in range(len(words))])
+                        params = {f"w{i}": f"%{w}%" for i, w in enumerate(words)}
+                        params["limit"] = limit
+                        raw = session.exec(sa_text(  # type: ignore
+                            "SELECT id, content, source, session_key, psi_at_encoding, "
+                            "topological_importance, betti_1_support, access_count, "
+                            "last_accessed, retention_score "
+                            "FROM hlsm_episodic "
+                            f"WHERE {like_clauses} "
+                            "ORDER BY last_accessed DESC "
+                            "LIMIT :limit"
+                        ).bindparams(**params)).fetchall()
+                    else:
+                        raw = session.exec(sa_text(  # type: ignore
+                            "SELECT id, content, source, session_key, psi_at_encoding, "
+                            "topological_importance, betti_1_support, access_count, "
+                            "last_accessed, retention_score "
+                            "FROM hlsm_episodic "
+                            "WHERE content LIKE :q "
+                            "ORDER BY last_accessed DESC "
+                            "LIMIT :limit"
+                        ).bindparams(q=f"%{clean_query}%", limit=limit)).fetchall()
             else:
                 # PostgreSQL High-Performance FTS (Native tsvector)
                 # This assumes a GIN index on content (handled in Phase 3 hardening)
@@ -1019,6 +1070,34 @@ class HLSMManager:
             except Exception as e:
                 logger.debug(f"[HLSM] Affective modulation skipped: {e}")
 
+        # Markov Trace Multi-Hop Rescoring & Spectral Context Scaling
+        all_candidates = l1_results + l2_results  # type: ignore
+        spectral_metrics = None
+
+        if len(all_candidates) >= 3:
+            try:
+                texts = [m.content for m in all_candidates]
+                direct_scores = [m.relevance_score for m in all_candidates]
+                embeddings = self._compute_candidate_embeddings(texts)
+                rescored, spectral_metrics = self.trace_engine.rescore_with_markov_trace(
+                    candidate_items=all_candidates,
+                    embeddings=embeddings,
+                    direct_relevance_scores=direct_scores,
+                    visible_top_k=max_per_tier,
+                )
+                score_map = {item.id: score for item, score in rescored}
+                for r in all_candidates:
+                    if r.id in score_map:
+                        r.relevance_score = score_map[r.id]
+
+                # Dynamic Context Depth Scaling from Spectral Dimension
+                mixing_rate = spectral_metrics.get("mixing_rate", "nominal")
+                spectral_dim = spectral_metrics.get("spectral_dimension", 1.0)
+                if mixing_rate == "sparse" or spectral_dim > 1.5:
+                    max_per_tier = min(max_per_tier + 2, 8)
+            except Exception as trace_err:
+                logger.debug(f"[HLSM] Markov trace rescoring skipped: {trace_err}")
+
         # Sort each tier by relevance
         l1_results.sort(key=lambda r: r.relevance_score, reverse=True)  # type: ignore
         l2_results.sort(key=lambda r: r.relevance_score, reverse=True)  # type: ignore
@@ -1028,6 +1107,7 @@ class HLSMManager:
             working_memories=l0_results[:max_per_tier],  # type: ignore
             episodic_memories=l1_results[:max_per_tier],  # type: ignore
             semantic_memories=l2_results[:max_per_tier],  # type: ignore
+            spectral_metrics=spectral_metrics,
         )
         prompt = ctx.to_prompt_block()
         ctx.total_chars = len(prompt)
