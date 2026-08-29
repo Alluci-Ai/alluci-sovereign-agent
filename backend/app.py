@@ -496,6 +496,8 @@ app.include_router(v1_compat.router, prefix="/v1")
 app.include_router(v1_compat.router, prefix="/api/v1")
 from .routers import checkpoints
 app.include_router(checkpoints.router, prefix="/api/v1")
+from .routers import codebase
+app.include_router(codebase.router, prefix="/api/v1")
 
 # Health endpoints (custom)
 app.include_router(health_router)

@@ -1,7 +1,7 @@
 # Modified TaskStatus enum and added QueuedTask model
 
 from datetime import datetime, timezone
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 from enum import Enum
 from pydantic import BaseModel
 from sqlmodel import SQLModel, Field, Column, JSON, Relationship
@@ -151,7 +151,7 @@ class HLSMEpisodicEntry(SQLModel, table=True):
     retention_score: float = Field(default=1.0)
     promoted_to_l2: bool = Field(default=False)
     promoted_to_l3: bool = Field(default=False)
-    extra_metadata: Optional[dict] = Field(sa_column=Column(JSON), default=None)
+    extra_metadata: Optional[Union[Dict[str, Any], str]] = Field(sa_column=Column(JSON), default=None)
 
 class HLSMWorkingEntry(SQLModel, table=True):
     __tablename__ = "hlsm_working"  # type: ignore

@@ -535,7 +535,7 @@ class HLSMManager:
                     words = [w for w in clean_query.split() if len(w) > 2]
                     if words:
                         like_clauses = " OR ".join([f"content LIKE :w{i}" for i in range(len(words))])
-                        params = {f"w{i}": f"%{w}%" for i, w in enumerate(words)}
+                        params: Dict[str, Any] = {f"w{i}": f"%{w}%" for i, w in enumerate(words)}
                         params["limit"] = limit
                         raw = session.exec(sa_text(  # type: ignore
                             "SELECT id, content, source, session_key, psi_at_encoding, "
@@ -665,7 +665,16 @@ class HLSMManager:
                 "m.is_barcode = $is_barcode, m.uri = $uri, m.blob_path = $blob_path, m.ttl = $ttl"
             )
             
-            extra = entry.extra_metadata or {}
+            extra: Dict[str, Any] = {}
+            if isinstance(entry.extra_metadata, str):
+                try:
+                    parsed = json.loads(entry.extra_metadata)
+                    if isinstance(parsed, dict):
+                        extra = parsed
+                except Exception:
+                    extra = {}
+            elif isinstance(entry.extra_metadata, dict):
+                extra = entry.extra_metadata
             params = {
                 "id": kuzu_id,
                 "content": entry.content,

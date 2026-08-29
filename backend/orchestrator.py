@@ -830,6 +830,22 @@ Here is what Rocco will be executing across our Deep Research pipeline:
             except Exception as e:
                 self.logger.debug(f"[Orchestrator] Memory retrieval skipped: {e}")
 
+        # 4. Live Codebase & Architecture Grounding Blueprint
+        try:
+            from .engine.codebase_grounding import LocalCodebaseInspector
+            inspector = LocalCodebaseInspector()
+            arch = inspector.get_architecture_summary()
+            context_parts.append(
+                f"\n[ LIVE ARCHITECTURAL MANIFEST & CODEBASE GROUNDING ]\n"
+                f"- Application: {arch.get('title', 'Alluci Sovereign Agent')}\n"
+                f"- Sovereign Pillars: VerusID (Sovereign Identity), HITL Executive Governance, 4-Tier H-LSM Memory, ACE Bio-Affective Computing, Policy DAG Orchestration\n"
+                f"- LCE Runtime: Apple MLX on macOS / Cross-platform LlamaCpp\n"
+                f"- Sub-Agents: Codi (Autonomous Software Engineering & OpenCode Harness), Rocco (Deep Research)\n"
+                f"- Directives: When explaining architecture or codebase, lead with real file structures (backend/routers/, backend/memory/, backend/engine/, components/) and the 5 sovereign pillars."
+            )
+        except Exception as code_ctx_err:
+            self.logger.debug(f"[Orchestrator] Codebase grounding manifest notice: {code_ctx_err}")
+
         res = ("\n".join(context_parts), tools_list)
         if compact_index and include_memory:
             self._cached_system_context = res

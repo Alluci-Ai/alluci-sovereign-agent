@@ -21,54 +21,48 @@ class CodeHealthDetector:
 
     def __init__(self, project_root: Optional[str] = None):
         self.project_root = project_root or os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        from .codebase_grounding import LocalCodebaseInspector
+        self.inspector = LocalCodebaseInspector(self.project_root)
 
     def _scan_python_files(self, max_files: int = 20) -> List[Dict[str, Any]]:
-        """Scans python files in backend/ for parse errors and high complexity."""
+        """Scans python files in backend/ for parse errors and high complexity using LocalCodebaseInspector."""
         findings = []
-        backend_dir = os.path.join(self.project_root, "backend")
-        if not os.path.exists(backend_dir):
-            return findings
+        catalog = self.inspector.get_file_catalog(limit=max_files * 3)
+        py_files = [f["path"] for f in catalog if f["path"].endswith(".py") and not os.path.basename(f["path"]).startswith("test_") and f["path"].startswith("backend/")]
 
-        scanned = 0
-        for root, _, files in os.walk(backend_dir):
-            if scanned >= max_files:
-                break
-            for file in files:
-                if file.endswith(".py") and not file.startswith("test_"):
-                    full_path = os.path.join(root, file)
-                    rel_path = os.path.relpath(full_path, self.project_root)
-                    scanned += 1
-                    try:
-                        with open(full_path, "r", encoding="utf-8") as f:
-                            code = f.read()
+        for rel_path in py_files[:max_files]:
+            full_path = os.path.join(self.project_root, rel_path)
+            try:
+                with open(full_path, "r", encoding="utf-8") as f:
+                    code = f.read()
 
-                        # 1. Check syntax / parse validity
-                        tree = ast.parse(code, filename=rel_path)
+                # 1. Check syntax / parse validity
+                tree = ast.parse(code, filename=rel_path)
 
-                        # 2. Check function complexity (number of branches / statements)
-                        for node in ast.walk(tree):
-                            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                                statement_count = len(node.body)
-                                if statement_count > 45:
-                                    findings.append({
-                                        "file": rel_path,
-                                        "function": node.name,
-                                        "line": node.lineno,
-                                        "issue_type": "HIGH_CYCLOMATIC_COMPLEXITY",
-                                        "detail": f"Function '{node.name}' has {statement_count} statements; refactoring into smaller composable units recommended."
-                                    })
-                                    break
+                # 2. Check function complexity (number of branches / statements)
+                for node in ast.walk(tree):
+                    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                        statement_count = len(node.body)
+                        if statement_count > 45:
+                            findings.append({
+                                "file": rel_path,
+                                "function": node.name,
+                                "line": node.lineno,
+                                "issue_type": "HIGH_CYCLOMATIC_COMPLEXITY",
+                                "detail": f"Function '{node.name}' has {statement_count} statements; refactoring into smaller composable units recommended."
+                            })
+                            break
 
-                    except SyntaxError as se:
-                        findings.append({
-                            "file": rel_path,
-                            "function": "global",
-                            "line": se.lineno or 1,
-                            "issue_type": "SYNTAX_REGRESSION",
-                            "detail": f"Syntax error on line {se.lineno}: {se.msg}"
-                        })
-                    except Exception:
-                        continue
+            except SyntaxError as se:
+                findings.append({
+                    "file": rel_path,
+                    "function": "global",
+                    "line": se.lineno or 1,
+                    "issue_type": "SYNTAX_REGRESSION",
+                    "detail": f"Syntax error on line {se.lineno}: {se.msg}"
+                })
+            except Exception:
+                continue
 
         return findings
 

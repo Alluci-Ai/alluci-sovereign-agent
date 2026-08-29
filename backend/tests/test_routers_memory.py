@@ -74,11 +74,13 @@ async def test_get_memory_stats():
 @patch("fastapi_csrf_protect.CsrfProtect.validate_csrf", new_callable=AsyncMock)
 def test_delete_memory_entry_not_ready(mock_csrf):
     services.memory = None
+    services.hlsm_manager = None
     res = client.delete("/memory/1")
     assert res.status_code == 503
 
 @patch("fastapi_csrf_protect.CsrfProtect.validate_csrf", new_callable=AsyncMock)
 def test_delete_memory_entry_not_found(mock_csrf):
+    services.hlsm_manager = None
     services.memory = AsyncMock()
     services.memory.delete.return_value = False
     res = client.delete("/memory/1")
@@ -86,6 +88,7 @@ def test_delete_memory_entry_not_found(mock_csrf):
 
 @patch("fastapi_csrf_protect.CsrfProtect.validate_csrf", new_callable=AsyncMock)
 def test_delete_memory_entry(mock_csrf):
+    services.hlsm_manager = None
     services.memory = AsyncMock()
     services.memory.delete.return_value = True
     res = client.delete("/memory/1")
@@ -170,8 +173,7 @@ def test_promote_memory_already_promoted(mock_session_cls, mock_csrf):
     services.hlsm_manager = AsyncMock()
     mock_session = MagicMock()
     mock_session_cls.return_value.__enter__.return_value = mock_session
-    mock_entry = MagicMock()
-    mock_entry.promoted_to_l2 = True
+    mock_entry = MagicMock(promoted_to_l2=True)
     mock_session.get.return_value = mock_entry
     res = client.post("/memory/1/promote")
     assert res.status_code == 200
@@ -183,8 +185,7 @@ def test_promote_memory_success(mock_session_cls, mock_csrf):
     services.hlsm_manager = AsyncMock()
     mock_session = MagicMock()
     mock_session_cls.return_value.__enter__.return_value = mock_session
-    mock_entry = MagicMock()
-    mock_entry.promoted_to_l2 = False
+    mock_entry = MagicMock(promoted_to_l2=False)
     mock_session.get.return_value = mock_entry
     res = client.post("/memory/1/promote")
     assert res.status_code == 200
@@ -198,8 +199,7 @@ def test_promote_memory_exception(mock_session_cls, mock_csrf):
     services.hlsm_manager.l2_store.side_effect = Exception("error")
     mock_session = MagicMock()
     mock_session_cls.return_value.__enter__.return_value = mock_session
-    mock_entry = MagicMock()
-    mock_entry.promoted_to_l2 = False
+    mock_entry = MagicMock(promoted_to_l2=False)
     mock_session.get.return_value = mock_entry
     res = client.post("/memory/1/promote")
     assert res.status_code == 500

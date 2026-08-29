@@ -215,6 +215,63 @@ async def _intercept_memory_deletion_request(prompt: str) -> Optional[str]:
     return None
 
 
+async def _check_codebase_and_architecture_context(prompt: str) -> Optional[str]:
+    """
+    Detects if the user query asks about codebase, architecture, routers, git, or github,
+    and returns rich grounded context to augment the prompt with real codebase truth.
+    """
+    body_lower = prompt.lower()
+    codebase_triggers = [
+        "codebase", "architecture", "repository", "github", "git log", "git status",
+        "router", "models.py", "hlsm", "verusid", "ace", "orchestrator",
+        "how is", "how do we implement", "what files", "explain the structure",
+        "codi", "opencode", "directory structure", "ast", "endpoints"
+    ]
+    if not any(t in body_lower for t in codebase_triggers):
+        return None
+
+    try:
+        from ..engine.codebase_grounding import LocalCodebaseInspector, GitManifoldInspector
+        inspector = LocalCodebaseInspector()
+        git_inspector = GitManifoldInspector()
+
+        context_parts = []
+        arch = inspector.get_architecture_summary()
+        context_parts.append(
+            f"[AUTHENTIC SYSTEM ARCHITECTURE]\n"
+            f"Title: {arch.get('title')}\n"
+            f"5 Sovereign Pillars:\n" + "\n".join(f"- {p}" for p in arch.get("pillars", []))
+        )
+
+        if any(w in body_lower for w in ["git", "commit", "branch", "repo", "github"]):
+            git_st = await git_inspector.get_git_status()
+            recent_commits = await git_inspector.get_recent_commits(limit=5)
+            commit_lines = [f"- {c['short_hash']} ({c['date'][:10]}): {c['message']}" for c in recent_commits]
+            context_parts.append(
+                f"\n[GIT MANIFOLD TRUTH]\n"
+                f"Branch: {git_st.get('branch', 'main')}\n"
+                f"Working Tree Clean: {git_st.get('is_clean', True)}\n"
+                f"Recent Commits:\n" + ("\n".join(commit_lines) if commit_lines else "- None")
+            )
+
+        symbols = inspector.parse_ast_symbols(max_files=25)
+        relevant_files = []
+        for f_path, f_data in symbols.get("files", {}).items():
+            f_lower = f_path.lower()
+            if any(term in f_lower for term in body_lower.split() if len(term) > 3) or ("router" in body_lower and "router" in f_lower):
+                classes = [c["name"] for c in f_data.get("classes", [])]
+                routes = [f"{r['http_method']} {r['path']}" for r in f_data.get("routes", [])]
+                relevant_files.append(f"- `{f_path}`: classes={classes}, routes={routes}")
+
+        if relevant_files:
+            context_parts.append("\n[RELEVANT CODEBASE MODULES & SYMBOLS]\n" + "\n".join(relevant_files[:8]))
+
+        return "\n".join(context_parts)
+    except Exception as e:
+        logger.debug(f"[GeminiRouter] Codebase grounding extraction notice: {e}")
+        return None
+
+
 @router.post("/gemini/proxy", dependencies=[Depends(verify_authenticated)])
 async def gemini_proxy(
     request: Request,
@@ -245,7 +302,12 @@ async def gemini_proxy(
         if local_report:
             return {"result": local_report}
 
-        # 3. Fetch system context (lightweight capability index)
+        # 3. Dynamic Codebase & Architecture Grounding Check (< 15ms)
+        code_grounding = await _check_codebase_and_architecture_context(effective_prompt)
+        if code_grounding:
+            effective_prompt = f"{effective_prompt}\n\n[LIVE CODEBASE & ARCHITECTURE GROUNDING]:\n{code_grounding}"
+
+        # 4. Fetch system context (lightweight capability index)
         system_instruction = ""
         if services.orchestrator:
             ctx_res = await services.orchestrator._build_system_context()
@@ -305,6 +367,11 @@ async def gemini_proxy_stream(
 
         # 2. Fast Local Hard Drive File Reader Check (< 50ms)
         local_report = await _check_local_research_reports(effective_prompt)
+
+        # 3. Dynamic Codebase & Architecture Grounding Check (< 15ms)
+        code_grounding = await _check_codebase_and_architecture_context(effective_prompt)
+        if code_grounding:
+            effective_prompt = f"{effective_prompt}\n\n[LIVE CODEBASE & ARCHITECTURE GROUNDING]:\n{code_grounding}"
 
         system_instruction = ""
         orch = services.orchestrator
