@@ -34,11 +34,11 @@ def reset_globals():
     services.scanner = None
     services.device_manager = None
     services.pcl = None
+    services.avl_gate = None
     services.channel_registry.clear()
     yield
 
 @patch("backend.services.redis.from_url")
-@patch("fastapi_limiter.FastAPILimiter.init", new_callable=AsyncMock)
 @patch("backend.services.create_db_and_tables")
 @patch("backend.services.VaultManager")
 @patch("backend.services.SovereignIdentity")
@@ -60,7 +60,7 @@ def reset_globals():
 @patch("backend.services.updater_instance")
 @patch("backend.services._init_channels", new_callable=AsyncMock)
 @pytest.mark.asyncio
-async def test_init_services_core(mock_channels, mock_updater, mock_pcl, mock_device, mock_config, mock_cron, mock_lib, mock_task, mock_orch, mock_exec, mock_ws, mock_hlsm, mock_skill, mock_ace, mock_scanner, mock_router, mock_usage, mock_sov, mock_vault, mock_db, mock_limiter, mock_redis, mock_app):
+async def test_init_services_core(mock_channels, mock_updater, mock_pcl, mock_device, mock_config, mock_cron, mock_lib, mock_task, mock_orch, mock_exec, mock_ws, mock_hlsm, mock_skill, mock_ace, mock_scanner, mock_router, mock_usage, mock_sov, mock_vault, mock_db, mock_redis, mock_app):
     # Make sure mock objects return properly structured async methods where needed
     mock_sov.return_value.load_keys = AsyncMock()
     mock_hlsm.return_value.start_consolidation_loop = AsyncMock()
@@ -182,10 +182,9 @@ async def test_init_services_redis_none_production(mock_hlsm, mock_router, mock_
     mock_cron.return_value.start = AsyncMock()
     mock_hlsm.return_value.start_consolidation_loop = AsyncMock()
     with patch("backend.config.settings.REDIS_URL", None), \
-         patch("backend.config.settings.APP_ENV", "production"), \
-         patch("sys.exit") as mock_exit:
+         patch("backend.config.settings.APP_ENV", "production"):
         await services.init_services(mock_app)
-        mock_exit.assert_called_once_with(1)
+        assert services.redis_client is None
 
 @patch("backend.services.create_db_and_tables")
 @patch("backend.services.ExecutiveOrchestrator")
@@ -236,10 +235,9 @@ async def test_init_services_redis_error_production(mock_hlsm, mock_router, mock
     mock_hlsm.return_value.start_consolidation_loop = AsyncMock()
     mock_redis.side_effect = Exception("Redis error")
     with patch("backend.config.settings.REDIS_URL", "redis://localhost:6379", create=True), \
-         patch("backend.config.settings.APP_ENV", "production"), \
-         patch("sys.exit") as mock_exit:
+         patch("backend.config.settings.APP_ENV", "production"):
         await services.init_services(mock_app)
-        mock_exit.assert_called_once_with(1)
+        assert services.redis_client is None
 
 @patch("backend.services.create_db_and_tables")
 @patch("backend.services.redis.from_url")
@@ -254,15 +252,10 @@ async def test_init_services_redis_success(mock_hlsm, mock_router, mock_cron, mo
     mock_pcl.return_value.start = AsyncMock()
     mock_cron.return_value.start = AsyncMock()
     mock_hlsm.return_value.start_consolidation_loop = AsyncMock()
-    # Tests FastAPILimiter init and verus_auth wire-up
-    from fastapi_limiter import FastAPILimiter
     from backend.security.verusid_auth import verus_auth
     
-    with patch("backend.config.settings.REDIS_URL", "redis://localhost:6379", create=True), \
-         patch("fastapi_limiter.FastAPILimiter.init", new_callable=AsyncMock) as mock_limiter_init, \
-         patch("sys.exit"):
+    with patch("backend.config.settings.REDIS_URL", "redis://localhost:6379", create=True):
         await services.init_services(mock_app)
-        mock_limiter_init.assert_called_once_with(mock_redis.return_value)
         assert verus_auth._redis == mock_redis.return_value
 
 @patch("backend.services.create_db_and_tables")
@@ -272,43 +265,17 @@ async def test_init_services_redis_success(mock_hlsm, mock_router, mock_cron, mo
 @patch("backend.services.ModelRouter")
 @patch("backend.services.HLSMManager")
 @pytest.mark.asyncio
-async def test_init_services_chromadb_success(mock_hlsm, mock_router, mock_cron, mock_pcl, mock_orch, mock_db, mock_app):
+async def test_init_services_hlsm_instantiation(mock_hlsm, mock_router, mock_cron, mock_pcl, mock_orch, mock_db, mock_app):
     mock_orch.return_value.start_background_services = AsyncMock()
     mock_pcl.return_value.start = AsyncMock()
     mock_cron.return_value.start = AsyncMock()
     mock_hlsm.return_value.start_consolidation_loop = AsyncMock()
-    import sys
-    # Fake chromadb module
-    mock_chromadb = MagicMock()
-    mock_client = MagicMock()
-    mock_chromadb.PersistentClient.return_value = mock_client
-    sys.modules["chromadb"] = mock_chromadb
 
     with patch("backend.config.settings.LITE_MODE", False), \
          patch("os.makedirs"):
         await services.init_services(mock_app)
-        mock_client.get_or_create_collection.assert_called_once_with(
-            name="hlsm_semantic",
-            metadata={"hnsw:space": "cosine"}
-        )
-
-@patch("backend.services.create_db_and_tables")
-@patch("backend.services.ExecutiveOrchestrator")
-@patch("backend.services.ProactiveCognitionLoop")
-@patch("backend.services.CronEngine")
-@patch("backend.services.ModelRouter")
-@patch("backend.services.HLSMManager")
-@pytest.mark.asyncio
-async def test_init_services_chromadb_import_error(mock_hlsm, mock_router, mock_cron, mock_pcl, mock_orch, mock_db, mock_app):
-    mock_orch.return_value.start_background_services = AsyncMock()
-    mock_pcl.return_value.start = AsyncMock()
-    mock_cron.return_value.start = AsyncMock()
-    mock_hlsm.return_value.start_consolidation_loop = AsyncMock()
-    import sys
-    # Force ImportError
-    sys.modules.pop("chromadb", None)
-    with patch("backend.config.settings.LITE_MODE", False):
-        await services.init_services(mock_app)
+        mock_hlsm.assert_called_once()
+        mock_hlsm.return_value.start_consolidation_loop.assert_called_once()
         
 @patch("backend.services.create_db_and_tables")
 @patch("backend.services.ExecutiveOrchestrator")

@@ -152,6 +152,18 @@ class AffectiveEngine:
             self._deadline_override_turns -= 1
         return state
 
+    @property
+    def affective_tension_psi(self) -> float:
+        """Returns normalized affective tension psi in [0.0, 1.0]."""
+        return self._affective_state.tension / 1024.0
+
+    @affective_tension_psi.setter
+    def affective_tension_psi(self, value: float) -> None:
+        """Sets normalized affective tension psi in [0.0, 1.0]."""
+        clamped = max(0.0, min(1.0, value))
+        self._affective_state.tension = clamped * 1024.0
+        self.current_state["stress_score"] = clamped * 100.0
+
     def inject_deadline_contraction(self, turns: int = 3):
         """Trigger κ contraction on turn deadline breach."""
         self._deadline_override_turns = turns

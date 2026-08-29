@@ -27,7 +27,18 @@ from backend.device_manager import DeviceManager
 from backend.goals.engine import goal_engine as goal_engine_instance
 from backend.sop.engine import sop_engine as sop_engine_instance
 from backend.pcl import ProactiveCognitionLoop
+from backend.security.avl_gate import AVLGate
 from backend.logging_config import get_logger
+
+from backend.topology import (
+    TopologicalBarcodeClock,
+    JSpaceSimulator,
+    ActionAffordanceEnvelope,
+    PMETFiltrationEngine,
+    MarkovTraceEngine,
+    DPOTripletHarvester,
+)
+from backend.engine.opencode_daemon import OpenCodeDaemon
 
 logger = get_logger("PolytopeServices")
 try:
@@ -61,12 +72,20 @@ sop_engine = sop_engine_instance
 pcl: Optional[ProactiveCognitionLoop] = None
 updater = updater_instance
 channel_registry: Dict[str, Any] = {}
-opencode_daemon = None
+opencode_daemon: Optional[OpenCodeDaemon] = None
+barcode_clock: Optional[TopologicalBarcodeClock] = None
+j_space_simulator: Optional[JSpaceSimulator] = None
+affordance_envelope: Optional[ActionAffordanceEnvelope] = None
+pmet_engine: Optional[PMETFiltrationEngine] = None
+markov_trace: Optional[MarkovTraceEngine] = None
+dpo_harvester: Optional[DPOTripletHarvester] = None
+avl_gate: Optional[AVLGate] = None
 
 async def init_services(app_instance):
     global vault, router, ace, orchestrator, task_manager, skill_manager, tool_manager, sovereign_identity
     global local_inference, ws_gw, usage_tracker, cron_engine, config_editor, exec_approval
     global memory, hlsm_manager, redis_client, scanner, device_manager, pcl, goal_engine, sop_engine
+    global barcode_clock, j_space_simulator, affordance_envelope, pmet_engine, markov_trace, dpo_harvester, avl_gate
 
     logger.info("[ SERVICES ] Initializing global system components...")
 
@@ -193,6 +212,10 @@ async def init_services(app_instance):
     orchestrator.ws_gateway = ws_gw
     router.ws_gateway = ws_gw
     orchestrator.executor.approval_manager = exec_approval
+    if orchestrator and hasattr(orchestrator, "avl") and orchestrator.avl is not None:
+        avl_gate = orchestrator.avl
+    else:
+        avl_gate = AVLGate()
 
     # Register HLSMMemoryAdapter (replaces the old MemoryAdapter)
     from backend.adapters.memory_adapter import HLSMMemoryAdapter
@@ -255,6 +278,26 @@ async def init_services(app_instance):
     if orchestrator and orchestrator.heartbeat and hlsm_manager:
         orchestrator.heartbeat.inject_hlsm(hlsm_manager, router=router, settings=settings)
         logger.info("[ HB ] H-LSM injected into HeartbeatDaemon")
+
+    # 20c. Topological Manifold & J-Space Simulator Initialization
+    try:
+        from backend.topology.barcode_clock import TopologicalBarcodeClock
+        from backend.topology.j_space_simulator import JSpaceSimulator
+        from backend.topology.affordance_envelope import ActionAffordanceEnvelope
+        from backend.topology.pmet_filtration import PMETFiltrationEngine
+        from backend.topology.markov_trace import MarkovTraceEngine, DPOTripletHarvester
+
+        barcode_clock = TopologicalBarcodeClock()
+        j_space_simulator = JSpaceSimulator(strict_cot=True)
+        affordance_envelope = ActionAffordanceEnvelope()
+        pmet_engine = PMETFiltrationEngine()
+        markov_trace = MarkovTraceEngine()
+        dpo_harvester = DPOTripletHarvester()
+        if orchestrator and orchestrator.heartbeat:
+            orchestrator.heartbeat.barcode_clock = barcode_clock
+        logger.info("[ TOPOLOGY ] Topological Barcode Clock & J-Space Simulator initialized.")
+    except Exception as topo_err:
+        logger.warning(f"[ TOPOLOGY ] Topology initialization notice: {topo_err}")
 
     # 21. Background Services
     await orchestrator.start_background_services()

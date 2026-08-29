@@ -1297,9 +1297,12 @@ class HLSMManager:
         MEMORY_CONSOLIDATION_TOTAL.labels(tier="L1").inc()
         MEMORY_CONSOLIDATION_TOTAL.labels(tier="L2").inc()
 
-        # ── L1 Promotion and Pruning ──────────────────────────────────────────
+        # ── L1 Promotion and Pruning with Topological Barcode Persistence ─────
         l1_entries = await asyncio.to_thread(self._load_all_l1_for_consolidation)
         now = time.time()
+
+        from .. import services
+        clock = getattr(services, "barcode_clock", None)
 
         promote_ids: List[str] = []
         prune_ids: List[str] = []
@@ -1311,12 +1314,18 @@ class HLSMManager:
                 betti_1_support=entry.betti_1_support,
             )
 
-            if self.decay.should_prune(retention, L1_PRUNE_THRESHOLD):
+            # Check if entry has high topological persistence in Barcode Clock
+            barcode_persistence = clock.get_persistence(entry.id) if clock else None
+            is_persistently_anchored = barcode_persistence is not None and barcode_persistence > 10
+
+            if self.decay.should_prune(retention, L1_PRUNE_THRESHOLD) and not is_persistently_anchored:
                 prune_ids.append(entry.id)
             elif (
                 not entry.promoted_to_l2
-                and entry.access_count >= PROMOTION_ACCESS_COUNT
-                and retention >= PROMOTION_RETENTION_MIN
+                and (
+                    (entry.access_count >= PROMOTION_ACCESS_COUNT and retention >= PROMOTION_RETENTION_MIN)
+                    or is_persistently_anchored
+                )
             ):
                 promote_ids.append(entry.id)
 

@@ -159,6 +159,10 @@ async def _run_probe(
             return await _probe_system_health(probe_config)
         if probe_type == "bridge_silence":
             return await _probe_bridge_silence(probe_config)
+        if probe_type == "topological_drift":
+            return await _probe_topological_drift(probe_config)
+        if probe_type == "subagent_loop":
+            return await _probe_subagent_loop(probe_config)
         if probe_type == "cron_expression":
             return True, "cron_expression: scheduled fire"
         logger.warning("[HB] Unknown probe_type: %r", probe_type)
@@ -375,6 +379,38 @@ async def _probe_bridge_silence(cfg: Dict) -> Tuple[bool, str]:
                 f"for {hours_silent:.1f}h"
             )
     return False, f"Bridge '{bridge_id}' has no unanswered messages"
+
+
+async def _probe_topological_drift(cfg: Dict) -> Tuple[bool, str]:
+    from . import services
+    max_strikes = int(cfg.get("max_strikes", 2))
+    avl = getattr(services, "avl_gate", None)
+    if not avl:
+        return False, "AVLGate not initialized"
+    try:
+        strikes = avl.get_saturation_strikes("local")
+        if strikes >= max_strikes:
+            return True, f"Topological drift detected: {strikes} consecutive Lipschitz strikes on local origin"
+        return False, f"Topology stable: {strikes}/{max_strikes} strikes"
+    except Exception as exc:
+        logger.error("[HB] topological_drift error: %s", exc, exc_info=True)
+        return False, f"Topological drift probe error: {exc}"
+
+
+async def _probe_subagent_loop(cfg: Dict) -> Tuple[bool, str]:
+    from . import services
+    clock = getattr(services, "barcode_clock", None)
+    if not clock:
+        return False, "Barcode clock not initialized"
+    try:
+        betti = clock.get_betti_numbers()
+        beta_1 = betti[1] if len(betti) > 1 else 0.0
+        if beta_1 > 0.0:
+            return True, f"Sub-agent reasoning loop detected: beta_1={beta_1:.1f} (1D topological hole)"
+        return False, f"Sub-agent trajectories acyclic: beta_1={beta_1:.1f}"
+    except Exception as exc:
+        logger.error("[HB] subagent_loop error: %s", exc, exc_info=True)
+        return False, f"Subagent loop probe error: {exc}"
 
 
 # ─── Actions ──────────────────────────────────────────────────────────────────
@@ -612,6 +648,11 @@ class HeartbeatDaemon:
         self._task: Optional[asyncio.Task] = None
         self.logger = get_logger("Heartbeat")
         self._dream_orchestrator = None
+        self._last_dream_cycle_ts: float = 0.0
+
+        # Topological Barcode Clock & J-Space Dream Integration
+        from .topology.barcode_clock import TopologicalBarcodeClock
+        self.barcode_clock = TopologicalBarcodeClock()
 
     def inject_hlsm(self, hlsm, router=None, settings=None) -> None:
         """Called by services.py after HLSMManager is initialised."""
@@ -627,7 +668,7 @@ class HeartbeatDaemon:
 
     async def start(self) -> None:
         self._running = True
-        self.logger.info("[HB] Heartbeat Daemon started (6-path mode)")
+        self.logger.info("[HB] Heartbeat Daemon started (6-path mode with Topological Clock)")
         self._task = asyncio.create_task(self._tick_loop())
         await self._task  # keeps the coroutine alive — matches original behaviour
 
@@ -641,10 +682,59 @@ class HeartbeatDaemon:
                 pass
         self.logger.info("[HB] Heartbeat Daemon stopped")
 
+    async def _run_quiet_hours_dreaming_cycle(self) -> None:
+        """Executes offline J-Space counterfactual rollouts and harvests DPO triplets during quiet hours."""
+        now = time.time()
+        # Run at most once every 60 minutes during quiet hours
+        if self._last_dream_cycle_ts and (now - self._last_dream_cycle_ts < 3600.0):
+            return
+        self._last_dream_cycle_ts = now
+        try:
+            from .topology.j_space_simulator import JSpaceSimulator
+            from .topology.markov_trace import DPOTripletHarvester
+            sim = JSpaceSimulator(strict_cot=True)
+            harvester = DPOTripletHarvester()
+
+            # Offline counterfactual dream simulation
+            steps = [
+                ("AST module imports verified", "Type checker outputs clean signature", "Compile passed"),
+                ("Simulated boundary perturbation injected", "GJK snap-back boundary calculated", "State reconciled successfully")
+            ]
+            trace = sim.simulate_rollout(experience_hash=int(now), reasoning_steps=steps, is_code_or_tool_dag=True)
+            if trace.is_topologically_coherent:
+                harvester.record_triplet(
+                    prompt_x="[Offline J-Space Dream] Verified recovery from boundary perturbation",
+                    winning_yw="Project state onto O6 convex kernel and proceed with execution",
+                    losing_yl="Allow unconstrained manifold divergence without GJK snap-back",
+                    category="jspace_dream",
+                    metadata={"trace_id": trace.trace_id, "risk": trace.simulated_risk_score}
+                )
+                self.logger.info(f"[HB] Offline J-Space Dreaming Cycle completed: {trace.trace_id}")
+        except Exception as e:
+            self.logger.debug(f"[HB] Quiet hours dream cycle notice: {e}")
+
     async def _tick_loop(self) -> None:
         while self._running:
             try:
-                # Dream Cycle has been migrated to LoRA Forge in Phase B
+                # 1. Advance Discrete Barcode Clock (N -> N+1)
+                self.barcode_clock.tick()
+
+                # 2. Homeostatic Bio-Affective Relaxation (psi -> baseline)
+                from . import services
+                ace_service = getattr(services, "ace", None)
+                if ace_service is not None:
+                    try:
+                        curr_psi = float(getattr(ace_service, "affective_tension_psi", 0.1))
+                        if curr_psi > 0.15:
+                            setattr(ace_service, "affective_tension_psi", max(0.1, curr_psi - 0.05))
+                    except Exception:
+                        pass
+
+                # 3. Quiet-Hours Offline Dreaming & DPO Harvesting Cycle
+                if self._is_quiet_hours():
+                    await self._run_quiet_hours_dreaming_cycle()
+
+                # 4. Evaluate Standard Heartbeat Orders
                 await self._evaluate_all_orders()
             except asyncio.CancelledError:
                 break

@@ -21,7 +21,7 @@ The Alluci Sovereign Agent is not a chatbot. It is a distributed agentic runtime
 
 - **Strategic Hierarchical Planning**: Parses natural language intent into structured plans, routing sub-tasks to specialized agents.
 - **Proactive Cognition Loop (PCL)**: A five-stage cognitive pipeline (OBSERVE, MODEL, DETECT, JUDGE, ACT/NOTIFY) running continuously in the background to spot opportunities and manage goals based on structured world models.
-- **The Heartbeat Daemon**: Handles system health, standing orders, and file surveillance in parallel with the PCL.
+- **The Heartbeat Daemon**: Operates a 6-path proactive execution plane synchronized with the thread-safe **Topological Barcode Clock** ($N \to N+1$). Executes real-time 1D loop detection (`_probe_subagent_loop` via $\beta_1 > 0$), AVL Lipschitz drift surveillance (`_probe_topological_drift`), homeostatic bio-affective relaxation ($\psi \to \text{baseline}$), and offline counterfactual dream simulations.
 
 ### 02 Multi-Agent Capabilities
 A hierarchical multi-agent system mirroring a high-performing executive team.
@@ -30,10 +30,15 @@ A hierarchical multi-agent system mirroring a high-performing executive team.
 - **Bridge Agents**: Dedicated agents operating in cryptographic vaults for communications (Slack, WhatsApp, etc.).
 - **Federated Pheromone Sync**: Swarm Intelligence via VerusID using Topological Barcodes (Pheromones) to share geometric solutions without exposing underlying data.
 
-### 03 The Polytope Manifold Architecture
-Replaces Euclidean vector spaces with Topologically Stable Geometric Intelligence (PPN).
-- **Betti Numbers**: Quantifies topological connectivity, halting execution upon "Topological Rupture" via the Discrete Projection Kernel (DPK).
-- **Affective Modulation**: Tension parameter (ψ) from Apple Watch biometrics dynamically reshapes the manifold.
+### 03 The Polytope Manifold Architecture & Topological State Spaces $(W, X, G, N)$
+Replaces Euclidean vector spaces with Topologically Stable Geometric Intelligence (PPN) governed by foundational State Spaces $(W, X, \mathcal{J}, G, N)$ and algebraic operators:
+- **$W$ (World Data Space)**: Continuous environmental data, multi-modal sensor streams, and raw graph topologies.
+- **$X$ (Experience Simplicial Space)**: Bounded simplicial complexes and Betti invariants ($\beta_0, \beta_1, \beta_2, \beta_3$) generated via Vietoris-Rips filtration (**Perceive Operator** $P: W \times X \to [0,1]$ in `pmet_filtration.py`).
+- **$\mathcal{J}$ ($\mathcal{J}$-Space Simulation Sandbox)**: Air-gapped counterfactual mental sandbox (**Simulate Operator** $S: X \times G \times \mathcal{J} \to \mathcal{J}$ in `j_space_simulator.py`) enforcing Simplicial Chain-of-Thought (S-CoT) algebraic boundary nilpotence ($\partial_1 \circ \partial_2 = 0$) and Kepler $S_8$ Dual-Tetrahedron Socratic Synthesis ($T_+ \cup T_- \to O_6$).
+- **$G$ (Action Affordance Envelope)**: Permitted action vectors and sub-agent capability boundaries evaluated on a 3D risk coordinate simplex (**Decide Operator** $D: \mathcal{J} \times G \to [0,1]$ in `affordance_envelope.py`).
+- **$N$ (Discrete Barcode Clock Count)**: Monotonic discrete clock count tracking feature birth, death, and persistence intervals (**Discrete Clock** $N \to N+1$ in `barcode_clock.py`).
+- **Betti Invariants & Coherence**: Quantifies topological connectivity and halts execution upon topological rupture via the Discrete Projection Kernel (DPK).
+- **Affective Modulation**: Tension parameter ($\psi = \text{tension}/1024.0$) from Apple Watch biometrics dynamically reshapes manifold elasticity.
 
 ### 04 The Local Cognitive Engine (LCE)
 Runs a custom-tuned variant of the Gemma 4 model family.
@@ -53,16 +58,16 @@ A biologically-inspired, four-tier memory model:
 - **L1 (Episodic Memory)**: SQLite store with SQLite FTS5 full-text indexing and 30-day half-life decay.
 - **L2 (Semantic Memory)**: Vector embeddings (`all-MiniLM-L6-v2`) and KùzuDB graph nodes (`polytope_data.kuzu`).
 - **L3 (Knowledge Graph / Dream Layer)**: Permanent structured entity-relationship graph backed by KùzuDB.
-- **Markov Trace & Spectral Geometry**: Implements the Markov Trace Operator $\text{Tr}_A(P) = A + B(I-C)^{-1}D$ (`markov_trace.py`) and normalized Laplacian spectral dimension $d_s^A(\sigma)$ to boost multi-hop excursion couplings and dynamically scale context depth. Retrieval is modulated by Apple Watch affective tension (ψ).
+- **Markov Trace & Spectral Geometry**: Implements the Markov Trace Operator $\text{Tr}_A(P) = A + B(I-C)^{-1}D$ (`markov_trace.py`) and normalized Laplacian spectral dimension $d_s^A(\sigma)$ to boost multi-hop excursion couplings and dynamically scale context depth. Retrieval is paced monotonically by the Topological Barcode Clock ($N$) and modulated by Apple Watch affective tension ($\psi$).
 
 ### 07 The Discrete Projection Kernel (DPK) & Stella Octangula S8
 A compiled C++ execution gatekeeper (with full-fidelity Python fallback) grounded in Kepler's **Stella Octangula $S_8$** compound of dual regular tetrahedra $T_+ \cup T_-$.
 - **Boundary Nilpotence**: Verifies exact simplicial boundary matrix composition ($\partial_1 \circ \partial_2 = 0$, $B_1 B_2 = 0$).
-- **Idempotent Fusion Simplex**: Enforces idempotent projection condition $F_n^1: \Pi(\Pi(x)) = \Pi(x)$.
+- **Idempotent Fusion Simplex**: Enforces idempotent projection condition $F_n^1: \Pi(\Pi(x)) = \Pi(x)$ and entropic arrow of time monotonicity ($H(X_n \mid X_1) \ge H(X_{n-1} \mid X_1) - \epsilon$).
 - **Zero-Trust Safety**: Validates topological integrity and enforces the **Sovereign Kill Switch** if biological telemetry or manifold coherence fails.
 
-### 08 Topological Barcodes
-Betti Signatures represent the logical "shape" of knowledge instead of keyword overlap. Drives "Structural Homeomorphism" matching for highly accurate memory retrieval and federated pheromone broadcasting.
+### 08 Topological Barcodes & Persistence Tracking
+Betti Signatures represent the logical "shape" of knowledge instead of keyword overlap. Driven by the **Topological Barcode Clock** (`barcode_clock.py`) tracking feature births, deaths, and persistence lifetimes across all cognitive cycles. Drives "Structural Homeomorphism" matching for highly accurate memory retrieval and federated pheromone broadcasting over Verus P2P.
 
 ### 09 Native Core Intelligence: Gemma 4 Variant
 Tuned via LoRA Forge for topological reasoning. Uses **Voice Alignment via Cross-Attention Micro-Tuning (PPN-031)** to align model cross-attention layers to the user's specific acoustic nuances. Native MLX Kokoro TTS generates device-adaptive voice profiles.
@@ -70,10 +75,11 @@ Tuned via LoRA Forge for topological reasoning. Uses **Voice Alignment via Cross
 ### 10 The "Dream" Cycle & Autonomous Evolution
 When asleep (low arousal & tension), the agent allocates 100% resources to internal evolution:
 1. Cognitive Distillation (Socratic questioning of episodic memory into permanent Semantic Truths).
-2. Teacher-Student Harvest via air-gapped local 31B Dense model.
-3. Direct Preference Optimization (DPO) Harvesting (`dpo_harvester.py`) extracting $(x, y_w, y_l)$ triplets from H-LSM self-healing deltas and quarantined AST anti-patterns.
-4. LoRA DPO Forge (Preference optimization on local adapter weights).
-5. Voice Micro-Tuning.
+2. Offline $\mathcal{J}$-Space Counterfactual Rollouts (`j_space_simulator.py`) simulating boundary perturbations and verifying topological recovery.
+3. Teacher-Student Harvest via air-gapped local 31B Dense model.
+4. Direct Preference Optimization (DPO) Harvesting (`dpo_harvester.py`, `markov_trace.py`) extracting $(x, y_w, y_l)$ triplets from H-LSM self-healing deltas, quarantined AST anti-patterns, and offline $\mathcal{J}$-Space dream traces.
+5. LoRA DPO Forge (Preference optimization on local adapter weights).
+6. Voice Micro-Tuning.
 
 ### 11 Local Fine-Tuning & The LoRA Forge
 Hardware-local SFT leveraging MLX. Generates Preference Pairs from user corrections and self-healing execution deltas to train LoRA adapters (saving only `.safetensors` deltas).

@@ -29,6 +29,26 @@ class AVLGate:
         self.BUDGET_LIMIT = 1.0       # Fallback Max Lipschitz budget consumption
         self.MAX_EULER_DEVIATION = 2  # Fallback Consistent with DPK tolerance
         self.consecutive_violations: Dict[str, int] = {}
+        from ..topology.affordance_envelope import ActionAffordanceEnvelope
+        self.affordance_envelope = ActionAffordanceEnvelope()
+
+    def evaluate_action_affordance(
+        self,
+        action_type: str,
+        target_resource: str,
+        subagent_id: Optional[str] = None,
+        parameter_payload: Optional[Dict[str, Any]] = None,
+        is_destructive: bool = False
+    ) -> Tuple[bool, str]:
+        """Evaluates whether an extrinsic tool action or DAG execution is within the safe convex hull."""
+        vec = self.affordance_envelope.build_affordance_vector(
+            action_type=action_type,
+            target_resource=target_resource,
+            capability_tag=subagent_id or "general",
+            parameter_payload=parameter_payload,
+            is_destructive=is_destructive
+        )
+        return self.affordance_envelope.evaluate_affordance(vec, subagent_id=subagent_id)
 
     def get_saturation_strikes(self, origin: str = "local") -> int:
         """Returns the number of consecutive Lipschitz budget violations for the given origin."""

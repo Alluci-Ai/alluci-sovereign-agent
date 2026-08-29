@@ -47,6 +47,19 @@ System design and code execution across Alluci are strictly anchored by five fun
 - **Security Resolution Protocol (`backend/routers/security.py` & `SecurityInterventionModal.tsx`):**
   - Broadcasts `security.resolution_required` WebSocket events to render the primary **`[ Approve & Execute Action ]`** and **`[ Cancel Task ]`** modal UI.
   - Upon approval, executes multi-tier deletion/action via `hlsm_manager.delete_by_pattern`, broadcasts completion cards, and emits `memory.deleted` WebSocket events for real-time UI state auto-syncing.
+- **Sovereign Topological State Spaces $(W, X, G, N)$ & $\mathcal{J}$-Space World Model Engine (`backend/topology/`):**
+  - *State Space Tuple $(W, X, \mathcal{J}, G, N)$:*
+    1. **$W$ (World Data Space):** Continuous raw multi-modal telemetry, environmental vectors, and unstructured document graphs.
+    2. **$X$ (Experience Simplicial Space):** Bounded simplicial complexes and topological Betti invariants ($\beta_0, \beta_1, \beta_2, \beta_3$) constructed via Vietoris-Rips filtration at scale $\epsilon$ (**Perceive Operator** $P: W \times X \to [0,1]$ via `PMETFiltrationEngine`).
+    3. **$\mathcal{J}$ ($\mathcal{J}$-Space Counterfactual Sandbox):** Air-gapped mental simulation sandbox (**Simulate Operator** $S: X \times G \times \mathcal{J} \to \mathcal{J}$ via `JSpaceSimulator`). Enforces **Simplicial Chain-of-Thought (S-CoT)** algebraic boundary nilpotence ($\partial_1 \circ \partial_2 = 0$) on reasoning triads and **Kepler $S_8$ Dual-Tetrahedron Socratic Dialectics** reconciling Constructive Proposer ($T_+$) and Adversarial Skeptic ($T_-$) hypotheses into the central intersection kernel ($O_6$).
+    4. **$G$ (Action Affordance Envelope):** Convex hull boundary defining permissible action vectors evaluated across a 3D spatial risk coordinate simplex (**Decide Operator** $D: \mathcal{J} \times G \to [0,1]$ via `ActionAffordanceEnvelope`). Enforces sub-agent privilege bounds (Codi, Rocco, Admin) and bio-affective tension thresholds ($\psi \le 0.85$).
+    5. **$N$ (Discrete Barcode Clock Count):** Monotonic discrete clock count tracking topological feature births ($b$), deaths ($d$), and persistence intervals across cycles via `TopologicalBarcodeClock` ($N \to N+1$).
+- **Topological Heartbeat Daemon & Loop Gating (`backend/heartbeat.py`):**
+  - Paced on every tick by `barcode_clock.tick()` ($N \to N+1$).
+  - *Sub-Agent Loop Detection Probe (`_probe_subagent_loop`):* Inspects active Betti invariants on the Barcode Clock; if a 1-dimensional topological hole is detected ($\beta_1 > 0$), flags a reasoning loop failure and triggers self-healing.
+  - *Topological Drift Probe (`_probe_topological_drift`):* Evaluates consecutive AVL Gate Lipschitz budget saturation strikes; escalates to HITL when strikes breach configured thresholds.
+  - *Homeostatic Bio-Affective Relaxation:* Gradually relaxes affective tension ($\psi$) towards baseline on stable ticks.
+  - *Quiet-Hours Offline Dreaming:* Runs offline counterfactual perturbation rollouts in `JSpaceSimulator` during quiet hours ($22:00–07:00$), persisting verified recovery triplets to `DPOTripletHarvester`.
 - **PVT Manifold Health Monitor (`PVTManifoldHealthMonitor` / `health_monitor.py` & `trajectory.py`):** Continuously models the cognitive state space using a thermodynamic triple ($P, V, T$) and Frenet-Serret state trajectory kinematics:
   - *Pressure ($P$):* Constraint density vs. admissible volume ratio ($P = \frac{\text{Active Constraints}}{4.0 \cdot V_{\text{agency}} + \epsilon}$).
   - *Volume ($V$):* Admissible polytope hyper-volume ($V = (1 - \text{Budget}_{\text{used}}) \cdot \text{Coherence}$).
@@ -70,7 +83,7 @@ System design and code execution across Alluci are strictly anchored by five fun
 
 ## 3. Hierarchical Long-Short Manifold (H-LSM) Memory Architecture
 
-The H-LSM memory architecture operates across 4 cognitive storage tiers managed by `HLSMManager` (`backend/memory/hlsm_manager.py`) augmented by the **Markov Trace & Spectral Geometry Engine** (`backend/memory/markov_trace.py`):
+The H-LSM memory architecture operates across 4 cognitive storage tiers managed by `HLSMManager` (`backend/memory/hlsm_manager.py`) augmented by the **Markov Trace & Spectral Geometry Engine** (`backend/memory/markov_trace.py`) and paced monotonically by the **Topological Barcode Clock** (`backend/topology/barcode_clock.py`):
 
 - **L0 Working Memory:** Ultra-fast session context (expiring working memory) backed by Redis (Key-Value) with automatic zero-config fallback to SQLite table `hlsm_working`.
 - **L1 Episodic Memory:** Chat turn interactions, episodic events, and full conversation history backed by SQLite table `hlsm_episodic` with SQLite FTS5 full-text search index (`hlsm_episodic_fts`).
@@ -89,9 +102,9 @@ The H-LSM memory architecture operates across 4 cognitive storage tiers managed 
 - **PCL (Proactive Cognition Layer / `backend/pcl.py`):** Continuous background cognitive loop operating across a 5-stage lifecycle (`OBSERVE → MODEL → DETECT → JUDGE → ACT`). Builds stateful `WorldModelSnapshot` records, evaluates opportunities (`StalledGoalDetector`, `HardwareAnomalyDetector`, `AffectiveStressDetector`), and dispatches proactive tasks or WebSocket notifications (`JsonRpcGateway`).
 - **Nightly "Dream" Cycle Evolution & DPO Preference Harvesting (`cron_engine.py` & `backend/engine/dpo_harvester.py`):**
   - When hardware load is low, the daemon halts external polling and reallocates 100% of local resources to internal evolution.
-  - *5-Stage Evolution Pipeline:* 1) Extraction (Episodic memories, PCL world model, ACE baseline, quarantine pool), 2) Synthesis (air-gapped local 31B Dense model instruction-response pair synthesis), 3) Verification, 4) Cognitive Distillation (distilling episodic logs into permanent Semantic Truths), and 5) Preference Harvesting.
-  - *DPO Preference Harvesting:* Structures teacher-student preference triplets $(x, y_w, y_l)$ from H-LSM self-healing resolution deltas (`failed_plan` $\to$ `successful_plan`) and quarantined AST anti-patterns (`reverted_code` $\to$ `repaired_code`) with analytical softplus loss $\mathcal{L}_{\text{DPO}} = \ln(1 + \exp(-\text{margin}))$ to generate JSONL preference datasets for local LoRA fine-tuning without mutating foundation model weights.
-- **ACE (Affective Computing Engine):** Python-native modules (`backend/ace/`) simulating valence, arousal, and emotional tension ($\psi$), dynamically modulating LLM sampling temperature and cognitive stress levels based on live wearable biometrics.
+  - *5-Stage Evolution Pipeline:* 1) Extraction (Episodic memories, PCL world model, ACE baseline, quarantine pool), 2) Offline $\mathcal{J}$-Space Counterfactual Rollouts (`j_space_simulator.py`) simulating boundary recovery, 3) Synthesis (air-gapped local 31B Dense model instruction-response pair synthesis), 4) Cognitive Distillation (distilling episodic logs into permanent Semantic Truths), and 5) Preference Harvesting.
+  - *DPO Preference Harvesting:* Structures teacher-student preference triplets $(x, y_w, y_l)$ from H-LSM self-healing resolution deltas (`failed_plan` $\to$ `successful_plan`), quarantined AST anti-patterns (`reverted_code` $\to$ `repaired_code`), and offline $\mathcal{J}$-Space simulation traces with analytical softplus loss $\mathcal{L}_{\text{DPO}} = \ln(1 + \exp(-\text{margin}))$ to generate JSONL preference datasets for local LoRA fine-tuning without mutating foundation model weights.
+- **ACE (Affective Computing Engine):** Python-native modules (`backend/ace/`) simulating valence, arousal, and emotional tension ($\psi = \text{tension}/1024.0$), dynamically modulating LLM sampling temperature and cognitive stress levels based on live wearable biometrics.
 - **BTM (Behavioral Topological Mapper / `btm_mapper.py`):** Maps biometric histories (HRV, respiratory rate, stress score) to geometric manifold deformation and topological coherence scores ($C \in [0.1, 0.95]$).
 
 ---

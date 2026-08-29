@@ -438,6 +438,38 @@ class LocalCodebaseInspector:
             "hardware_profiling": "TIER_0_ULTRA through TIER_4_EDGE (Apple MLX on macOS / Cross-platform LlamaCpp)"
         }
 
+    def get_simplicial_topology_summary(self, max_files: int = 50) -> Dict[str, Any]:
+        """
+        Uses PMETFiltrationEngine to construct a Vietoris-Rips simplicial complex
+        over the codebase import graph, computing Betti invariants [beta_0, beta_1, beta_2, beta_3].
+        """
+        from ..topology.pmet_filtration import PMETFiltrationEngine
+        engine = PMETFiltrationEngine()
+
+        symbols = self.parse_ast_symbols(max_files=max_files)
+        nodes = list(symbols.get("files", {}).keys())
+        edges: List[Tuple[str, str]] = []
+
+        for f_path, f_data in symbols.get("files", {}).items():
+            for imp in f_data.get("imports", []):
+                # Search for target file in node list
+                clean_imp = imp.replace(".", "/").replace("backend/", "").replace("from ", "").strip()
+                for target_node in nodes:
+                    if clean_imp in target_node:
+                        edges.append((f_path, target_node))
+
+        summary = engine.filter_ast_graph(nodes=nodes, edges=edges)
+        return {
+            "vertices_count": summary.vertices_count,
+            "edges_count": summary.edges_count,
+            "faces_count": summary.faces_count,
+            "euler_characteristic": summary.euler_characteristic,
+            "betti_numbers": summary.betti_numbers,
+            "has_circular_dependencies": summary.has_circular_dependencies,
+            "connected_components": summary.connected_components,
+            "is_nilpotent": summary.is_nilpotent,
+        }
+
 
 class GitManifoldInspector:
     """

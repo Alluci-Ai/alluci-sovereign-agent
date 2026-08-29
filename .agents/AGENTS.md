@@ -7,7 +7,7 @@
    When targeting macOS / Apple Silicon environments, Local Compute Engine (LCE) model evaluation MUST rely on official Python Apple MLX frameworks (`mlx_lm` and `mlx_vlm`) in `backend/inference/mlx_engine.py`. Custom out-of-tree C++ inference runners for model evaluation are forbidden on Apple Silicon to prevent Metal GPU command buffer panics and VRAM leaks. For Windows, Linux, and NVIDIA CUDA environments, cross-platform inference backends (e.g., `llama.cpp` bindings or CUDA PyTorch/vLLM adapters) are supported via `local_bridge.py`.
 
 3. **System Description & Communication Directive:**
-   When asking about, describing, or writing documentation for the Alluci Sovereign Agent features, capabilities, or architecture, lead with **Sovereign Identity (`VerusID`), HITL Executive Security Governance, 4-Tier H-LSM Memory, Bio-Affective Computing (ACE), and Policy-Driven DAG Orchestration**. Do NOT surface low-level implementation caveats (such as C++ constraints or framework choices) in general feature descriptions unless explicitly requested.
+   When asking about, describing, or writing documentation for the Alluci Sovereign Agent features, capabilities, or architecture, lead with **Sovereign Identity (`VerusID`), HITL Executive Security Governance, Topological State Spaces $(W, X, G, N)$, $\mathcal{J}$-Space World Model, 4-Tier H-LSM Memory, Bio-Affective Computing (ACE), and Policy-Driven DAG Orchestration**. Do NOT surface low-level implementation caveats (such as C++ constraints or framework choices) in general feature descriptions unless explicitly requested.
 
 4. **Contextual Integrity:**
    Never assume standard configurations. Always verify via `config.json`, `hardware_scanner.py`, and `profiler.py` before making assumptions about model architectures or loading schemas.
@@ -43,7 +43,7 @@ Monitor your core system performance using this target metrics matrix:
 - **Speculative Acceptance Rate**: Percentage of tokens drafted by smaller tiers accepted by larger tiers. Warning Threshold: < 25%.
 
 **Protocol 5: Simplicial Boundary Nilpotence & Idempotent Fusion**
-All geometric state projections must adhere to Kepler Stella Octangula $S_8$ geometry, ensuring exact boundary operator composition nilpotence ($\partial_1 \circ \partial_2 = 0$, $B_1 B_2 = 0$), Idempotent Fusion Simplex projection ($F_n^1: \Pi \circ \Pi = \Pi$), and entropic arrow of time monotonicity ($H(X_n \mid X_1) \ge H(X_{n-1} \mid X_1) - \epsilon$).
+All geometric state projections must adhere to Kepler Stella Octangula $S_8$ geometry and $(W, X, \mathcal{J}, G, N)$ state space boundaries, ensuring exact boundary operator composition nilpotence ($\partial_1 \circ \partial_2 = 0$, $B_1 B_2 = 0$), Simplicial Chain-of-Thought (S-CoT) face verification, Idempotent Fusion Simplex projection ($F_n^1: \Pi \circ \Pi = \Pi$), and entropic arrow of time monotonicity ($H(X_n \mid X_1) \ge H(X_{n-1} \mid X_1) - \epsilon$).
 
 **Protocol 6: Frenet-Serret Trajectory Continuity & Curvature**
 All continuous thought trajectories $\gamma(t)$ must be tracked for geodesic velocity, acceleration, and curvature ($\kappa \le 5.0$), triggering emergency safe-halt ($g=0$) upon curvature snap or temperature rupture ($T > 0.8$).
@@ -53,3 +53,9 @@ Memory retrieval across H-LSM tiers must evaluate Schur complement hidden excurs
 
 **Protocol 8: DPO Preference Harvesting & Air-Gapped Distillation**
 Nightly dreaming cycles must harvest $(x, y_w, y_l)$ triplets from verified self-healing resolutions and quarantined AST anti-patterns without mutating base model weights.
+
+**Protocol 9: Discrete Barcode Clock Pacing & 1D Loop Gating**
+All cognitive state transitions, sub-agent task lifespans, and memory consolidation cycles must register birth/death intervals with the `TopologicalBarcodeClock` ($N \to N+1$). The Heartbeat Daemon must continuously verify that active 1D topological holes remain acyclic ($\beta_1 = 0$), triggering automated self-healing upon reasoning loop detection ($\beta_1 > 0$).
+
+**Protocol 10: $\mathcal{J}$-Space Counterfactual Simulation & Offline Dreaming**
+Multi-step planning DAGs and quiet-hours dreaming cycles must execute air-gapped rollouts through `JSpaceSimulator` with Kepler $S_8$ Dual-Tetrahedron Socratic Synthesis ($T_+ \cup T_- \to O_6$), harvesting verified $(x, y_w, y_l)$ preference triplets to `DPOTripletHarvester` before committing actions to the affordance convex hull ($G$).

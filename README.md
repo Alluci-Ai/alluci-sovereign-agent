@@ -187,6 +187,65 @@ The **Discrete Projection Kernel (DPK)** serves as the high-speed, zero-trust cr
 
 ---
 
+### Sovereign Topological State Spaces $(W, X, G, N)$ & $\mathcal{J}$-Space World Model
+
+The **Sovereign Topological State Space Subsystem** (`backend/topology/`) formalizes Alluci's cognitive reasoning into a mathematically bounded 5-tuple $(W, X, \mathcal{J}, G, N)$ governed by rigorous algebraic topology operators:
+
+```
+          ┌────────────────────────────────────────────────────────┐
+          │               W (World Data Space)                    │
+          └──────────────────────────┬─────────────────────────────┘
+                                     │  P: W × X → [0,1]
+                                     ▼  (Vietoris-Rips Filtration)
+          ┌────────────────────────────────────────────────────────┐
+          │         X (Experience Simplicial Space)                │
+          │         [Betti Invariants: β₀, β₁, β₂, β₃]             │
+          └──────────────────────────┬─────────────────────────────┘
+                                     │  S: X × G × J → J
+                                     ▼  (Simplicial CoT & Socratic Synthesis)
+          ┌────────────────────────────────────────────────────────┐
+          │     J (J-Space Counterfactual Simulation Sandbox)      │
+          │     Kepler S₈ Synthesis: T₊ ∪ T₋ → O₆ Kernel          │
+          └──────────────────────────┬─────────────────────────────┘
+                                     │  D: J × G → [0,1]
+                                     ▼  (Convex Hull Affordance)
+          ┌────────────────────────────────────────────────────────┐
+          │         G (Action Affordance Envelope Space)           │
+          │         [3D Risk Simplex & Sub-Agent Bounds]           │
+          └──────────────────────────┬─────────────────────────────┘
+                                     │  A: G × W → [0,1]
+                                     ▼  (Markov Trace & DPO Harvesting)
+          ┌────────────────────────────────────────────────────────┐
+          │     N (Discrete Topological Barcode Clock Count)       │
+          │     [Monotonic Pacing: N → N+1, Birth/Death Tracking]  │
+          └────────────────────────────────────────────────────────┘
+```
+
+#### 1. Foundational State Spaces $(W, X, \mathcal{J}, G, N)$
+- **$W$ (World Data Space):** Continuous, unbounded environmental data streams, real-time biometrics, user messages, file system inputs, and raw knowledge graphs.
+- **$X$ (Experience Simplicial Complex Space):** Invariant simplicial complexes and Betti topological numbers ($\beta_0, \beta_1, \beta_2, \beta_3$) generated from $W$ via Vietoris-Rips simplicial filtration at scale radius $\epsilon$.
+- **$\mathcal{J}$ ($\mathcal{J}$-Space Counterfactual Simulation Sandbox):** Air-gapped mental sandbox executing multi-step predictive rollouts, Simplicial Chain-of-Thought (S-CoT) boundary verification, and Socratic dialectic synthesis before committing actions to external environments.
+- **$G$ (Action Affordance Envelope Space):** Convex hull boundary defining permissible action vectors, tool invocations, and sub-agent capability bounds on a 3D spatial risk coordinate simplex.
+- **$N$ (Discrete Barcode Clock Count):** Monotonic discrete clock count tracking topological feature births ($b$), deaths ($d$), lifetime persistence, and active Betti numbers across all cognitive cycles.
+
+#### 2. The Four Foundational Algebraic Operators $(P, S, D, A)$
+- **Perceive ($P: W \times X \to [0, 1]$ / `PMETFiltrationEngine`):** Samples multi-dimensional point clouds from $W$, constructs Vietoris-Rips complexes up to 2-skeleton (triangular faces), and extracts exact Betti invariants ($\beta_0$ connected components, $\beta_1$ 1-skeleton cycles, $\beta_2$ 2-voids).
+- **Simulate ($S: X \times G \times \mathcal{J} \to \mathcal{J}$ / `JSpaceSimulator`):** Evaluates multi-step counterfactual simulation traces, validating deductive reasoning steps as 2-simplices to ensure algebraic boundary nilpotence ($\partial_1 \circ \partial_2 = 0$). Reconciles constructive hypotheses ($T_+$) and critical skeptic critiques ($T_-$) into the central intersection kernel ($O_6$).
+- **Decide ($D: \mathcal{J} \times G \to [0, 1]$ / `ActionAffordanceEnvelope`):** Validates candidate execution vectors against sub-agent domain boundaries (Codi, Rocco, Admin) and bio-affective stress thresholds ($\psi \le 0.85$), ensuring destructive tasks are strictly intercepted by HITL governance.
+- **Act ($A: G \times W \to [0, 1]$ / `MarkovTraceEngine` & `DPOTripletHarvester`):** Executes verified actions, evaluates multi-step trajectories using the Schur complement Markov Trace operator ($\text{Tr}_A(P) = A + B(I-C)^{-1}D$), monitors Frenet-Serret curvature ($\kappa \le 5.0$), and records verified $(x, y_w, y_l)$ preference triplets for offline distillation.
+
+#### 3. Simplicial Chain-of-Thought (S-CoT) & Boundary Nilpotence
+- **Triadic Deductive Simplices:** Represents reasoning triads (Premise A, Premise B $\implies$ Conclusion C) as oriented 2-simplices $\sigma = [V_0, V_1, V_2]$.
+- **Algebraic Nilpotence Verification:** Enforces exact boundary composition nilpotence ($\partial_1 \circ \partial_2 = 0$) on code/tool execution DAGs, eliminating circular dependencies, self-referential tautologies, and hallucinated reasoning loops.
+- **Elastic Conversational Relaxation:** Applies adaptive topological relaxation during open-ended creative dialogue to permit high-temperature associative leaps without triggering premature safe-halts.
+
+#### 4. Thread-Safe Topological Barcode Clock (`TopologicalBarcodeClock`)
+- **Discrete Pacing Primitive:** Provides a synchronized discrete clock count ($N \to N+1$) that paces H-LSM memory decay, PCL world model snapshots, and Heartbeat diagnostic orders.
+- **Persistence Interval Tracking:** Computes feature lifespans $\Delta N = d - b$ for memories, goals, and sub-agent trajectories.
+- **Active 1D Topological Hole Detection:** Evaluates active Betti numbers ($\beta_1$ count); if $\beta_1 > 0$ during sub-agent execution, detects circular reasoning loops and triggers corrective self-healing.
+
+---
+
 ### Action Verification Loop (AVL Gate)
 
 The **Action Verification Loop (AVL Gate)** serves as Alluci’s zero-trust safety and payload verification engine. Functioning as an inline firewall between LLM generation outputs and tool execution adapters, the AVL Gate enforces a mathematical three-pillar security protocol. It prevents unauthorized code execution, prompt injections, and structural hallucinations by verifying cryptographic attribution, gradient smoothness limits, and topological continuity before any action payload is committed.
@@ -362,6 +421,12 @@ The **Executive Orchestrator** serves as Alluci’s high-level planning and task
 #### Hierarchical DAG Planner
 - **Directed Acyclic Graph Decomposition:** Parses multi-agent goals into Directed Acyclic Graphs (DAGs). Sub-tasks are dispatched in parallel across specialized worker agents (e.g., Deep Research, Code Architect, Financial Analyst), dramatically accelerating execution speed for complex workflows.
 
+#### Topological Heartbeat Daemon & Standing Surveillance
+- **6-Path Proactive Plane:** Operates continuous background diagnostic sweeps (`task_deadline`, `file_watch`, `goal_progress`, `url_fetch`, `system_health`, `bridge_silence`, `subagent_loop`, `topological_drift`).
+- **Discrete Barcode Clock Synchrony:** Paced on every iteration by `barcode_clock.tick()` ($N \to N+1$).
+- **1D Reasoning Loop Detection:** Continuously probes active Betti invariants; detects circular sub-agent execution loops when $\beta_1 > 0$ and triggers automated self-healing.
+- **Quiet-Hours Counterfactual Dreaming:** Runs offline perturbation simulations in `JSpaceSimulator` during low-load windows ($22:00–07:00$), persisting verified recovery triplets to `DPOTripletHarvester`.
+
 #### Supervisor Agent Context Compression
 - **Token Optimization & Bloat Prevention:** The `SupervisorAgent` condenses verbose worker node outputs into dense "Sovereign Context Tokens" before passing state to downstream nodes in the DAG, preventing context-window bloat and maximizing token efficiency.
 
@@ -426,10 +491,11 @@ Alluci utilizes a specialized "Training Sandbox" mode that leverages the Unsloth
 
 ### 6. The "Dream" Cycle & Autonomous Evolution
 When the system detects low cognitive load (you are asleep or away), the daemon halts external polling and reallocates 100% of hardware resources to internal evolution:
-- **5-Stage Nightly Evolution Pipeline:** 1) Extraction (Episodic memories, PCL world model snapshot, ACE baseline, quarantine pool), 2) Teacher Synthesis (air-gapped local 31B Dense model instruction pair synthesis), 3) Verification, 4) Cognitive Distillation (Socratic questioning of episodic logs into permanent Semantic Truths), and 5) Preference Harvesting.
-- **Direct Preference Optimization (DPO) Harvesting (`dpo_harvester.py`):** Automatically harvests teacher-student preference triplets $(x, y_w, y_l)$ from:
+- **5-Stage Nightly Evolution Pipeline:** 1) Extraction (Episodic memories, PCL world model snapshot, ACE baseline, quarantine pool), 2) Offline $\mathcal{J}$-Space Counterfactual Rollouts (`j_space_simulator.py`) simulating boundary recovery, 3) Teacher Synthesis (air-gapped local 31B Dense model instruction pair synthesis), 4) Cognitive Distillation (Socratic questioning of episodic logs into permanent Semantic Truths), and 5) Preference Harvesting.
+- **Direct Preference Optimization (DPO) Harvesting (`dpo_harvester.py`, `markov_trace.py`):** Automatically harvests teacher-student preference triplets $(x, y_w, y_l)$ from:
   1. *H-LSM Self-Healing Deltas:* Resolved failure-to-healing plan pairs (`failed_plan` $\to$ `successful_plan`).
   2. *Quarantined AST Anti-Patterns:* Quarantined execution traces (`reverted_code` $\to$ `repaired_code`).
+  3. *Offline $\mathcal{J}$-Space Dream Traces:* Counterfactual perturbation simulations verifying state projection recovery onto the $O_6$ convex kernel.
 - **Analytical Softplus DPO Loss:** Evaluates model preference margin using analytical softplus loss:
   $$\mathcal{L}_{\text{DPO}} = \ln\left(1 + \exp\left(-\beta \left[(\log \pi_\theta(y_w \mid x) - \log \pi_{\text{ref}}(y_w \mid x)) - (\log \pi_\theta(y_l \mid x) - \log \pi_{\text{ref}}(y_l \mid x))\right]\right)\right)$$
   persisting atomic JSONL preference datasets for local LoRA adapter fine-tuning without mutating immutable base model weights.
