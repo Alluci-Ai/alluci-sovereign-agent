@@ -22,6 +22,7 @@ Alluci Sovereign Agent: A self-hosted, biometric-aware AI executive assistant wi
 8. **WebSocket Session Authentication & Real-Time Sync:** All WebSocket endpoints must execute `authenticate_ws(websocket, token)` and synchronize live administrative events (`manifold.pvt`, `security.resolution_required`, `memory.deleted`).
 9. **Secure iOS/Watch Token Storage:** Swift session tokens must be saved in Keychain (`SecItemAdd`), never `UserDefaults`.
 10. **HITL Security Interception & Protocol 3 Escalation:** Critical action endpoints (memory purges, schema changes, OS operations, financial operations) and Protocol 3 Lipschitz saturated violations ($\ge 3$ strikes) must trigger `SecurityInterventionModal.tsx` for explicit sovereign authorization.
+11. **Standardized Artifact Storage & Triad Bundle Law:** All generated user artifacts (presentations, documents, research reports, deliverables) MUST be written to `workspace/artifacts/<category>/YYYY-MM-DD_<artifact_slug>/` as an atomic 3-file bundle (`metadata.json`, `source.md`, `source.html`). NEVER write generated user deliverables or presentations into `Documentation/` (reserved exclusively for system documentation) or the workspace root.
 
 ## 5-Tier Local Cognitive Engine (LCE) Precision Matrix
 - **`TIER_0_ULTRA` ($\ge 96\text{ GB}$ VRAM/RAM):** `Alluci/alluci-polytope-gemma-4-31b-it-bf16`

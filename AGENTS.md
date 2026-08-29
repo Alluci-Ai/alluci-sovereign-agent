@@ -42,6 +42,9 @@ This document defines the immutable operational directives, zero-trust safety la
 12. **XcodeBuildMCP Tool Directive:**
     If using XcodeBuildMCP, use the installed XcodeBuildMCP skill before calling XcodeBuildMCP tools.
 
+13. **Standardized Artifact Storage & Triad Bundle Law:**
+    All generated user artifacts (presentations, research dossiers, deliverables, documents) MUST be persisted in `workspace/artifacts/<category>/YYYY-MM-DD_<slug>/` as an atomic triad (`metadata.json`, `source.md`, `source.html`). Generated artifacts must NEVER be stored in `Documentation/` (which is reserved exclusively for developer architecture guides) or the repository root.
+
 ---
 
 ## 🛠️ System Telemetry & Maintenance Protocols

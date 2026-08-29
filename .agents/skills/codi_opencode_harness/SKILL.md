@@ -56,3 +56,26 @@ $$\text{User Request} \longrightarrow \text{LSP Diagnostic Scan} \longrightarrow
 1. If tests pass cleanly, mark the task record as `STATUS: SUCCESS_VERIFIED` in `hlsm_episodic` so it feeds the overnight Dreaming Cycle and LoRA Forge.
 2. If tests fail or the user cancels, revert immediately via `git apply --reverse reverse_patch.diff` and quarantine the trajectory in `models/quarantine/`.
 3. Render the persistent `CodiRollbackCard` on the UI.
+
+---
+
+## 4. Artifact Storage Architecture & Taxonomy Guidelines
+
+Whenever Codi generates presentations, documents, research reports, or user deliverables, it MUST strictly adhere to the standardized workspace artifact taxonomy:
+
+### Target Directory Taxonomy
+- **Base Root Path:** `workspace/artifacts/<category>/YYYY-MM-DD_<artifact_slug>/`
+- **Permitted Categories:**
+  - `presentations/` — Presentation slide decks, executive visual overviews, interactive decks.
+  - `documents/` — Executive memos, strategy documents, technical summaries.
+  - `research/` — Deep research reports, market intelligence dossiers.
+  - `deliverables/` — Exportable client/board assets and code packages.
+
+### Mandatory 3-File Artifact Bundle Triad
+Every artifact directory must be an atomic, self-contained bundle consisting of:
+1. **`metadata.json`**: Typed catalog metadata (`artifact_id`, `title`, `category`, `created_at`).
+2. **`source.md`**: Clean, semantic markdown text containing headers and body content for LLM ingestion, H-LSM semantic indexing (RAG), and terminal reading.
+3. **`source.html`**: Interactive, styled presentation or document with responsive layout, custom typography, and glassmorphism styling for rendering in the UI Artifact Panel.
+
+### Strict Negative Laws for Artifacts
+- **NO Artifacts in `Documentation/`:** `Documentation/` is reserved **strictly and exclusively** for repository/system developer documentation, compliance guides, and API manuals. Codi is strictly forbidden from writing user-generated artifacts or presentations into `Documentation/` or the repository root.

@@ -21,6 +21,9 @@
 7. **No Unsanctioned Service Restarts (Explicit Confirmation Required):**
    You are STRICTLY FORBIDDEN from automatically running `make restart`, `make stop`, `make start`, `pkill`, or killing processes on ports 8000/3000. You MUST ask for explicit user confirmation before executing any service restart commands so the user can save their work and restart on their own terms without losing active Web UI chat sessions.
 
+8. **Standardized Artifact Storage & Triad Bundle Law:**
+   All generated user artifacts (presentations, research dossiers, deliverables, documents) MUST be persisted in `workspace/artifacts/<category>/YYYY-MM-DD_<slug>/` as an atomic triad (`metadata.json`, `source.md`, `source.html`). Generated artifacts must NEVER be stored in `Documentation/` (which is reserved exclusively for developer architecture guides) or the repository root.
+
 ---
 ## Maintenance Protocols & System Telemetry
 
