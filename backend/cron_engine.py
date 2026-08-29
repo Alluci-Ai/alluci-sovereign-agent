@@ -190,11 +190,14 @@ class CronEngine:
 
         try:
             from .engine.lora_forge import LoRAForge, VRAMHypervisor
+            from .engine.dpo_harvester import DPOHarvester
+
+            dpo_harvester = DPOHarvester()
 
             # ═══════════════════════════════════════════════════════════════
-            # STEP 1: EXTRACTION  (H-LSM + PCL + ACE)
+            # STEP 1: EXTRACTION  (H-LSM + PCL + ACE + DPO)
             # ═══════════════════════════════════════════════════════════════
-            logger.info("[ DREAMING CYCLE ] Step 1/4: Extracting memories, world model, and affective state...")
+            logger.info("[ DREAMING CYCLE ] Step 1/5: Extracting memories, world model, affective state, and DPO preferences...")
 
             # 1a. H-LSM: Fetch recent episodic memories (the day's interactions)
             recent_memories = await hlsm.l1_get_recent(limit=50)
@@ -267,6 +270,11 @@ class CronEngine:
                         except Exception:
                             continue
 
+            # 1f. Harvest DPO Preference Triplets (x, y_w, y_l)
+            dpo_healing_pairs = dpo_harvester.harvest_from_healing(healing_contents)
+            dpo_quarantine_pairs = dpo_harvester.harvest_from_quarantine(quarantine_contents)
+            dpo_all_pairs = dpo_healing_pairs + dpo_quarantine_pairs
+
             # Check if there is enough material to learn from
             total_entries = len(episodic_contents) + len(healing_contents) + len(quarantine_contents)
             if total_entries < 3:
@@ -279,13 +287,14 @@ class CronEngine:
             logger.info(
                 f"[ DREAMING CYCLE ] Extracted {len(episodic_contents)} episodic memories, "
                 f"{len(healing_contents)} self-healing deltas, {len(quarantine_contents)} quarantined anti-patterns, "
+                f"{len(dpo_all_pairs)} DPO preference pairs, "
                 f"PCL world model: {'available' if world_model_summary else 'unavailable'}"
             )
 
             # ═══════════════════════════════════════════════════════════════
             # STEP 2: SYNTHESIS  (31B Dense Teacher Model)
             # ═══════════════════════════════════════════════════════════════
-            logger.info("[ DREAMING CYCLE ] Step 2/4: Synthesizing instruction pairs via Teacher model...")
+            logger.info("[ DREAMING CYCLE ] Step 2/5: Synthesizing instruction pairs via Teacher model...")
 
             # Build the Teacher synthesis prompt from extracted data
             memory_block = "\n".join([
@@ -373,7 +382,7 @@ class CronEngine:
             # ═══════════════════════════════════════════════════════════════
             # STEP 3: VERIFICATION  (PPN → DPK → AVL)
             # ═══════════════════════════════════════════════════════════════
-            logger.info("[ DREAMING CYCLE ] Step 3/4: Verifying synthesized knowledge through PPN/DPK/AVL...")
+            logger.info("[ DREAMING CYCLE ] Step 3/5: Verifying synthesized knowledge through PPN/DPK/AVL...")
 
             verified_pairs: List[Dict[str, Any]] = []
             rejected_count = 0
@@ -410,8 +419,7 @@ class CronEngine:
                         rejected_count += 1
                         logger.debug(f"[ DREAMING CYCLE ] Verification error for pair: {e}")
             else:
-                # If PPN/DPK/AVL subsystems are not available (e.g. missing sentence-transformers),
-                # pass all pairs through with a warning
+                # If PPN/DPK/AVL subsystems are not available, pass pairs with warning
                 logger.warning(
                     "[ DREAMING CYCLE ] PPN/DPK/AVL subsystems unavailable. "
                     "Passing all pairs through without topological verification."
@@ -428,15 +436,14 @@ class CronEngine:
                 return
 
             # ═══════════════════════════════════════════════════════════════
-            # STEP 4: FORGING  (LoRAForge)
+            # STEP 4: FORGING & DPO ADAPTERS  (LoRAForge)
             # ═══════════════════════════════════════════════════════════════
             logger.info(
-                f"[ DREAMING CYCLE ] Step 4/4: Forging {len(verified_pairs)} verified pairs "
-                "into 12B Student model weights..."
+                f"[ DREAMING CYCLE ] Step 4/5: Forging {len(verified_pairs)} verified pairs "
+                "into 12B Student model weights and DPO datasets..."
             )
 
             # Separate into new (today's) and historical (replay buffer) data
-            # Use the older half as historical archive for Experience Replay mixing
             midpoint = max(1, len(verified_pairs) // 2)
             new_data = verified_pairs[:midpoint]
             historical_data = verified_pairs[midpoint:]
@@ -462,13 +469,31 @@ class CronEngine:
                 elif any(kw in domain_lower for kw in ["creative", "write", "story", "design"]):
                     domain = "creative"
 
+            # Persist DPO dataset
+            if dpo_all_pairs:
+                try:
+                    dpo_harvester.save_preference_dataset(dpo_all_pairs, f"{domain}_dpo")
+                except Exception as e:
+                    logger.warning(f"[ DREAMING CYCLE ] Failed to persist DPO dataset: {e}")
+
             forge = LoRAForge(settings=getattr(services, "settings", None))
             await forge.forge_knowledge(domain, new_data, historical_data)
+
+            # ═══════════════════════════════════════════════════════════════
+            # STEP 5: MEMORY DISTILLATION & CONSOLIDATION SWEEP
+            # ═══════════════════════════════════════════════════════════════
+            logger.info("[ DREAMING CYCLE ] Step 5/5: Executing H-LSM consolidation sweep and Markov Trace recalculation...")
+            try:
+                sweep_results = await hlsm.consolidation_sweep()
+                logger.info(f"[ DREAMING CYCLE ] H-LSM Consolidation complete: {sweep_results}")
+            except Exception as e:
+                logger.warning(f"[ DREAMING CYCLE ] H-LSM consolidation sweep warning: {e}")
 
             logger.info(
                 f"[ DREAMING CYCLE ] Complete. Domain={domain}, "
                 f"Synthesized={len(synthetic_pairs)}, Verified={len(verified_pairs)}, "
-                f"Rejected={rejected_count}, Forged={len(new_data)}+{len(historical_data)} pairs."
+                f"Rejected={rejected_count}, DPO_Pairs={len(dpo_all_pairs)}, "
+                f"Forged={len(new_data)}+{len(historical_data)} pairs."
             )
 
         except ImportError as e:
