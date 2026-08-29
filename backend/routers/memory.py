@@ -51,18 +51,24 @@ async def delete_memory_entry(request: Request, entry_id: str, csrf_protect: Csr
     from ..models import HLSMEpisodicEntry, HLSMWorkingEntry
     from ..database import engine
     
+    fallback_deleted = False
     try:
         with Session(engine) as session:
-            base_id = entry_id.replace("l2_", "").replace("l3_", "").replace("l0_", "")
+            base_id = entry_id.replace("l3_", "").replace("l2_", "").replace("l1_", "").replace("l0_", "")
             entries = session.exec(select(HLSMEpisodicEntry).where((col(HLSMEpisodicEntry.id) == base_id) | (col(HLSMEpisodicEntry.id).like(f"%{base_id}%")))).all()
             for e in entries:
                 session.delete(e)
+                fallback_deleted = True
             work_entries = session.exec(select(HLSMWorkingEntry).where((col(HLSMWorkingEntry.id) == base_id) | (col(HLSMWorkingEntry.id).like(f"%{base_id}%")))).all()
             for w in work_entries:
                 session.delete(w)
+                fallback_deleted = True
             session.commit()
     except Exception as e:
         logger.error(f"Fallback deletion error: {e}")
+
+    if not success and not fallback_deleted:
+        raise HTTPException(status_code=404, detail="Memory entry not found")
 
     return {"status": "SUCCESS"}
 
@@ -86,15 +92,27 @@ async def pin_memory(entry_id: str, request: Request, data: Dict[str, Any] = Bod
     from sqlmodel import Session
     from ..models import HLSMEpisodicEntry
     from ..database import engine
+    import json
     
     with Session(engine) as session:
         entry = session.get(HLSMEpisodicEntry, entry_id)
         if not entry:
             raise HTTPException(status_code=404, detail="Memory not found")
         
-        metadata = dict(entry.extra_metadata) if entry.extra_metadata else {}
+        is_str = False
+        if isinstance(entry.extra_metadata, str):
+            is_str = True
+            try:
+                metadata = json.loads(entry.extra_metadata)
+            except Exception:
+                metadata = {}
+        elif isinstance(entry.extra_metadata, dict):
+            metadata = dict(entry.extra_metadata)
+        else:
+            metadata = {}
+            
         metadata["pinned"] = data.get("is_pinned", True)
-        entry.extra_metadata = metadata
+        entry.extra_metadata = json.dumps(metadata) if is_str else metadata
         session.add(entry)
         session.commit()
     return {"status": "SUCCESS"}
@@ -105,15 +123,27 @@ async def tag_memory(entry_id: str, request: Request, data: Dict[str, Any] = Bod
     from sqlmodel import Session
     from ..models import HLSMEpisodicEntry
     from ..database import engine
+    import json
     
     with Session(engine) as session:
         entry = session.get(HLSMEpisodicEntry, entry_id)
         if not entry:
             raise HTTPException(status_code=404, detail="Memory not found")
         
-        metadata = dict(entry.extra_metadata) if entry.extra_metadata else {}
+        is_str = False
+        if isinstance(entry.extra_metadata, str):
+            is_str = True
+            try:
+                metadata = json.loads(entry.extra_metadata)
+            except Exception:
+                metadata = {}
+        elif isinstance(entry.extra_metadata, dict):
+            metadata = dict(entry.extra_metadata)
+        else:
+            metadata = {}
+
         metadata["tags"] = data.get("tags", [])
-        entry.extra_metadata = metadata
+        entry.extra_metadata = json.dumps(metadata) if is_str else metadata
         session.add(entry)
         session.commit()
     return {"status": "SUCCESS"}

@@ -153,13 +153,13 @@ async def _intercept_memory_deletion_request(prompt: str) -> Optional[str]:
         return None  # Bypass memory interceptor completely!
 
     # Guard 2: Flexible Regex Intent Matching for Memory Purge Requests
-    purge_regex = r'\b(delete|purge|scrub|clear|forget|wipe|remove)\b.*\b(memor(y|ies)|h-lsm|imessage|signal|slack|telegram|whatsapp)\b'
+    purge_regex = r'\b(delete|purge|scrub|clear|forget|wipe|remove)\b.*\b(memor(y|ies)|h-lsm|imessage|signal|slack|telegram|whatsapp|email)\b'
     if not re.search(purge_regex, body_lower):
         return None
 
     # Pattern Extraction: Extract channel tags, phone numbers, or target filters
     channel_tag = ""
-    tag_match = re.search(r'\[(IMESSAGE|SIGNAL|SLACK|TELEGRAM|WHATSAPP|SMS)\]', prompt, re.IGNORECASE)
+    tag_match = re.search(r'\[(IMESSAGE|SIGNAL|SLACK|TELEGRAM|WHATSAPP|SMS|EMAIL)\]', prompt, re.IGNORECASE)
     if tag_match:
         channel_tag = f"[{tag_match.group(1).upper()}]"
 

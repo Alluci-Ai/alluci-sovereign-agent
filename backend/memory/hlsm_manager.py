@@ -944,7 +944,7 @@ class HLSMManager:
         """
         deleted = False
         base_id = entry_id
-        if base_id.startswith("l2_") or base_id.startswith("l3_") or base_id.startswith("l0_"):
+        if base_id.startswith("l0_") or base_id.startswith("l1_") or base_id.startswith("l2_") or base_id.startswith("l3_"):
             base_id = base_id[3:]
 
         # 0. Delete from L0 SQL database (Working Memory)
