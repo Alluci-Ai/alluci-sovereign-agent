@@ -432,17 +432,38 @@ Here is what Rocco will be executing across our Deep Research pipeline:
             self.logger.error(f"[Orchestrator] Auto-dispatch attempt failed: {e}")
             return None
 
+    @staticmethod
+    def _is_emergency_abort_signal(prompt: str) -> bool:
+        """
+        Checks if a user message is an explicit, imperative emergency abort command.
+        Avoids false positives on long technical prompts or documents containing words like 'halt' or 'execution'.
+        """
+        cleaned = prompt.strip().lower()
+        if not cleaned:
+            return False
+
+        # If the message is long (> 160 chars), it is a prompt/document/code, not a direct emergency abort command
+        if len(cleaned) > 160 and not cleaned.startswith(("/abort", "!abort", "/stop", "!stop", "/cancel", "!cancel")):
+            return False
+
+        import re
+        explicit_abort_patterns = [
+            r'^(stop|cancel|abort|halt|terminate|kill)\s+(the\s+)?(dag|run|task|research|pipeline|execution|system|all)\b',
+            r'^(please\s+)?(stop|cancel|abort|halt|terminate|kill)\s+(the\s+)?(dag|run|task|research|pipeline|execution|all)\b',
+            r'^emergency\s+(stop|abort|halt)\b',
+            r'^/(abort|stop|cancel|kill)\b',
+            r'^!(abort|stop|cancel|kill)\b',
+            r'^(stop|cancel|abort)\s+alluci\b',
+            r'^(stop|abort)\s+now\b',
+        ]
+        return any(bool(re.search(p, cleaned, re.IGNORECASE)) for p in explicit_abort_patterns)
+
     async def handle_user_message(self, prompt: str) -> Optional[str]:
         """
         Handle direct user message input from web API / Gemini router.
         Checks for emergency abort commands or auto-dispatches actionable objectives.
         """
-        body_lower = prompt.lower().strip()
-        cancellation_keywords = ["stop", "cancel", "abort", "halt", "terminate"]
-        is_abort_signal = any(ck in body_lower for ck in cancellation_keywords) and any(
-            w in body_lower for w in ["dag", "run", "research", "pipeline", "execution"]
-        )
-        if is_abort_signal:
+        if self._is_emergency_abort_signal(prompt):
             try:
                 from sqlmodel import select, col
                 from .models import Run, RunStatus, TaskRecord, TaskStatus
@@ -597,12 +618,7 @@ Here is what Rocco will be executing across our Deep Research pipeline:
                     return
 
             # ── Emergency Abort Signal Interceptor ──────────────────────────
-            abort_keywords = ["stop dag", "stop the dag", "cancel run", "abort run", "stop research", "stop this deep research", "stop deep research", "cancel research", "abort research", "halt run", "stop the run", "stop active run", "cancel the dag", "stop the dag run", "stop execution", "halt execution"]
-            is_abort_signal = any(ak in body_lower for ak in abort_keywords) or (
-                any(sw in body_lower for sw in ["stop", "cancel", "abort", "halt", "terminate"]) and
-                any(rw in body_lower for rw in ["research", "dag", "run", "pipeline", "execution"])
-            )
-            if is_abort_signal:
+            if self._is_emergency_abort_signal(body):
                 self.logger.info(f"[Orchestrator] Emergency Abort Signal detected in message: '{body}'")
                 try:
                     from sqlmodel import select, col
