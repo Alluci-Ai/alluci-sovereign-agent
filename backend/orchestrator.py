@@ -1029,10 +1029,13 @@ Here is what Rocco will be executing across our Deep Research pipeline:
             if hasattr(self, 'ws_gateway') and self.ws_gateway:
                 try:
                     pvt = health_report.get("pvt", {})
+                    traj = health_report.get("trajectory", {})
                     await self.ws_gateway.broadcast_event('manifold.pvt', {
                         "P": pvt.get("P", 0.0),
                         "V": pvt.get("V", 1.0),
                         "T": pvt.get("T", 0.0),
+                        "curvature": traj.get("curvature", 0.0),
+                        "trajectory": traj,
                         "psi": health_report.get("psi", 0.0),
                         "coherence": health_report.get("coherence", 0.0),
                         "status": health_report["status"],

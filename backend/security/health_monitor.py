@@ -1,35 +1,52 @@
+import numpy as np
 from ..logging_config import get_logger
 from typing import Dict, Any, Optional, List
 from .dpk import PolytopeState
+from .trajectory import TrajectoryTracker
 
 logger = get_logger("HealthMonitor")
+
 
 class PVTManifoldHealthMonitor:
     """
     PVT Manifold Health Monitor.
     Source: AAP §PVT — health_check.cpp::eval_state()
 
-    Evaluates the three-layer health of the agent using spec-compliant formulas:
+    Evaluates the three-layer thermodynamic health of the agent:
       - Pressure (P): Constraint density / admissible volume
       - Volume (V): Hyper-volume of the admissible polytope (agency)
-      - Temperature (T): Entropy spike / Betti stability metric
+      - Temperature (T): Entropy spike, Betti stability, and Frenet-Serret curvature
     """
     RUPTURE_THRESHOLD = 0.8  # T above this = manifold rupture
+    CRITICAL_CURVATURE = 5.0 # κ above this = geometric trajectory rupture
 
     def __init__(self):
         self._prev_betti: Optional[List[float]] = None
         self._prev_coherence: Optional[float] = None
         self._last_pvt: Dict[str, float] = {"P": 0.0, "V": 1.0, "T": 0.0}
+        self.trajectory_tracker = TrajectoryTracker(critical_curvature=self.CRITICAL_CURVATURE)
 
-    def evaluate(self, state: PolytopeState) -> Dict[str, Any]:
+    def evaluate(self, state: PolytopeState, state_vector: Optional[Any] = None) -> Dict[str, Any]:
         """
-        Returns a health report with PVT triple and status: HEALTHY, WARN, or CRITICAL.
+        Returns a health report with PVT triple, trajectory kinematics, and status: HEALTHY, WARN, or CRITICAL.
 
         Formulas:
-          P = Active_Constraints / Admissible_Volume
+          P = Active_Constraints / (4.0 * Admissible_Volume)
           V = (1 - budget_used) × coherence
-          T = Δβ_norm + KL(P_t || P_{t-1})
+          T = Δβ_norm + KL(P_t || P_{t-1}) + 0.3 * κ_norm
         """
+        # === Trajectory Kinematics ===
+        if state_vector is not None:
+            self.trajectory_tracker.push_state(np.asarray(state_vector, dtype=np.float64))
+        elif state.stella_projection is not None:
+            self.trajectory_tracker.push_state(np.asarray(state.stella_projection, dtype=np.float64))
+        elif state.betti is not None:
+            self.trajectory_tracker.push_state(np.asarray(state.betti, dtype=np.float64))
+
+        traj_metrics = self.trajectory_tracker.get_last_metrics()
+        kappa = traj_metrics.get("curvature", 0.0)
+        kappa_norm = min(1.0, kappa / self.CRITICAL_CURVATURE) if self.CRITICAL_CURVATURE > 0 else 0.0
+
         # === Pressure: Constraint density ===
         # Active constraints = count of non-zero Betti numbers (topological features)
         active_constraints = sum(1 for b in state.betti if abs(b) > 0.5)
@@ -40,7 +57,7 @@ class PVTManifoldHealthMonitor:
         # === Volume: Available agency ===
         V = max(0.0, min(1.0, V_agency))
 
-        # === Temperature: Entropy spike detection ===
+        # === Temperature: Entropy spike & trajectory curvature detection ===
         T = 0.0
         if self._prev_betti is not None:
             # Δβ_norm: normalized Betti number shift
@@ -54,7 +71,8 @@ class PVTManifoldHealthMonitor:
             if self._prev_coherence is not None:
                 kl_proxy = abs(state.coherence - self._prev_coherence)
 
-            T = min(1.0, delta_b_norm + kl_proxy)
+            # Combined thermodynamic temperature
+            T = min(1.0, delta_b_norm + kl_proxy + (0.3 * kappa_norm))
 
         # Store state for temporal delta
         self._prev_betti = list(state.betti)
@@ -65,14 +83,24 @@ class PVTManifoldHealthMonitor:
         issues = []
         score = 1.0
 
-        # Temperature check (most critical)
-        is_ruptured = T > self.RUPTURE_THRESHOLD
-        if is_ruptured:
+        # Temperature & Curvature check (most critical)
+        is_temp_rupture = T > self.RUPTURE_THRESHOLD
+        is_curv_rupture = self.trajectory_tracker.is_ruptured()
+        is_ruptured = is_temp_rupture or is_curv_rupture
+
+        if is_temp_rupture:
             issues.append(f"Manifold Rupture: T={T:.3f} exceeds threshold {self.RUPTURE_THRESHOLD}")
             score *= 0.2
         elif T > 0.5:
             issues.append(f"Topological Instability: T={T:.3f}")
             score *= 0.6
+
+        if is_curv_rupture:
+            issues.append(f"Trajectory Curvature Rupture: κ={kappa:.2f} > {self.CRITICAL_CURVATURE}")
+            score *= 0.3
+        elif kappa > 2.0:
+            issues.append(f"High Geodesic Curvature: κ={kappa:.2f}")
+            score *= 0.85
 
         # Pressure check
         if P > 0.8:
@@ -107,7 +135,7 @@ class PVTManifoldHealthMonitor:
             score *= 0.9
 
         status = "HEALTHY"
-        if score < 0.4:
+        if score < 0.4 or is_ruptured:
             status = "CRITICAL"
         elif score < 0.8:
             status = "WARN"
@@ -118,6 +146,7 @@ class PVTManifoldHealthMonitor:
             "issues": issues,
             "phi_total": state.phi_total,
             "pvt": self._last_pvt,
+            "trajectory": traj_metrics,
             "is_ruptured": is_ruptured,
             "psi": state.affective_tension_psi,
             "coherence": state.coherence
@@ -125,7 +154,7 @@ class PVTManifoldHealthMonitor:
 
     def is_ruptured(self) -> bool:
         """Check if the last evaluation detected a manifold rupture."""
-        return self._last_pvt.get("T", 0.0) > self.RUPTURE_THRESHOLD
+        return (self._last_pvt.get("T", 0.0) > self.RUPTURE_THRESHOLD) or self.trajectory_tracker.is_ruptured()
 
     def get_last_pvt(self) -> Dict[str, float]:
         """Return the most recent PVT triple for WebSocket push."""
