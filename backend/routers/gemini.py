@@ -630,7 +630,7 @@ async def gemini_proxy(
     decomposer = IntentDecomposer()
     parsed_intent = decomposer.decompose(prompt)
 
-    effective_prompt = _process_attached_files(prompt, files)
+    raw_user_prompt = _process_attached_files(prompt, files)
 
     try:
         # 1. Fast Memory Deletion Interceptor Check (< 5ms)
@@ -639,22 +639,19 @@ async def gemini_proxy(
             return {"result": mem_purge_reply}
 
         # 2. Fast Local Hard Drive & Workspace File / Report Reader Check (< 50ms)
-        local_file_or_report = await _check_local_workspace_file_or_report(effective_prompt)
+        local_file_or_report = await _check_local_workspace_file_or_report(raw_user_prompt)
         if local_file_or_report:
             return {"result": local_file_or_report}
 
         # 3. Dynamic Web Search Grounding Check (< 500ms)
-        web_grounding = await _check_web_search_grounding(effective_prompt)
-        if web_grounding:
-            effective_prompt = f"{effective_prompt}\n\n{web_grounding}"
+        web_grounding = await _check_web_search_grounding(raw_user_prompt)
 
         # 4. Dynamic Codebase & Architecture Grounding Check (< 15ms)
-        code_grounding = await _check_codebase_and_architecture_context(effective_prompt)
-        if code_grounding:
-            effective_prompt = f"{effective_prompt}\n\n[LIVE CODEBASE & ARCHITECTURE GROUNDING]:\n{code_grounding}"
+        code_grounding = await _check_codebase_and_architecture_context(raw_user_prompt)
 
         # 5. Dynamic 4-Tier H-LSM Context Hydration across L1/L2/L3 (Tri-Hybrid RRF)
-        if hasattr(services, "hlsm_manager") and services.hlsm_manager:
+        memory_block = ""
+        if hasattr(services, "hlsm_manager") and services.hlsm_manager and parsed_intent.intent_type != IntentType.SYSTEM_INTROSPECTION:
             try:
                 psi = 0.0
                 if hasattr(services, "ace") and services.ace:
@@ -666,10 +663,32 @@ async def gemini_proxy(
                     session_key=session_id or "web_chat"
                 )
                 memory_block = memory_ctx.to_prompt_block()
-                if memory_block and memory_block not in effective_prompt:
-                    effective_prompt = f"{effective_prompt}\n\n{memory_block}"
             except Exception as mem_err:
                 logger.debug(f"[GeminiRouter] Dynamic H-LSM hydration notice: {mem_err}")
+
+        # Construct Authoritative 3-Tier Grounded Prompt
+        grounding_blocks = []
+        if web_grounding:
+            grounding_blocks.append(f"[WEB SEARCH GROUNDING DATA]:\n{web_grounding}")
+        if code_grounding:
+            grounding_blocks.append(f"[AUTHENTIC DISK GROUNDING & MANIFESTS]:\n{code_grounding}")
+        if memory_block:
+            grounding_blocks.append(f"[RECALLED H-LSM MEMORY CONTEXT]:\n{memory_block}")
+
+        if grounding_blocks:
+            combined_grounding = "\n\n".join(grounding_blocks)
+            effective_prompt = (
+                f"### USER DIRECTIVE / QUESTION:\n"
+                f"{raw_user_prompt.strip()}\n\n"
+                f"--- REFERENCE GROUNDING CONTEXT (Use strictly as factual reference to answer the User Directive above) ---\n"
+                f"{combined_grounding}\n"
+                f"--- END OF REFERENCE CONTEXT ---\n\n"
+                f"INSTRUCTION: Answer the User Directive directly, completely, and accurately using the verified Reference Grounding Context above.\n"
+                f"- If the user asks to list and explain all Skills and Tools, enumerate and explain all 14 Skills and 15 Tools from the Authentic Manifests.\n"
+                f"- Never drift into unrelated mathematical formulas, past conversations, or background text unless explicitly requested in the User Directive."
+            )
+        else:
+            effective_prompt = raw_user_prompt
 
         # 6. Fetch system context (lightweight capability index)
         system_instruction = ""
@@ -727,27 +746,24 @@ async def gemini_proxy_stream(
     decomposer = IntentDecomposer()
     parsed_intent = decomposer.decompose(prompt)
 
-    effective_prompt = _process_attached_files(prompt, files)
+    raw_user_prompt = _process_attached_files(prompt, files)
 
     try:
         # 1. Fast Memory Deletion Interceptor Check (< 5ms)
         mem_purge_reply = await _intercept_memory_deletion_request(prompt)
 
         # 2. Fast Local Hard Drive & Workspace File / Report Reader Check (< 50ms)
-        local_file_or_report = await _check_local_workspace_file_or_report(effective_prompt)
+        local_file_or_report = await _check_local_workspace_file_or_report(raw_user_prompt)
 
         # 3. Dynamic Web Search Grounding Check (< 500ms)
-        web_grounding = await _check_web_search_grounding(effective_prompt)
-        if web_grounding:
-            effective_prompt = f"{effective_prompt}\n\n{web_grounding}"
+        web_grounding = await _check_web_search_grounding(raw_user_prompt)
 
         # 4. Dynamic Codebase & Architecture Grounding Check (< 15ms)
-        code_grounding = await _check_codebase_and_architecture_context(effective_prompt)
-        if code_grounding:
-            effective_prompt = f"{effective_prompt}\n\n[LIVE CODEBASE & ARCHITECTURE GROUNDING]:\n{code_grounding}"
+        code_grounding = await _check_codebase_and_architecture_context(raw_user_prompt)
 
         # 5. Dynamic 4-Tier H-LSM Context Hydration across L1/L2/L3 (Tri-Hybrid RRF)
-        if hasattr(services, "hlsm_manager") and services.hlsm_manager:
+        memory_block = ""
+        if hasattr(services, "hlsm_manager") and services.hlsm_manager and parsed_intent.intent_type != IntentType.SYSTEM_INTROSPECTION:
             try:
                 psi = 0.0
                 if hasattr(services, "ace") and services.ace:
@@ -759,10 +775,32 @@ async def gemini_proxy_stream(
                     session_key=session_id or "web_chat"
                 )
                 memory_block = memory_ctx.to_prompt_block()
-                if memory_block and memory_block not in effective_prompt:
-                    effective_prompt = f"{effective_prompt}\n\n{memory_block}"
             except Exception as mem_err:
                 logger.debug(f"[GeminiRouter] Dynamic H-LSM hydration notice: {mem_err}")
+
+        # Construct Authoritative 3-Tier Grounded Prompt
+        grounding_blocks = []
+        if web_grounding:
+            grounding_blocks.append(f"[WEB SEARCH GROUNDING DATA]:\n{web_grounding}")
+        if code_grounding:
+            grounding_blocks.append(f"[AUTHENTIC DISK GROUNDING & MANIFESTS]:\n{code_grounding}")
+        if memory_block:
+            grounding_blocks.append(f"[RECALLED H-LSM MEMORY CONTEXT]:\n{memory_block}")
+
+        if grounding_blocks:
+            combined_grounding = "\n\n".join(grounding_blocks)
+            effective_prompt = (
+                f"### USER DIRECTIVE / QUESTION:\n"
+                f"{raw_user_prompt.strip()}\n\n"
+                f"--- REFERENCE GROUNDING CONTEXT (Use strictly as factual reference to answer the User Directive above) ---\n"
+                f"{combined_grounding}\n"
+                f"--- END OF REFERENCE CONTEXT ---\n\n"
+                f"INSTRUCTION: Answer the User Directive directly, completely, and accurately using the verified Reference Grounding Context above.\n"
+                f"- If the user asks to list and explain all Skills and Tools, enumerate and explain all 14 Skills and 15 Tools from the Authentic Manifests.\n"
+                f"- Never drift into unrelated mathematical formulas, past conversations, or background text unless explicitly requested in the User Directive."
+            )
+        else:
+            effective_prompt = raw_user_prompt
 
         system_instruction = ""
         orch = services.orchestrator
