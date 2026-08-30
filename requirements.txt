@@ -37,7 +37,7 @@ google-generativeai==0.8.3
 google-auth==2.34.0
 mlx>=0.29.0; sys_platform == "darwin"
 mlx-lm>=0.31.3; sys_platform == "darwin"
-mlx-vlm>=0.1.15; sys_platform == "darwin"
+mlx-vlm>=0.6.10; sys_platform == "darwin"
 mlx-whisper>=0.1.0; sys_platform == "darwin"
 huggingface_hub[cli]>=0.23.0
 openai==1.12.0
@@ -56,7 +56,7 @@ aiosmtplib==3.0.1            # Async SMTP for email bridge
 
 pyicloud==2.6.5              # iCloud bridge (Updated for Python 3.14 compatibility)
 pycryptodome==3.20.0          # WeCom AES decryption
-pyotp==2.9.0                  # iWatch pairing
+pyotp==2.10.0                  # iWatch pairing
 slack-sdk==3.42.0
 slack_bolt==1.28.0
 
@@ -72,7 +72,7 @@ fastapi-limiter==0.2.0
 
 # ─── Observability & Logging ──────────────────────────────────────────────────
 structlog==24.1.0
-psutil==6.0.0
+psutil==7.2.2
 opentelemetry-api==1.43.0
 opentelemetry-sdk==1.43.0
 opentelemetry-instrumentation-fastapi

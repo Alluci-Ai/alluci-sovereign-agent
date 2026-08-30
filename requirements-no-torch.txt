@@ -45,7 +45,7 @@ aiosmtplib==3.0.1            # Async SMTP for email bridge
 
 pyicloud>=2.0.0              # iCloud bridge (Updated for Python 3.14 compatibility)
 pycryptodome==3.20.0          # WeCom AES decryption
-pyotp==2.9.0                  # iWatch pairing
+pyotp==2.10.0                  # iWatch pairing
 slack-sdk==3.41.0
 
 # ─── Vector Memory ────────────────────────────────────────────────────────────
@@ -59,7 +59,7 @@ fastapi-limiter==0.2.0
 
 # ─── Observability & Logging ──────────────────────────────────────────────────
 structlog>=24.1.0
-psutil==6.0.0
+psutil==7.2.2
 opentelemetry-api==1.43.0
 opentelemetry-sdk==1.43.0
 opentelemetry-instrumentation-fastapi
