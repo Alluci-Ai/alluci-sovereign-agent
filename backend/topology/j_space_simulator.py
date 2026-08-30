@@ -294,6 +294,21 @@ class JSpaceSimulator:
 
         dialectic = self.socratic.synthesize(p_vec, s_vec, context_description=prompt[:100])
 
+        # 3. Check for Topic / Query-Response Semantic Divergence
+        stop_words = {"the", "and", "can", "you", "all", "your", "are", "for", "with", "this", "that", "what", "how", "tell", "show", "list", "hello", "alluci", "from", "into"}
+        prompt_keywords = [w for w in prompt.lower().split() if len(w) > 3 and w not in stop_words]
+        response_lower = candidate_response.lower()
+        
+        has_semantic_overlap = True
+        if prompt_keywords:
+            overlap_count = sum(1 for kw in prompt_keywords if kw in response_lower)
+            if overlap_count == 0 and len_resp > 200 and not any(w in response_lower for w in ["cannot", "unable", "sorry", "unauthorized"]):
+                has_semantic_overlap = False
+
+        if not has_semantic_overlap:
+            nilpotence_passed = False
+            nilpotence_msg = "Topological topic divergence detected between prompt and response."
+
         is_valid = nilpotence_passed and dialectic.is_admissible_to_action
         risk_score = 0.1 if is_valid else 0.6
         if not nilpotence_passed:

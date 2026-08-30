@@ -537,12 +537,13 @@ class HLSMManager:
                     ).bindparams(q=clean_query, limit=limit)).fetchall()
                 except Exception as e:
                     logger.debug(f"[HLSM L1] FTS5 search failed: {e} - falling back to LIKE")
-                    # Robust keyword-split fallback to standard LIKE
-                    words = [w for w in clean_query.split() if len(w) > 2]
+                    # Robust keyword-split fallback to standard LIKE with stop-word filtering
+                    stop_words = {"the", "and", "can", "you", "all", "your", "are", "for", "with", "this", "that", "what", "how", "tell", "show", "list", "hello", "alluci", "from", "into"}
+                    words = [w for w in clean_query.lower().split() if len(w) > 3 and w not in stop_words]
                     if words:
-                        like_clauses = " OR ".join([f"content LIKE :w{i}" for i in range(len(words))])
+                        like_clauses = " OR ".join([f"LOWER(content) LIKE :w{i}" for i in range(len(words))])
                         params: Dict[str, Any] = {f"w{i}": f"%{w}%" for i, w in enumerate(words)}
-                        params["limit"] = limit
+                        params["limit"] = limit * 2
                         raw = session.exec(sa_text(  # type: ignore
                             "SELECT id, content, source, session_key, psi_at_encoding, "
                             "topological_importance, betti_1_support, access_count, "
@@ -553,27 +554,21 @@ class HLSMManager:
                             "LIMIT :limit"
                         ).bindparams(**params)).fetchall()
                     else:
-                        raw = session.exec(sa_text(  # type: ignore
-                            "SELECT id, content, source, session_key, psi_at_encoding, "
-                            "topological_importance, betti_1_support, access_count, "
-                            "last_accessed, retention_score "
-                            "FROM hlsm_episodic "
-                            "WHERE content LIKE :q "
-                            "ORDER BY last_accessed DESC "
-                            "LIMIT :limit"
-                        ).bindparams(q=f"%{clean_query}%", limit=limit)).fetchall()
+                        raw = []
             else:
                 # PostgreSQL High-Performance FTS (Native tsvector)
-                # This assumes a GIN index on content (handled in Phase 3 hardening)
                 raw = session.exec(sa_text(  # type: ignore
                     "SELECT id, content, source, session_key, psi_at_encoding, "
                     "topological_importance, betti_1_support, access_count, "
                     "last_accessed, retention_score "
                     "FROM hlsm_episodic "
                     "WHERE to_tsvector('english', content) @@ plainto_tsquery('english', :q) "
-                    "ORDER BY ts_rank(to_tsvector('english', content), plainto_tsquery('english', :q)) DESC "
+                    "ORDER BY last_accessed DESC "
                     "LIMIT :limit"
                 ).bindparams(q=query, limit=limit)).fetchall()
+
+            stop_words = {"the", "and", "can", "you", "all", "your", "are", "for", "with", "this", "that", "what", "how", "tell", "show", "list", "hello", "alluci", "from", "into"}
+            query_words = set(clean_query.lower().split()) - stop_words
 
             for row in raw:
                 (entry_id, content, source, session_key, psi_enc,
@@ -588,7 +583,18 @@ class HLSMManager:
                 if self.decay.should_prune(retention, L1_PRUNE_THRESHOLD):
                     continue
 
-                # Relevance = retention score (FTS doesn't provide BM25 rank via SQLModel)
+                # Calculate lexical overlap relevance score
+                content_words = set(str(content).lower().split())
+                if query_words:
+                    overlap = len(query_words & content_words)
+                    lexical_relevance = overlap / len(query_words)
+                else:
+                    lexical_relevance = 0.5
+
+                if lexical_relevance < 0.15:
+                    continue
+
+                combined_relevance = lexical_relevance * retention
                 results.append(HLSMRetrievalResult(
                     id=str(entry_id),
                     content=str(content),
@@ -1141,12 +1147,18 @@ class HLSMManager:
         l2_results.sort(key=lambda r: r.relevance_score, reverse=True)  # type: ignore
         l3_results.sort(key=lambda r: r.relevance_score, reverse=True)  # type: ignore
 
+        # Gated Relevance Cutoff: Only memories with genuine query relevance are admitted to working context
+        RELEVANCE_FLOOR = 0.35
+        filtered_l1 = [m for m in l1_results if getattr(m, 'relevance_score', 0.0) >= RELEVANCE_FLOOR]  # type: ignore
+        filtered_l2 = [m for m in l2_results if getattr(m, 'relevance_score', 0.0) >= RELEVANCE_FLOOR]  # type: ignore
+        filtered_l3 = [m for m in l3_results if getattr(m, 'relevance_score', 0.0) >= RELEVANCE_FLOOR]  # type: ignore
+
         # Build context, respecting token budget
         ctx = HLSMContext(
             working_memories=l0_results[:max_per_tier],  # type: ignore
-            episodic_memories=l1_results[:max_per_tier],  # type: ignore
-            semantic_memories=l2_results[:max_per_tier],  # type: ignore
-            graph_memories=l3_results[:max_per_tier],  # type: ignore
+            episodic_memories=filtered_l1[:max_per_tier],
+            semantic_memories=filtered_l2[:max_per_tier],
+            graph_memories=filtered_l3[:max_per_tier],
             spectral_metrics=spectral_metrics,
         )
         prompt = ctx.to_prompt_block()

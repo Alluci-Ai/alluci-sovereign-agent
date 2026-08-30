@@ -683,9 +683,7 @@ async def gemini_proxy(
                 f"--- REFERENCE GROUNDING CONTEXT (Use strictly as factual reference to answer the User Directive above) ---\n"
                 f"{combined_grounding}\n"
                 f"--- END OF REFERENCE CONTEXT ---\n\n"
-                f"INSTRUCTION: Answer the User Directive directly, completely, and accurately using the verified Reference Grounding Context above.\n"
-                f"- If the user asks to list and explain all Skills and Tools, enumerate and explain all 14 Skills and 15 Tools from the Authentic Manifests.\n"
-                f"- Never drift into unrelated mathematical formulas, past conversations, or background text unless explicitly requested in the User Directive."
+                f"INSTRUCTION: Answer the User Directive directly, comprehensively, and accurately based on the verified Reference Grounding Context above. Ground all factual claims strictly in the authentic reference data provided."
             )
         else:
             effective_prompt = raw_user_prompt
@@ -795,9 +793,7 @@ async def gemini_proxy_stream(
                 f"--- REFERENCE GROUNDING CONTEXT (Use strictly as factual reference to answer the User Directive above) ---\n"
                 f"{combined_grounding}\n"
                 f"--- END OF REFERENCE CONTEXT ---\n\n"
-                f"INSTRUCTION: Answer the User Directive directly, completely, and accurately using the verified Reference Grounding Context above.\n"
-                f"- If the user asks to list and explain all Skills and Tools, enumerate and explain all 14 Skills and 15 Tools from the Authentic Manifests.\n"
-                f"- Never drift into unrelated mathematical formulas, past conversations, or background text unless explicitly requested in the User Directive."
+                f"INSTRUCTION: Answer the User Directive directly, comprehensively, and accurately based on the verified Reference Grounding Context above. Ground all factual claims strictly in the authentic reference data provided."
             )
         else:
             effective_prompt = raw_user_prompt
