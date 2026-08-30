@@ -795,20 +795,29 @@ Here is what Rocco will be executing across our Deep Research pipeline:
             "- You operate strictly for the user on local hardware."
         )
 
-        # 2. Capability Index vs Full Tool Schema Injection
+        # 2. Dynamic Installed Skills & Tools Registry Injection
         tools_list = []
-        if compact_index:
-            context_parts.append("\n[ ACTIVE CAPABILITIES ]")
-            context_parts.append("- DeepResearch: Scoping, content harvesting & synthesis")
-            context_parts.append("- MemoryAdapter: Hierarchical L0-L3 topological memory recall")
-            context_parts.append("- ShellExecutor: Local terminal & build management")
-            context_parts.append("- WebBrowser: Native browser automation")
-        else:
-            if getattr(self, "tool_manager", None):
-                try:
-                    tools_list = await self.tool_manager.get_tools_for_runtime([])
-                except Exception as e:
-                    self.logger.error(f"[ TOOLS ] Error scanning for tools: {e}")
+        if getattr(self, "tool_manager", None) and not compact_index:
+            try:
+                tools_list = await self.tool_manager.get_tools_for_runtime([])
+            except Exception as e:
+                self.logger.error(f"[ TOOLS ] Error scanning for tools: {e}")
+
+        try:
+            from .engine.codebase_grounding import LocalCodebaseInspector
+            inspector = LocalCodebaseInspector()
+            skills = inspector.get_installed_skills_inventory()
+            tools = inspector.get_installed_tools_inventory()
+
+            context_parts.append("\n[ AUTHENTIC ACTIVE SKILLS & TOOLS INVENTORY ]")
+            context_parts.append("Installed Skills (.agents/skills/):")
+            for s in skills:
+                context_parts.append(f"- {s['name']} (`{s['id']}`): {s['description']}")
+            context_parts.append("\nInstalled Tools (backend/tools/):")
+            for t in tools:
+                context_parts.append(f"- {t['name']} (`{t['id']}`): {t['description']}")
+        except Exception as inv_err:
+            self.logger.debug(f"[Orchestrator] Dynamic inventory assembly notice: {inv_err}")
 
         # 3. H-LSM Memory Context (L2 Semantic Vector & L3 Graph Memory Recall)
         if self.hlsm and include_memory:

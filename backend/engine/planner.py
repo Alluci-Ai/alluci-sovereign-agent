@@ -60,10 +60,26 @@ class Planner:
                 }
             ]
         else:
+            from .intent_decomposer import IntentDecomposer
+            decomposer = IntentDecomposer()
+            parsed_intent = decomposer.decompose(objective)
+
+            effective_agent = agent_id
+            if agent_id == "executive" and parsed_intent.suggested_agent != "executive":
+                effective_agent = parsed_intent.suggested_agent
+
+            constraint_str = f"\nCONSTRAINTS: {', '.join(parsed_intent.constraints)}" if parsed_intent.constraints else ""
+            domain_str = f"\nDOMAIN: {parsed_intent.domain.value}"
+            skill_str = f"\nREQUIRED SKILLS: {', '.join(parsed_intent.required_skills)}" if parsed_intent.required_skills else ""
+
             # Augment objective with the Soul's context and affective state
-            prompt_with_psi = f"AFFECTIVE TENSION (psi): {psi:.2f}\n\nOBJECTIVE: \"{objective}\"\n\nBased on the Identity and current Affective Tension, create a plan."
+            prompt_with_psi = (
+                f"AFFECTIVE TENSION (psi): {psi:.2f}{domain_str}{skill_str}{constraint_str}\n\n"
+                f"CORE OBJECTIVE: \"{parsed_intent.core_objective}\"\n\n"
+                f"Based on the Identity, Domain, Constraints, and Affective Tension, create a verified DAG execution plan."
+            )
             
-            raw_plan = await self.router.get_structured_plan(prompt_with_psi, system_instruction=context, tools=tools, agent_id=agent_id)
+            raw_plan = await self.router.get_structured_plan(prompt_with_psi, system_instruction=context, tools=tools, agent_id=effective_agent)
             steps = raw_plan.get("steps", [])
             
             if not steps:

@@ -97,7 +97,49 @@ class CodebaseMemoryIndexer:
                 )
                 indexed_count += 1
 
-            # 3. Ingest Local Git Manifold State
+            # 3. Ingest Installed Skills (.agents/skills/*/SKILL.md)
+            skills = self.inspector.get_installed_skills_inventory()
+            for s in skills:
+                skill_content = (
+                    f"[AUTHENTIC SKILL MANIFEST: {s['name']}]\n"
+                    f"Identifier: {s['id']}\n"
+                    f"Path: {s['path']}\n"
+                    f"Description: {s['description']}\n"
+                )
+                await hlsm_manager.l1_store(
+                    content=skill_content,
+                    source="skill_manifest",
+                    session_key="system_skills",
+                    objective=f"Skill Manifest: {s['id']}",
+                    psi=0.0,
+                    valence=1.0,
+                    topological_importance=2.2,
+                    extra_metadata={"skill_id": s["id"], "type": "skill_manifest", "domain": "skills"}
+                )
+                indexed_count += 1
+
+            # 4. Ingest Installed Tools (backend/tools/*.py)
+            tools = self.inspector.get_installed_tools_inventory()
+            for t in tools:
+                tool_content = (
+                    f"[AUTHENTIC TOOL MANIFEST: {t['name']}]\n"
+                    f"Identifier: {t['id']}\n"
+                    f"Path: {t['path']}\n"
+                    f"Description: {t['description']}\n"
+                )
+                await hlsm_manager.l1_store(
+                    content=tool_content,
+                    source="tool_manifest",
+                    session_key="system_tools",
+                    objective=f"Tool Manifest: {t['id']}",
+                    psi=0.0,
+                    valence=1.0,
+                    topological_importance=2.2,
+                    extra_metadata={"tool_id": t["id"], "type": "tool_manifest", "domain": "tools"}
+                )
+                indexed_count += 1
+
+            # 5. Ingest Local Git Manifold State
             git_status = await self.git_inspector.get_git_status()
             recent_commits = await self.git_inspector.get_recent_commits(limit=5)
 
@@ -124,7 +166,7 @@ class CodebaseMemoryIndexer:
             )
             indexed_count += 1
 
-            logger.info(f"[CodebaseIndexer] Successfully synchronized {indexed_count} codebase & architecture memory blocks into H-LSM.")
+            logger.info(f"[CodebaseIndexer] Successfully synchronized {indexed_count} codebase, skill, tool & architecture memory blocks into H-LSM.")
             return {
                 "status": "success",
                 "indexed_entries": indexed_count,

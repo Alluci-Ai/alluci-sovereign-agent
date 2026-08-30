@@ -256,3 +256,67 @@ class JSpaceSimulator:
             betti_invariants=[beta_0, beta_1, beta_2, beta_3],
             execution_time_ms=round(elapsed_ms, 2),
         )
+
+    def preflight_simulate_reasoning(
+        self,
+        prompt: str,
+        candidate_response: str,
+        grounded_facts: Optional[List[str]] = None,
+        is_code_or_tool_dag: bool = True
+    ) -> PreflightVerificationResult:
+        """
+        Executes an air-gapped pre-flight Socratic Dialectic rollout (T+ ∪ T- -> O6)
+        and S-CoT nilpotence evaluation across a candidate reasoning response.
+        Ensures assertions are logically sound, non-contradictory, and grounded.
+        """
+        # 1. Evaluate S-CoT nilpotence on triad (Prompt, Grounded Facts -> Conclusion)
+        premise_a = prompt.strip()
+        premise_b = " ".join(grounded_facts[:5]) if grounded_facts else "Zero-Trust Verified Context"
+        conclusion = candidate_response[:400].strip()
+
+        nilpotence_passed, nilpotence_msg = self.cot.verify_reasoning_step(
+            premise_a=premise_a,
+            premise_b=premise_b,
+            conclusion=conclusion,
+            is_code_or_tool_dag=is_code_or_tool_dag
+        )
+
+        # 2. Run Kepler S8 Dual-Tetrahedron Socratic Synthesis
+        # Construct Proposer (T+) and Skeptic (T-) feature representations
+        len_resp = len(candidate_response)
+        has_citations = ("http://" in candidate_response or "https://" in candidate_response or "`" in candidate_response or "[" in candidate_response)
+        fact_overlap = sum(1 for f in (grounded_facts or []) if any(w in candidate_response.lower() for w in f.lower().split()[:3])) if grounded_facts else 1
+
+        p_vec = np.array([min(1.0, len_resp / 1000.0), 1.0 if has_citations else 0.4, min(1.0, fact_overlap / 3.0)])
+        # Skeptic penalizes circularity, excessive length, or unanchored text
+        s_score = 0.8 if nilpotence_passed else 0.2
+        s_vec = np.array([s_score, 0.9 if has_citations or not is_code_or_tool_dag else 0.3, 0.85])
+
+        dialectic = self.socratic.synthesize(p_vec, s_vec, context_description=prompt[:100])
+
+        is_valid = nilpotence_passed and dialectic.is_admissible_to_action
+        risk_score = 0.1 if is_valid else 0.6
+        if not nilpotence_passed:
+            risk_score += 0.3
+
+        feedback = (
+            f"S-CoT: {nilpotence_msg}. "
+            f"Dialectic Coherence: {dialectic.coherence_score:.2f} (O6 Kernel {'Admissible' if dialectic.is_admissible_to_action else 'Bounded'})."
+        )
+
+        return PreflightVerificationResult(
+            is_valid=is_valid,
+            coherence_score=dialectic.coherence_score,
+            risk_score=min(1.0, risk_score),
+            feedback=feedback,
+            dialectic_outcome=dialectic
+        )
+
+
+@dataclass
+class PreflightVerificationResult:
+    is_valid: bool
+    coherence_score: float
+    risk_score: float
+    feedback: str
+    dialectic_outcome: Optional[SocraticDialecticOutcome] = None

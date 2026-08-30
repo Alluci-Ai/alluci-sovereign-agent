@@ -406,18 +406,24 @@ async def _intercept_memory_deletion_request(prompt: str) -> Optional[str]:
 async def _check_codebase_and_architecture_context(prompt: str) -> Optional[str]:
     """
     Detects if the user query asks about codebase, architecture, specific source/markdown files,
-    routers, git, or platform capabilities, and returns rich grounded context (including real
-    file contents from disk) to augment the prompt with 100% verified codebase truth.
+    skills, tools, manifests, routers, git, or platform capabilities, and returns rich grounded
+    context (including real file contents and authentic manifests from disk) to augment the prompt.
     """
     import os, re, glob
+    from ..engine.intent_decomposer import IntentDecomposer, IntentType
+    
+    decomposer = IntentDecomposer()
+    parsed_intent = decomposer.decompose(prompt)
     body_lower = prompt.lower()
+
     codebase_triggers = [
         "codebase", "architecture", "repository", "github", "git log", "git status",
         "router", "models.py", "hlsm", "verusid", "ace", "orchestrator",
         "how is", "how do we implement", "what files", "explain the structure",
         "codi", "opencode", "directory structure", "ast", "endpoints",
         "readme", "agents.md", "architecture.md", "package.json", "makefile",
-        "explain what", "what does", "summarize the", "what makes you different"
+        "explain what", "what does", "summarize the", "what makes you different",
+        "skill", "skills", "tool", "tools", "manifest", "capability", "capabilities"
     ]
 
     # Check for file patterns in prompt
@@ -425,7 +431,12 @@ async def _check_codebase_and_architecture_context(prompt: str) -> Optional[str]
     file_matches = re.findall(file_pattern, prompt, re.IGNORECASE)
 
     has_named_doc = any(k in body_lower for k in ["readme", "architecture.md", "agents.md", "package.json", "makefile"])
-    has_trigger = any(t in body_lower for t in codebase_triggers) or bool(file_matches) or has_named_doc
+    has_trigger = (
+        parsed_intent.intent_type == IntentType.SYSTEM_INTROSPECTION
+        or any(t in body_lower for t in codebase_triggers)
+        or bool(file_matches)
+        or has_named_doc
+    )
 
     if not has_trigger:
         return None
@@ -438,7 +449,14 @@ async def _check_codebase_and_architecture_context(prompt: str) -> Optional[str]
 
         context_parts = []
 
-        # 1. Target File Resolution & In-Context Content Injection
+        # 1. Full Manifest Grounding for Skills, Tools & Capabilities
+        if (
+            parsed_intent.intent_type == IntentType.SYSTEM_INTROSPECTION
+            or any(w in body_lower for w in ["skill", "skills", "tool", "tools", "manifest", "capability", "capabilities", "what can you do"])
+        ):
+            context_parts.append(inspector.get_full_manifest_grounding_block())
+
+        # 2. Target File Resolution & In-Context Content Injection
         target_files = list(file_matches)
         if "readme" in body_lower and not any("readme" in m.lower() for m in target_files):
             target_files.append("README.md")
@@ -479,7 +497,6 @@ async def _check_codebase_and_architecture_context(prompt: str) -> Optional[str]
                         file_content = f.read()
 
                     total_lines = file_content.count("\n") + 1
-                    # For markdown files or large documentation, extract section structure + excerpt
                     if ext == ".md" and len(file_content) > 12000:
                         section_headers = [line for line in file_content.splitlines() if line.startswith("#")]
                         headers_summary = "\n".join(section_headers[:60])
@@ -500,7 +517,7 @@ async def _check_codebase_and_architecture_context(prompt: str) -> Optional[str]
                 except Exception as read_err:
                     logger.debug(f"[CodebaseGrounding] Error reading file {resolved_path}: {read_err}")
 
-        # 2. Dynamic System Architecture & 6-Domain Capability Matrix
+        # 3. Dynamic System Architecture & 6-Domain Capability Matrix
         arch = inspector.get_architecture_summary()
         capabilities = inspector.get_system_capabilities()
         cap_summary = [f"- {v['name']}: {v['description']}" for v in capabilities.values()]
@@ -510,7 +527,7 @@ async def _check_codebase_and_architecture_context(prompt: str) -> Optional[str]
             f"Functional Domains:\n" + "\n".join(cap_summary)
         )
 
-        # 3. Introspective Subsystem Grounding (Authoritative Class & Module Docstrings from Disk)
+        # 4. Introspective Subsystem Grounding (Authoritative Class & Module Docstrings from Disk)
         subsystem_map = {
             "dpk": "backend/security/dpk.py",
             "discrete projection kernel": "backend/security/dpk.py",
@@ -553,7 +570,6 @@ async def _check_codebase_and_architecture_context(prompt: str) -> Optional[str]
                     try:
                         with open(full_sub_path, "r", encoding="utf-8", errors="ignore") as sf:
                             sub_text = sf.read()
-                        # Extract header & docstrings (up to 4,000 chars)
                         sub_excerpt = sub_text[:4000]
                         context_parts.append(
                             f"\n[INTROSPECTIVE SUBSYSTEM GROUNDING: `{sub_path}`]:\n"
@@ -604,11 +620,15 @@ async def gemini_proxy(
     session_id: Optional[str] = Body(None)
 ):
     """
-    Proxies requests to local or cloud models with Single-Pass execution.
+    Proxies requests to local or cloud models with Single-Pass execution and dynamic intent decomposition.
     """
     router_inst = services.router
     if not router_inst:
         raise HTTPException(status_code=503, detail="Inference router not ready")
+
+    from ..engine.intent_decomposer import IntentDecomposer, IntentType
+    decomposer = IntentDecomposer()
+    parsed_intent = decomposer.decompose(prompt)
 
     effective_prompt = _process_attached_files(prompt, files)
 
@@ -633,7 +653,25 @@ async def gemini_proxy(
         if code_grounding:
             effective_prompt = f"{effective_prompt}\n\n[LIVE CODEBASE & ARCHITECTURE GROUNDING]:\n{code_grounding}"
 
-        # 5. Fetch system context (lightweight capability index)
+        # 5. Dynamic 4-Tier H-LSM Context Hydration across L1/L2/L3 (Tri-Hybrid RRF)
+        if hasattr(services, "hlsm_manager") and services.hlsm_manager:
+            try:
+                psi = 0.0
+                if hasattr(services, "ace") and services.ace:
+                    affective = services.ace.get_affective_state()
+                    psi = min(1.0, affective.tension / 1024.0)
+                memory_ctx = await services.hlsm_manager.retrieve_context(
+                    objective=parsed_intent.core_objective,
+                    psi=psi,
+                    session_key=session_id or "web_chat"
+                )
+                memory_block = memory_ctx.to_prompt_block()
+                if memory_block and memory_block not in effective_prompt:
+                    effective_prompt = f"{effective_prompt}\n\n{memory_block}"
+            except Exception as mem_err:
+                logger.debug(f"[GeminiRouter] Dynamic H-LSM hydration notice: {mem_err}")
+
+        # 6. Fetch system context (lightweight capability index)
         system_instruction = ""
         if services.orchestrator:
             ctx_res = await services.orchestrator._build_system_context()
@@ -685,6 +723,10 @@ async def gemini_proxy_stream(
     if not router_inst:
         raise HTTPException(status_code=503, detail="Inference router not ready")
 
+    from ..engine.intent_decomposer import IntentDecomposer, IntentType
+    decomposer = IntentDecomposer()
+    parsed_intent = decomposer.decompose(prompt)
+
     effective_prompt = _process_attached_files(prompt, files)
 
     try:
@@ -704,27 +746,43 @@ async def gemini_proxy_stream(
         if code_grounding:
             effective_prompt = f"{effective_prompt}\n\n[LIVE CODEBASE & ARCHITECTURE GROUNDING]:\n{code_grounding}"
 
+        # 5. Dynamic 4-Tier H-LSM Context Hydration across L1/L2/L3 (Tri-Hybrid RRF)
+        if hasattr(services, "hlsm_manager") and services.hlsm_manager:
+            try:
+                psi = 0.0
+                if hasattr(services, "ace") and services.ace:
+                    affective = services.ace.get_affective_state()
+                    psi = min(1.0, affective.tension / 1024.0)
+                memory_ctx = await services.hlsm_manager.retrieve_context(
+                    objective=parsed_intent.core_objective,
+                    psi=psi,
+                    session_key=session_id or "web_chat"
+                )
+                memory_block = memory_ctx.to_prompt_block()
+                if memory_block and memory_block not in effective_prompt:
+                    effective_prompt = f"{effective_prompt}\n\n{memory_block}"
+            except Exception as mem_err:
+                logger.debug(f"[GeminiRouter] Dynamic H-LSM hydration notice: {mem_err}")
+
         system_instruction = ""
         orch = services.orchestrator
         if orch is not None and not local_file_or_report and not mem_purge_reply:
             ctx_res = await orch._build_system_context(compact_index=True)
             system_instruction = ctx_res[0] if isinstance(ctx_res, (tuple, list)) else str(ctx_res)
 
-        # 5. 3-Layer Parallel Intent Switchboard (< 5ms Check)
+        # 6. Semantic Intent Action Switchboard (< 5ms Check)
         orchestrator_reply = None
         if orch is not None and not local_file_or_report and not mem_purge_reply:
             try:
-                import re
                 body_lower = prompt.lower()
-                action_keywords = ["rocco", "deep research", "deep web research", "spin up", "execute dag", "run script", "schedule cron", "scour the web"]
-                proceed_pattern = bool(re.search(r'\b(proceed|approve|execute|\d+\s*runs?)\b', body_lower))
                 cancellation_keywords = ["stop", "cancel", "abort", "halt", "terminate"]
+                is_cancel = any(ck in body_lower for ck in cancellation_keywords) and any(w in body_lower for w in ["dag", "run", "research", "pipeline", "execution"])
 
-                if any(ck in body_lower for ck in cancellation_keywords) and any(w in body_lower for w in ["dag", "run", "research", "pipeline", "execution"]):
+                if is_cancel:
                     orchestrator_reply = await orch.handle_user_message(effective_prompt)
-                elif any(ak in body_lower for ak in action_keywords) or proceed_pattern:
+                elif parsed_intent.is_actionable_dag or parsed_intent.intent_type in (IntentType.MULTI_STEP_DAG_EXECUTION, IntentType.DEEP_RESEARCH):
                     orchestrator_reply = await orch.handle_user_message(effective_prompt)
-                    logger.info(f"[GeminiRouter] Handled orchestrator auto-dispatch for prompt: '{prompt[:50]}...'")
+                    logger.info(f"[GeminiRouter] Handled orchestrator auto-dispatch for intent '{parsed_intent.intent_type.value}': '{prompt[:50]}...'")
             except Exception as dispatch_err:
                 logger.debug(f"[GeminiRouter] Intent switchboard note: {dispatch_err}")
 
