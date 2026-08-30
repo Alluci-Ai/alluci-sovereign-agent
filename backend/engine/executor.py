@@ -258,9 +258,11 @@ class Executor:
                 statement = select(TaskRecord).where(TaskRecord.run_id == run_id, TaskRecord.task_dag_id == t_id)
                 existing = session.exec(statement).first()
                 if not existing:
+                    task_assignee = getattr(task, 'assignee', None)
+                    effective_agent = task_assignee if (task_assignee and task_assignee not in ("executive", "default")) else agent_id
                     record = TaskRecord(
                         run_id=run_id,
-                        agent_id=task.assignee if hasattr(task, 'assignee') and task.assignee else agent_id,
+                        agent_id=effective_agent,
                         task_dag_id=t_id,
                         action=task.action,
                         args=task.args,

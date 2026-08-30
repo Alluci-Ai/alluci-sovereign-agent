@@ -224,3 +224,34 @@ class TestExecutorParallelism:
         assert tasks["independent"].status == TaskStatus.COMPLETED
         assert "good_tool" in call_log
         assert "dependent_tool" not in call_log
+
+
+class TestPlannerSCOTAndDAGTaskModel:
+    """Tests DAGTask description attribute and S-CoT simplicial triad verification."""
+
+    @pytest.mark.unit
+    def test_dag_task_model_description_and_tool_properties(self):
+        # Explicit description
+        task1 = DAGTask(id="t1", action="search", description="Search documentation")
+        assert task1.description == "Search documentation"
+        assert task1.tool == "search"
+
+        # Description passed in args fallback
+        task2 = DAGTask(id="t2", action="summarize", args={"description": "Summarize findings"})
+        assert task2.description == "Summarize findings"
+        assert task2.tool == "summarize"
+
+    @pytest.mark.unit
+    def test_scot_simplicial_triad_verification_executes_cleanly(self, mock_router):
+        planner = Planner(mock_router)
+        steps = [
+            {"id": "step_1", "tool": "gather_context", "description": "Gather initial telemetry", "dependencies": []},
+            {"id": "step_2", "tool": "analyze_metrics", "description": "Analyze gathered telemetry", "dependencies": ["step_1"]},
+            {"id": "step_3", "tool": "synthesize_report", "description": "Synthesize executive report", "dependencies": ["step_2"]}
+        ]
+        tasks = planner._build_and_validate_dag(steps, "Telemetry Analysis Objective")
+        assert len(tasks) == 3
+        assert tasks["step_1"].description == "Gather initial telemetry"
+        assert tasks["step_2"].description == "Analyze gathered telemetry"
+        assert tasks["step_3"].description == "Synthesize executive report"
+

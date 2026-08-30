@@ -320,11 +320,21 @@ class DAGTask(BaseModel):
     """
     id: str
     action: str
+    description: Optional[str] = None
     args: dict = {}
     dependencies: list[str] = []
     status: TaskStatus = TaskStatus.PENDING
     result: Optional[str] = None
     assignee: str = "executive"
+
+    def model_post_init(self, __context: Any) -> None:
+        if not self.description and isinstance(self.args, dict) and self.args.get("description"):
+            self.description = str(self.args["description"])
+
+    @property
+    def tool(self) -> str:
+        """Alias for action / tool name."""
+        return self.action
 
 class SessionConfig(SQLModel, table=True):
     __tablename__ = "session_config"  # type: ignore

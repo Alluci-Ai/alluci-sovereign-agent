@@ -110,6 +110,7 @@ class Planner:
             tasks[t_id] = DAGTask(
                 id=t_id,
                 action=step.get('tool', 'unknown'),
+                description=step.get('description', ''),
                 args={
                     **step,
                     "description": step.get('description', ''), 
@@ -163,11 +164,17 @@ class Planner:
             scot = SimplicialChainOfThought(strict_mode=True)
             for t_id, task in tasks.items():
                 if task.dependencies:
-                    dep_desc = " ".join([tasks[d].description for d in task.dependencies if d in tasks])
+                    dep_descs = [
+                        tasks[d].description or (tasks[d].args.get("description") if isinstance(tasks[d].args, dict) else "") or f"Task {tasks[d].id}: {tasks[d].action}"
+                        for d in task.dependencies if d in tasks
+                    ]
+                    dep_desc = " ".join([d for d in dep_descs if d])
+                    task_desc = task.description or (task.args.get("description") if isinstance(task.args, dict) else "") or f"Task {task.id}: {task.action}"
+                    task_action = getattr(task, "tool", None) or getattr(task, "action", "Direct Action")
                     is_valid, msg = scot.verify_reasoning_step(
                         premise_a=dep_desc or "Initial State",
-                        premise_b=task.tool or "Direct Action",
-                        conclusion=task.description,
+                        premise_b=task_action or "Direct Action",
+                        conclusion=task_desc,
                         is_code_or_tool_dag=True
                     )
                     if not is_valid:
