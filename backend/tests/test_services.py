@@ -311,3 +311,37 @@ async def test_init_services_oauth_refresh_loop(mock_hlsm, mock_router, mock_cro
         await services.init_services(mock_app)
         
         mock_create_task.assert_called()
+
+
+@pytest.mark.asyncio
+async def test_hlsm_tri_hybrid_rrf_retrieval():
+    from backend.memory.hlsm_manager import HLSMManager, HLSMRetrievalResult, HLSMContext
+
+    mock_engine = MagicMock()
+    manager = HLSMManager(db_engine=mock_engine, redis_client=None, kuzu_db_path=None)
+
+    # Mock tier retrieval results
+    manager.l0_retrieve = AsyncMock(return_value=[
+        HLSMRetrievalResult(id="l0_1", content="Working context active", tier=0, source="session", relevance_score=0.9, retention_score=1.0)
+    ])
+    manager.l1_search = AsyncMock(return_value=[
+        HLSMRetrievalResult(id="l1_1", content="Episodic task completed: Code review", tier=1, source="fts5", relevance_score=0.8, retention_score=0.85)
+    ])
+    manager.l2_search = AsyncMock(return_value=[
+        HLSMRetrievalResult(id="l2_1", content="Semantic architecture concept: PPN", tier=2, source="vector", relevance_score=0.75, retention_score=0.9)
+    ])
+    manager.l3_search = AsyncMock(return_value=[
+        HLSMRetrievalResult(id="l3_1", content="Graph node: Founder -> Cap Table", tier=3, source="kuzudb", relevance_score=0.95, retention_score=0.95)
+    ])
+
+    ctx = await manager.retrieve_context("strategic plan and architecture", psi=0.2, session_key="sess_test")
+    assert isinstance(ctx, HLSMContext)
+    assert len(ctx.working_memories) == 1
+    assert len(ctx.episodic_memories) == 1
+    assert len(ctx.semantic_memories) == 1
+    assert len(ctx.graph_memories) == 1
+
+    prompt_block = ctx.to_prompt_block()
+    assert "[ SOVEREIGN MEMORY CONTEXT ]" in prompt_block
+    assert "Knowledge Graph Entities" in prompt_block
+    assert "Graph node: Founder -> Cap Table" in prompt_block

@@ -135,3 +135,40 @@ class TestTopologicalClassification:
 
         reordered = router._reorder_cloud_sequence(cloud_seq, classification)
         assert reordered == []
+
+
+@pytest.mark.asyncio
+async def test_planner_scot_simplicial_nilpotence(router):
+    from backend.engine.planner import Planner
+    planner = Planner(router)
+
+    # Valid acyclic DAG
+    valid_tasks = {
+        "step_1": {
+            "id": "step_1",
+            "tool": "web_search",
+            "description": "Gather market data for strategic plan",
+            "dependencies": [],
+            "assignee": "executive"
+        },
+        "step_2": {
+            "id": "step_2",
+            "tool": "strategic_planning",
+            "description": "Synthesize gathered data into balanced scorecard",
+            "dependencies": ["step_1"],
+            "assignee": "executive"
+        }
+    }
+
+    dag = planner._build_and_validate_dag(list(valid_tasks.values()), objective="Create strategic plan")
+    assert len(dag) == 2
+    assert "step_1" in dag
+    assert "step_2" in dag
+
+    # Invalid cyclic DAG
+    cyclic_tasks = [
+        {"id": "task_a", "tool": "tool_a", "description": "Task A", "dependencies": ["task_b"]},
+        {"id": "task_b", "tool": "tool_b", "description": "Task B", "dependencies": ["task_a"]}
+    ]
+    with pytest.raises(ValueError, match="Cycle detected in Execution Plan"):
+        planner._build_and_validate_dag(cyclic_tasks, objective="Test cycle")

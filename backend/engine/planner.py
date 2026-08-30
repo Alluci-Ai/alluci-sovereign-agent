@@ -129,12 +129,12 @@ class Planner:
                     # Auto-prune phantom dependencies or fail? We fail for safety.
                     raise ValueError(f"Task '{t_id}' depends on non-existent '{dep}'")
 
-        # 3. Cycle Detection
-        self._detect_cycles(tasks)
+        # 3. S-CoT Topological Nilpotence & Cycle Detection (Beta_1 = 0)
+        self._detect_cycles_and_scot_nilpotence(tasks)
         
         return tasks
 
-    def _detect_cycles(self, tasks: Dict[str, DAGTask]):
+    def _detect_cycles_and_scot_nilpotence(self, tasks: Dict[str, DAGTask]):
         visited: Set[str] = set()
         stack: Set[str] = set()
 
@@ -155,4 +155,22 @@ class Planner:
         for node in tasks:
             if node not in visited:
                 if dfs(node):
-                    raise ValueError("Cycle detected in Execution Plan.")
+                    raise ValueError("Cycle detected in Execution Plan (Topological 1-Hole beta_1 > 0).")
+
+        # 4. S-CoT Simplicial Triad Verification across dependency chains
+        try:
+            from ..topology.j_space_simulator import SimplicialChainOfThought
+            scot = SimplicialChainOfThought(strict_mode=True)
+            for t_id, task in tasks.items():
+                if task.dependencies:
+                    dep_desc = " ".join([tasks[d].description for d in task.dependencies if d in tasks])
+                    is_valid, msg = scot.verify_reasoning_step(
+                        premise_a=dep_desc or "Initial State",
+                        premise_b=task.tool or "Direct Action",
+                        conclusion=task.description,
+                        is_code_or_tool_dag=True
+                    )
+                    if not is_valid:
+                        logger.warning(f"[S-CoT] Nilpotence notice on task '{t_id}': {msg}")
+        except Exception as scot_err:
+            logger.debug(f"[S-CoT] Verification skipped: {scot_err}")

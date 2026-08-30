@@ -128,6 +128,7 @@ class HLSMContext:
     working_memories: List[HLSMRetrievalResult] = field(default_factory=list)
     episodic_memories: List[HLSMRetrievalResult] = field(default_factory=list)
     semantic_memories: List[HLSMRetrievalResult] = field(default_factory=list)
+    graph_memories: List[HLSMRetrievalResult] = field(default_factory=list)
     total_chars: int = 0
     total_tokens: int = 0
     spectral_metrics: Optional[Dict[str, Any]] = None
@@ -137,7 +138,7 @@ class HLSMContext:
         Renders the H-LSM context as a structured prompt block.
         Sections are ordered by relevance and tier priority.
         """
-        if not (self.working_memories or self.episodic_memories or self.semantic_memories):
+        if not (self.working_memories or self.episodic_memories or self.semantic_memories or self.graph_memories):
             return ""
 
         lines = ["[ SOVEREIGN MEMORY CONTEXT ]"]
@@ -156,6 +157,11 @@ class HLSMContext:
         if self.semantic_memories:
             lines.append("\n── Semantic Memory (Long-Term Knowledge) ──")
             for m in self.semantic_memories[:5]:
+                lines.append(f"  • {m.content[:500]}")
+
+        if self.graph_memories:
+            lines.append("\n── Knowledge Graph Entities (Relational Memory) ──")
+            for m in self.graph_memories[:5]:
                 lines.append(f"  • {m.content[:500]}")
 
         return "\n".join(lines)
@@ -1041,11 +1047,12 @@ class HLSMManager:
         # Use first 200 chars as search terms — sufficient for FTS + vector search
         search_query = objective[:200].strip()
 
-        # Parallel retrieval from all three tiers
-        l0_results, l1_results, l2_results = await asyncio.gather(
+        # Parallel retrieval across all 4 tiers (L0 Working, L1 FTS5, L2 Semantic, L3 Knowledge Graph)
+        l0_results, l1_results, l2_results, l3_results = await asyncio.gather(
             self.l0_retrieve(session_key),
             self.l1_search(search_query, limit=max_per_tier * 2),
             self.l2_search(search_query, limit=max_per_tier * 2),
+            self.l3_search(search_query, limit=max_per_tier * 2),
             return_exceptions=True,
         )
 
@@ -1059,8 +1066,30 @@ class HLSMManager:
         if isinstance(l2_results, Exception):
             logger.error(f"[HLSM] L2 retrieval failed: {l2_results}")
             l2_results = []
+        if isinstance(l3_results, Exception):
+            logger.error(f"[HLSM] L3 retrieval failed: {l3_results}")
+            l3_results = []
 
-        # Apply affective modulation to L1 and L2 scores
+        # Tri-Hybrid Reciprocal Rank Fusion (RRF)
+        # Combines L1 (Exact FTS5), L2 (Dense Semantic Vectors), and L3 (KùzuDB Graph Entities)
+        k_rrf = 60
+        tier_weights = {"L1": 1.0, "L2": 1.2, "L3": 1.4}
+        rrf_scores: Dict[str, float] = {}
+        item_registry: Dict[str, HLSMRetrievalResult] = {}
+
+        for tier_name, tier_items in [("L1", l1_results), ("L2", l2_results), ("L3", l3_results)]:
+            if isinstance(tier_items, list):
+                for rank, item in enumerate(tier_items):
+                    doc_key = item.id or item.content[:100]
+                    item_registry[doc_key] = item
+                    rrf_scores[doc_key] = rrf_scores.get(doc_key, 0.0) + (tier_weights[tier_name] / (k_rrf + rank + 1))
+
+        # Assign normalized RRF relevance score
+        for doc_key, rrf_val in rrf_scores.items():
+            if doc_key in item_registry:
+                item_registry[doc_key].relevance_score = max(item_registry[doc_key].relevance_score, rrf_val * 100.0)
+
+        # Apply affective modulation to L1, L2, L3 scores
         # High ψ → agent under stress → boost high-importance memories
         # Low ψ → calm exploration → allow lower-retention memories
         if psi > 0.0:
@@ -1072,7 +1101,7 @@ class HLSMManager:
                     arousal=psi * 512.0,
                     tension=psi * 1024.0,
                 )
-                for result in l1_results + l2_results:  # type: ignore
+                for result in l1_results + l2_results + l3_results:  # type: ignore
                     result.relevance_score = max(0.0, min(1.0,
                         kernel.apply(result.relevance_score, affect_state)
                     ))
@@ -1080,7 +1109,7 @@ class HLSMManager:
                 logger.debug(f"[HLSM] Affective modulation skipped: {e}")
 
         # Markov Trace Multi-Hop Rescoring & Spectral Context Scaling
-        all_candidates = l1_results + l2_results  # type: ignore
+        all_candidates = l1_results + l2_results + l3_results  # type: ignore
         spectral_metrics = None
 
         if len(all_candidates) >= 3:
@@ -1110,12 +1139,14 @@ class HLSMManager:
         # Sort each tier by relevance
         l1_results.sort(key=lambda r: r.relevance_score, reverse=True)  # type: ignore
         l2_results.sort(key=lambda r: r.relevance_score, reverse=True)  # type: ignore
+        l3_results.sort(key=lambda r: r.relevance_score, reverse=True)  # type: ignore
 
         # Build context, respecting token budget
         ctx = HLSMContext(
             working_memories=l0_results[:max_per_tier],  # type: ignore
             episodic_memories=l1_results[:max_per_tier],  # type: ignore
             semantic_memories=l2_results[:max_per_tier],  # type: ignore
+            graph_memories=l3_results[:max_per_tier],  # type: ignore
             spectral_metrics=spectral_metrics,
         )
         prompt = ctx.to_prompt_block()
@@ -1123,9 +1154,10 @@ class HLSMManager:
         ctx.total_tokens = self._get_token_count(prompt)
 
         logger.info(
-            f"[HLSM] Retrieved: L0={len(ctx.working_memories)}, "
+            f"[HLSM] Retrieved (Tri-Hybrid RRF): L0={len(ctx.working_memories)}, "
             f"L1={len(ctx.episodic_memories)}, "
-            f"L2={len(ctx.semantic_memories)} "
+            f"L2={len(ctx.semantic_memories)}, "
+            f"L3={len(ctx.graph_memories)} "
             f"({ctx.total_chars} chars, psi={psi:.2f})"
         )
         return ctx
