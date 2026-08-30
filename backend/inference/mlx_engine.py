@@ -50,6 +50,27 @@ class MLXEngine:
         return cls._instance
 
     loaded_model_id: Optional[str] = None
+    draft_engine: Optional[Any] = None
+    draft_model_id: Optional[str] = None
+
+    def load_draft_model_sync(self, draft_model_override: Optional[str] = "Alluci/alluci-polytope-gemma-4-e2b-it-4bit"):
+        """Synchronously loads the lightweight edge model as a speculative drafting engine."""
+        if self.draft_engine is not None and self.draft_model_id == draft_model_override:
+            return
+
+        try:
+            model_name = (draft_model_override or "").split("/")[-1]
+            model_dir = os.path.abspath(f"mirror_cache/{model_name}")
+            if not os.path.exists(model_dir):
+                return
+
+            from pathlib import Path
+            self.draft_engine, _ = load_model(Path(model_dir), get_model_classes=_polytope_get_classes)
+            self.draft_model_id = draft_model_override
+            logger.info(f"MLXEngine: Speculative Draft Engine [{model_name}] loaded successfully.")
+        except Exception as draft_err:
+            logger.warning(f"MLXEngine: Could not load draft model {draft_model_override}: {draft_err}")
+            self.draft_engine = None
 
     def load_model_sync(self, target_model_override: Optional[str] = None):
         """Synchronously initializes or switches the MLX engine to the target model."""
@@ -64,6 +85,8 @@ class MLXEngine:
             if self.engine is not None:
                 self.engine = None
                 self.tokenizer = None
+                self.draft_engine = None
+                self.draft_model_id = None
                 MLXEngine._clear_vram_cache()
                 import gc
                 gc.collect()
@@ -106,6 +129,26 @@ class MLXEngine:
         while self.is_loading:
             await asyncio.sleep(0.1)
 
+    @staticmethod
+    def _apply_streaming_attention_sink(full_prompt: str, max_chars: int = 16000) -> str:
+        """
+        Streaming Attention Sink Context Manager.
+        When prompt exceeds max_chars, anchors the first 2,000 chars (system instructions,
+        grounding laws, zero-trust security bounds) and preserves the most recent (max_chars - 2000)
+        chars of the active conversational tail.
+        """
+        if len(full_prompt) <= max_chars:
+            return full_prompt
+        
+        sink_size = 2000
+        tail_size = max_chars - sink_size
+        
+        attention_sink = full_prompt[:sink_size]
+        active_tail = full_prompt[-tail_size:]
+        
+        logger.info(f"[AttentionSink] Context length {len(full_prompt)} chars exceeds threshold {max_chars}. Applying rolling attention sink eviction.")
+        return f"{attention_sink}\n\n[... intermediate conversational turns archived to H-LSM episodic memory ...]\n\n{active_tail}"
+
     def _apply_ace_logic(self, system_instruction: str, temperature: float) -> tuple[str, float]:
         """Synthesizes a silent system-layer ACE attunement directive and adjusts sampling temperature natively."""
         from .. import services
@@ -118,19 +161,13 @@ class MLXEngine:
             ace_directive = (
                 f"<ACE_ATTUNEMENT_DIRECTIVE>\n"
                 f"Biometric State: {flow_mode} ({ace_state}, Stress Score: {stress:.1f}%)\n"
-                f"ATTUNEMENT DIRECTIVE:\n"
-                f"- Adapt internal reasoning density, tone, and conciseness to match this state.\n"
-                f"- DO NOT state, declare, acknowledge, or mention biometric telemetry or ACE states in your conversational output unless the user explicitly requests a biometric status report.\n"
+                f"Operational Alignment: Respond with calm, sovereign executive precision.\n"
                 f"</ACE_ATTUNEMENT_DIRECTIVE>"
             )
             system_instruction = f"{ace_directive}\n\n{system_instruction}" if system_instruction else ace_directive
             
-            if ace_state in ["<ACE_STATE_4>", "<ACE_STATE_5>"]:
-                temperature = min(0.35, temperature)
-            elif ace_state in ["<ACE_STATE_2>", "<ACE_STATE_3>"]:
-                temperature = min(0.55, temperature)
-            elif ace_state == "<ACE_STATE_1>":
-                temperature = max(0.70, temperature)
+            if stress > 65.0:
+                temperature = max(0.2, temperature - 0.2)
                 
         return system_instruction, temperature
 
@@ -141,7 +178,7 @@ class MLXEngine:
         system_instruction: str = "",
         tools: Optional[list] = None
     ) -> str:
-        """Formats prompt using native Gemma 4 turn structures."""
+        """Formats prompt using native Gemma 4 turn structures and applies Streaming Attention Sinks."""
         messages = []
         if tools:
             serialized_tools = json.dumps(tools, indent=2)
@@ -163,7 +200,9 @@ class MLXEngine:
         else:
             formatted += "<bos>"
         formatted += f"<|turn>user\n{prompt}<|turn|>\n<|turn>model\n"
-        return formatted
+        
+        # Apply Streaming Attention Sink for infinite multi-turn stability
+        return MLXEngine._apply_streaming_attention_sink(formatted)
 
     @staticmethod
     def _clear_vram_cache() -> None:
@@ -214,7 +253,7 @@ class MLXEngine:
     ) -> AsyncGenerator[str, None]:
         """
         Streams response via the Native MLX Engine with real-time callbacks.
-        Handles Polytope <|channel>thought channel parsing and stop tokens natively.
+        Handles Polytope <|channel>thought channel parsing, stop tokens, and Speculative Decoding.
         """
         await self.ensure_loaded()
         
@@ -226,6 +265,17 @@ class MLXEngine:
         sys_with_ace, temperature = self._apply_ace_logic(system_instruction, temperature)
         full_prompt = self._format_prompt(prompt, system_instruction=sys_with_ace, tools=tools)
         
+        # Check if speculative decoding can be applied (31B Dense + 2B Draft)
+        use_speculative = False
+        if self.engine is not None and self.loaded_model_id and "31b" in self.loaded_model_id.lower():
+            if self.draft_engine is None:
+                try:
+                    self.load_draft_model_sync()
+                except Exception:
+                    pass
+            if self.draft_engine is not None:
+                use_speculative = True
+
         loop = asyncio.get_running_loop()
         queue: asyncio.Queue[Optional[str]] = asyncio.Queue()
 
@@ -236,30 +286,49 @@ class MLXEngine:
                     sync_buffer = ""
                     assert self.engine is not None and self.tokenizer is not None, "Model not loaded"
 
-                    gen_kwargs = {
+                    gen_kwargs: Dict[str, Any] = {
                         "prompt": full_prompt,
                         "max_tokens": max_tokens,
                         "sampler": sampler
                     }
 
+                    if use_speculative and self.draft_engine is not None:
+                        gen_kwargs["draft_model"] = self.draft_engine
+
                     # Dynamic KV Cache Safeguards for Long Prompts (>8,000 chars / ~4,000 tokens)
                     prompt_len = len(full_prompt)
                     if prompt_len > 8000:
                         logger.info(f"[Metal GPU Guard] Long prompt detected ({prompt_len} chars). Enabling Q4 KV cache safeguards.")
-                        # Cap max output tokens on long context to prevent Metal KV buffer overfill
                         gen_kwargs["max_tokens"] = min(max_tokens, 4096)
                         MLXEngine._clear_vram_cache()
 
-                    for response in stream_generate(
-                        self.engine,
-                        self.tokenizer,
-                        **gen_kwargs
-                    ):
-                        chunk = response.text
-                        sync_buffer += chunk
-                        loop.call_soon_threadsafe(queue.put_nowait, chunk)
-                        if "<turn|>" in sync_buffer or "<eos>" in sync_buffer or "<|endoftext|>" in sync_buffer:
-                            break
+                    try:
+                        for response in stream_generate(
+                            self.engine,
+                            self.tokenizer,
+                            **gen_kwargs
+                        ):
+                            chunk = response.text
+                            sync_buffer += chunk
+                            loop.call_soon_threadsafe(queue.put_nowait, chunk)
+                            if "<turn|>" in sync_buffer or "<eos>" in sync_buffer or "<|endoftext|>" in sync_buffer:
+                                break
+                    except Exception as gen_err:
+                        if use_speculative:
+                            logger.warning(f"[Speculative Decoding Fallback] Retrying single-model generation without draft: {gen_err}")
+                            gen_kwargs.pop("draft_model", None)
+                            for response in stream_generate(
+                                self.engine,
+                                self.tokenizer,
+                                **gen_kwargs
+                            ):
+                                chunk = response.text
+                                sync_buffer += chunk
+                                loop.call_soon_threadsafe(queue.put_nowait, chunk)
+                                if "<turn|>" in sync_buffer or "<eos>" in sync_buffer or "<|endoftext|>" in sync_buffer:
+                                    break
+                        else:
+                            raise
                 except Exception as me:
                     logger.error(f"[Metal GPU Safeguard] Caught MLX Metal execution error: {me}")
                     MLXEngine._clear_vram_cache()

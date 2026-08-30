@@ -192,5 +192,31 @@ async def test_gemini_proxy_deep_research_web_search():
         mock_harvest.assert_called_once_with("Apple MLX in 2026")
 
 
+def test_mlx_streaming_attention_sink_truncation():
+    from backend.inference.mlx_engine import MLXEngine
+    engine = MLXEngine()
+    
+    system_rules = "SYSTEM RULES: SOVEREIGN IDENTITY DIRECTIVE 1 TO 10. " * 50
+    user_dialogue = "USER MESSAGE: WHAT IS DPK ARCHITECTURE? " * 1000
+    
+    full_prompt = f"<bos><|turn>system\n{system_rules}<|turn|>\n<|turn>user\n{user_dialogue}<|turn|>\n<|turn>model\n"
+    assert len(full_prompt) > 25000
+    
+    sinked = engine._apply_streaming_attention_sink(full_prompt, max_chars=16000)
+    assert len(sinked) <= 16500
+    assert "SYSTEM RULES: SOVEREIGN IDENTITY" in sinked
+    assert "intermediate conversational turns archived to H-LSM episodic memory" in sinked
+    assert "WHAT IS DPK ARCHITECTURE?" in sinked
+
+
+def test_mlx_speculative_decoding_configuration():
+    from backend.inference.mlx_engine import MLXEngine
+    engine = MLXEngine()
+    assert hasattr(engine, "load_draft_model_sync")
+    assert hasattr(engine, "draft_engine")
+    assert hasattr(engine, "draft_model_id")
+
+
+
 
 
