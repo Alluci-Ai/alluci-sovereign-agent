@@ -180,15 +180,16 @@ async def test_gemini_proxy_deep_research_web_search():
     services.orchestrator._build_system_context.return_value = "System ctx"
     services.router.get_response.return_value = "Deep research synthesized response"
 
-    with patch("backend.adapters.web_search.WebSearchAdapter.execute", new_callable=AsyncMock) as mock_search:
-        mock_search.return_value = {
+    with patch("backend.adapters.web_search.WebSearchAdapter.expand_and_harvest", new_callable=AsyncMock) as mock_harvest:
+        mock_harvest.return_value = {
             "status": "success",
+            "provider": "multi_query_ddg",
             "results": [{"title": "Apple MLX Breakthroughs", "link": "https://github.com/ml-explore/mlx", "snippet": "Apple silicon machine learning framework"}]
         }
         res = client.post("/gemini/proxy", json={"prompt": "Do deep research on Apple MLX in 2026"})
         assert res.status_code == 200
         assert res.json() == {"result": "Deep research synthesized response"}
-        mock_search.assert_called_once_with("Apple MLX in 2026")
+        mock_harvest.assert_called_once_with("Apple MLX in 2026")
 
 
 

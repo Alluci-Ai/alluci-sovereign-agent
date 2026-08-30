@@ -279,9 +279,15 @@ async def _check_web_search_grounding(prompt: str) -> Optional[str]:
     try:
         from ..adapters.web_search import WebSearchAdapter
         adapter = WebSearchAdapter()
-        search_res = await adapter.execute(query.strip())
+        
+        is_deep_research = any(w in body_lower for w in ["deep research", "compare", " vs ", "benchmarks", "market analysis", "pricing breakdown"])
+        if is_deep_research:
+            search_res = await adapter.expand_and_harvest(query.strip())
+        else:
+            search_res = await adapter.execute(query.strip())
+            
         if isinstance(search_res, dict) and search_res.get("status") == "success" and search_res.get("results"):
-            results = search_res["results"][:5]
+            results = search_res["results"][:8]
             formatted_results = []
             for i, r in enumerate(results, 1):
                 title = r.get("title", "Untitled")
@@ -289,8 +295,9 @@ async def _check_web_search_grounding(prompt: str) -> Optional[str]:
                 snippet = r.get("snippet", "")
                 formatted_results.append(f"{i}. [{title}]({link})\n   {snippet}")
 
+            provider_label = search_res.get("provider", "web")
             return (
-                f"[AUTHENTIC WEB SEARCH GROUNDING: '{query}']\n"
+                f"[AUTHENTIC WEB RESEARCH GROUNDING ({provider_label.upper()}): '{query}']\n"
                 + "\n\n".join(formatted_results)
             )
     except Exception as search_err:

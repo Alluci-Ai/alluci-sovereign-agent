@@ -1,13 +1,79 @@
 
+import os
+import json
+import sqlite3
+import time
+import asyncio
 import httpx
 from ..logging_config import get_logger
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from .base import Adapter
+
+
+class ResearchDossierCache:
+    """
+    Local SQLite Cache for Researched Dossiers.
+    Stores query -> JSON results with a 24-hour Time-To-Live (TTL).
+    Eliminates redundant external API calls and provides 0ms latency for repeated questions.
+    """
+    def __init__(self, db_path: Optional[str] = None):
+        if not db_path:
+            base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data"))
+            os.makedirs(base_dir, exist_ok=True)
+            db_path = os.path.join(base_dir, "research_cache.db")
+        self.db_path = db_path
+        self._init_db()
+
+    def _init_db(self):
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS research_dossiers (
+                        query_hash TEXT PRIMARY KEY,
+                        raw_query TEXT NOT NULL,
+                        results_json TEXT NOT NULL,
+                        cached_at REAL NOT NULL
+                    )
+                """)
+                conn.commit()
+        except Exception:
+            pass
+
+    def get(self, query: str, ttl_seconds: float = 86400.0) -> Optional[List[Dict[str, Any]]]:
+        import hashlib
+        q_hash = hashlib.sha256(query.strip().lower().encode("utf-8")).hexdigest()
+        try:
+            with sqlite3.connect(self.db_path, timeout=5.0) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT results_json, cached_at FROM research_dossiers WHERE query_hash = ?", (q_hash,))
+                row = cursor.fetchone()
+                if row:
+                    results_json, cached_at = row
+                    if time.time() - cached_at < ttl_seconds:
+                        return json.loads(results_json)
+        except Exception:
+            return None
+        return None
+
+    def set(self, query: str, results: List[Dict[str, Any]]) -> None:
+        import hashlib
+        q_hash = hashlib.sha256(query.strip().lower().encode("utf-8")).hexdigest()
+        try:
+            with sqlite3.connect(self.db_path, timeout=5.0) as conn:
+                conn.execute("""
+                    INSERT OR REPLACE INTO research_dossiers (query_hash, raw_query, results_json, cached_at)
+                    VALUES (?, ?, ?, ?)
+                """, (q_hash, query.strip(), json.dumps(results), time.time()))
+                conn.commit()
+        except Exception:
+            pass
+
 
 class WebSearchAdapter(Adapter):
     """
     Web Search Adapter.
     Supports SerpAPI, Brave Search API, and DuckDuckGo (no key required).
+    Equipped with Multi-Query Parallel Harvesting (Rocco 2.0) and Local SQLite Dossier Caching.
 
     Provider priority:
       - provider="brave"  → Brave Search API (requires api_key); falls back to DDG on error.
@@ -18,10 +84,11 @@ class WebSearchAdapter(Adapter):
     name = "web_search"
     description = "Search the web for real-time information. Supports Brave, SerpAPI, and DDG."
 
-    def __init__(self, api_key: Optional[str] = None, provider: str = "serpapi"):
+    def __init__(self, api_key: Optional[str] = None, provider: str = "serpapi", db_path: Optional[str] = None):
         self.api_key = api_key
         self.provider = provider
         self.logger = get_logger("WebSearchAdapter")
+        self.cache = ResearchDossierCache(db_path=db_path)
 
     async def execute(self, query: str) -> Dict[str, Any]:  # type: ignore
         """Route the query to the appropriate search provider."""
@@ -31,31 +98,112 @@ class WebSearchAdapter(Adapter):
         query = query.strip()
 
         try:
+            # Check local cache first for single queries
+            cached = self.cache.get(query)
+            if cached is not None:
+                self.logger.info(f"[ResearchCache] Cache hit for: {query!r}")
+                return {"status": "success", "provider": "cache", "query": query, "results": cached}
+
             # No API key → use DDG regardless of configured provider
+            res = None
             if not self.api_key:
                 self.logger.info(f"No API key set — using DDG fallback for: {query!r}")
-                return await self._search_ddg(query)
+                res = await self._search_ddg(query)
 
-            if self.provider == "serpapi":
-                return await self._search_serpapi(query)
+            elif self.provider == "serpapi":
+                res = await self._search_serpapi(query)
 
             elif self.provider == "brave":
-                # Attempt Brave; fall back to DDG if the API call fails
                 try:
-                    return await self._search_brave(query)
+                    res = await self._search_brave(query)
                 except Exception as brave_err:
                     self.logger.warning(f"Brave search failed ({brave_err}); falling back to DDG.")
-                    return await self._search_ddg(query)
+                    res = await self._search_ddg(query)
 
             elif self.provider == "ddg":
-                return await self._search_ddg(query)
+                res = await self._search_ddg(query)
 
             else:
                 return {"status": "error", "message": f"Unknown provider: {self.provider!r}. Use 'brave', 'serpapi', or 'ddg'."}
 
+            if res and res.get("status") == "success" and res.get("results"):
+                self.cache.set(query, res["results"])
+
+            return res
+
         except Exception as e:
             self.logger.error(f"Web search failed for {query!r}: {e}")
             return {"status": "error", "message": str(e)}
+
+    async def execute_multi_query(self, queries: List[str], timeout: float = 4.0) -> Dict[str, Any]:
+        """
+        Executes parallel searches across multiple query angles, deduplicating URLs.
+        Each sub-query is strictly guarded by an async timeout.
+        """
+        if not queries:
+            return {"status": "error", "message": "No queries provided", "results": []}
+
+        tasks = []
+        for q in queries:
+            tasks.append(asyncio.wait_for(self.execute(q), timeout=timeout))
+
+        responses = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        all_results = []
+        seen_links = set()
+
+        for resp in responses:
+            if isinstance(resp, dict) and resp.get("status") == "success":
+                for item in resp.get("results", []):
+                    link = item.get("link", "")
+                    if link and link not in seen_links:
+                        seen_links.add(link)
+                        all_results.append(item)
+                    elif not link:
+                        all_results.append(item)
+
+        return {
+            "status": "success",
+            "provider": self.provider,
+            "queries": queries,
+            "results": all_results[:12]
+        }
+
+    async def expand_and_harvest(self, objective: str) -> Dict[str, Any]:
+        """
+        Deep Research Harvester (Rocco 2.0).
+        Decomposes complex objectives into 2-3 focused search vectors,
+        checks local SQLite cache, executes parallel searches, and updates cache.
+        """
+        cached = self.cache.get(objective)
+        if cached is not None:
+            self.logger.info(f"[ResearchCache] 0ms HIT for: {objective[:60]}...")
+            return {
+                "status": "success",
+                "provider": "local_sqlite_cache",
+                "query": objective,
+                "results": cached
+            }
+
+        # Query decomposition
+        clean_obj = objective.strip()
+        queries = [clean_obj]
+        
+        # Add focused sub-query if complex
+        if " vs " in clean_obj.lower():
+            parts = clean_obj.lower().split(" vs ")
+            queries.extend([f"{p.strip()} specifications" for p in parts[:2]])
+        elif "compare" in clean_obj.lower():
+            queries.append(f"{clean_obj} benchmarks comparison")
+        elif "deep research on" in clean_obj.lower():
+            topic = clean_obj.lower().replace("deep research on", "").strip()
+            queries = [topic, f"{topic} latest documentation architecture", f"{topic} benchmarks analysis"]
+
+        res = await self.execute_multi_query(queries[:3])
+        if res.get("status") == "success" and res.get("results"):
+            self.cache.set(objective, res["results"])
+
+        return res
 
     # ── SerpAPI ───────────────────────────────────────────────────────────────
 
