@@ -231,30 +231,55 @@ async def _check_local_workspace_file_or_report(prompt: str) -> Optional[str]:
 
 async def _check_web_search_grounding(prompt: str) -> Optional[str]:
     """
-    Detects if the user query explicitly asks for web/internet search, executes
-    the query through WebSearchAdapter, and returns grounded search snippets.
+    Detects if the user query asks for web/internet search or deep research, or if answering
+    requires live external facts/market data. Executes via WebSearchAdapter and returns verified markdown snippets with URLs.
     """
     body_lower = prompt.lower().strip()
-    search_triggers = [
+    search_prefixes = [
         "search the web for", "search online for", "search duckduckgo for",
-        "search google for", "look up online", "search the internet for",
-        "web search:", "google search:"
+        "search google for", "look up online for", "look up online",
+        "search the internet for", "web search for", "web search:",
+        "google search:", "deep research on", "deep research into",
+        "do deep research on", "do deep research for", "run deep research on",
+        "research the latest", "search for", "find online information on",
+        "find online information about", "find online facts about",
+        "find out about", "browse the web for", "look up the latest",
+        "find latest news on", "find current pricing for", "search:"
     ]
 
     query = None
-    for trig in search_triggers:
+    for trig in search_prefixes:
         if trig in body_lower:
             idx = body_lower.find(trig) + len(trig)
-            query = prompt[idx:].strip(" :\"'")
+            query = prompt[idx:].strip(" :\"'?")
             break
 
-    if not query or len(query) < 3:
+    # Also detect explicit "search: <query>" or "research: <query>" or queries ending in "online" or "on the web"
+    if not query:
+        if any(body_lower.startswith(p) for p in ["search ", "google ", "lookup ", "research "]):
+            words = prompt.split(maxsplit=1)
+            if len(words) > 1 and len(words[1].strip()) > 3:
+                query = words[1].strip(" :\"'?")
+
+    # Epistemic detection: prompt asks for 2026/current external developments, competitor market pricing, or live releases
+    if not query:
+        temporal_external_triggers = [
+            "latest developments in", "current pricing for", "recent news regarding",
+            "what happened with", "who is the current ceo of", "latest release of"
+        ]
+        for trig in temporal_external_triggers:
+            if trig in body_lower:
+                idx = body_lower.find(trig)
+                query = prompt[idx:].strip(" :\"'?")
+                break
+
+    if not query or len(query.strip()) < 3:
         return None
 
     try:
         from ..adapters.web_search import WebSearchAdapter
         adapter = WebSearchAdapter()
-        search_res = await adapter.execute(query)
+        search_res = await adapter.execute(query.strip())
         if isinstance(search_res, dict) and search_res.get("status") == "success" and search_res.get("results"):
             results = search_res["results"][:5]
             formatted_results = []
@@ -459,13 +484,68 @@ async def _check_codebase_and_architecture_context(prompt: str) -> Optional[str]
                 except Exception as read_err:
                     logger.debug(f"[CodebaseGrounding] Error reading file {resolved_path}: {read_err}")
 
-        # 2. System Architecture & Pillars Summary
+        # 2. Dynamic System Architecture & 6-Domain Capability Matrix
         arch = inspector.get_architecture_summary()
+        capabilities = inspector.get_system_capabilities()
+        cap_summary = [f"- {v['name']}: {v['description']}" for v in capabilities.values()]
         context_parts.append(
-            f"[AUTHENTIC SYSTEM ARCHITECTURE]\n"
-            f"Title: {arch.get('title')}\n"
-            f"5 Sovereign Pillars:\n" + "\n".join(f"- {p}" for p in arch.get("pillars", []))
+            f"[AUTHENTIC SYSTEM ARCHITECTURE & 6-DOMAIN CAPABILITIES]\n"
+            f"Title: {arch.get('title', 'Alluci Sovereign Agent Architecture Blueprint')}\n"
+            f"Functional Domains:\n" + "\n".join(cap_summary)
         )
+
+        # 3. Introspective Subsystem Grounding (Authoritative Class & Module Docstrings from Disk)
+        subsystem_map = {
+            "dpk": "backend/security/dpk.py",
+            "discrete projection kernel": "backend/security/dpk.py",
+            "ppn": "backend/security/dpk.py",
+            "polytope projection network": "backend/security/dpk.py",
+            "pmet": "backend/topology/pmet_filtration.py",
+            "vietoris-rips": "backend/topology/pmet_filtration.py",
+            "j-space": "backend/topology/j_space_simulator.py",
+            "barcode_clock": "backend/topology/barcode_clock.py",
+            "barcode clock": "backend/topology/barcode_clock.py",
+            "markov_trace": "backend/topology/markov_trace.py",
+            "codi": ".agents/skills/codi_opencode_harness/SKILL.md",
+            "rocco": "backend/tools/web_scraper.py",
+            "spe": "backend/tools/strategic_planning_execution_tool.py",
+            "strategic planning": "backend/tools/strategic_planning_execution_tool.py",
+            "swd": "backend/tools/strategic_workforce_design_tool.py",
+            "workforce design": "backend/tools/strategic_workforce_design_tool.py",
+            "suf": "backend/tools/use_of_funds_tool.py",
+            "use of funds": "backend/tools/use_of_funds_tool.py",
+            "capital allocation": "backend/tools/use_of_funds_tool.py",
+            "ownership": "backend/tools/ownership_capital_strategy_tool.py",
+            "cap table": "backend/tools/ownership_capital_strategy_tool.py",
+            "founding team": "backend/tools/founding_team_leadership_tool.py",
+            "signal": "backend/bridges/signal_cli.py",
+            "bridge": "backend/bridges/manager.py",
+            "vault": "backend/security/vault.py",
+            "hlsm": "backend/memory/hlsm_manager.py",
+            "kuzudb": "backend/memory/hlsm_manager.py",
+            "ace": "backend/ace/engine.py",
+            "avl": "backend/security/avl_gate.py"
+        }
+
+        matched_subsystems = set()
+        for trig, sub_path in subsystem_map.items():
+            if trig in body_lower and sub_path not in matched_subsystems:
+                matched_subsystems.add(sub_path)
+                full_sub_path = os.path.join(project_root, sub_path)
+                if os.path.exists(full_sub_path):
+                    try:
+                        with open(full_sub_path, "r", encoding="utf-8", errors="ignore") as sf:
+                            sub_text = sf.read()
+                        # Extract header & docstrings (up to 4,000 chars)
+                        sub_excerpt = sub_text[:4000]
+                        context_parts.append(
+                            f"\n[INTROSPECTIVE SUBSYSTEM GROUNDING: `{sub_path}`]:\n"
+                            f"```\n{sub_excerpt.strip()}\n```"
+                        )
+                    except Exception as sub_err:
+                        logger.debug(f"[CodebaseGrounding] Error reading subsystem {sub_path}: {sub_err}")
+                if len(matched_subsystems) >= 2:
+                    break
 
         if any(w in body_lower for w in ["git", "commit", "branch", "repo", "github"]):
             git_st = await git_inspector.get_git_status()

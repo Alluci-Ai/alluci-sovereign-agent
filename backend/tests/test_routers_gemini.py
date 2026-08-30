@@ -156,5 +156,40 @@ async def test_gemini_proxy_explain_file_content_injection():
     assert "Alluci-Sovereign-Agent" in called_prompt
 
 
+@pytest.mark.asyncio
+async def test_gemini_proxy_introspective_subsystem_grounding_dpk():
+    services.router = AsyncMock()
+    services.orchestrator = AsyncMock()
+    services.orchestrator._build_system_context.return_value = "System ctx"
+    services.router.get_response.return_value = "DPK explanation"
+
+    res = client.post("/gemini/proxy", json={"prompt": "Can you explain what your DPK does based on your codebase?"})
+    assert res.status_code == 200
+    assert res.json() == {"result": "DPK explanation"}
+
+    services.router.get_response.assert_called_once()
+    called_prompt = services.router.get_response.call_args[1]["prompt"]
+    assert "[INTROSPECTIVE SUBSYSTEM GROUNDING: `backend/security/dpk.py`]:" in called_prompt
+    assert "DiscreteProjectionKernel" in called_prompt or "PolytopeState" in called_prompt
+
+
+@pytest.mark.asyncio
+async def test_gemini_proxy_deep_research_web_search():
+    services.router = AsyncMock()
+    services.orchestrator = AsyncMock()
+    services.orchestrator._build_system_context.return_value = "System ctx"
+    services.router.get_response.return_value = "Deep research synthesized response"
+
+    with patch("backend.adapters.web_search.WebSearchAdapter.execute", new_callable=AsyncMock) as mock_search:
+        mock_search.return_value = {
+            "status": "success",
+            "results": [{"title": "Apple MLX Breakthroughs", "link": "https://github.com/ml-explore/mlx", "snippet": "Apple silicon machine learning framework"}]
+        }
+        res = client.post("/gemini/proxy", json={"prompt": "Do deep research on Apple MLX in 2026"})
+        assert res.status_code == 200
+        assert res.json() == {"result": "Deep research synthesized response"}
+        mock_search.assert_called_once_with("Apple MLX in 2026")
+
+
 
 

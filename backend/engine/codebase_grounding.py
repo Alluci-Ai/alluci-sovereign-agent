@@ -408,8 +408,46 @@ class LocalCodebaseInspector:
             "content": "".join(selected_lines)
         }
 
+    def get_system_capabilities(self) -> Dict[str, Any]:
+        """
+        Returns the structured, full-spectrum capability registry across all 6 core functional domains.
+        Replaces static 5-pillar abstractions with live multi-domain architectural grounding.
+        """
+        return {
+            "core_compute_and_inference": {
+                "name": "Local Compute Engine (LCE) & Hardware Tiers",
+                "description": "Native Apple Silicon Metal inference via Python Apple MLX (TIER_0_ULTRA through TIER_4_EDGE) with dynamic Q4 KV caching, speculative decoding, and air-gapped execution.",
+                "modules": ["backend.inference.mlx_engine", "backend.inference.router", "backend.inference.profiler"]
+            },
+            "topological_and_mathematical_physics": {
+                "name": "Topological State Space & Manifold Physics (W, X, G, N)",
+                "description": "Polytope Projection Network (PPN), Discrete Projection Kernel (DPK), Vietoris-Rips persistent homology (PMET filtration), Kepler S8 Stella Octangula dual-tetrahedron synthesis, Simplicial Chain-of-Thought (S-CoT), and Topological Barcode Clock pacing.",
+                "modules": ["backend.topology.pmet_filtration", "backend.topology.j_space_simulator", "backend.topology.barcode_clock", "backend.topology.markov_trace", "backend.security.dpk"]
+            },
+            "autonomous_subagent_constellation": {
+                "name": "Autonomous Sub-Agent Constellation & Core Skills",
+                "description": "Specialized executive autonomous agents: Codi (OpenCode SWE & AST diffing), Rocco (Deep Research & Paper Synthesis), SPE (Strategic Planning & Balanced Scorecard), SWD (Workforce & AI Design), SUF (Use of Funds & Runway Audit), OC (Ownership & Cap Tables), HR (Onboarding Roadmaps), LD (Legal Lifecycle & Contracts), OK (Organizational Knowledge).",
+                "modules": ["backend.tools.*", ".agents.skills.*", "backend.subagents.*"]
+            },
+            "memory_and_knowledge_fabric": {
+                "name": "4-Tier Simplicial H-LSM Memory Fabric",
+                "description": "Hierarchical Log-Structured Merge memory unifying L0 Working context, L1 Episodic FTS5 search, L2 Semantic vector embeddings, and L3 KùzuDB Knowledge Graph for lifelong cross-workflow intelligence.",
+                "modules": ["backend.memory.hlsm_manager", "backend.memory.codebase_indexer", "backend.ace.engine"]
+            },
+            "zero_trust_security_and_identity": {
+                "name": "Zero-Trust Cryptographic Security & Governance",
+                "description": "VerusID Ed25519 decentralized sovereign identity, Human-in-the-Loop (HITL) interactive authorization modals gating sensitive OS/financial operations, AES-256 GCM VaultManager, WebAuthn FIDO2 passkeys, and CSRF protection.",
+                "modules": ["backend.security.verus", "backend.security.vault", "backend.security.avl_gate", "backend.security.auth"]
+            },
+            "omnichannel_bridges_and_ui": {
+                "name": "Omni-Channel Communication Bridges & React 19 UI",
+                "description": "Air-gapped communication daemons for Signal-CLI, WhatsApp, Telegram, WeChat, Email/IMAP, local Shell/Terminal execution, React 19 visual interface, and interactive Cytoscape DAG workflow visualizer.",
+                "modules": ["backend.bridges.*", "backend.ws_gateway", "components.*", "features.*"]
+            }
+        }
+
     def get_architecture_summary(self) -> Dict[str, Any]:
-        """Extracts structured summaries from ARCHITECTURE.md, AGENTS.md, and README.md."""
+        """Extracts structured summaries from ARCHITECTURE.md, AGENTS.md, and system capability registry."""
         arch_md_path = os.path.join(self.project_root, "ARCHITECTURE.md")
         agents_md_path = os.path.join(self.project_root, "AGENTS.md")
 
@@ -424,15 +462,19 @@ class LocalCodebaseInspector:
             with open(agents_md_path, "r", encoding="utf-8") as f:
                 agents_content = f.read()
 
+        capabilities = self.get_system_capabilities()
+
+        # Legacy-compatible list populated from rich domain descriptions
+        pillars = [
+            f"{dom['name']}: {dom['description']}"
+            for dom in capabilities.values()
+        ]
+
         return {
             "title": "Alluci Sovereign Agent Architecture Blueprint",
-            "pillars": [
-                "Sovereign Identity (VerusID - Ed25519 decentralized authentication & manifest signing)",
-                "HITL Executive Security Governance (Interactive authorization modal gating destructive operations)",
-                "4-Tier Simplicial H-LSM Memory (L0 Working, L1 Episodic FTS5, L2 Semantic, L3 KùzuDB Graph)",
-                "Bio-Affective Computing Engine (ACE biometrics & cognitive tension psi modulation)",
-                "Policy-Driven DAG Orchestration (Autonomous hierarchical DAG decomposition & cron scheduler)"
-            ],
+            "domains": capabilities,
+            "pillars": pillars[:5],  # Maintain 5-element list for legacy endpoint contracts
+            "capabilities": pillars,
             "architecture_guide_length": len(arch_content),
             "agents_directive_length": len(agents_content),
             "hardware_profiling": "TIER_0_ULTRA through TIER_4_EDGE (Apple MLX on macOS / Cross-platform LlamaCpp)"

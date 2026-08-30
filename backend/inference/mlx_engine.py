@@ -49,16 +49,25 @@ class MLXEngine:
             cls._instance.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="mlx_compute")
         return cls._instance
 
-    def load_model_sync(self):
-        """Synchronously initializes the MLX engine."""
-        if self.engine is not None:
+    loaded_model_id: Optional[str] = None
+
+    def load_model_sync(self, target_model_override: Optional[str] = None):
+        """Synchronously initializes or switches the MLX engine to the target model."""
+        target_model_id = target_model_override or (self.hardware_profile["recommended_model"] if self.hardware_profile else "Alluci/alluci-polytope-gemma-4-31b-it-bf16")
+        
+        if self.engine is not None and self.loaded_model_id == target_model_id:
             return
 
         self.is_loading = True
         try:
-            if not self.hardware_profile:
-                raise RuntimeError("Hardware profile not initialized.")
-            target_model_id = self.hardware_profile["recommended_model"]
+            # Purge existing engine from Metal VRAM if switching models
+            if self.engine is not None:
+                self.engine = None
+                self.tokenizer = None
+                MLXEngine._clear_vram_cache()
+                import gc
+                gc.collect()
+
             model_name = target_model_id.split("/")[-1]
             logger.info(f"MLXEngine: Initializing Native Apple Silicon Engine with {model_name}...")
             
@@ -81,18 +90,19 @@ class MLXEngine:
 
             self.engine, _ = load_model(model_path, get_model_classes=_polytope_get_classes)
             self.tokenizer = load_tokenizer(model_path)
+            self.loaded_model_id = target_model_id
             
-            logger.info("MLXEngine: Native Engine allocated successfully.")
+            logger.info(f"MLXEngine: Native Engine [{model_name}] allocated successfully.")
         except Exception as e:
             logger.error(f"MLXEngine Load Error: {e}")
             raise
         finally:
             self.is_loading = False
 
-    async def ensure_loaded(self):
+    async def ensure_loaded(self, model_id_override: Optional[str] = None):
         """Asynchronously ensures the model is loaded."""
-        if self.engine is None and not self.is_loading:
-            await asyncio.get_running_loop().run_in_executor(self.executor, self.load_model_sync)
+        if (self.engine is None or (model_id_override and model_id_override != self.loaded_model_id)) and not self.is_loading:
+            await asyncio.get_running_loop().run_in_executor(self.executor, lambda: self.load_model_sync(model_id_override))
         while self.is_loading:
             await asyncio.sleep(0.1)
 

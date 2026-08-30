@@ -56,7 +56,25 @@ def test_get_architecture_summary():
     arch = inspector.get_architecture_summary()
     assert "title" in arch
     assert len(arch["pillars"]) == 5
-    assert any("VerusID" in p for p in arch["pillars"])
+    assert "domains" in arch
+    assert len(arch["domains"]) == 6
+
+
+def test_get_system_capabilities():
+    inspector = LocalCodebaseInspector()
+    caps = inspector.get_system_capabilities()
+    assert isinstance(caps, dict)
+    assert len(caps) == 6
+    assert "core_compute_and_inference" in caps
+    assert "topological_and_mathematical_physics" in caps
+    assert "autonomous_subagent_constellation" in caps
+    assert "memory_and_knowledge_fabric" in caps
+    assert "zero_trust_security_and_identity" in caps
+    assert "omnichannel_bridges_and_ui" in caps
+    for domain in caps.values():
+        assert "name" in domain
+        assert "description" in domain
+        assert "modules" in domain
 
 
 @pytest.mark.asyncio

@@ -1137,6 +1137,38 @@ class ModelRouter(ExecutiveRouter):
             
         return system_instruction
 
+    def select_optimal_local_model(self, prompt: str, files: Optional[list] = None) -> Optional[str]:
+        """
+        Dynamically selects the optimal local model from mirror_cache based on task modality,
+        reasoning complexity, and execution speed requirements.
+        """
+        body_lower = prompt.lower()
+        
+        # 1. Visual / Multimodal Modality
+        if files:
+            for f in files:
+                mime = f.get("mimeType", "").lower()
+                if any(img_t in mime for img_t in ["image/", "png", "jpeg", "jpg", "webp", "pdf"]):
+                    glm_v = os.path.abspath("mirror_cache/GLM-4.6V-4bit")
+                    if os.path.exists(glm_v):
+                        return "mirror_cache/GLM-4.6V-4bit"
+        
+        # 2. High-Speed Coding / Terminal / AST Diffing Tasks (Codi sub-agent)
+        coding_triggers = ["write code", "fix syntax", "ast diff", "compiler", "implement function", "refactor", "run command", "terminal", "make test", "npm run", "pytest"]
+        if any(w in body_lower for w in coding_triggers):
+            moe_path = os.path.abspath("mirror_cache/alluci-polytope-gemma-4-26b-a4b-it-4bit")
+            if os.path.exists(moe_path):
+                return "Alluci/alluci-polytope-gemma-4-26b-a4b-it-4bit"
+            
+        # 3. Deep Mathematical Proofs / Complex Strategic Architecture
+        deep_proof_triggers = ["mathematical proof", "simplicial complex", "betti invariant", "stella octangula", "cap table waterfall", "comprehensive architecture blueprint"]
+        if any(w in body_lower for w in deep_proof_triggers):
+            dense_path = os.path.abspath("mirror_cache/alluci-polytope-gemma-4-31b-it-bf16")
+            if os.path.exists(dense_path):
+                return "Alluci/alluci-polytope-gemma-4-31b-it-bf16"
+            
+        return None
+
     def build_session_state_envelope(self, session_id: Optional[str] = None) -> str:
         """
         Constructs a compact SessionStateEnvelope (~350 tokens) for unified
@@ -1176,7 +1208,13 @@ class ModelRouter(ExecutiveRouter):
         # If Local Inference is enabled and LCE is ready
         if inference_mode in ["HYBRID", "LOCAL"] and self.lce_enabled:
             try:
-                self.logger.info("[STREAM] Routing to local LCE native stream...")
+                optimal_model = self.select_optimal_local_model(prompt)
+                if optimal_model:
+                    self.logger.info(f"[STREAM] Dynamic routing to optimal model: {optimal_model}")
+                    await cognitive_engine.ensure_loaded(optimal_model)
+                else:
+                    self.logger.info("[STREAM] Routing to local LCE native stream...")
+                    await cognitive_engine.ensure_loaded()
                 await cognitive_engine.apply_lora_adapter(agent_id)
                 async for chunk in cognitive_engine.generate_stream(prompt, system_instruction=system_instruction):
                     yield self._sanitize_formatting(chunk)
