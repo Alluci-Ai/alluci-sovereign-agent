@@ -96,4 +96,47 @@ def test_gemini_proxy_stream_exception():
     assert res.status_code == 200
     assert 'data: {"text": "[ ERROR ]: Stream failed"}' in res.content.decode("utf-8")
 
+@pytest.mark.asyncio
+async def test_gemini_proxy_local_file_retrieval_readme():
+    services.router = AsyncMock()
+    services.orchestrator = AsyncMock()
+    services.orchestrator.ws_gateway = AsyncMock()
+    
+    res = client.post("/gemini/proxy", json={"prompt": "can you show me the Alluci Sovereign Agent README.md file"})
+    assert res.status_code == 200
+    data = res.json()
+    assert "README.md" in data["result"]
+    assert "Alluci-Sovereign-Agent" in data["result"]
+    # Verify LLM was NOT called because disk truth was returned directly
+    services.router.get_response.assert_not_called()
+
+@pytest.mark.asyncio
+async def test_gemini_proxy_local_file_not_found():
+    services.router = AsyncMock()
+    services.orchestrator = AsyncMock()
+    
+    res = client.post("/gemini/proxy", json={"prompt": "show me non_existent_script_98234.py"})
+    assert res.status_code == 200
+    data = res.json()
+    assert "File `non_existent_script_98234.py` was not found on the local filesystem" in data["result"]
+    services.router.get_response.assert_not_called()
+
+@pytest.mark.asyncio
+async def test_gemini_proxy_web_search_grounding():
+    services.router = AsyncMock()
+    services.orchestrator = AsyncMock()
+    services.orchestrator._build_system_context.return_value = "System ctx"
+    services.router.get_response.return_value = "Web Search Answer"
+
+    with patch("backend.adapters.web_search.WebSearchAdapter.execute", new_callable=AsyncMock) as mock_search:
+        mock_search.return_value = {
+            "status": "success",
+            "results": [{"title": "Verus Protocol", "link": "https://verus.io", "snippet": "Verus multi-chain protocol"}]
+        }
+        res = client.post("/gemini/proxy", json={"prompt": "search the web for Verus Protocol"})
+        assert res.status_code == 200
+        assert res.json() == {"result": "Web Search Answer"}
+        mock_search.assert_called_once_with("Verus Protocol")
+
+
 

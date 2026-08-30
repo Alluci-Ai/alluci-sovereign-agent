@@ -17,40 +17,60 @@ import uuid
 import time
 from ..utils.doc_parser import extract_text_from_file_payload
 
-async def _check_local_research_reports(prompt: str) -> Optional[str]:
+async def _check_local_workspace_file_or_report(prompt: str) -> Optional[str]:
     """
-    Scans artifacts/research/*/deep_research_report.md on disk when prompt
-    explicitly requests a research report or dossier, registering it as an ArtifactRecord
-    and broadcasting an artifact.open event to slide open the side panel.
+    Scans the local workspace filesystem for requested files (e.g., README.md, ARCHITECTURE.md,
+    source files, configuration, or deep research reports) when prompt explicitly requests to
+    view, show, read, open, or fetch a file. Reads the verbatim content from disk,
+    registers it as an ArtifactRecord, and broadcasts an artifact.open event to open the side panel.
     """
-    body_lower = prompt.lower()
-    
-    # Negative guardrail keywords: Never intercept educational, skill, or code analysis prompts
-    exclude_keywords = ["skill", "hcd", "framework", "json", "code", "mindset", "methodology", "ethnographic", "concept", "definition"]
-    if any(kw in body_lower for kw in exclude_keywords):
-        return None
+    body_lower = prompt.lower().strip()
 
-    # Execution/Creation Guardrail: Never intercept commands attempting to trigger a NEW research run
-    execution_keywords = ["do deep", "do web", "conduct", "run", "deep research", "deep web research", "scour", "investigate", "rocco", "spin up", "execute dag", "research grants", "grants"]
+    # 1. Negative guardrail keywords: Never intercept educational prompts or explicit commands to generate/write new code
+    execution_keywords = [
+        "do deep", "do web", "conduct", "run", "deep research", "deep web research",
+        "scour", "investigate", "rocco", "spin up", "execute dag", "create a new", "write a new", "build a new"
+    ]
     if any(ek in body_lower for ek in execution_keywords):
         return None
-        
-    action_verbs = ["show", "pull", "open", "display", "read", "view", "fetch"]
-    target_nouns = ["report", "dossier"]
-    
-    is_explicit_request = any(verb in body_lower for verb in action_verbs) and any(noun in body_lower for noun in target_nouns)
-    if is_explicit_request:
-        import os, glob
-        from .sessions import WORKSPACE_DIR
-        found_reports = []
 
-        # 1. Primary Search Location: ./workspace/artifacts/research/
-        primary_base = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "workspace", "artifacts", "research"))
+    action_verbs = ["show", "pull", "open", "display", "read", "view", "fetch", "get", "print", "cat"]
+    has_action_verb = any(re.search(rf'\b{re.escape(verb)}\b', body_lower) for verb in action_verbs)
+
+    # Check for research report request
+    target_report_nouns = ["report", "dossier"]
+    is_report_request = has_action_verb and any(re.search(rf'\b{re.escape(noun)}\b', body_lower) for noun in target_report_nouns)
+
+    # Check for file request: explicit file name/path with extension or keywords
+    file_pattern = r'([A-Za-z0-9_\-\.\/]+\.(?:md|py|ts|tsx|js|jsx|json|yaml|yml|sh|html|css|txt|sql|toml|ini|env|example|lock))\b'
+    file_matches = re.findall(file_pattern, prompt, re.IGNORECASE)
+
+    explicit_named_files = []
+    if "readme" in body_lower and not any("readme" in m.lower() for m in file_matches):
+        explicit_named_files.append("README.md")
+    if "architecture" in body_lower and any(w in body_lower for w in ["file", "md", "doc", "document"]) and not any("architecture" in m.lower() for m in file_matches):
+        explicit_named_files.append("ARCHITECTURE.md")
+    if "agents.md" in body_lower or ("agents" in body_lower and "directive" in body_lower):
+        explicit_named_files.append("AGENTS.md")
+
+    target_files = file_matches + explicit_named_files
+
+    # If not a report request and no target file detected, or no action verb for general file, return None
+    if not is_report_request and (not target_files or not has_action_verb):
+        return None
+
+    import os, glob
+    from .sessions import WORKSPACE_DIR
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+
+    # Case A: Research Report Request
+    if is_report_request and not target_files:
+        found_reports = []
+        primary_base = os.path.join(project_root, "workspace", "artifacts", "research")
         if os.path.exists(primary_base):
             for p in glob.glob(os.path.join(primary_base, "*", "deep_research_report.md")):
                 found_reports.append((os.path.getmtime(p), p))
 
-        # 2. Legacy Fallback Locations
         for search_agent in ["a32eb383", "rocco", "executive"]:
             research_base = os.path.join(WORKSPACE_DIR, search_agent, "artifacts", "research")
             if os.path.exists(research_base):
@@ -58,12 +78,10 @@ async def _check_local_research_reports(prompt: str) -> Optional[str]:
                     found_reports.append((os.path.getmtime(p), p))
 
         if found_reports:
-            # Topic-Aware Matching: Check if prompt contains words matching folder name (e.g. "sovereign")
             matched_report = None
+            prompt_words = [w for w in body_lower.replace('"', '').replace("'", '').split() if len(w) > 3 and w not in action_verbs and w not in target_report_nouns]
             for _, rpath in found_reports:
                 folder_name = os.path.basename(os.path.dirname(rpath)).lower()
-                # Check for significant words (>3 chars) in prompt
-                prompt_words = [w for w in body_lower.replace('"', '').replace("'", '').split() if len(w) > 3 and w not in action_verbs and w not in target_nouns]
                 if any(pw in folder_name for pw in prompt_words):
                     matched_report = rpath
                     break
@@ -76,11 +94,10 @@ async def _check_local_research_reports(prompt: str) -> Optional[str]:
             try:
                 with open(latest_path, "r", encoding="utf-8") as rf:
                     rep_content = rf.read()
-                
+
                 folder_label = os.path.basename(os.path.dirname(latest_path))
                 topic_title = folder_label.replace("_", " ").strip().title() if folder_label and folder_label != "artifacts" else "Sovereign Intelligence"
 
-                # 1. Attempt DB creation (Zero-Duplication Pointer)
                 import uuid
                 art_id = f"art_{uuid.uuid4().hex[:12]}"
                 try:
@@ -98,7 +115,6 @@ async def _check_local_research_reports(prompt: str) -> Optional[str]:
                 except Exception as db_err:
                     logger.warning(f"[ReportReader] DB pointer registration note (using direct disk payload): {db_err}")
 
-                # 2. Direct Disk-to-Panel WebSocket Broadcast (Zero-DB-Dependency)
                 from .. import services
                 if services.orchestrator and hasattr(services.orchestrator, "ws_gateway") and services.orchestrator.ws_gateway:
                     await services.orchestrator.ws_gateway.broadcast_event('artifact.open', {
@@ -111,9 +127,149 @@ async def _check_local_research_reports(prompt: str) -> Optional[str]:
                         "source": "system"
                     })
 
-                return f"Hello JJ. I have retrieved the **{topic_title}** report and opened it for you in your Artifact Workspace.\n\nYou can view, navigate, zoom, or download the full dossier in the side panel."
+                return f"Hello JJ. I have retrieved the **{topic_title}** report from disk and opened it for you in your Artifact Workspace.\n\nYou can view, navigate, zoom, or download the full dossier in the side panel."
             except Exception as read_err:
                 logger.error(f"[ReportReader] Failed to read report from disk: {read_err}")
+                return None
+
+    # Case B: Specific Local Workspace File Request
+    for requested_file in target_files:
+        clean_name = requested_file.strip("`'\" \t\n,;:")
+        if not clean_name:
+            continue
+
+        resolved_path = None
+        # 1. Direct path check
+        direct_check = os.path.abspath(os.path.join(project_root, clean_name))
+        if os.path.exists(direct_check) and os.path.isfile(direct_check) and direct_check.startswith(project_root):
+            resolved_path = direct_check
+        else:
+            # 2. Search workspace by basename
+            target_base = os.path.basename(clean_name).lower()
+            for root, dirs, files in os.walk(project_root):
+                dirs[:] = [d for d in dirs if d not in {".git", "node_modules", ".venv", "venv", "__pycache__", ".pytest_cache", "dist", "build", ".next", ".cache"}]
+                for f in files:
+                    if f.lower() == target_base:
+                        candidate = os.path.join(root, f)
+                        if clean_name.lower() in candidate.lower():
+                            resolved_path = candidate
+                            break
+                        if not resolved_path:
+                            resolved_path = candidate
+                if resolved_path:
+                    break
+
+        if resolved_path and os.path.exists(resolved_path):
+            try:
+                rel_path = os.path.relpath(resolved_path, project_root)
+                with open(resolved_path, "r", encoding="utf-8", errors="ignore") as f:
+                    file_content = f.read()
+
+                total_lines = file_content.count("\n") + 1
+                ext = os.path.splitext(resolved_path)[1].lower()
+                mime_map = {
+                    ".md": "text/markdown", ".py": "text/x-python", ".ts": "text/typescript",
+                    ".tsx": "text/typescript-jsx", ".js": "text/javascript", ".json": "application/json",
+                    ".yaml": "text/yaml", ".yml": "text/yaml", ".html": "text/html", ".css": "text/css",
+                    ".sh": "text/x-sh", ".sql": "text/x-sql", ".txt": "text/plain"
+                }
+                mime_type = mime_map.get(ext, "text/plain")
+
+                # Register artifact and open in panel
+                import uuid
+                art_id = f"art_{uuid.uuid4().hex[:12]}"
+                try:
+                    from .artifacts import create_artifact
+                    art_payload = {
+                        "title": f"Workspace File: {rel_path}",
+                        "kind": "code" if ext in {".py", ".ts", ".tsx", ".js", ".json", ".sh", ".sql"} else "text",
+                        "mimeType": mime_type,
+                        "content": file_content,
+                        "metadata": {"file_path": rel_path, "lines": total_lines, "size_bytes": len(file_content)}
+                    }
+                    art_res = await create_artifact(art_payload)
+                    if isinstance(art_res, dict) and "id" in art_res:
+                        art_id = art_res["id"]
+                except Exception as db_err:
+                    logger.debug(f"[FileReader] Artifact DB registration note: {db_err}")
+
+                from .. import services
+                if services.orchestrator and hasattr(services.orchestrator, "ws_gateway") and services.orchestrator.ws_gateway:
+                    await services.orchestrator.ws_gateway.broadcast_event('artifact.open', {
+                        "type": "artifact.open",
+                        "artifactId": art_id,
+                        "title": f"Workspace File: {rel_path}",
+                        "kind": "code" if ext in {".py", ".ts", ".tsx", ".js", ".json", ".sh", ".sql"} else "text",
+                        "content": file_content,
+                        "mimeType": mime_type,
+                        "source": "system"
+                    })
+
+                # Format grounded chat return
+                if len(file_content) <= 12000:
+                    code_lang = ext.lstrip(".") if ext else ""
+                    if ext == ".md":
+                        preview_body = file_content
+                    else:
+                        preview_body = f"```{code_lang}\n{file_content}\n```"
+                    return f"Hello JJ. I have retrieved `{rel_path}` directly from the local filesystem ({total_lines} lines) and opened it in your Artifact Workspace.\n\n{preview_body}"
+                else:
+                    first_lines = "\n".join(file_content.splitlines()[:80])
+                    code_lang = ext.lstrip(".") if ext else ""
+                    return f"Hello JJ. I have retrieved `{rel_path}` directly from the local filesystem ({total_lines} lines, {len(file_content):,} bytes) and opened the complete document in your Artifact Workspace side panel.\n\nHere is an excerpt of the first 80 lines:\n\n```{code_lang}\n{first_lines}\n...\n```"
+
+            except Exception as read_err:
+                logger.error(f"[FileReader] Failed to read local file {resolved_path}: {read_err}")
+                return f"Error reading local file `{clean_name}` from disk: {read_err}"
+
+        # If a specific named file was explicitly requested and not found
+        if has_action_verb:
+            return f"File `{clean_name}` was not found on the local filesystem. Please verify the relative path or file name."
+
+    return None
+
+
+async def _check_web_search_grounding(prompt: str) -> Optional[str]:
+    """
+    Detects if the user query explicitly asks for web/internet search, executes
+    the query through WebSearchAdapter, and returns grounded search snippets.
+    """
+    body_lower = prompt.lower().strip()
+    search_triggers = [
+        "search the web for", "search online for", "search duckduckgo for",
+        "search google for", "look up online", "search the internet for",
+        "web search:", "google search:"
+    ]
+
+    query = None
+    for trig in search_triggers:
+        if trig in body_lower:
+            idx = body_lower.find(trig) + len(trig)
+            query = prompt[idx:].strip(" :\"'")
+            break
+
+    if not query or len(query) < 3:
+        return None
+
+    try:
+        from ..adapters.web_search import WebSearchAdapter
+        adapter = WebSearchAdapter()
+        search_res = await adapter.execute(query)
+        if isinstance(search_res, dict) and search_res.get("status") == "success" and search_res.get("results"):
+            results = search_res["results"][:5]
+            formatted_results = []
+            for i, r in enumerate(results, 1):
+                title = r.get("title", "Untitled")
+                link = r.get("link", "")
+                snippet = r.get("snippet", "")
+                formatted_results.append(f"{i}. [{title}]({link})\n   {snippet}")
+
+            return (
+                f"[AUTHENTIC WEB SEARCH GROUNDING: '{query}']\n"
+                + "\n\n".join(formatted_results)
+            )
+    except Exception as search_err:
+        logger.debug(f"[GeminiRouter] Web search grounding extraction notice: {search_err}")
     return None
 
 
@@ -297,17 +453,22 @@ async def gemini_proxy(
         if mem_purge_reply:
             return {"result": mem_purge_reply}
 
-        # 2. Fast Local Hard Drive File Reader Check (< 50ms)
-        local_report = await _check_local_research_reports(effective_prompt)
-        if local_report:
-            return {"result": local_report}
+        # 2. Fast Local Hard Drive & Workspace File / Report Reader Check (< 50ms)
+        local_file_or_report = await _check_local_workspace_file_or_report(effective_prompt)
+        if local_file_or_report:
+            return {"result": local_file_or_report}
 
-        # 3. Dynamic Codebase & Architecture Grounding Check (< 15ms)
+        # 3. Dynamic Web Search Grounding Check (< 500ms)
+        web_grounding = await _check_web_search_grounding(effective_prompt)
+        if web_grounding:
+            effective_prompt = f"{effective_prompt}\n\n{web_grounding}"
+
+        # 4. Dynamic Codebase & Architecture Grounding Check (< 15ms)
         code_grounding = await _check_codebase_and_architecture_context(effective_prompt)
         if code_grounding:
             effective_prompt = f"{effective_prompt}\n\n[LIVE CODEBASE & ARCHITECTURE GROUNDING]:\n{code_grounding}"
 
-        # 4. Fetch system context (lightweight capability index)
+        # 5. Fetch system context (lightweight capability index)
         system_instruction = ""
         if services.orchestrator:
             ctx_res = await services.orchestrator._build_system_context()
@@ -365,23 +526,28 @@ async def gemini_proxy_stream(
         # 1. Fast Memory Deletion Interceptor Check (< 5ms)
         mem_purge_reply = await _intercept_memory_deletion_request(prompt)
 
-        # 2. Fast Local Hard Drive File Reader Check (< 50ms)
-        local_report = await _check_local_research_reports(effective_prompt)
+        # 2. Fast Local Hard Drive & Workspace File / Report Reader Check (< 50ms)
+        local_file_or_report = await _check_local_workspace_file_or_report(effective_prompt)
 
-        # 3. Dynamic Codebase & Architecture Grounding Check (< 15ms)
+        # 3. Dynamic Web Search Grounding Check (< 500ms)
+        web_grounding = await _check_web_search_grounding(effective_prompt)
+        if web_grounding:
+            effective_prompt = f"{effective_prompt}\n\n{web_grounding}"
+
+        # 4. Dynamic Codebase & Architecture Grounding Check (< 15ms)
         code_grounding = await _check_codebase_and_architecture_context(effective_prompt)
         if code_grounding:
             effective_prompt = f"{effective_prompt}\n\n[LIVE CODEBASE & ARCHITECTURE GROUNDING]:\n{code_grounding}"
 
         system_instruction = ""
         orch = services.orchestrator
-        if orch is not None and not local_report and not mem_purge_reply:
+        if orch is not None and not local_file_or_report and not mem_purge_reply:
             ctx_res = await orch._build_system_context(compact_index=True)
             system_instruction = ctx_res[0] if isinstance(ctx_res, (tuple, list)) else str(ctx_res)
 
-        # 3. 3-Layer Parallel Intent Switchboard (< 5ms Check)
+        # 5. 3-Layer Parallel Intent Switchboard (< 5ms Check)
         orchestrator_reply = None
-        if orch is not None and not local_report and not mem_purge_reply:
+        if orch is not None and not local_file_or_report and not mem_purge_reply:
             try:
                 import re
                 body_lower = prompt.lower()
@@ -407,8 +573,8 @@ async def gemini_proxy_stream(
                 yield f"data: {json.dumps({'text': mem_purge_reply})}\n\n"
                 return
 
-            if local_report:
-                yield f"data: {json.dumps({'text': local_report})}\n\n"
+            if local_file_or_report:
+                yield f"data: {json.dumps({'text': local_file_or_report})}\n\n"
                 return
 
             if orchestrator_reply:

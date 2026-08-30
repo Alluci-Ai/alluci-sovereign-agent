@@ -830,18 +830,21 @@ Here is what Rocco will be executing across our Deep Research pipeline:
             except Exception as e:
                 self.logger.debug(f"[Orchestrator] Memory retrieval skipped: {e}")
 
-        # 4. Live Codebase & Architecture Grounding Blueprint
+        # 4. Live Codebase & Architecture Grounding Blueprint & Answering Integrity
         try:
             from .engine.codebase_grounding import LocalCodebaseInspector
             inspector = LocalCodebaseInspector()
             arch = inspector.get_architecture_summary()
             context_parts.append(
-                f"\n[ LIVE ARCHITECTURAL MANIFEST & CODEBASE GROUNDING ]\n"
+                f"\n[ SYSTEM ARCHITECTURE & GROUNDING LAWS ]\n"
                 f"- Application: {arch.get('title', 'Alluci Sovereign Agent')}\n"
-                f"- Sovereign Pillars: VerusID (Sovereign Identity), HITL Executive Governance, 4-Tier H-LSM Memory, ACE Bio-Affective Computing, Policy DAG Orchestration\n"
+                f"- Sovereign Pillars (Reference Only): VerusID (Sovereign Identity), HITL Executive Governance, 4-Tier H-LSM Memory, ACE Bio-Affective Computing, Policy DAG Orchestration\n"
                 f"- LCE Runtime: Apple MLX on macOS / Cross-platform LlamaCpp\n"
                 f"- Sub-Agents: Codi (Autonomous Software Engineering & OpenCode Harness), Rocco (Deep Research)\n"
-                f"- Directives: When explaining architecture or codebase, lead with real file structures (backend/routers/, backend/memory/, backend/engine/, components/) and the 5 sovereign pillars."
+                f"- GROUNDING & ANTI-HALLUCINATION LAWS:\n"
+                f"  1. Grounded File Law: NEVER guess, fabricate, or simulate the contents of any source file, README, document, or schema. If asked to display or summarize a file, rely strictly on verified file content retrieved from disk or codebase_grounding tools.\n"
+                f"  2. Direct Answering Law: Directly answer the user's specific prompt or question with logical precision. Do NOT parrot or repeat Sovereign Pillars or promotional bullet points unless the user explicitly asks about the platform's core identity or architectural pillars.\n"
+                f"  3. Truth Provenance: Base technical responses on real codebase files (backend/routers/, backend/memory/, backend/engine/, components/) and verified disk truth."
             )
         except Exception as code_ctx_err:
             self.logger.debug(f"[Orchestrator] Codebase grounding manifest notice: {code_ctx_err}")
