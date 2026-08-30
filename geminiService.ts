@@ -250,6 +250,7 @@ export class AlluciGeminiService {
       const csrfToken = await getCsrfToken(this.DAEMON_URL, token, forceCsrf);
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
+      if (token) headers['Authorization'] = `Bearer ${token}`;
  
       const endpoint = isStream ? '/api/v1/gemini/proxy/stream' : '/api/v1/gemini/proxy';
       return await fetch(`${this.DAEMON_URL}${endpoint}`, {
