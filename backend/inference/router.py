@@ -254,6 +254,11 @@ class ModelRouter(ExecutiveRouter):
 
     async def _lce_request(self, prompt: str, system_instruction: str = "", tools: Optional[list] = None, agent_id: str = "executive", max_tokens: Optional[int] = None) -> str:
         """Local Cognitive Engine via OS-Agnostic Abstraction."""
+        optimal_model = self.select_optimal_local_model(prompt)
+        if optimal_model:
+            await cognitive_engine.ensure_loaded(optimal_model)
+        else:
+            await cognitive_engine.ensure_loaded()
         await cognitive_engine.apply_lora_adapter(agent_id)
         if max_tokens:
             return await cognitive_engine.generate(prompt, system_instruction=system_instruction, max_tokens=max_tokens, tools=tools)
