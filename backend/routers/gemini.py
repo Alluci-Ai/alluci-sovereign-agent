@@ -474,12 +474,21 @@ async def _check_codebase_and_architecture_context(prompt: str) -> Optional[str]
             if resolved_path and os.path.exists(resolved_path):
                 try:
                     rel_path = os.path.relpath(resolved_path, project_root)
+                    ext = os.path.splitext(resolved_path)[1].lower()
                     with open(resolved_path, "r", encoding="utf-8", errors="ignore") as f:
                         file_content = f.read()
 
                     total_lines = file_content.count("\n") + 1
-                    # Inject up to 12,000 chars of file text directly into prompt context
-                    if len(file_content) > 12000:
+                    # For markdown files or large documentation, extract section structure + excerpt
+                    if ext == ".md" and len(file_content) > 12000:
+                        section_headers = [line for line in file_content.splitlines() if line.startswith("#")]
+                        headers_summary = "\n".join(section_headers[:60])
+                        excerpt = (
+                            f"DOCUMENT OUTLINE & TABLE OF SECTIONS:\n{headers_summary}\n\n"
+                            f"EXCERPT:\n{file_content[:14000]}\n"
+                            f"... [Document continues across {total_lines} lines total. Address all relevant sections from the outline] ..."
+                        )
+                    elif len(file_content) > 12000:
                         excerpt = file_content[:12000] + f"\n... [Truncated {len(file_content) - 12000} remaining bytes] ..."
                     else:
                         excerpt = file_content
@@ -536,7 +545,8 @@ async def _check_codebase_and_architecture_context(prompt: str) -> Optional[str]
 
         matched_subsystems = set()
         for trig, sub_path in subsystem_map.items():
-            if trig in body_lower and sub_path not in matched_subsystems:
+            pattern = rf"\b{re.escape(trig)}\b"
+            if re.search(pattern, body_lower) and sub_path not in matched_subsystems:
                 matched_subsystems.add(sub_path)
                 full_sub_path = os.path.join(project_root, sub_path)
                 if os.path.exists(full_sub_path):

@@ -174,6 +174,25 @@ async def test_gemini_proxy_introspective_subsystem_grounding_dpk():
 
 
 @pytest.mark.asyncio
+async def test_gemini_proxy_no_accidental_substring_subsystem_grounding():
+    services.router = AsyncMock()
+    services.orchestrator = AsyncMock()
+    services.orchestrator._build_system_context.return_value = "System ctx"
+    services.router.get_response.return_value = "Special explanation without spe grounding"
+
+    # "special" contains "spe", "surface" contains "ace"
+    res = client.post("/gemini/proxy", json={"prompt": "Can you look at your README.md file and explain what makes you special on the surface?"})
+    assert res.status_code == 200
+
+    services.router.get_response.assert_called_once()
+    called_prompt = services.router.get_response.call_args[1]["prompt"]
+    # Verify that "spe" and "ace" subsystem code was NOT accidentally injected as substring matches
+    assert "strategic_planning_execution_tool.py" not in called_prompt
+    assert "[VERIFIED DISK CONTENT: `README.md`" in called_prompt
+    assert "DOCUMENT OUTLINE & TABLE OF SECTIONS:" in called_prompt
+
+
+@pytest.mark.asyncio
 async def test_gemini_proxy_deep_research_web_search():
     services.router = AsyncMock()
     services.orchestrator = AsyncMock()
