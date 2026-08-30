@@ -373,25 +373,93 @@ async def _intercept_memory_deletion_request(prompt: str) -> Optional[str]:
 
 async def _check_codebase_and_architecture_context(prompt: str) -> Optional[str]:
     """
-    Detects if the user query asks about codebase, architecture, routers, git, or github,
-    and returns rich grounded context to augment the prompt with real codebase truth.
+    Detects if the user query asks about codebase, architecture, specific source/markdown files,
+    routers, git, or platform capabilities, and returns rich grounded context (including real
+    file contents from disk) to augment the prompt with 100% verified codebase truth.
     """
+    import os, re, glob
     body_lower = prompt.lower()
     codebase_triggers = [
         "codebase", "architecture", "repository", "github", "git log", "git status",
         "router", "models.py", "hlsm", "verusid", "ace", "orchestrator",
         "how is", "how do we implement", "what files", "explain the structure",
-        "codi", "opencode", "directory structure", "ast", "endpoints"
+        "codi", "opencode", "directory structure", "ast", "endpoints",
+        "readme", "agents.md", "architecture.md", "package.json", "makefile",
+        "explain what", "what does", "summarize the", "what makes you different"
     ]
-    if not any(t in body_lower for t in codebase_triggers):
+
+    # Check for file patterns in prompt
+    file_pattern = r'([A-Za-z0-9_\-\.\/]+\.(?:md|py|ts|tsx|js|jsx|json|yaml|yml|sh|html|css|txt|sql|toml|ini|env|example|lock))\b'
+    file_matches = re.findall(file_pattern, prompt, re.IGNORECASE)
+
+    has_named_doc = any(k in body_lower for k in ["readme", "architecture.md", "agents.md", "package.json", "makefile"])
+    has_trigger = any(t in body_lower for t in codebase_triggers) or bool(file_matches) or has_named_doc
+
+    if not has_trigger:
         return None
 
     try:
         from ..engine.codebase_grounding import LocalCodebaseInspector, GitManifoldInspector
         inspector = LocalCodebaseInspector()
         git_inspector = GitManifoldInspector()
+        project_root = inspector.project_root
 
         context_parts = []
+
+        # 1. Target File Resolution & In-Context Content Injection
+        target_files = list(file_matches)
+        if "readme" in body_lower and not any("readme" in m.lower() for m in target_files):
+            target_files.append("README.md")
+        if "architecture" in body_lower and any(w in body_lower for w in ["file", "md", "doc", "document"]) and not any("architecture" in m.lower() for m in target_files):
+            target_files.append("ARCHITECTURE.md")
+        if "agents.md" in body_lower or ("agents" in body_lower and "directive" in body_lower):
+            target_files.append("AGENTS.md")
+
+        for requested_file in target_files[:3]:
+            clean_name = requested_file.strip("`'\" \t\n,;:")
+            if not clean_name:
+                continue
+
+            resolved_path = None
+            direct_check = os.path.abspath(os.path.join(project_root, clean_name))
+            if os.path.exists(direct_check) and os.path.isfile(direct_check) and direct_check.startswith(project_root):
+                resolved_path = direct_check
+            else:
+                target_base = os.path.basename(clean_name).lower()
+                for root, dirs, files in os.walk(project_root):
+                    dirs[:] = [d for d in dirs if d not in {".git", "node_modules", ".venv", "venv", "__pycache__", ".pytest_cache", "dist", "build", ".next", ".cache"}]
+                    for f in files:
+                        if f.lower() == target_base:
+                            candidate = os.path.join(root, f)
+                            if clean_name.lower() in candidate.lower():
+                                resolved_path = candidate
+                                break
+                            if not resolved_path:
+                                resolved_path = candidate
+                    if resolved_path:
+                        break
+
+            if resolved_path and os.path.exists(resolved_path):
+                try:
+                    rel_path = os.path.relpath(resolved_path, project_root)
+                    with open(resolved_path, "r", encoding="utf-8", errors="ignore") as f:
+                        file_content = f.read()
+
+                    total_lines = file_content.count("\n") + 1
+                    # Inject up to 12,000 chars of file text directly into prompt context
+                    if len(file_content) > 12000:
+                        excerpt = file_content[:12000] + f"\n... [Truncated {len(file_content) - 12000} remaining bytes] ..."
+                    else:
+                        excerpt = file_content
+
+                    context_parts.append(
+                        f"[VERIFIED DISK CONTENT: `{rel_path}` ({total_lines} lines, {len(file_content):,} bytes)]:\n"
+                        f"```\n{excerpt}\n```"
+                    )
+                except Exception as read_err:
+                    logger.debug(f"[CodebaseGrounding] Error reading file {resolved_path}: {read_err}")
+
+        # 2. System Architecture & Pillars Summary
         arch = inspector.get_architecture_summary()
         context_parts.append(
             f"[AUTHENTIC SYSTEM ARCHITECTURE]\n"
@@ -422,7 +490,7 @@ async def _check_codebase_and_architecture_context(prompt: str) -> Optional[str]
         if relevant_files:
             context_parts.append("\n[RELEVANT CODEBASE MODULES & SYMBOLS]\n" + "\n".join(relevant_files[:8]))
 
-        return "\n".join(context_parts)
+        return "\n\n".join(context_parts)
     except Exception as e:
         logger.debug(f"[GeminiRouter] Codebase grounding extraction notice: {e}")
         return None

@@ -138,5 +138,23 @@ async def test_gemini_proxy_web_search_grounding():
         assert res.json() == {"result": "Web Search Answer"}
         mock_search.assert_called_once_with("Verus Protocol")
 
+@pytest.mark.asyncio
+async def test_gemini_proxy_explain_file_content_injection():
+    services.router = AsyncMock()
+    services.orchestrator = AsyncMock()
+    services.orchestrator._build_system_context.return_value = "System ctx"
+    services.router.get_response.return_value = "Explanation of README.md and sovereign pillars"
+
+    res = client.post("/gemini/proxy", json={"prompt": "now explain what this README.md file says and what makes you different from other agents"})
+    assert res.status_code == 200
+    assert res.json() == {"result": "Explanation of README.md and sovereign pillars"}
+
+    # Verify that get_response was called with the actual README.md disk content injected into the prompt
+    services.router.get_response.assert_called_once()
+    called_prompt = services.router.get_response.call_args[1]["prompt"]
+    assert "[VERIFIED DISK CONTENT: `README.md`" in called_prompt
+    assert "Alluci-Sovereign-Agent" in called_prompt
+
+
 
 
