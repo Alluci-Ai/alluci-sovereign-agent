@@ -266,6 +266,7 @@ export class AlluciGeminiService {
       });
     };
  
+    let fullText = '';
     try {
       const isStream = typeof onToken === 'function';
       let response = await executeRequest(false, isStream);
@@ -280,42 +281,52 @@ export class AlluciGeminiService {
         if (isStream) {
           const reader = response.body?.getReader();
           const decoder = new TextDecoder();
-          let fullText = '';
           if (reader) {
             let buffer = '';
-            // eslint-disable-next-line no-constant-condition
-            while (true) {
-              const { value, done } = await reader.read();
-              if (done) break;
-              buffer += decoder.decode(value, { stream: true });
-              const lines = buffer.split('\n');
-              // Save the last partial line back to the buffer
-              buffer = lines.pop() || '';
-              for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                  const dataStr = line.slice(6);
-                  try {
-                    const parsed = JSON.parse(dataStr);
-                    const tokenText = parsed.text || '';
-                    fullText += tokenText;
-                    if (onToken) onToken(tokenText);
-                  } catch (err) {
-                    console.error("Failed to parse SSE JSON chunk:", err, dataStr);
+            try {
+              // eslint-disable-next-line no-constant-condition
+              while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                // Save the last partial line back to the buffer
+                buffer = lines.pop() || '';
+                for (const line of lines) {
+                  // Ignore SSE keep-alive comments (e.g. ": ping")
+                  if (line.startsWith(':')) continue;
+                  if (line.startsWith('data: ')) {
+                    const dataStr = line.slice(6);
+                    try {
+                      const parsed = JSON.parse(dataStr);
+                      const tokenText = parsed.text || '';
+                      fullText += tokenText;
+                      if (onToken) onToken(tokenText);
+                    } catch (err) {
+                      console.error("Failed to parse SSE JSON chunk:", err, dataStr);
+                    }
                   }
                 }
               }
-            }
-            // Process any remaining bytes in buffer
-            if (buffer.startsWith('data: ')) {
-              const dataStr = buffer.slice(6);
-              try {
-                const parsed = JSON.parse(dataStr);
-                const tokenText = parsed.text || '';
-                fullText += tokenText;
-                if (onToken) onToken(tokenText);
-              } catch (err) {
-                console.error("Failed to parse SSE JSON chunk:", err, dataStr);
+              // Process any remaining bytes in buffer
+              if (buffer.startsWith('data: ')) {
+                const dataStr = buffer.slice(6);
+                try {
+                  const parsed = JSON.parse(dataStr);
+                  const tokenText = parsed.text || '';
+                  fullText += tokenText;
+                  if (onToken) onToken(tokenText);
+                } catch (err) {
+                  console.error("Failed to parse SSE JSON chunk:", err, dataStr);
+                }
               }
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            } catch (streamErr: any) {
+              console.warn("[ GEMINI_PROXY ]: Stream interrupted mid-read:", streamErr);
+              if (fullText.trim().length > 0) {
+                return fullText;
+              }
+              throw streamErr;
             }
           }
           return fullText;
@@ -329,6 +340,9 @@ export class AlluciGeminiService {
       }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
+      if (fullText.trim().length > 0) {
+        return fullText;
+      }
       return `[ ERROR ]: Daemon connection failed: ${e.message}`;
     }
   }

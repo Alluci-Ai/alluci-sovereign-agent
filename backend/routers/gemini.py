@@ -661,14 +661,25 @@ async def gemini_proxy_stream(
                 chat_intro_sent = True
 
             try:
-                async for chunk in router_inst.get_response_stream(
+                stream_iter = router_inst.get_response_stream(
                     prompt=effective_prompt,
                     system_instruction=system_instruction,
                     complexity=complexity,
                     privacy_level=privacy_level,
                     inference_mode=inference_mode,
                     session_id=session_id
-                ):
+                ).__aiter__()
+
+                while True:
+                    try:
+                        # Yield periodic SSE keep-alive ping every 3.0s if inference/KV-prefill pauses
+                        chunk = await asyncio.wait_for(stream_iter.__anext__(), timeout=3.0)
+                    except asyncio.TimeoutError:
+                        yield ": ping\n\n"
+                        continue
+                    except StopAsyncIteration:
+                        break
+
                     accumulated_chunks.append(chunk)
                     full_so_far = "".join(accumulated_chunks)
 
