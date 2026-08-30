@@ -7,7 +7,7 @@
    When targeting macOS / Apple Silicon environments, Local Compute Engine (LCE) model evaluation MUST rely on official Python Apple MLX frameworks (`mlx_lm` and `mlx_vlm`) in `backend/inference/mlx_engine.py`. Custom out-of-tree C++ inference runners for model evaluation are forbidden on Apple Silicon to prevent Metal GPU command buffer panics and VRAM leaks. For Windows, Linux, and NVIDIA CUDA environments, cross-platform inference backends (e.g., `llama.cpp` bindings or CUDA PyTorch/vLLM adapters) are supported via `local_bridge.py`.
 
 3. **System Description & Communication Directive:**
-   When asking about, describing, or writing documentation for the Alluci Sovereign Agent features, capabilities, or architecture, lead with **Sovereign Identity (`VerusID`), HITL Executive Security Governance, Topological State Spaces $(W, X, G, N)$, $\mathcal{J}$-Space World Model, 4-Tier H-LSM Memory, Bio-Affective Computing (ACE), and Policy-Driven DAG Orchestration**. Do NOT surface low-level implementation caveats (such as C++ constraints or framework choices) in general feature descriptions unless explicitly requested.
+   When asking about, describing, or writing documentation for the Alluci Sovereign Agent features, capabilities, or architecture, lead with **Sovereign Identity (`VerusID`), HITL Executive Security Governance, Topological State Spaces $(W, X, G, N)$, $\mathcal{J}$-Space World Model, 4-Tier H-LSM Memory with Tri-Hybrid RRF, Bio-Affective Computing (ACE), Native Apple MLX Speculative Decoding, and Policy-Driven DAG Orchestration**. Enforce the **Broad Scope Law** (synthesizing high-altitude overviews across all 6 functional domains for broad inquiries) and the **Contextual Fidelity Law** (introspectively grounding all subsystem descriptions directly in authoritative disk definitions). Do NOT surface low-level implementation caveats (such as C++ constraints or framework choices) in general feature descriptions unless explicitly requested.
 
 4. **Contextual Integrity:**
    Never assume standard configurations. Always verify via `config.json`, `hardware_scanner.py`, and `profiler.py` before making assumptions about model architectures or loading schemas.
@@ -27,8 +27,8 @@
 ---
 ## Maintenance Protocols & System Telemetry
 
-**Protocol 1: KV Cache Lifecycle & Quantization**
-To support Deep Research workloads without Out-Of-Memory (OOM) errors, the LCE must implement a dynamic KV cache strategy. Use FP16 for standard, short-context interactions on workstation tiers. Switch dynamically to Q4 (4-bit quantization) KV caching when context length exceeds 8,000 tokens or when operating on edge tiers (`TIER_4_EDGE`). Explicitly manage memory by calling `mx.metal.clear_cache()` between agent loop iterations.
+**Protocol 1: KV Cache Lifecycle, Streaming Attention Sinks & Speculative Drafting**
+To support Deep Research workloads without Out-Of-Memory (OOM) errors, the LCE must implement a dynamic KV cache strategy. Use FP16 for standard, short-context interactions on workstation tiers. Switch dynamically to Q4 (4-bit quantization) KV caching when context length exceeds 8,000 tokens or when operating on edge tiers (`TIER_4_EDGE`). When prompt length exceeds 16,000 characters, activate **Streaming Attention Sinks** to anchor system invariants and grounding laws at token 0 while rolling the active conversational tail. When running on 31B Dense models, leverage **Native Apple MLX Speculative Decoding** (2B draft $\to$ 31B verifier) with an automated circuit-breaker falling back to single-model evaluation if memory limits are reached. Explicitly manage memory by calling `mx.metal.clear_cache()` between agent loop iterations.
 
 **Protocol 2: Multi-Agent Concurrency**
 When multiple asynchronous agents (e.g., Deep Research Skill, PCL daemon, Planner) attempt to query the LCE concurrently, the engine MUST use Python `asyncio.Lock` and queue-based concurrency. Never attempt to use C++ `std::mutex` for MLX orchestration.
@@ -48,8 +48,10 @@ All geometric state projections must adhere to Kepler Stella Octangula $S_8$ geo
 **Protocol 6: Frenet-Serret Trajectory Continuity & Curvature**
 All continuous thought trajectories $\gamma(t)$ must be tracked for geodesic velocity, acceleration, and curvature ($\kappa \le 5.0$), triggering emergency safe-halt ($g=0$) upon curvature snap or temperature rupture ($T > 0.8$).
 
-**Protocol 7: Markov Trace Operator & Spectral Dimension**
-Memory retrieval across H-LSM tiers must evaluate Schur complement hidden excursions ($\text{Tr}_A(P) = A + B(I-C)^{-1}D$) and scale-dependent spectral dimension $d_s^A(\sigma)$ to dynamically modulate context depth.
+**Protocol 7: Markov Trace Operator & Tri-Hybrid RRF Memory Fusion**
+Memory retrieval across H-LSM tiers must execute parallel retrieval across L1 SQLite FTS5 ($w=1.0$), L2 MiniLM Dense Vectors ($w=1.2$), and L3 KùzuDB Relational Graph Entities ($w=1.4$) fused via **Tri-Hybrid Reciprocal Rank Fusion**:
+$$\text{Score}_{\text{RRF}}(d) = \sum_{t \in \{\text{L1}, \text{L2}, \text{L3}\}} \frac{w_t}{60 + \text{rank}_t(d)}$$
+augmented by Schur complement hidden excursions ($\text{Tr}_A(P) = A + B(I-C)^{-1}D$) and scale-dependent spectral dimension $d_s^A(\sigma)$ to dynamically modulate context depth.
 
 **Protocol 8: DPO Preference Harvesting & Air-Gapped Distillation**
 Nightly dreaming cycles must harvest $(x, y_w, y_l)$ triplets from verified self-healing resolutions and quarantined AST anti-patterns without mutating base model weights.

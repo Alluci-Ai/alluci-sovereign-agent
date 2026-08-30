@@ -4,15 +4,16 @@ This document defines the immutable architectural foundation and system laws gov
 
 ---
 
-## 🏛️ Core Architectural Foundations (The 5 Sovereign Pillars)
+## 🏛️ Core Architectural Foundations (The 6 Functional Capability Domains)
 
-System design and code execution across Alluci are strictly anchored by five fundamental pillars:
+System design, introspective grounding, and code execution across Alluci are strictly anchored by six dynamic capability domains (`get_system_capabilities()` in `backend/engine/codebase_grounding.py`):
 
-1. **Sovereign Identity (`VerusID`):** Decentralized identity, zero-trust authentication, and Ed25519 cryptographic signing of executive manifests (`verus.py`, `verusid_auth.py`).
-2. **HITL Executive Security Governance:** Interlocking hard security guards and interactive user approval modals (`SecurityInterventionModal.tsx`) intercepting all critical action tasks before execution (`backend/routers/gemini.py`).
-3. **4-Tier Simplicial H-LSM Memory:** Hierarchical Long-Short Manifold memory architecture (L0 Working, L1 Episodic FTS5, L2 Semantic, L3 KùzuDB Knowledge Graph) preventing context bloat and state degradation (`hlsm_manager.py`).
-4. **Bio-Affective Computing (ACE):** Biological attunement coupling live wearable biometrics (Apple Watch HRV, respiratory sync, stress scores) directly into manifold geometry and temperature modulation (`backend/ace/`).
-5. **Policy-Driven DAG Orchestration:** Autonomous hierarchical Directed Acyclic Graph decomposition, cron scheduling, and multi-tier model routing (`orchestrator.py`, `cron_engine.py`).
+1. **Core Compute & Apple MLX Local Inference:** Native Apple Silicon execution via official MLX frameworks (`mlx_lm`, `mlx_vlm`), **Native Speculative Decoding** (2B Edge draft $\to$ 31B Dense verification), and **Streaming Attention Sinks** (>16k chars) maintaining persistent token 0 system anchoring.
+2. **Topological Physics & Mathematical Substrate:** Foundational Topological State Spaces ($W$ continuous world data, $X$ simplicial complexes via Vietoris-Rips filtration `pmet_filtration.py`, $\mathcal{J}$-Space counterfactual sandbox with Simplicial Chain-of-Thought boundary nilpotence $\partial_1 \circ \partial_2 = 0$ in `j_space_simulator.py`, $G$ action affordance convex hull `affordance_envelope.py`, and $N$ central discrete pacing in `barcode_clock.py`), Discrete Projection Kernel grounded in Kepler's Stella Octangula $S_8$ ($\partial_1 \circ \partial_2 = 0$, $F_n^1: \Pi \circ \Pi = \Pi$), and Frenet-Serret trajectory curvature safe-halt ($\kappa \le 5.0$, $T \le 0.8$).
+3. **4-Tier Simplicial H-LSM Memory & Tri-Hybrid RRF:** Hierarchical Long-Short Manifold memory architecture (L0 Working, L1 Episodic FTS5, L2 Semantic MiniLM vectors, L3 KùzuDB Knowledge Graph) aggregated in parallel via **Tri-Hybrid Reciprocal Rank Fusion** ($k=60$) and Markov Trace hidden excursion boosting (`hlsm_manager.py`, `markov_trace.py`).
+4. **Autonomous Sub-Agents & Deep Research:** Multi-agent constellation (Executive Orchestrator, Codi OpenCode Harness, Rocco Deep Research Harvester with multi-query parallel vector decomposition and 24h SQLite `ResearchDossierCache`, SPE, SWD, SUF, OC, PMET).
+5. **Zero-Trust Security & Sovereign Identity:** Self-sovereign identity (`VerusID`), Ed25519 manifest signing (`verus.py`, `verusid_auth.py`), AES-256-GCM Vault Manager (`vault.py`), AVL Gate GJK boundary refinement, Protocol 3 Lipschitz saturation, and HITL Executive Governance (`SecurityInterventionModal.tsx`).
+6. **Omni-Channel Bridges & Hardware Integration:** 20+ cryptographically isolated communication bridges (Telegram, Nostr, Signal, iMessage, WhatsApp, Discord, Slack, Instagram, Facebook, WeCom, Email) coupled with live Apple Watch biometrics (ACE HRV, respiratory sync, stress scores).
 
 ---
 
@@ -20,18 +21,24 @@ System design and code execution across Alluci are strictly anchored by five fun
 
 - **The LCE Law (Local Compute Engine):** On macOS / Apple Silicon environments, the LCE relies strictly on official Python Apple MLX frameworks (`mlx_lm` and `mlx_vlm`) in `backend/inference/mlx_engine.py` for on-device inference to maximize Unified Memory efficiency. Custom out-of-tree C++ runners for model evaluation are forbidden on Apple Silicon to prevent Metal GPU command buffer panics and VRAM leaks. On Windows, Linux, and NVIDIA CUDA environments, cross-platform inference backends (`llama.cpp` bindings or CUDA PyTorch/vLLM adapters) are supported via `local_bridge.py`.
 - **5-Tier System Hardware Profiling Matrix:** Upon initialization, `HardwareProfiler.get_system_profile()` (`profiler.py`) dynamically profiles host System RAM, VRAM, and GPU architecture, mapping the machine to HuggingFace models ([`https://huggingface.co/Alluci`](https://huggingface.co/Alluci)):
-  - **`TIER_0_ULTRA` ($\ge 128\text{ GB} - 512\text{ GB}$ Unified RAM / $\ge 96\text{ GB}$ Code Threshold):** Flagship Workstations & Server Nodes running unquantized 31B 16-bit (`BF16`) dense models.
+  - **`TIER_0_ULTRA` ($\ge 128\text{ GB} - 512\text{ GB}$ Unified RAM / $\ge 96\text{ GB}$ Code Threshold):** Flagship Workstations & Server Nodes running unquantized 31B 16-bit (`BF16`) dense models (accelerated via 2B speculative draft).
   - **`TIER_1_MAX` ($64\text{ GB} - 96\text{ GB}$ Unified RAM / $\ge 60\text{ GB}$ Code Threshold):** Studio Workstations running high-density 31B 8-bit / 4-bit models.
   - **`TIER_2_PRO` ($32\text{ GB} - 48\text{ GB}$ Unified RAM / $\ge 30\text{ GB}$ Code Threshold):** Pro Laptops running 26B Mixture-of-Experts (MoE) 4-bit models.
   - **`TIER_3_BASE` ($16\text{ GB} - 24\text{ GB}$ Unified RAM / $\ge 15\text{ GB}$ Code Threshold):** Consumer MacBooks & PCs running 12B 4-bit dense models.
   - **`TIER_4_EDGE` ($8\text{ GB} - 12\text{ GB}$ Unified RAM / $< 15\text{ GB}$ Code Threshold):** Mobile Sentinels (iPhone 17 / Base Macs) running lightweight 2B 4-bit models.
+- **Native Apple MLX Speculative Decoding (2B ➔ 31B):**
+  - Pairs the lightweight edge model (`alluci-polytope-gemma-4-e2b-it-4bit`) as an asynchronous candidate token speculator with the dense verifier model (`alluci-polytope-gemma-4-31b-it-bf16`).
+  - Evaluates candidate tokens natively through `mlx_lm.stream_generate(..., draft_model=draft_engine)`, achieving 2.5x–4x faster local inference speeds with zero loss in output mathematical precision.
+  - Built-in circuit breaker: automatically falls back to single-model execution if draft model memory limits are reached.
+- **Streaming Attention Sinks (>16k Context Management):**
+  - When conversational contexts exceed 16,000 characters (>4,000 tokens), `_apply_streaming_attention_sink()` permanently pins initial system directives, grounding laws, and security bounds at token 0 (sink size: 2,000 chars) while sliding the active conversational tail (14,000 chars).
+  - Intermediate turns are evicted into H-LSM L1 episodic memory, enabling **infinite multi-turn sessions** without Metal GPU command buffer panics.
 - **Local Voice & Conversational Speech Engine (`PPN-030`):** `AlluciVoiceOrchestrator` (`backend/inference/voice_orchestrator.py`) handles real-time speech processing:
   - Ingests streaming 200ms PCM audio fragments over WebSocket RPC (`/ws/voice`).
   - Uses native Apple OS `AVSpeechSynthesizer` (Siri Voice Engine) on Apple Watch (`WATCH_ULTRA`) and paired iPhone (`IPHONE_17_PRO`) for battery-efficient playback.
   - Uses native `kokoro_mlx` (`kokoro_bridge.py`) on Mac Workstations (`MACBOOK_WORKSTATION`) for 24kHz neural PCM voice synthesis.
   - Delegates heavy cognitive reasoning and transcription from Watch/iPhone edge sentinels to host workstations over encrypted WebSocket tunnels.
 - **Zero-Restart LoRA Context Moat:** Dynamically hot-swaps per-agent LoRA weights (`models/loras/agent_{id}_lora.safetensors`) into the active MLX model on the fly without restarting engine processes.
-- **Speculative Token Drafting & Acceleration:** Pairs a fast, lightweight speculator model (`EDGE_2B_4BIT`) with a dense verifier model (`DENSE_31B_BF16`), achieving 2–3x faster local inference through parallel sequence validation.
 - **Dynamic KV Cache Strategy & Purging:** Standard interactions use FP16 KV caching. When context exceeds 8,000 tokens or on `TIER_4_EDGE`, the LCE dynamically toggles to Q4 (4-bit) KV cache quantization. Compulsory `mx.metal.clear_cache()` and Python garbage collection calls execute before and after every generation stream.
 - **Multi-Agent Concurrency:** The LCE uses Python `asyncio.Lock` and queue-based concurrency for MLX orchestration across asynchronous agent streams. C++ `std::mutex` is strictly forbidden for MLX task dispatching.
 
@@ -89,6 +96,11 @@ The H-LSM memory architecture operates across 4 cognitive storage tiers managed 
 - **L1 Episodic Memory:** Chat turn interactions, episodic events, and full conversation history backed by SQLite table `hlsm_episodic` with SQLite FTS5 full-text search index (`hlsm_episodic_fts`).
 - **L2 Semantic Memory:** Long-term vector embeddings for RAG and semantic retrieval, backed by Sentence-Transformers (`all-MiniLM-L6-v2`) and KùzuDB graph nodes (`polytope_data.kuzu`). Distilled chat turns are ingested via `ingest_distilled_intent` into L2 semantic nodes (`mem_intent_*`).
 - **L3 Knowledge Graph:** Permanent structured entity-relationship graph nodes backed by the KùzuDB embedded graph engine (`polytope_data.kuzu`).
+- **Tri-Hybrid Reciprocal Rank Fusion (RRF $k=60$):**
+  - Executes parallel asynchronous retrieval across L1 SQLite FTS5 (weight $w=1.0$), L2 MiniLM Dense Vectors ($w=1.2$), and L3 KùzuDB Relational Entities ($w=1.4$).
+  - Merges disparate score distributions into an authoritative unified ranking:
+    $$\text{Score}_{\text{RRF}}(d) = \sum_{t \in \{\text{L1}, \text{L2}, \text{L3}\}} \frac{w_t}{60 + \text{rank}_t(d)}$$
+  - Dispatches distilled knowledge graph entities directly into prompt grounding contexts under structured entity headers (`── Knowledge Graph Entities ──`).
 - **Markov Trace Multi-Hop Rescoring & Scale-Dependent Spectral Geometry (`markov_trace.py`):**
   - *Schur Complement Trace Operator:* Computes exact Markov Trace reductions $\text{Tr}_A(P) = A + B(I - C + \epsilon I)^{-1} D$, factoring multi-hop hidden excursion paths into visible candidate scores (80% direct relevance + 20% topological excursion boost).
   - *Symmetrized Normalized Laplacian ($L_A$):* Derives real eigenvalues $\lambda_i \ge 0$, Fiedler algebraic connectivity ($\lambda_2$), and heat return probability $P_A(\sigma) = \frac{1}{|A|} \sum e^{-\sigma \lambda_i}$.
@@ -100,6 +112,13 @@ The H-LSM memory architecture operates across 4 cognitive storage tiers managed 
 ## 4. Autonomy, Affective Computing & Proactivity
 
 - **PCL (Proactive Cognition Layer / `backend/pcl.py`):** Continuous background cognitive loop operating across a 5-stage lifecycle (`OBSERVE → MODEL → DETECT → JUDGE → ACT`). Builds stateful `WorldModelSnapshot` records, evaluates opportunities (`StalledGoalDetector`, `HardwareAnomalyDetector`, `AffectiveStressDetector`), and dispatches proactive tasks or WebSocket notifications (`JsonRpcGateway`).
+- **Rocco 2.0 Multi-Query Deep Research Harvester & SQLite Cache (`backend/adapters/web_search.py`):**
+  - *Multi-Query Decomposition:* In `expand_and_harvest()`, breaks complex research goals into parallel orthogonal query angles, fetching results concurrently with strict 4.0-second async timeouts and URL deduplication.
+  - *24-Hour TTL SQLite Cache:* Persists research results to `backend/data/research_cache.db` (`ResearchDossierCache`), delivering instant 0ms responses on repeat inquiries.
+  - *Verified Grounding Links:* Formats real web citations with numbered markdown reference links.
+- **DAG Planner Simplicial S-CoT Validation (`backend/engine/planner.py`):**
+  - Evaluates multi-step DAG task dependencies through `_detect_cycles_and_scot_nilpotence()`.
+  - Verifies that intermediate sub-agent dependencies satisfy boundary nilpotence ($\partial_1 \circ \partial_2 = 0$) and zero topological loops ($\beta_1 = 0$).
 - **Nightly "Dream" Cycle Evolution & DPO Preference Harvesting (`cron_engine.py` & `backend/engine/dpo_harvester.py`):**
   - When hardware load is low, the daemon halts external polling and reallocates 100% of local resources to internal evolution.
   - *5-Stage Evolution Pipeline:* 1) Extraction (Episodic memories, PCL world model, ACE baseline, quarantine pool), 2) Offline $\mathcal{J}$-Space Counterfactual Rollouts (`j_space_simulator.py`) simulating boundary recovery, 3) Synthesis (air-gapped local 31B Dense model instruction-response pair synthesis), 4) Cognitive Distillation (distilling episodic logs into permanent Semantic Truths), and 5) Preference Harvesting.

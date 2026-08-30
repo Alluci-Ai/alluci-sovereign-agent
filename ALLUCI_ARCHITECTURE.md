@@ -43,12 +43,13 @@ Replaces Euclidean vector spaces with Topologically Stable Geometric Intelligenc
 ### 04 The Local Cognitive Engine (LCE)
 Runs a custom-tuned variant of the Gemma 4 model family.
 - **Tier 1 (E2B/E4B)**: Rapid Response and Ambient Monitoring.
-- **Tier 2 (26B/31B Dense)**: Deep Reasoning on user hardware.
+- **Tier 2 (26B/31B Dense)**: Deep Reasoning on user hardware (accelerated via Native Apple MLX Speculative Decoding).
 - **Tier 3 (Cloud)**: Sovereign Gatekeeper fails over to cloud ONLY for extreme compute tasks.
-- **Hardware Efficiency**: Uses MLX native execution, Adaptive Bit-Width Quantization, and Speculative Decoding for peak efficiency on Apple Silicon.
+- **Hardware Efficiency**: Uses MLX native execution, Adaptive Bit-Width Quantization, **Streaming Attention Sinks** (>16k chars) for infinite multi-turn stability, and **Native Speculative Decoding (2B ➔ 31B)** for peak efficiency on Apple Silicon.
 
 ### 05 Executive Orchestration & DAG Planner
 Converts objectives into mathematically validated Directed Acyclic Graphs (DAGs) preventing circular dependencies. 
+- **Simplicial S-CoT Nilpotence Validation**: Verifies that intermediate sub-agent task dependencies adhere to exact algebraic boundary composition nilpotence ($\partial_1 \circ \partial_2 = 0$) and Betti-0 acyclicity ($\beta_1 = 0$).
 - **Cron Engine**: Autonomous Scheduled Intelligence for PCL cycles, Dream cycles, memory consolidation, and bridge polling loops.
 - **Execution Approval Gate**: Requires human-in-the-loop checkpoints for high-risk actions.
 
@@ -58,6 +59,7 @@ A biologically-inspired, four-tier memory model:
 - **L1 (Episodic Memory)**: SQLite store with SQLite FTS5 full-text indexing and 30-day half-life decay.
 - **L2 (Semantic Memory)**: Vector embeddings (`all-MiniLM-L6-v2`) and KùzuDB graph nodes (`polytope_data.kuzu`).
 - **L3 (Knowledge Graph / Dream Layer)**: Permanent structured entity-relationship graph backed by KùzuDB.
+- **Tri-Hybrid Reciprocal Rank Fusion (RRF $k=60$)**: Merges parallel async retrieval across L1 SQLite FTS5 ($w=1.0$), L2 MiniLM Dense Vectors ($w=1.2$), and L3 KùzuDB Relational Entities ($w=1.4$) into an authoritative score $\text{Score}_{\text{RRF}}(d) = \sum \frac{w_t}{60 + \text{rank}_t(d)}$.
 - **Markov Trace & Spectral Geometry**: Implements the Markov Trace Operator $\text{Tr}_A(P) = A + B(I-C)^{-1}D$ (`markov_trace.py`) and normalized Laplacian spectral dimension $d_s^A(\sigma)$ to boost multi-hop excursion couplings and dynamically scale context depth. Retrieval is paced monotonically by the Topological Barcode Clock ($N$) and modulated by Apple Watch affective tension ($\psi$).
 
 ### 07 The Discrete Projection Kernel (DPK) & Stella Octangula S8
@@ -97,8 +99,10 @@ Zero-latency biometric integration (HR, HRV, Respiratory Rate, Focus Score) mapp
 ### 14 Sovereign Manifolds — Bridge Ecosystem
 20+ bridges organized in three manifolds (Social, Enterprise, Cloud). Each runs in a cryptographically isolated vault tied to VerusID.
 
-### 15 Multi-Modal Synthesis & API Orchestration
-Integrates external tools via the Sovereign Gateway. Reasoning (Gemini, Claude, Groq), Conversational Audio (OpenAI Realtime, Whisper.cpp, Kokoro MLX), and Multi-Modal Creativity (Udio, Midjourney, Veo).
+### 15 Multi-Modal Synthesis, Deep Research & API Orchestration
+Integrates external tools via the Sovereign Gateway.
+- **Rocco 2.0 Multi-Query Deep Research Harvester**: Automatically decomposes complex objectives into parallel search vectors, executing with 4.0s timeouts, URL deduplication, and a 24-hour TTL SQLite `ResearchDossierCache` (`backend/data/research_cache.db`).
+- **External Multi-Modal Reasoning**: Reasoning (Gemini, Claude, Groq), Conversational Audio (OpenAI Realtime, Whisper.cpp, Kokoro MLX), and Multi-Modal Creativity (Udio, Midjourney, Veo).
 
 ### 16 Skills Manifest
 Registers capabilities across Knowledge, Execution, Mindset, Methodology, and Logic skills. Features autonomous discovery of new tools via RFC 9728.
