@@ -462,7 +462,7 @@ class AutonomousSoftwareEngineeringTool:
         DEFAULT_REFERENCES = {
             "docs": {"path": "./docs", "description": "Architecture documentation, ADRs, and platform specifications"},
             "core_skills": {"path": "./core_skills", "description": "Deterministic enterprise skills manifest and capability definitions"},
-            "agent_skills": {"path": "./.agents/skills", "description": "Standardized skill markdown blueprints and operating playbooks"},
+            "skills": {"path": "./core_skills", "description": "Deterministic enterprise skills manifest and capability definitions"},
             "vault": {"path": "./alluci_vault", "description": "Authoritative skill and tool manifests for Alluci Sovereign Agent"},
             "commands": {"path": "./.opencode/commands", "description": "OpenCode custom slash command templates and prompt configurations"}
         }

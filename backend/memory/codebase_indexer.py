@@ -97,7 +97,7 @@ class CodebaseMemoryIndexer:
                 )
                 indexed_count += 1
 
-            # 3. Ingest Installed Skills (.agents/skills/*/SKILL.md)
+            # 3. Ingest Installed Skills (core_skills/*.json)
             skills = self.inspector.get_installed_skills_inventory()
             for s in skills:
                 skill_content = (

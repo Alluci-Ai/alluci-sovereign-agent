@@ -410,56 +410,39 @@ class LocalCodebaseInspector:
 
     def get_installed_skills_inventory(self) -> List[Dict[str, Any]]:
         """
-        Dynamically scans .agents/skills/ and returns authentic metadata for all installed skills.
+        Dynamically scans core_skills/ and returns authentic metadata for all installed skills.
         Never stubs or hardcodes skill listings.
         """
         skills: List[Dict[str, Any]] = []
-        skills_base = os.path.join(self.project_root, ".agents", "skills")
+        skills_base = os.path.join(self.project_root, "core_skills")
         if not os.path.exists(skills_base):
             return skills
 
         try:
             for item in sorted(os.listdir(skills_base)):
-                skill_dir = os.path.join(skills_base, item)
-                if not os.path.isdir(skill_dir) or item.startswith("."):
+                if not item.endswith(".json"):
                     continue
 
-                skill_md = os.path.join(skill_dir, "SKILL.md")
-                name = item.replace("_", " ").title()
-                description = "Specialized cognitive capability workflow."
+                file_path = os.path.join(skills_base, item)
+                try:
+                    import json
+                    with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                        data = json.load(f)
 
-                if os.path.exists(skill_md):
-                    try:
-                        with open(skill_md, "r", encoding="utf-8", errors="ignore") as f:
-                            content = f.read()
+                    s_id = data.get("id", item[:-5])
+                    s_name = data.get("name", s_id.replace("_", " ").title())
+                    description = data.get("description", "Deterministic strategic framework.")
 
-                        # Extract YAML frontmatter if present
-                        if content.startswith("---"):
-                            parts = content.split("---", 2)
-                            if len(parts) >= 3:
-                                frontmatter = parts[1]
-                                for line in frontmatter.splitlines():
-                                    if line.startswith("name:"):
-                                        name = line.split("name:", 1)[1].strip().strip("\"'")
-                                    elif line.startswith("description:"):
-                                        description = line.split("description:", 1)[1].strip().strip("\"'")
-
-                        # If description still default, extract first non-empty markdown paragraph
-                        if description == "Specialized cognitive capability workflow.":
-                            lines = [l.strip() for l in content.splitlines() if l.strip() and not l.startswith("#") and not l.startswith("---")]
-                            if lines:
-                                description = lines[0][:250]
-                    except Exception as err:
-                        logger.debug(f"[CodebaseInspector] Failed parsing {skill_md}: {err}")
-
-                skills.append({
-                    "id": item,
-                    "name": name,
-                    "description": description,
-                    "path": os.path.relpath(skill_md if os.path.exists(skill_md) else skill_dir, self.project_root)
-                })
+                    skills.append({
+                        "id": s_id,
+                        "name": s_name,
+                        "description": description[:250],
+                        "path": os.path.relpath(file_path, self.project_root)
+                    })
+                except Exception as err:
+                    logger.debug(f"[CodebaseInspector] Failed parsing {file_path}: {err}")
         except Exception as e:
-            logger.warning(f"[CodebaseInspector] Error scanning skills: {e}")
+            logger.warning(f"[CodebaseInspector] Error scanning core_skills: {e}")
 
         return skills
 
@@ -521,20 +504,20 @@ class LocalCodebaseInspector:
 
     def get_full_manifest_grounding_block(self) -> str:
         """
-        Generates comprehensive, non-stubbed manifest grounding containing all 14 Skills
-        and 15 Tools directly from disk truth.
+        Generates comprehensive, non-stubbed manifest grounding containing all Skills
+        and Tools directly from disk truth.
         """
         skills = self.get_installed_skills_inventory()
         tools = self.get_installed_tools_inventory()
 
         lines = [
-            "[AUTHENTIC DISK MANIFEST: 14 SPECIALIZED SKILLS]",
-            "The following skills are installed in `.agents/skills/` with complete operational workflows:"
+            f"[AUTHENTIC DISK MANIFEST: {len(skills)} SPECIALIZED SKILLS & FRAMEWORKS]",
+            "The following skills and frameworks are installed with complete operational workflows in `core_skills/`:"
         ]
         for s in skills:
             lines.append(f"- **{s['name']}** (`{s['id']}`): {s['description']} [Path: `{s['path']}`]")
 
-        lines.append("\n[AUTHENTIC DISK MANIFEST: 15 CAPABILITY TOOLS]")
+        lines.append(f"\n[AUTHENTIC DISK MANIFEST: {len(tools)} CAPABILITY TOOLS]")
         lines.append("The following tools are implemented in `backend/tools/`:")
         for t in tools:
             lines.append(f"- **{t['name']}** (`{t['id']}`): {t['description']} [Path: `{t['path']}`]")

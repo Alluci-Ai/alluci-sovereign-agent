@@ -122,8 +122,7 @@
     "skill": "allow"
   },
   "instructions": [
-    ".agents/skills/codi_opencode_harness/SKILL.md",
-    ".opencode/skills/autonomous_software_engineering/SKILL.md",
+    "core_skills/codi_01.json",
     "ARCHITECTURE.md"
   ]
 }

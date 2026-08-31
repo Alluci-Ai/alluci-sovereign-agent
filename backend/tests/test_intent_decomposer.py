@@ -64,24 +64,26 @@ class TestIntentDecomposer:
 
 
 class TestManifestGrounding:
-    """Tests dynamic discovery and verification of 14 skills and 15 tools from disk truth."""
+    """Tests dynamic discovery and verification of 26 skills and 15 tools from disk truth."""
 
     def setup_method(self):
         self.inspector = LocalCodebaseInspector()
 
     def test_installed_skills_discovery(self):
         skills = self.inspector.get_installed_skills_inventory()
-        assert len(skills) == 14
+        assert len(skills) == 26
         skill_ids = [s["id"] for s in skills]
-        assert "codi_opencode_harness" in skill_ids
-        assert "strategic_planning_execution" in skill_ids
-        assert "ownership_capital_strategy" in skill_ids
-        assert "investment_readiness" in skill_ids
+        assert "codi_01" in skill_ids
+        assert "spe_01" in skill_ids
+        assert "ocs_01" in skill_ids
+        assert "ir_01" in skill_ids
+        assert "bmc_01" in skill_ids
+        assert "c2c_01" in skill_ids
 
         # Ensure descriptions are real, not placeholders
         for s in skills:
             assert len(s["description"]) > 10
-            assert s["path"].startswith(".agents/skills")
+            assert s["path"].startswith("core_skills")
 
     def test_installed_tools_discovery(self):
         tools = self.inspector.get_installed_tools_inventory()
@@ -94,10 +96,10 @@ class TestManifestGrounding:
 
     def test_full_manifest_grounding_block(self):
         block = self.inspector.get_full_manifest_grounding_block()
-        assert "[AUTHENTIC DISK MANIFEST: 14 SPECIALIZED SKILLS]" in block
+        assert "[AUTHENTIC DISK MANIFEST: 26 SPECIALIZED SKILLS & FRAMEWORKS]" in block
         assert "[AUTHENTIC DISK MANIFEST: 15 CAPABILITY TOOLS]" in block
-        assert "codi_opencode_harness" in block
-        assert "strategic_planning_execution" in block
+        assert "codi_01" in block
+        assert "spe_01" in block
 
 
 class TestJSpacePreflightVerifier:
@@ -109,10 +111,10 @@ class TestJSpacePreflightVerifier:
     def test_valid_preflight_verification(self):
         prompt = "list and explain all of your Skills and Tools"
         candidate = (
-            "Here is the authentic disk manifest of my 14 specialized skills and 15 capability tools. "
+            "Here is the authentic disk manifest of my 26 specialized skills and 15 capability tools. "
             "1. Codi OpenCode Harness: Autonomous AST diffing and LSP diagnostics..."
         )
-        facts = ["14 specialized skills in .agents/skills/", "15 capability tools in backend/tools/"]
+        facts = ["26 specialized skills in core_skills/", "15 capability tools in backend/tools/"]
 
         result = self.simulator.preflight_simulate_reasoning(
             prompt=prompt,

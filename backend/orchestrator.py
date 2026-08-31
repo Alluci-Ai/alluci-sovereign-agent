@@ -810,7 +810,7 @@ Here is what Rocco will be executing across our Deep Research pipeline:
             tools = inspector.get_installed_tools_inventory()
 
             context_parts.append("\n[ AUTHENTIC ACTIVE SKILLS & TOOLS INVENTORY ]")
-            context_parts.append("Installed Skills (.agents/skills/):")
+            context_parts.append("Installed Skills & Frameworks (core_skills/):")
             for s in skills:
                 context_parts.append(f"- {s['name']} (`{s['id']}`): {s['description']}")
             context_parts.append("\nInstalled Tools (backend/tools/):")
