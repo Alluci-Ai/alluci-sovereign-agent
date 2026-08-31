@@ -403,210 +403,23 @@ async def _intercept_memory_deletion_request(prompt: str) -> Optional[str]:
     return None
 
 
-async def _check_codebase_and_architecture_context(prompt: str) -> Optional[str]:
+async def _check_codebase_and_architecture_context(prompt: str) -> Tuple[Optional[str], Optional[str]]:
     """
-    Detects if the user query asks about codebase, architecture, specific source/markdown files,
-    skills, tools, manifests, routers, git, or platform capabilities, and returns rich grounded
-    context (including real file contents and authentic manifests from disk) to augment the prompt.
+    Delegates to ModularGroundingOrchestrator to retrieve strictly scoped, non-polluted
+    grounding context based on prompt intent. Returns (grounding_content, specialized_directive).
     """
-    import os, re, glob
-    from ..engine.intent_decomposer import IntentDecomposer, IntentType
-    
-    decomposer = IntentDecomposer()
-    parsed_intent = decomposer.decompose(prompt)
-    body_lower = prompt.lower()
-
-    codebase_triggers = [
-        "codebase", "architecture", "repository", "github", "git log", "git status",
-        "router", "models.py", "hlsm", "verusid", "ace", "orchestrator",
-        "how is", "how do we implement", "what files", "explain the structure",
-        "codi", "opencode", "directory structure", "ast", "endpoints",
-        "readme", "agents.md", "architecture.md", "package.json", "makefile",
-        "explain what", "what does", "summarize the", "what makes you different",
-        "skill", "skills", "tool", "tools", "manifest", "capability", "capabilities"
-    ]
-
-    # Check for file patterns in prompt
-    file_pattern = r'([A-Za-z0-9_\-\.\/]+\.(?:md|py|ts|tsx|js|jsx|json|yaml|yml|sh|html|css|txt|sql|toml|ini|env|example|lock))\b'
-    file_matches = re.findall(file_pattern, prompt, re.IGNORECASE)
-
-    has_named_doc = any(k in body_lower for k in ["readme", "architecture.md", "agents.md", "package.json", "makefile"])
-    has_trigger = (
-        parsed_intent.intent_type == IntentType.SYSTEM_INTROSPECTION
-        or any(t in body_lower for t in codebase_triggers)
-        or bool(file_matches)
-        or has_named_doc
-    )
-
-    if not has_trigger:
-        return None
-
     try:
-        from ..engine.codebase_grounding import LocalCodebaseInspector, GitManifoldInspector
-        inspector = LocalCodebaseInspector()
-        git_inspector = GitManifoldInspector()
-        project_root = inspector.project_root
-
-        context_parts = []
-
-        # 1. Full Manifest Grounding for Skills, Tools & Capabilities
-        if (
-            parsed_intent.intent_type == IntentType.SYSTEM_INTROSPECTION
-            or any(w in body_lower for w in ["skill", "skills", "tool", "tools", "manifest", "capability", "capabilities", "what can you do"])
-        ):
-            context_parts.append(inspector.get_full_manifest_grounding_block())
-
-        # 2. Target File Resolution & In-Context Content Injection
-        target_files = list(file_matches)
-        if "readme" in body_lower and not any("readme" in m.lower() for m in target_files):
-            target_files.append("README.md")
-        if "architecture" in body_lower and any(w in body_lower for w in ["file", "md", "doc", "document"]) and not any("architecture" in m.lower() for m in target_files):
-            target_files.append("ARCHITECTURE.md")
-        if "agents.md" in body_lower or ("agents" in body_lower and "directive" in body_lower):
-            target_files.append("AGENTS.md")
-
-        for requested_file in target_files[:3]:
-            clean_name = requested_file.strip("`'\" \t\n,;:")
-            if not clean_name:
-                continue
-
-            resolved_path = None
-            direct_check = os.path.abspath(os.path.join(project_root, clean_name))
-            if os.path.exists(direct_check) and os.path.isfile(direct_check) and direct_check.startswith(project_root):
-                resolved_path = direct_check
-            else:
-                target_base = os.path.basename(clean_name).lower()
-                for root, dirs, files in os.walk(project_root):
-                    dirs[:] = [d for d in dirs if d not in {".git", "node_modules", ".venv", "venv", "__pycache__", ".pytest_cache", "dist", "build", ".next", ".cache"}]
-                    for f in files:
-                        if f.lower() == target_base:
-                            candidate = os.path.join(root, f)
-                            if clean_name.lower() in candidate.lower():
-                                resolved_path = candidate
-                                break
-                            if not resolved_path:
-                                resolved_path = candidate
-                    if resolved_path:
-                        break
-
-            if resolved_path and os.path.exists(resolved_path):
-                try:
-                    rel_path = os.path.relpath(resolved_path, project_root)
-                    ext = os.path.splitext(resolved_path)[1].lower()
-                    with open(resolved_path, "r", encoding="utf-8", errors="ignore") as f:
-                        file_content = f.read()
-
-                    total_lines = file_content.count("\n") + 1
-                    if ext == ".md" and len(file_content) > 12000:
-                        section_headers = [line for line in file_content.splitlines() if line.startswith("#")]
-                        headers_summary = "\n".join(section_headers[:60])
-                        excerpt = (
-                            f"DOCUMENT OUTLINE & TABLE OF SECTIONS:\n{headers_summary}\n\n"
-                            f"EXCERPT:\n{file_content[:14000]}\n"
-                            f"... [Document continues across {total_lines} lines total. Address all relevant sections from the outline] ..."
-                        )
-                    elif len(file_content) > 12000:
-                        excerpt = file_content[:12000] + f"\n... [Truncated {len(file_content) - 12000} remaining bytes] ..."
-                    else:
-                        excerpt = file_content
-
-                    context_parts.append(
-                        f"[VERIFIED DISK CONTENT: `{rel_path}` ({total_lines} lines, {len(file_content):,} bytes)]:\n"
-                        f"```\n{excerpt}\n```"
-                    )
-                except Exception as read_err:
-                    logger.debug(f"[CodebaseGrounding] Error reading file {resolved_path}: {read_err}")
-
-        # 3. Dynamic System Architecture & 6-Domain Capability Matrix
-        arch = inspector.get_architecture_summary()
-        capabilities = inspector.get_system_capabilities()
-        cap_summary = [f"- {v['name']}: {v['description']}" for v in capabilities.values()]
-        context_parts.append(
-            f"[AUTHENTIC SYSTEM ARCHITECTURE & 6-DOMAIN CAPABILITIES]\n"
-            f"Title: {arch.get('title', 'Alluci Sovereign Agent Architecture Blueprint')}\n"
-            f"Functional Domains:\n" + "\n".join(cap_summary)
-        )
-
-        # 4. Introspective Subsystem Grounding (Authoritative Class & Module Docstrings from Disk)
-        subsystem_map = {
-            "dpk": "backend/security/dpk.py",
-            "discrete projection kernel": "backend/security/dpk.py",
-            "ppn": "backend/security/dpk.py",
-            "polytope projection network": "backend/security/dpk.py",
-            "pmet": "backend/topology/pmet_filtration.py",
-            "vietoris-rips": "backend/topology/pmet_filtration.py",
-            "j-space": "backend/topology/j_space_simulator.py",
-            "barcode_clock": "backend/topology/barcode_clock.py",
-            "barcode clock": "backend/topology/barcode_clock.py",
-            "markov_trace": "backend/topology/markov_trace.py",
-            "codi": ".agents/skills/codi_opencode_harness/SKILL.md",
-            "rocco": "backend/tools/web_scraper.py",
-            "spe": "backend/tools/strategic_planning_execution_tool.py",
-            "strategic planning": "backend/tools/strategic_planning_execution_tool.py",
-            "swd": "backend/tools/strategic_workforce_design_tool.py",
-            "workforce design": "backend/tools/strategic_workforce_design_tool.py",
-            "suf": "backend/tools/use_of_funds_tool.py",
-            "use of funds": "backend/tools/use_of_funds_tool.py",
-            "capital allocation": "backend/tools/use_of_funds_tool.py",
-            "ownership": "backend/tools/ownership_capital_strategy_tool.py",
-            "cap table": "backend/tools/ownership_capital_strategy_tool.py",
-            "founding team": "backend/tools/founding_team_leadership_tool.py",
-            "signal": "backend/bridges/signal_cli.py",
-            "bridge": "backend/bridges/manager.py",
-            "vault": "backend/security/vault.py",
-            "hlsm": "backend/memory/hlsm_manager.py",
-            "kuzudb": "backend/memory/hlsm_manager.py",
-            "ace": "backend/ace/engine.py",
-            "avl": "backend/security/avl_gate.py"
-        }
-
-        matched_subsystems = set()
-        for trig, sub_path in subsystem_map.items():
-            pattern = rf"\b{re.escape(trig)}\b"
-            if re.search(pattern, body_lower) and sub_path not in matched_subsystems:
-                matched_subsystems.add(sub_path)
-                full_sub_path = os.path.join(project_root, sub_path)
-                if os.path.exists(full_sub_path):
-                    try:
-                        with open(full_sub_path, "r", encoding="utf-8", errors="ignore") as sf:
-                            sub_text = sf.read()
-                        sub_excerpt = sub_text[:4000]
-                        context_parts.append(
-                            f"\n[INTROSPECTIVE SUBSYSTEM GROUNDING: `{sub_path}`]:\n"
-                            f"```\n{sub_excerpt.strip()}\n```"
-                        )
-                    except Exception as sub_err:
-                        logger.debug(f"[CodebaseGrounding] Error reading subsystem {sub_path}: {sub_err}")
-                if len(matched_subsystems) >= 2:
-                    break
-
-        if any(w in body_lower for w in ["git", "commit", "branch", "repo", "github"]):
-            git_st = await git_inspector.get_git_status()
-            recent_commits = await git_inspector.get_recent_commits(limit=5)
-            commit_lines = [f"- {c['short_hash']} ({c['date'][:10]}): {c['message']}" for c in recent_commits]
-            context_parts.append(
-                f"\n[GIT MANIFOLD TRUTH]\n"
-                f"Branch: {git_st.get('branch', 'main')}\n"
-                f"Working Tree Clean: {git_st.get('is_clean', True)}\n"
-                f"Recent Commits:\n" + ("\n".join(commit_lines) if commit_lines else "- None")
-            )
-
-        symbols = inspector.parse_ast_symbols(max_files=25)
-        relevant_files = []
-        for f_path, f_data in symbols.get("files", {}).items():
-            f_lower = f_path.lower()
-            if any(term in f_lower for term in body_lower.split() if len(term) > 3) or ("router" in body_lower and "router" in f_lower):
-                classes = [c["name"] for c in f_data.get("classes", [])]
-                routes = [f"{r['http_method']} {r['path']}" for r in f_data.get("routes", [])]
-                relevant_files.append(f"- `{f_path}`: classes={classes}, routes={routes}")
-
-        if relevant_files:
-            context_parts.append("\n[RELEVANT CODEBASE MODULES & SYMBOLS]\n" + "\n".join(relevant_files[:8]))
-
-        return "\n\n".join(context_parts)
+        from ..engine.intent_decomposer import IntentDecomposer
+        from ..engine.grounding_providers import ModularGroundingOrchestrator
+        
+        decomposer = IntentDecomposer()
+        parsed_intent = decomposer.decompose(prompt)
+        orch = ModularGroundingOrchestrator()
+        grounding, directive = await orch.resolve_grounding(prompt, parsed_intent)
+        return (grounding if grounding else None, directive)
     except Exception as e:
-        logger.debug(f"[GeminiRouter] Codebase grounding extraction notice: {e}")
-        return None
+        logger.debug(f"[GeminiRouter] Modular grounding resolution notice: {e}")
+        return None, None
 
 
 @router.post("/gemini/proxy", dependencies=[Depends(verify_authenticated)])
@@ -647,7 +460,7 @@ async def gemini_proxy(
         web_grounding = await _check_web_search_grounding(raw_user_prompt)
 
         # 4. Dynamic Codebase & Architecture Grounding Check (< 15ms)
-        code_grounding = await _check_codebase_and_architecture_context(raw_user_prompt)
+        code_grounding, specialized_directive = await _check_codebase_and_architecture_context(raw_user_prompt)
 
         # 5. Dynamic 4-Tier H-LSM Context Hydration across L1/L2/L3 (Tri-Hybrid RRF)
         memory_block = ""
@@ -677,13 +490,16 @@ async def gemini_proxy(
 
         if grounding_blocks:
             combined_grounding = "\n\n".join(grounding_blocks)
+            directive = specialized_directive or (
+                "INSTRUCTION: Answer the User Directive directly, comprehensively, and accurately based on the verified Reference Grounding Context above. Ground all factual claims strictly in the authentic reference data provided."
+            )
             effective_prompt = (
                 f"### USER DIRECTIVE / QUESTION:\n"
                 f"{raw_user_prompt.strip()}\n\n"
                 f"--- REFERENCE GROUNDING CONTEXT (Use strictly as factual reference to answer the User Directive above) ---\n"
                 f"{combined_grounding}\n"
                 f"--- END OF REFERENCE CONTEXT ---\n\n"
-                f"INSTRUCTION: Answer the User Directive directly, comprehensively, and accurately based on the verified Reference Grounding Context above. Ground all factual claims strictly in the authentic reference data provided."
+                f"{directive}"
             )
         else:
             effective_prompt = raw_user_prompt
@@ -757,7 +573,7 @@ async def gemini_proxy_stream(
         web_grounding = await _check_web_search_grounding(raw_user_prompt)
 
         # 4. Dynamic Codebase & Architecture Grounding Check (< 15ms)
-        code_grounding = await _check_codebase_and_architecture_context(raw_user_prompt)
+        code_grounding, specialized_directive = await _check_codebase_and_architecture_context(raw_user_prompt)
 
         # 5. Dynamic 4-Tier H-LSM Context Hydration across L1/L2/L3 (Tri-Hybrid RRF)
         memory_block = ""
@@ -787,13 +603,16 @@ async def gemini_proxy_stream(
 
         if grounding_blocks:
             combined_grounding = "\n\n".join(grounding_blocks)
+            directive = specialized_directive or (
+                "INSTRUCTION: Answer the User Directive directly, comprehensively, and accurately based on the verified Reference Grounding Context above. Ground all factual claims strictly in the authentic reference data provided."
+            )
             effective_prompt = (
                 f"### USER DIRECTIVE / QUESTION:\n"
                 f"{raw_user_prompt.strip()}\n\n"
                 f"--- REFERENCE GROUNDING CONTEXT (Use strictly as factual reference to answer the User Directive above) ---\n"
                 f"{combined_grounding}\n"
                 f"--- END OF REFERENCE CONTEXT ---\n\n"
-                f"INSTRUCTION: Answer the User Directive directly, comprehensively, and accurately based on the verified Reference Grounding Context above. Ground all factual claims strictly in the authentic reference data provided."
+                f"{directive}"
             )
         else:
             effective_prompt = raw_user_prompt
