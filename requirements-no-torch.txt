@@ -20,7 +20,7 @@ asyncpg==0.29.0              # PostgreSQL async driver (runtime)
 aiosqlite==0.20.0            # SQLite async support
 
 # ─── Security & Cryptography ──────────────────────────────────────────────────
-cryptography==43.0.0
+cryptography==50.0.1
 python-jose[cryptography]==3.3.0
 webauthn==2.1.0
 keyring==25.7.0              # OS Keychain integration for vault master key
