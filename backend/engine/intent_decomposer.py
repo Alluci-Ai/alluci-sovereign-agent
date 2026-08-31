@@ -207,7 +207,7 @@ class IntentDecomposer:
 
         # 4. Check for Actionable Multi-Step Execution (DAG Plan)
         action_verbs = [
-            r"\b(build|implement|create|generate a plan|execute|model|calculate|analyze and draft|audit and report|prepare a data room|set up|automate)\b"
+            r"\b(use|apply|run|execute|build|implement|create|generate a plan|model|calculate|analyze and draft|audit and report|prepare a data room|set up|automate|discover|conduct)\b"
         ]
         is_actionable = any(re.search(p, body_lower) for p in action_verbs)
 
@@ -217,6 +217,19 @@ class IntentDecomposer:
         suggested_agent = "executive"
         domain = CapabilityDomain.GENERAL_EXECUTIVE
         intent_type = IntentType.GENERAL_CONVERSATIONAL
+
+        # Explicit skill ID matching (e.g. fnd_02, codi_01, spe_01, auth_01)
+        explicit_skill_ids = re.findall(r'\b([a-z]{2,5}_\d{2})\b', body_lower)
+        for sid in explicit_skill_ids:
+            if sid not in matched_skills:
+                matched_skills.append(sid)
+                domain = CapabilityDomain.AUTONOMOUS_SUBAGENTS
+
+        # Explicit tool ID matching (e.g. fnd_tool_02, founder_insight_market_shift_tool)
+        explicit_tool_ids = re.findall(r'\b([a-z0-9_]+_tool(?:_[0-9]+)?)\b', body_lower)
+        for tid in explicit_tool_ids:
+            if tid not in matched_tools:
+                matched_tools.append(tid)
 
         for skill_id, meta in self.SKILL_MAPPING.items():
             for kw in meta["keywords"]:
@@ -236,16 +249,16 @@ class IntentDecomposer:
                     break
 
         # Refine Intent Type
-        if is_introspection:
-            intent_type = IntentType.SYSTEM_INTROSPECTION
-            domain = CapabilityDomain.AUTONOMOUS_SUBAGENTS
-        elif is_code and not matched_skills:
+        if is_code:
             intent_type = IntentType.CODE_ENGINEERING
             suggested_agent = "codi"
             domain = CapabilityDomain.AUTONOMOUS_SUBAGENTS
         elif is_research and not matched_skills:
             intent_type = IntentType.DEEP_RESEARCH
             suggested_agent = "rocco"
+            domain = CapabilityDomain.AUTONOMOUS_SUBAGENTS
+        elif is_introspection and not (is_actionable and (matched_skills or matched_tools)):
+            intent_type = IntentType.SYSTEM_INTROSPECTION
             domain = CapabilityDomain.AUTONOMOUS_SUBAGENTS
         elif is_actionable and len(matched_skills) >= 1:
             intent_type = IntentType.MULTI_STEP_DAG_EXECUTION
@@ -295,7 +308,7 @@ class IntentDecomposer:
 
         # Clean core objective
         core_objective = clean_prompt
-        if is_introspection:
+        if is_introspection and not (is_actionable and (matched_skills or matched_tools)):
             core_objective = "Enumerate, explain, and ground all authentic Skills, Tools, and Architectural Capabilities directly from disk manifests."
 
         return ParsedGoalTuple(

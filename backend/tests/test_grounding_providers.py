@@ -93,3 +93,41 @@ async def test_modular_orchestrator_scoping():
     g_arch, d_arch = await orchestrator.resolve_grounding(p_arch, decomposer.decompose(p_arch))
     assert "[AUTHENTIC SYSTEM ARCHITECTURE" in g_arch
     assert "[AUTHENTIC DISK MANIFEST: 26 SPECIALIZED" not in g_arch
+
+
+@pytest.mark.asyncio
+async def test_target_skill_execution_provider():
+    orchestrator = ModularGroundingOrchestrator()
+    decomposer = IntentDecomposer()
+
+    prompt = (
+        "use the Founder Insight & Market Shift Discovery (fnd_02) Skill and "
+        "Founder Insight Market Shift Tool (fnd_tool_02) Tool to create a detailed "
+        "discovery of your Alluci Sovereign Agent application."
+    )
+    parsed = decomposer.decompose(prompt)
+
+    assert parsed.intent_type == IntentType.MULTI_STEP_DAG_EXECUTION
+    assert "fnd_02" in parsed.required_skills or "founder_insight_market_shift" in parsed.required_skills
+    assert "fnd_tool_02" in parsed.required_tools or "founder_insight_market_shift_tool" in parsed.required_tools
+
+    grounding, directive = await orchestrator.resolve_grounding(prompt, parsed)
+
+    # Verify target skill schema is loaded
+    assert "[AUTHENTIC TARGET SKILL EXECUTION SCHEMA: Founder Insight & Market Shift Discovery (`fnd_02`)]" in grounding
+    assert "5-Tier Decision Confidence Matrix" in grounding
+
+    # Verify tool execution interface is loaded
+    assert "[AUTHENTIC CAPABILITY TOOL INTERFACE: `founder_insight_market_shift_tool`]" in grounding
+    assert "extract_market_shifts" in grounding
+
+    # Verify Alluci architecture context is loaded
+    assert "[AUTHENTIC SYSTEM ARCHITECTURE & 6-DOMAIN CAPABILITIES]" in grounding
+
+    # Verify 26-skill generic catalog dump is NOT injected
+    assert "[AUTHENTIC DISK MANIFEST: 26 SPECIALIZED" not in grounding
+
+    # Verify dynamic execution directive is synthesized
+    assert directive is not None
+    assert "Apply the verified 'Founder Insight & Market Shift Discovery' strategic framework" in directive
+    assert "Do not output a generic skills catalog" not in directive or "execute" in directive

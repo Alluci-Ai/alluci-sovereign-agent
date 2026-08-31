@@ -42,10 +42,10 @@ class BaseGroundingProvider(ABC):
         pass
 
 
-class SkillsAndToolsManifestProvider(BaseGroundingProvider):
+class SkillsAndToolsCatalogProvider(BaseGroundingProvider):
     """
-    Grounds inquiries regarding Skills, Tools, Frameworks, and Capabilities directly from disk.
-    Strictly isolated: does NOT pollute context with broader architectural essays or physics equations.
+    Grounds inquiries explicitly requesting an inventory or capability overview of installed Skills and Tools.
+    Strictly isolated: only fires on catalog/introspection queries, NEVER on active skill execution.
     """
 
     def __init__(self, inspector: Optional[LocalCodebaseInspector] = None):
@@ -53,12 +53,16 @@ class SkillsAndToolsManifestProvider(BaseGroundingProvider):
 
     async def can_handle(self, prompt: str, parsed_intent: ParsedGoalTuple) -> bool:
         body_lower = prompt.lower()
-        triggers = [
-            "skill", "skills", "tool", "tools", "framework", "frameworks",
-            "what can you do", "what are your capabilities", "list your capabilities",
-            "available capabilities", "manifest", "manifests", "installed capabilities"
+        # Never handle if specific skills/tools are targeted for execution
+        if parsed_intent.is_actionable_dag or len(parsed_intent.required_skills) > 0 or len(parsed_intent.required_tools) > 0:
+            return False
+
+        catalog_patterns = [
+            r"\b(what can you do|what are your capabilities|list (your )?capabilities|available capabilities)\b",
+            r"\b(list|show|enumerate|inventory)\b.*\b(skills|tools|frameworks|capabilities|manifests?)\b",
+            r"\b(what|tell me about your)\b.*\b(skills|tools|capabilities)\b"
         ]
-        return any(re.search(rf"\b{re.escape(t)}\b", body_lower) for t in triggers)
+        return any(re.search(p, body_lower) for p in catalog_patterns)
 
     async def provide_grounding(self, prompt: str, parsed_intent: ParsedGoalTuple) -> Optional[GroundingResult]:
         skills = self.inspector.get_installed_skills_inventory()
@@ -84,6 +88,94 @@ class SkillsAndToolsManifestProvider(BaseGroundingProvider):
             f"Do not drift into unrelated architectural or mathematical essays."
         )
         return GroundingResult(content=content, specialized_directive=directive)
+
+
+# Backwards compatibility alias
+SkillsAndToolsManifestProvider = SkillsAndToolsCatalogProvider
+
+
+class TargetSkillExecutionGroundingProvider(BaseGroundingProvider):
+    """
+    Grounds execution directives targeting specific Skills (core_skills/*.json) and Tools (backend/tools/*.py).
+    Injects only the exact methodologies, decision frameworks, and tool interfaces needed for task execution.
+    """
+
+    def __init__(self, inspector: Optional[LocalCodebaseInspector] = None):
+        self.inspector = inspector or LocalCodebaseInspector()
+
+    async def can_handle(self, prompt: str, parsed_intent: ParsedGoalTuple) -> bool:
+        return bool(parsed_intent.required_skills) or bool(parsed_intent.required_tools)
+
+    async def provide_grounding(self, prompt: str, parsed_intent: ParsedGoalTuple) -> Optional[GroundingResult]:
+        parts = []
+        loaded_skills = []
+        loaded_tools = []
+        seen_skill_ids = set()
+        seen_tool_ids = set()
+
+        # 1. Resolve and format targeted skills
+        for skill_id in parsed_intent.required_skills:
+            skill_def = self.inspector.get_skill_definition(skill_id)
+            if skill_def and skill_def.get("id") not in seen_skill_ids:
+                seen_skill_ids.add(skill_def.get("id"))
+                loaded_skills.append(skill_def)
+                s_id = skill_def.get("id", skill_id)
+                s_name = skill_def.get("name", s_id)
+                s_desc = skill_def.get("description", "")
+                s_methodologies = skill_def.get("methodologies", [])
+                s_frameworks = skill_def.get("frameworks", [])
+                s_cots = skill_def.get("chainsOfThought", [])
+                s_mindsets = skill_def.get("mindsets", [])
+                s_knowledge = skill_def.get("knowledge", [])
+
+                skill_lines = [
+                    f"[AUTHENTIC TARGET SKILL EXECUTION SCHEMA: {s_name} (`{s_id}`)]",
+                    f"Category: {skill_def.get('category', 'FRAMEWORK')}",
+                    f"Description: {s_desc}",
+                    f"Mindsets: {', '.join(s_mindsets) if isinstance(s_mindsets, list) else s_mindsets}",
+                    f"Knowledge Domains: {', '.join(s_knowledge) if isinstance(s_knowledge, list) else s_knowledge}",
+                    f"Methodologies: {', '.join(s_methodologies) if isinstance(s_methodologies, list) else s_methodologies}",
+                    f"Frameworks: {', '.join(s_frameworks) if isinstance(s_frameworks, list) else s_frameworks}",
+                ]
+                if s_cots:
+                    skill_lines.append("Step-by-Step Chains of Thought:")
+                    for cot in s_cots:
+                        skill_lines.append(f"  - {cot}")
+                parts.append("\n".join(skill_lines))
+
+        # 2. Resolve and format targeted tools
+        for tool_id in parsed_intent.required_tools:
+            tool_def = self.inspector.get_tool_definition(tool_id)
+            if tool_def and tool_def.get("id") not in seen_tool_ids:
+                seen_tool_ids.add(tool_def.get("id"))
+                loaded_tools.append(tool_def)
+                t_id = tool_def.get("id", tool_id)
+                t_doc = tool_def.get("docstring", "")
+                t_methods = tool_def.get("methods", [])
+                tool_lines = [
+                    f"[AUTHENTIC CAPABILITY TOOL INTERFACE: `{t_id}`]",
+                    f"Path: `{tool_def.get('file_path', '')}`",
+                    f"Docstring: {t_doc}"
+                ]
+                if t_methods:
+                    tool_lines.append("Available Tool Methods:")
+                    for m in t_methods:
+                        args_str = ", ".join(m.get("args", []))
+                        tool_lines.append(f"  - `{m.get('name')}({args_str})`: {m.get('doc', '')}")
+                parts.append("\n".join(tool_lines))
+
+        if not parts:
+            return None
+
+        # 3. Synthesize dynamic, goal-driven directive
+        skill_names = ", ".join([s.get("name", s.get("id")) for s in loaded_skills]) or "Target Framework"
+        directive = (
+            f"INSTRUCTION: Apply the verified '{skill_names}' strategic framework and execution methodology provided above "
+            f"to accomplish the user directive: '{parsed_intent.core_objective}'. "
+            f"Follow the step-by-step Chains of Thought and Frameworks faithfully against the target subject matter. "
+            f"Produce a comprehensive, rigorous strategic deliverable grounded in authentic reference data."
+        )
+        return GroundingResult(content="\n\n".join(parts), specialized_directive=directive)
 
 
 class ArchitectureGroundingProvider(BaseGroundingProvider):
@@ -124,12 +216,18 @@ class ArchitectureGroundingProvider(BaseGroundingProvider):
     async def can_handle(self, prompt: str, parsed_intent: ParsedGoalTuple) -> bool:
         body_lower = prompt.lower()
         # Avoid firing on pure skill/tool inventory questions unless architecture is explicitly asked
+        catalog_patterns = [
+            r"\b(list|show|enumerate|inventory)\b.*\b(skills|tools|frameworks|capabilities|manifests?)\b"
+        ]
+        if any(re.search(p, body_lower) for p in catalog_patterns) and not any(k in body_lower for k in ["architecture", "domain", "physics", "lce"]):
+            return False
+
         arch_keywords = [
             "architecture", "architectural", "how are you built", "system design",
             "6 domains", "functional domains", "topological physics", "mlx engine",
             "lce", "avl gate", "discrete projection kernel", "pmet filtration",
             "vietoris-rips", "stella octangula", "barcode clock", "markov trace",
-            "codebase"
+            "codebase", "alluci sovereign agent", "alluci application", "alluci codebase", "alluci architecture"
         ]
         has_subsystem = any(re.search(rf"\b{re.escape(trig)}\b", body_lower) for trig in self.subsystem_map.keys())
         return any(k in body_lower for k in arch_keywords) or has_subsystem
@@ -169,7 +267,7 @@ class ArchitectureGroundingProvider(BaseGroundingProvider):
                 if len(matched_subsystems) >= 2:
                     break
 
-        directive = "INSTRUCTION: Explain the system architecture accurately and comprehensively based strictly on the verified architectural blueprints and subsystem sources above."
+        directive = None if parsed_intent.required_skills else "INSTRUCTION: Explain the system architecture accurately and comprehensively based strictly on the verified architectural blueprints and subsystem sources above."
         return GroundingResult(content="\n\n".join(parts), specialized_directive=directive)
 
 
@@ -260,7 +358,7 @@ class TargetFileGroundingProvider(BaseGroundingProvider):
         if not parts:
             return None
 
-        directive = "INSTRUCTION: Address the user directive accurately based on the verified local file contents provided above."
+        directive = None if parsed_intent.required_skills else "INSTRUCTION: Address the user directive accurately based on the verified local file contents provided above."
         return GroundingResult(content="\n\n".join(parts), specialized_directive=directive)
 
 
@@ -312,7 +410,8 @@ class ModularGroundingOrchestrator:
         self.inspector = LocalCodebaseInspector()
         self.git_inspector = GitManifoldInspector()
         self.providers: List[BaseGroundingProvider] = [
-            SkillsAndToolsManifestProvider(self.inspector),
+            TargetSkillExecutionGroundingProvider(self.inspector),
+            SkillsAndToolsCatalogProvider(self.inspector),
             ArchitectureGroundingProvider(self.inspector),
             TargetFileGroundingProvider(self.inspector),
             GitStateGroundingProvider(self.git_inspector)
@@ -331,7 +430,7 @@ class ModularGroundingOrchestrator:
                     result = await provider.provide_grounding(prompt, parsed_intent)
                     if result and result.content:
                         grounding_blocks.append(result.content)
-                        # Priority for specialized directives (e.g. skills enumeration)
+                        # Priority for specialized directives (e.g. targeted execution directives)
                         if result.specialized_directive and not specialized_directive:
                             specialized_directive = result.specialized_directive
             except Exception as p_err:

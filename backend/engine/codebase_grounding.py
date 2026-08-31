@@ -502,6 +502,127 @@ class LocalCodebaseInspector:
 
         return tools
 
+    def get_skill_definition(self, skill_identifier: str) -> Optional[Dict[str, Any]]:
+        """
+        Dynamically looks up and returns the full JSON schema/definition for a specific skill.
+        Matches by ID (e.g. 'fnd_02'), name ('Founder Insight & Market Shift Discovery'),
+        or normalized slug ('founder_insight_market_shift').
+        """
+        if not skill_identifier:
+            return None
+        target = skill_identifier.lower().strip().replace(" ", "_").replace("-", "_")
+        skills_base = os.path.join(self.project_root, "core_skills")
+        if not os.path.exists(skills_base):
+            return None
+
+        try:
+            import json
+            for item in os.listdir(skills_base):
+                if not item.endswith(".json"):
+                    continue
+                file_path = os.path.join(skills_base, item)
+                try:
+                    with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                        data = json.load(f)
+
+                    s_id = str(data.get("id", "")).lower()
+                    s_name = str(data.get("name", "")).lower()
+                    s_normalized_name = s_name.replace(" ", "_").replace("&", "and").replace("-", "_")
+                    file_stem = item[:-5].lower()
+
+                    if (
+                        target == s_id
+                        or target == file_stem
+                        or target in s_normalized_name
+                        or s_normalized_name in target
+                        or target in s_name
+                        or s_id in target
+                    ):
+                        data["file_path"] = os.path.relpath(file_path, self.project_root)
+                        return data
+                except Exception as err:
+                    logger.debug(f"[CodebaseInspector] Error parsing {file_path}: {err}")
+        except Exception as e:
+            logger.warning(f"[CodebaseInspector] Error in get_skill_definition: {e}")
+        return None
+
+    def get_tool_definition(self, tool_identifier: str) -> Optional[Dict[str, Any]]:
+        """
+        Dynamically looks up and returns structured metadata, class docstring, and public methods
+        for a specific Python capability tool in backend/tools/.
+        """
+        if not tool_identifier:
+            return None
+        target = tool_identifier.lower().strip().replace(" ", "_").replace("-", "_")
+        if target.endswith(".py"):
+            target = target[:-3]
+
+        tools_base = os.path.join(self.project_root, "backend", "tools")
+        if not os.path.exists(tools_base):
+            return None
+
+        try:
+            for file_name in os.listdir(tools_base):
+                if not file_name.endswith(".py") or file_name.startswith("__"):
+                    continue
+                tool_id = file_name[:-3].lower()
+                file_path = os.path.join(tools_base, file_name)
+
+                matches = False
+                if target == tool_id or target in tool_id or tool_id in target:
+                    matches = True
+                elif "fnd_tool_02" in target and "founder_insight" in tool_id:
+                    matches = True
+                elif "fnd_tool_01" in target and "founder_narrative" in tool_id:
+                    matches = True
+                elif "spe_tool" in target and "strategic_planning" in tool_id:
+                    matches = True
+                elif "swd_tool" in target and "strategic_workforce" in tool_id:
+                    matches = True
+                elif "suf_tool" in target and "use_of_funds" in tool_id:
+                    matches = True
+
+                if matches:
+                    try:
+                        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                            code = f.read()
+
+                        methods = []
+                        docstring = "Deterministic capability tool."
+                        try:
+                            tree = ast.parse(code)
+                            mod_doc = ast.get_docstring(tree)
+                            if mod_doc:
+                                docstring = mod_doc.strip()
+                            for node in tree.body:
+                                if isinstance(node, ast.ClassDef):
+                                    class_doc = ast.get_docstring(node)
+                                    if class_doc:
+                                        docstring = class_doc.strip()
+                                    for item in node.body:
+                                        if isinstance(item, ast.FunctionDef) and not item.name.startswith("_"):
+                                            m_doc = ast.get_docstring(item) or ""
+                                            args = [a.arg for a in item.args.args if a.arg != "self"]
+                                            methods.append({
+                                                "name": item.name,
+                                                "args": args,
+                                                "doc": m_doc.strip().split("\n\n")[0] if m_doc else ""
+                                            })
+                        except Exception:
+                            pass
+
+                        return {
+                            "id": tool_id,
+                            "file_path": os.path.relpath(file_path, self.project_root),
+                            "docstring": docstring,
+                            "methods": methods
+                        }
+                    except Exception as r_err:
+                        logger.debug(f"[CodebaseInspector] Failed reading tool {file_path}: {r_err}")
+        except Exception as e:
+            logger.warning(f"[CodebaseInspector] Error in get_tool_definition: {e}")
+        return None
+
     def get_full_manifest_grounding_block(self) -> str:
         """
         Generates comprehensive, non-stubbed manifest grounding containing all Skills
