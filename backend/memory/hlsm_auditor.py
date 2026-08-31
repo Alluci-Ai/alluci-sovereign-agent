@@ -100,7 +100,7 @@ class HLSMDeepAuditor:
                 clusters.append(DuplicateCluster(
                     cluster_id=f"dup_l0_{h[:12]}",
                     cluster_type="EXACT_CONTENT_DUPLICATE",
-                    canonical_id=str(canonical.id),
+                    canonical_id=canonical.id,
                     duplicate_ids=dupes,
                     entity_title=f"Working Memory: {(canonical.content or '')[:40]}...",
                     entity_preview=(canonical.content or "")[:120],
@@ -147,13 +147,13 @@ class HLSMDeepAuditor:
                             reverse=True
                         )
                         canonical = sorted_group[0]
-                        dupes = [str(x.id) for x in sorted_group[1:]]
+                        dupes = [x.id for x in sorted_group[1:]]
                         c_bytes = sum(len((x.content or "").encode("utf-8")) for x in sorted_group[1:])
                         wasted += c_bytes
                         clusters.append(DuplicateCluster(
                             cluster_id=f"dup_l1_{h[:12]}",
                             cluster_type="EXACT_CONTENT_DUPLICATE",
-                            canonical_id=str(canonical.id),
+                            canonical_id=canonical.id,
                             duplicate_ids=dupes,
                             entity_title=f"Episodic Entry ({canonical.source or 'user'}): {(canonical.content or '')[:40]}...",
                             entity_preview=(canonical.content or "")[:120],
@@ -323,35 +323,50 @@ class HLSMDeepAuditor:
                 working_entries = []
 
         # 2. Run Tier Audits in Parallel
-        l0_audit, l1_audit, l3_audit = await asyncio.gather(
+        raw_l0, raw_l1, raw_l3 = await asyncio.gather(
             self.audit_l0(working_entries),
             self.audit_l1(),
             self.audit_l3(),
             return_exceptions=True
         )
 
-        if isinstance(l0_audit, Exception):
-            l0_audit = {"tier": "L0", "total_records": 0, "duplicate_count": 0, "wasted_bytes": 0, "clusters": []}
-        if isinstance(l1_audit, Exception):
-            l1_audit = {"tier": "L1", "total_records": 0, "duplicate_count": 0, "wasted_bytes": 0, "clusters": []}
-        if isinstance(l3_audit, Exception):
-            l3_audit = {"tier": "L3", "total_records": 0, "duplicate_count": 0, "wasted_bytes": 0, "orphaned_keypoints": 0, "orphaned_l3_memories": 0, "clusters": []}
+        l0_audit: Dict[str, Any] = raw_l0 if isinstance(raw_l0, dict) else {
+            "tier": "L0", "total_records": 0, "duplicate_count": 0, "wasted_bytes": 0, "clusters": []
+        }
+        l1_audit: Dict[str, Any] = raw_l1 if isinstance(raw_l1, dict) else {
+            "tier": "L1", "total_records": 0, "duplicate_count": 0, "wasted_bytes": 0, "clusters": []
+        }
+        l3_audit: Dict[str, Any] = raw_l3 if isinstance(raw_l3, dict) else {
+            "tier": "L3", "total_records": 0, "duplicate_count": 0, "wasted_bytes": 0, "orphaned_keypoints": 0, "orphaned_l3_memories": 0, "clusters": []
+        }
 
         all_clusters: List[DuplicateCluster] = []
-        all_clusters.extend(l0_audit.get("clusters", []))
-        all_clusters.extend(l1_audit.get("clusters", []))
-        all_clusters.extend(l3_audit.get("clusters", []))
+        l0_clusters = l0_audit.get("clusters", [])
+        if isinstance(l0_clusters, list):
+            all_clusters.extend([c for c in l0_clusters if isinstance(c, DuplicateCluster)])
+        l1_clusters = l1_audit.get("clusters", [])
+        if isinstance(l1_clusters, list):
+            all_clusters.extend([c for c in l1_clusters if isinstance(c, DuplicateCluster)])
+        l3_clusters = l3_audit.get("clusters", [])
+        if isinstance(l3_clusters, list):
+            all_clusters.extend([c for c in l3_clusters if isinstance(c, DuplicateCluster)])
 
-        total_records_map = {
-            "l0": l0_audit.get("total_records", 0),
-            "l1": l1_audit.get("total_records", 0),
-            "l2": l3_audit.get("total_records", 0),  # L2/L3 in KuzuDB
-            "l3": l3_audit.get("total_records", 0),
-            "total": l0_audit.get("total_records", 0) + l1_audit.get("total_records", 0) + l3_audit.get("total_records", 0)
+        l0_total = int(l0_audit.get("total_records", 0) or 0)
+        l1_total = int(l1_audit.get("total_records", 0) or 0)
+        l3_total = int(l3_audit.get("total_records", 0) or 0)
+
+        total_records_map: Dict[str, int] = {
+            "l0": l0_total,
+            "l1": l1_total,
+            "l2": l3_total,  # L2/L3 in KuzuDB
+            "l3": l3_total,
+            "total": l0_total + l1_total + l3_total
         }
 
         total_dupes = sum(len(c.duplicate_ids) for c in all_clusters if c.cluster_type != "ORPHANED_NODE")
-        total_orphans = l3_audit.get("orphaned_keypoints", 0) + l3_audit.get("orphaned_l3_memories", 0)
+        orphaned_kp = int(l3_audit.get("orphaned_keypoints", 0) or 0)
+        orphaned_l3 = int(l3_audit.get("orphaned_l3_memories", 0) or 0)
+        total_orphans = orphaned_kp + orphaned_l3
         wasted_bytes_total = sum(c.wasted_bytes for c in all_clusters)
 
         # 3. Calculate Health Score
@@ -374,8 +389,8 @@ class HLSMDeepAuditor:
             total_records=total_records_map,
             duplicate_clusters=[asdict(c) for c in all_clusters],
             orphan_counts={
-                "dangling_keypoints": l3_audit.get("orphaned_keypoints", 0),
-                "orphaned_l3_memories": l3_audit.get("orphaned_l3_memories", 0)
+                "dangling_keypoints": orphaned_kp,
+                "orphaned_l3_memories": orphaned_l3
             },
             wasted_bytes_total=wasted_bytes_total,
             retrieval_bias_risk=bias_risk

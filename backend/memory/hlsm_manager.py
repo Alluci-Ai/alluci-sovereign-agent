@@ -1338,16 +1338,16 @@ class HLSMManager:
         )
 
         # Handle exceptions from individual tier failures
-        if isinstance(l0_results, Exception):
+        if isinstance(l0_results, BaseException):
             logger.error(f"[HLSM] L0 retrieval failed: {l0_results}")
             l0_results = []
-        if isinstance(l1_results, Exception):
+        if isinstance(l1_results, BaseException):
             logger.error(f"[HLSM] L1 retrieval failed: {l1_results}")
             l1_results = []
-        if isinstance(l2_results, Exception):
+        if isinstance(l2_results, BaseException):
             logger.error(f"[HLSM] L2 retrieval failed: {l2_results}")
             l2_results = []
-        if isinstance(l3_results, Exception):
+        if isinstance(l3_results, BaseException):
             logger.error(f"[HLSM] L3 retrieval failed: {l3_results}")
             l3_results = []
 

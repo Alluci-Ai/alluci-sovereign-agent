@@ -1050,7 +1050,7 @@ class HeartbeatDaemon:
             *[run_guarded(aid, o) for aid, o in due], return_exceptions=True
         )
         for r in results:
-            if isinstance(r, Exception):
+            if isinstance(r, BaseException):
                 self.logger.error("[HB] Order raised: %s", r, exc_info=True)
 
     # ─── UI introspection ─────────────────────────────────────────────────────
