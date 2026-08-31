@@ -74,22 +74,32 @@ def strip_rtf_formatting(rtf_text: str) -> str:
     return cleaned.strip()
 
 
-def extract_text_from_pdf_bytes(pdf_bytes: bytes) -> str:
-    """Extracts text pages from PDF raw bytes using pypdf with regex fallback."""
-    text_chunks = []
+def extract_pages_from_pdf_bytes(pdf_bytes: bytes, filename: str = "") -> List[Dict[str, Any]]:
+    """Extracts structured page objects from PDF raw bytes using pypdf with regex fallback."""
+    pages_list = []
+    fname = os.path.basename(filename) if filename else "document.pdf"
     try:
         import pypdf
         reader = pypdf.PdfReader(io.BytesIO(pdf_bytes))
-        for page in reader.pages:
-            t = page.extract_text()
-            if t:
-                text_chunks.append(t.strip())
-        if text_chunks:
-            return "\n\n".join(text_chunks)
+        total_pages = len(reader.pages)
+        for idx, page in enumerate(reader.pages):
+            p_num = idx + 1
+            t = page.extract_text() or ""
+            clean_text = t.strip()
+            pages_list.append({
+                "page_number": p_num,
+                "total_pages": total_pages,
+                "text": clean_text,
+                "char_count": len(clean_text),
+                "filename": fname,
+                "header": f"--- [DOCUMENT: {fname} | PAGE {p_num}/{total_pages}] ---"
+            })
+        if pages_list:
+            return pages_list
     except Exception as pdf_err:
-        logger.warning(f"[DocParser] pypdf extraction notice: {pdf_err}")
+        logger.warning(f"[DocParser] pypdf page extraction notice: {pdf_err}")
 
-    # Regex stream fallback
+    # Regex stream fallback (treated as page 1)
     try:
         matches = re.findall(rb'\((.*?)\)', pdf_bytes)
         clean_strings = [
@@ -98,11 +108,37 @@ def extract_text_from_pdf_bytes(pdf_bytes: bytes) -> str:
             if len(m) > 2 and any(c.isalnum() for c in m.decode('utf-8', errors='ignore'))
         ]
         if clean_strings:
-            return " ".join(clean_strings)
+            combined = " ".join(clean_strings)
+            return [{
+                "page_number": 1,
+                "total_pages": 1,
+                "text": combined,
+                "char_count": len(combined),
+                "filename": fname,
+                "header": f"--- [DOCUMENT: {fname} | PAGE 1/1] ---"
+            }]
     except Exception:
         pass
 
-    return ""
+    return []
+
+
+def extract_text_from_pdf_bytes(pdf_bytes: bytes, filename: str = "") -> str:
+    """Extracts text pages from PDF raw bytes with explicit page boundary headers."""
+    pages = extract_pages_from_pdf_bytes(pdf_bytes, filename=filename)
+    if not pages:
+        return ""
+    
+    formatted_pages = []
+    for p in pages:
+        p_text = p.get("text", "").strip()
+        p_hdr = p.get("header", "")
+        if p_text:
+            formatted_pages.append(f"{p_hdr}\n{p_text}")
+        else:
+            formatted_pages.append(f"{p_hdr}\n[Empty page or image-only content]")
+            
+    return "\n\n".join(formatted_pages)
 
 
 def extract_text_from_docx_bytes(docx_bytes: bytes) -> str:
@@ -190,7 +226,7 @@ def extract_text_from_file_payload(file_name: str, file_data_base64: str, file_m
     # 1. PDF Documents
     is_pdf = "pdf" in mime_lower or fn_lower.endswith(".pdf") or raw_bytes.startswith(b"%PDF")
     if is_pdf:
-        pdf_text = extract_text_from_pdf_bytes(raw_bytes)
+        pdf_text = extract_text_from_pdf_bytes(raw_bytes, filename=file_name)
         if pdf_text.strip():
             return pdf_text
         return f"[PDF DOCUMENT: {file_name} — No readable text stream extracted]"

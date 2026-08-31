@@ -422,6 +422,71 @@ async def _check_codebase_and_architecture_context(prompt: str) -> Tuple[Optiona
         return None, None
 
 
+async def _check_document_page_grounding(prompt: str) -> Optional[str]:
+    """
+    Detects requests for specific document pages (e.g., 'pages 6, 7, 8 and 9', 'page 12', 'pages 4-7 of Hoffman')
+    and retrieves exact verbatim page text from L3 PageNode entities or authentic source files on disk.
+    """
+    body_lower = prompt.lower()
+    # Check for page pattern
+    page_match = re.search(r'\bpages?\s*([0-9\s,\-andto]+)', prompt, re.IGNORECASE)
+    if not page_match:
+        return None
+
+    raw_nums_str = page_match.group(1).strip()
+    page_numbers = []
+    if "-" in raw_nums_str or "to" in raw_nums_str:
+        range_parts = re.split(r'-|\bto\b', raw_nums_str)
+        if len(range_parts) == 2 and range_parts[0].strip().isdigit() and range_parts[1].strip().isdigit():
+            start_p, end_p = int(range_parts[0].strip()), int(range_parts[1].strip())
+            page_numbers = list(range(min(start_p, end_p), max(start_p, end_p) + 1))
+    
+    if not page_numbers:
+        digits = re.findall(r'\b\d+\b', raw_nums_str)
+        page_numbers = [int(d) for d in digits if int(d) < 1000]
+
+    if not page_numbers or len(page_numbers) > 50:
+        return None
+
+    # Identify document reference in prompt
+    doc_keywords = []
+    fname_match = re.findall(r'([A-Za-z0-9_\-]+\.(?:pdf|docx|txt|md))\b', prompt, re.IGNORECASE)
+    if fname_match:
+        doc_keywords.extend(fname_match)
+    else:
+        candidates = ["hoffman", "cimc", "consciousness", "objects of consciousness", "whitepaper", "paper", "report"]
+        for c in candidates:
+            if c in body_lower:
+                doc_keywords.append(c)
+
+    doc_query = doc_keywords[0] if doc_keywords else ""
+
+    from .. import services
+    if hasattr(services, "hlsm_manager") and services.hlsm_manager:
+        try:
+            page_records = await services.hlsm_manager.retrieve_page_range(
+                document_query=doc_query,
+                page_numbers=page_numbers
+            )
+            if page_records:
+                page_blocks = []
+                doc_name = page_records[0].get("filename", doc_query or "Document")
+                for p in page_records:
+                    p_num = p.get("page_number", 0)
+                    p_txt = p.get("text", "").strip()
+                    p_hdr = p.get("header", f"--- [PAGE {p_num}] ---")
+                    if p_txt:
+                        page_blocks.append(f"{p_hdr}\n{p_txt}")
+                
+                if page_blocks:
+                    joined_pages = "\n\n".join(page_blocks)
+                    return f"[AUTHENTIC SOURCE DOCUMENT PAGE GROUNDING (Document: {doc_name} | Requested Pages: {', '.join(str(p) for p in page_numbers)})]:\n{joined_pages}"
+        except Exception as e:
+            logger.debug(f"[GeminiRouter] Page grounding resolution notice: {e}")
+
+    return None
+
+
 @router.post("/gemini/proxy", dependencies=[Depends(verify_authenticated)])
 async def gemini_proxy(
     request: Request,
@@ -456,13 +521,16 @@ async def gemini_proxy(
         if local_file_or_report:
             return {"result": local_file_or_report}
 
-        # 3. Dynamic Web Search Grounding Check (< 500ms)
+        # 3. Dynamic Document Page Grounding Check (< 15ms)
+        page_grounding = await _check_document_page_grounding(raw_user_prompt)
+
+        # 4. Dynamic Web Search Grounding Check (< 500ms)
         web_grounding = await _check_web_search_grounding(raw_user_prompt)
 
-        # 4. Dynamic Codebase & Architecture Grounding Check (< 15ms)
+        # 5. Dynamic Codebase & Architecture Grounding Check (< 15ms)
         code_grounding, specialized_directive = await _check_codebase_and_architecture_context(raw_user_prompt)
 
-        # 5. Dynamic 4-Tier H-LSM Context Hydration across L1/L2/L3 (Tri-Hybrid RRF)
+        # 6. Dynamic 4-Tier H-LSM Context Hydration across L1/L2/L3 (Tri-Hybrid RRF)
         memory_block = ""
         if hasattr(services, "hlsm_manager") and services.hlsm_manager and parsed_intent.intent_type != IntentType.SYSTEM_INTROSPECTION:
             try:
@@ -479,8 +547,10 @@ async def gemini_proxy(
             except Exception as mem_err:
                 logger.debug(f"[GeminiRouter] Dynamic H-LSM hydration notice: {mem_err}")
 
-        # Construct Authoritative 3-Tier Grounded Prompt
+        # Construct Authoritative Grounded Prompt
         grounding_blocks = []
+        if page_grounding:
+            grounding_blocks.append(page_grounding)
         if web_grounding:
             grounding_blocks.append(f"[WEB SEARCH GROUNDING DATA]:\n{web_grounding}")
         if code_grounding:
@@ -504,7 +574,7 @@ async def gemini_proxy(
         else:
             effective_prompt = raw_user_prompt
 
-        # 6. Fetch system context (lightweight capability index)
+        # Fetch system context
         system_instruction = ""
         if services.orchestrator:
             ctx_res = await services.orchestrator._build_system_context()
@@ -574,13 +644,16 @@ async def gemini_proxy_stream(
         # 2. Fast Local Hard Drive & Workspace File / Report Reader Check (< 50ms)
         local_file_or_report = await _check_local_workspace_file_or_report(raw_user_prompt)
 
-        # 3. Dynamic Web Search Grounding Check (< 500ms)
+        # 3. Dynamic Document Page Grounding Check (< 15ms)
+        page_grounding = await _check_document_page_grounding(raw_user_prompt)
+
+        # 4. Dynamic Web Search Grounding Check (< 500ms)
         web_grounding = await _check_web_search_grounding(raw_user_prompt)
 
-        # 4. Dynamic Codebase & Architecture Grounding Check (< 15ms)
+        # 5. Dynamic Codebase & Architecture Grounding Check (< 15ms)
         code_grounding, specialized_directive = await _check_codebase_and_architecture_context(raw_user_prompt)
 
-        # 5. Dynamic 4-Tier H-LSM Context Hydration across L1/L2/L3 (Tri-Hybrid RRF)
+        # 6. Dynamic 4-Tier H-LSM Context Hydration across L1/L2/L3 (Tri-Hybrid RRF)
         memory_block = ""
         if hasattr(services, "hlsm_manager") and services.hlsm_manager and parsed_intent.intent_type != IntentType.SYSTEM_INTROSPECTION:
             try:
@@ -597,8 +670,10 @@ async def gemini_proxy_stream(
             except Exception as mem_err:
                 logger.debug(f"[GeminiRouter] Dynamic H-LSM hydration notice: {mem_err}")
 
-        # Construct Authoritative 3-Tier Grounded Prompt
+        # Construct Authoritative Grounded Prompt
         grounding_blocks = []
+        if page_grounding:
+            grounding_blocks.append(page_grounding)
         if web_grounding:
             grounding_blocks.append(f"[WEB SEARCH GROUNDING DATA]:\n{web_grounding}")
         if code_grounding:

@@ -128,7 +128,7 @@ Conscious Realism posits that consciousness is fundamental. Spacetime is a speci
         content=doc,
         session_key="sess_a"
     )
-    assert len(res1) == 1
+    assert len(res1) >= 1
     master_id = res1[0]
 
     # Second upload of identical document

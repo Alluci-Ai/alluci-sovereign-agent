@@ -15,8 +15,7 @@ Integration points:
   - AffectKernel modulates retrieval scoring via ψ/valence
 """
 
-from __future__ import annotations
-
+import os
 import asyncio
 import hashlib
 import json
@@ -91,6 +90,120 @@ def _extract_kuzu_rows(raw_results: Any) -> List[Any]:
     if hasattr(raw_results, "__iter__"):
         return list(raw_results)
     return []
+
+
+def _parse_pages_from_content(content: str, filename: str) -> List[Dict[str, Any]]:
+    """
+    Extracts structured pages from raw content.
+    Detects page boundary markers '--- [DOCUMENT: ... | PAGE X/Y] ---'.
+    Falls back to deterministic ~450-word page partitions if no markers exist.
+    """
+    page_pattern = r'---\s*\[DOCUMENT:\s*([^\|]+)\s*\|\s*PAGE\s*(\d+)/(\d+)\]\s*---\n?(.*?)(?=(?:---\s*\[DOCUMENT:|$))'
+    matches = list(re.finditer(page_pattern, content, re.DOTALL))
+    if matches:
+        pages = []
+        total_p = int(matches[0].group(3))
+        for m in matches:
+            p_num = int(m.group(2))
+            p_text = m.group(4).strip()
+            pages.append({
+                "page_number": p_num,
+                "total_pages": total_p,
+                "text": p_text,
+                "char_count": len(p_text),
+                "filename": filename,
+                "header": f"--- [DOCUMENT: {filename} | PAGE {p_num}/{total_p}] ---"
+            })
+        return pages
+
+    # Fallback to pseudo-pages based on paragraph / word density
+    paragraphs = [p.strip() for p in content.split("\n\n") if p.strip()]
+    if not paragraphs:
+        paragraphs = [content.strip()]
+    
+    pages = []
+    current_page_words = []
+    page_counter = 1
+    
+    for p in paragraphs:
+        words = p.split()
+        if len(current_page_words) + len(words) > 450 and current_page_words:
+            p_text = " ".join(current_page_words)
+            pages.append({
+                "page_number": page_counter,
+                "total_pages": 0,
+                "text": p_text,
+                "char_count": len(p_text),
+                "filename": filename,
+                "header": f"--- [DOCUMENT: {filename} | PAGE {page_counter}] ---"
+            })
+            page_counter += 1
+            current_page_words = words
+        else:
+            current_page_words.extend(words)
+
+    if current_page_words:
+        p_text = " ".join(current_page_words)
+        pages.append({
+            "page_number": page_counter,
+            "total_pages": page_counter,
+            "text": p_text,
+            "char_count": len(p_text),
+            "filename": filename,
+            "header": f"--- [DOCUMENT: {filename} | PAGE {page_counter}] ---"
+        })
+        
+    for p in pages:
+        p["total_pages"] = len(pages)
+        p["header"] = f"--- [DOCUMENT: {filename} | PAGE {p['page_number']}/{len(pages)}] ---"
+        
+    return pages
+
+
+def _extract_formal_concepts(page_text: str, filename: str, page_num: int) -> List[Dict[str, Any]]:
+    """
+    Extracts mathematical tuples, formalisms, and scientific definitions from page content.
+    e.g., Conscious Agent 7-tuple (W, X, G, P, D, A, N), Markovian transition kernels P, D, A.
+    """
+    concepts = []
+    
+    # 1. Hoffman Conscious Agent 7-Tuple: (W, X, G, P, D, A, N) or C = ((X, X), (G, G), W, P, D, A, N)
+    if any(k in page_text for k in ["(W, X, G, P, D, A, N)", "(W,X,G,P,D,A,N)", "conscious agent", "Conscious Agent", "Markovian kernel", "measurable space"]) and ("(X," in page_text or "W," in page_text or "P:" in page_text or "kernel" in page_text or "(W, X, G" in page_text):
+        concepts.append({
+            "name": "Conscious Agent Formalism (Hoffman-Prakash)",
+            "formal_definition": "A conscious agent is a 7-tuple C = ((X, X), (G, G), W, P, D, A, N) where (X, X) is experience space, (G, G) is action space, W is world space, P is perception kernel (W x X -> [0,1]), D is decision kernel (X x G -> [0,1]), A is action kernel (G x W -> [0,1]), and N is integer clock counter.",
+            "math_formula": "C = ((X, \\mathcal{X}), (G, \\mathcal{G}), W, P, D, A, N); P: W \\times \\mathcal{X} \\to [0,1], D: X \\times \\mathcal{G} \\to [0,1], A: G \\times \\mathcal{W} \\to [0,1]",
+            "page_number": page_num
+        })
+        
+    # 2. Markov Kernels / Transition Probabilities
+    if "Markovian kernel" in page_text or ("kernel" in page_text and any(sym in page_text for sym in ["P(", "D(", "A("])):
+        concepts.append({
+            "name": "Markovian Transition Kernels (Perception, Decision, Action)",
+            "formal_definition": "Perception P, Decision D, and Action A are formalized as measurable Markovian transition kernels mapping state distributions probabilistically across world and agent spaces.",
+            "math_formula": "P(w, \\cdot) \\in \\mathcal{P}(X), D(x, \\cdot) \\in \\mathcal{P}(G), A(g, \\cdot) \\in \\mathcal{P}(W)",
+            "page_number": page_num
+        })
+
+    # 3. Integrated Information Theory (IIT) Phi
+    if "Integrated Information Theory" in page_text or "IIT" in page_text or "Phi" in page_text or "Φ" in page_text:
+        concepts.append({
+            "name": "Integrated Information (Phi / Φ)",
+            "formal_definition": "Measures the amount of integrated information generated by a complex of elements above and beyond its mutually independent components.",
+            "math_formula": "\\Phi = \\min_{\\text{MIP}} D(p(x_t \\mid x_{t-1}) \\parallel \\prod p(x_t^k \\mid x_{t-1}^k))",
+            "page_number": page_num
+        })
+
+    # 4. Free Energy Principle (FEP)
+    if "Free Energy Principle" in page_text or "FEP" in page_text or "Friston" in page_text:
+        concepts.append({
+            "name": "Free Energy Principle (FEP)",
+            "formal_definition": "Any self-organizing system that resists decay must minimize variational free energy (an upper bound on surprise / prediction error).",
+            "math_formula": "F = \\mathbb{E}_{q}[\\ln q(\\vartheta) - \\ln p(y, \\vartheta)] = D_{\\text{KL}}(q(\\vartheta) \\parallel p(\\vartheta \\mid y)) - \\ln p(y)",
+            "page_number": page_num
+        })
+
+    return concepts
 
 
 def _distill_document_metadata(filename: str, content: str) -> Dict[str, Any]:
@@ -297,6 +410,12 @@ class HLSMManager:
                     "CREATE NODE TABLE IF NOT EXISTS KeyPointNode (id STRING, text STRING, document_id STRING, PRIMARY KEY (id))"
                 )
                 self.kuzu_conn.execute(
+                    "CREATE NODE TABLE IF NOT EXISTS PageNode (id STRING, document_id STRING, page_number INT64, summary STRING, content STRING, char_count INT64, PRIMARY KEY (id))"
+                )
+                self.kuzu_conn.execute(
+                    "CREATE NODE TABLE IF NOT EXISTS ConceptNode (id STRING, document_id STRING, name STRING, formal_definition STRING, math_formula STRING, page_number INT64, PRIMARY KEY (id))"
+                )
+                self.kuzu_conn.execute(
                     "CREATE NODE TABLE IF NOT EXISTS GraphNode (name STRING, PRIMARY KEY (name))"
                 )
                 self.kuzu_conn.execute(
@@ -304,6 +423,12 @@ class HLSMManager:
                 )
                 self.kuzu_conn.execute(
                     "CREATE REL TABLE IF NOT EXISTS HAS_KEY_POINT (FROM DocumentNode TO KeyPointNode)"
+                )
+                self.kuzu_conn.execute(
+                    "CREATE REL TABLE IF NOT EXISTS HAS_PAGE (FROM DocumentNode TO PageNode)"
+                )
+                self.kuzu_conn.execute(
+                    "CREATE REL TABLE IF NOT EXISTS DEFINES_CONCEPT (FROM PageNode TO ConceptNode)"
                 )
             except ImportError:
                 logger.warning("[HLSM] kuzu library not installed. L2 Semantic Memory disabled.")
@@ -1952,7 +2077,8 @@ class HLSMManager:
     ) -> List[str]:
         """
         Asynchronously fingerprints, deduplicates (CAS), and indexes an uploaded document into
-        L1 Episodic (FTS5), L2 Semantic Memory, and L3 Knowledge Graph with DocumentNode & KeyPointNode.
+        L1 Episodic (FTS5), L2 Semantic Memory, and L3 Knowledge Graph with DocumentNode, PageNode, and ConceptNode.
+        Index 100% of chunks without artificial truncation.
         """
         if not content or not content.strip():
             return []
@@ -1982,14 +2108,15 @@ class HLSMManager:
             except Exception as dup_err:
                 logger.debug(f"[HLSM] Deduplication lookup notice: {dup_err}")
 
-        # 3. Single-Pass Semantic Distillation & Acronym Extraction
+        # 3. Structured Page Extraction & Semantic Distillation
+        pages = _parse_pages_from_content(clean_text, filename)
         distilled = _distill_document_metadata(filename, clean_text)
         doc_title = distilled["title"]
         doc_summary = distilled["summary"]
         doc_acronyms = distilled["acronyms"]
         key_points = distilled["key_points"]
 
-        # 4. Ingest L3 DocumentNode and KeyPointNode entities
+        # 4. Ingest L3 DocumentNode, PageNode, ConceptNode, and KeyPointNode entities
         if self.kuzu_conn:
             try:
                 # Merge DocumentNode
@@ -2011,6 +2138,63 @@ class HLSMManager:
                     "created_at": now,
                     "session_key": session_key or "",
                 })
+
+                # Merge PageNode entities & HAS_PAGE relations
+                for p_idx, page in enumerate(pages):
+                    p_num = page.get("page_number", p_idx + 1)
+                    p_text = page.get("text", "")
+                    p_id = f"page_{doc_sha256[:10]}_p{p_num}"
+                    p_summary = p_text[:300].replace("\n", " ")
+                    
+                    create_page_q = (
+                        "MERGE (p:PageNode {id: $id}) "
+                        "SET p.document_id = $doc_id, p.page_number = $page_num, "
+                        "p.summary = $summary, p.content = $content, p.char_count = $char_count"
+                    )
+                    await asyncio.to_thread(self.kuzu_conn.execute, create_page_q, {
+                        "id": p_id,
+                        "doc_id": doc_node_id,
+                        "page_num": int(p_num),
+                        "summary": p_summary,
+                        "content": p_text,
+                        "char_count": len(p_text),
+                    })
+                    
+                    rel_page_q = (
+                        "MATCH (d:DocumentNode {id: $doc_id}), (p:PageNode {id: $p_id}) "
+                        "MERGE (d)-[:HAS_PAGE]->(p)"
+                    )
+                    await asyncio.to_thread(self.kuzu_conn.execute, rel_page_q, {
+                        "doc_id": doc_node_id,
+                        "p_id": p_id,
+                    })
+
+                    # Extract formal mathematical concepts from this page
+                    page_concepts = _extract_formal_concepts(p_text, filename, p_num)
+                    for c_idx, concept in enumerate(page_concepts):
+                        c_id = f"cpt_{doc_sha256[:8]}_p{p_num}_{c_idx}"
+                        create_cpt_q = (
+                            "MERGE (c:ConceptNode {id: $id}) "
+                            "SET c.document_id = $doc_id, c.name = $name, "
+                            "c.formal_definition = $def, c.math_formula = $formula, c.page_number = $p_num"
+                        )
+                        await asyncio.to_thread(self.kuzu_conn.execute, create_cpt_q, {
+                            "id": c_id,
+                            "doc_id": doc_node_id,
+                            "name": concept["name"],
+                            "def": concept["formal_definition"],
+                            "formula": concept["math_formula"],
+                            "p_num": int(p_num),
+                        })
+                        
+                        rel_cpt_q = (
+                            "MATCH (p:PageNode {id: $p_id}), (c:ConceptNode {id: $c_id}) "
+                            "MERGE (p)-[:DEFINES_CONCEPT]->(c)"
+                        )
+                        await asyncio.to_thread(self.kuzu_conn.execute, rel_cpt_q, {
+                            "p_id": p_id,
+                            "c_id": c_id,
+                        })
 
                 # Merge KeyPointNodes & HAS_KEY_POINT relations
                 for kp_idx, kp_text in enumerate(key_points):
@@ -2035,7 +2219,7 @@ class HLSMManager:
 
                 # Also insert high-level summary as an L3Memory entity
                 l3_summary_id = f"l3_doc_{doc_sha256[:12]}"
-                l3_doc_content = f"[DOCUMENT SUMMARY: {doc_title} ({filename}) | Acronyms: {doc_acronyms}]\n{doc_summary}"
+                l3_doc_content = f"[DOCUMENT SUMMARY: {doc_title} ({filename}) | Acronyms: {doc_acronyms} | Total Pages: {len(pages)}]\n{doc_summary}"
                 create_l3_q = (
                     "MERGE (m:L3Memory {id: $id}) "
                     "SET m.content = $content, m.source = 'document_ingest', m.l1_id = $filename, "
@@ -2049,24 +2233,37 @@ class HLSMManager:
                     "created_at": now,
                 })
             except Exception as l3_err:
-                logger.error(f"[HLSM] Failed to store DocumentNode into L3: {l3_err}", exc_info=True)
+                logger.error(f"[HLSM] Failed to store DocumentNode/PageNodes into L3: {l3_err}", exc_info=True)
 
-        # 5. Chunk and Ingest into L1 (FTS5 Episodic) and L2 (SemanticMemory)
+        # 5. Full-Coverage Chunking across All Pages (100% indexed without 25-chunk cap)
         words = clean_text.split()
-        chunk_size = 500
-        overlap = 100
-        chunks = []
+        chunk_size = 450
+        overlap = 90
+        raw_chunks = []
         start = 0
         while start < len(words):
             chunk_words = words[start:start + chunk_size]
-            chunks.append(" ".join(chunk_words))
+            raw_chunks.append(" ".join(chunk_words))
             start += (chunk_size - overlap)
 
-        ingested_ids = [doc_node_id]
+        if not raw_chunks:
+            raw_chunks = [clean_text]
 
-        for idx, chunk in enumerate(chunks[:25]):
+        ingested_ids = [doc_node_id]
+        total_chunks = len(raw_chunks)
+
+        for idx, chunk in enumerate(raw_chunks):
             chunk_id = f"doc_{doc_sha256[:8]}_c{idx}"
-            chunk_header = f"[DOCUMENT: {filename} | Title: {doc_title} | Acronyms: {doc_acronyms} | Chunk {idx+1}/{len(chunks)}]\n{chunk}"
+            
+            # Approximate page range for this chunk
+            approx_start_page = min(len(pages), max(1, (idx * (chunk_size - overlap)) // 450 + 1))
+            approx_end_page = min(len(pages), max(approx_start_page, ((idx + 1) * chunk_size) // 450 + 1))
+            page_tag = f"Page {approx_start_page}" if approx_start_page == approx_end_page else f"Pages {approx_start_page}-{approx_end_page}"
+            
+            chunk_header = (
+                f"[DOCUMENT: {filename} | Title: {doc_title} | {page_tag} | "
+                f"Acronyms: {doc_acronyms} | Chunk {idx+1}/{total_chunks}]\n{chunk}"
+            )
 
             # Store in L1 Episodic Memory for SQLite FTS5 instant lexical match
             try:
@@ -2082,11 +2279,14 @@ class HLSMManager:
                         "title": doc_title,
                         "sha256": doc_sha256,
                         "chunk_index": idx,
-                        "total_chunks": len(chunks),
+                        "total_chunks": total_chunks,
+                        "start_page": approx_start_page,
+                        "end_page": approx_end_page,
                         "local_path": local_path
                     })
                 )
                 self._l1_sql_insert(l1_entry)
+                ingested_ids.append(chunk_id)
             except Exception as l1_err:
                 logger.debug(f"[HLSM] L1 SQL insert notice for chunk {chunk_id}: {l1_err}")
 
@@ -2115,12 +2315,112 @@ class HLSMManager:
                             "uri": f"file:{filename}:chunk_{idx}"
                         }
                     )
-                    ingested_ids.append(chunk_id)
                 except Exception as e:
                     logger.warning(f"[HLSM] Failed to store document chunk into L2: {e}")
 
-        logger.info(f"[HLSM] Ingested document '{filename}' (SHA: {doc_sha256[:8]}) into L1 (FTS5), L2 (Semantic), and L3 (DocumentNode '{doc_title}').")
+        logger.info(f"[HLSM] Ingested 100% of document '{filename}' (SHA: {doc_sha256[:8]}, {len(pages)} pages, {total_chunks} chunks) into L1 (FTS5), L2 (Semantic), and L3 (DocumentNode '{doc_title}').")
         return ingested_ids
+
+    async def retrieve_page_range(
+        self,
+        document_query: str,
+        page_numbers: List[int]
+    ) -> List[Dict[str, Any]]:
+        """
+        Retrieves verbatim page content for requested page numbers.
+        1. Queries L3 KùzuDB PageNode entities.
+        2. If missing or partial, uses FileSystemInspector to locate the authentic file
+           on disk and extract the exact pages without duplicating the file.
+        3. Updates DocumentNode.last_known_path on the fly.
+        """
+        if not page_numbers:
+            return []
+
+        clean_doc = os.path.basename(document_query.strip("`'\" \t\n"))
+        results = []
+        doc_meta = {}
+
+        # 1. Search KùzuDB PageNodes
+        if self.kuzu_conn:
+            try:
+                # Find matching DocumentNode
+                find_doc_q = (
+                    "MATCH (d:DocumentNode) "
+                    "RETURN d.id, d.name, d.title, d.sha256, d.local_path"
+                )
+                raw_docs = await asyncio.to_thread(self.kuzu_conn.execute, find_doc_q)
+                doc_rows = _extract_kuzu_rows(raw_docs)
+                matched_doc_id = None
+                
+                for r in doc_rows:
+                    did, dname, dtitle, dsha, dpath = str(r[0]), str(r[1]), str(r[2]), str(r[3]), str(r[4])
+                    if (clean_doc.lower() in dname.lower() or clean_doc.lower() in dtitle.lower() or 
+                        dsha.startswith(clean_doc.lower()) or not clean_doc or clean_doc.lower() in ["document", "pdf", "whitepaper", "paper"]):
+                        matched_doc_id = did
+                        doc_meta = {"id": did, "name": dname, "title": dtitle, "sha256": dsha, "local_path": dpath}
+                        break
+                
+                if matched_doc_id:
+                    find_pages_q = (
+                        "MATCH (d:DocumentNode {id: $doc_id})-[:HAS_PAGE]->(p:PageNode) "
+                        "RETURN p.page_number, p.summary, p.content, p.char_count"
+                    )
+                    raw_pages = await asyncio.to_thread(self.kuzu_conn.execute, find_pages_q, {"doc_id": matched_doc_id})
+                    page_rows = _extract_kuzu_rows(raw_pages)
+                    
+                    for pr in page_rows:
+                        p_num = int(pr[0])
+                        p_sum = str(pr[1])
+                        p_cnt = str(pr[2])
+                        if p_num in page_numbers:
+                            results.append({
+                                "page_number": p_num,
+                                "summary": p_sum,
+                                "text": p_cnt,
+                                "char_count": len(p_cnt),
+                                "filename": doc_meta.get("name", clean_doc),
+                                "header": f"--- [DOCUMENT: {doc_meta.get('name', clean_doc)} | PAGE {p_num}] ---",
+                                "source": "kuzu_l3"
+                            })
+            except Exception as kuzu_err:
+                logger.debug(f"[HLSM] PageNode query notice: {kuzu_err}")
+
+        # 2. Check if any requested page was missing
+        missing_pages = [p for p in page_numbers if not any(r["page_number"] == p for r in results)]
+        
+        # 3. Dynamic FileSystemInspector Fallback
+        if missing_pages:
+            try:
+                from ..utils.file_system_inspector import FileSystemInspector
+                inspector = FileSystemInspector()
+                
+                target_fname = doc_meta.get("name", clean_doc)
+                target_sha = doc_meta.get("sha256", "")
+                target_last_path = doc_meta.get("local_path", "")
+                
+                resolved_path = inspector.resolve_source_document(
+                    filename=target_fname,
+                    expected_sha256=target_sha,
+                    last_known_path=target_last_path
+                )
+                
+                if resolved_path:
+                    # Update DocumentNode last_known_path if changed
+                    if self.kuzu_conn and doc_meta.get("id") and resolved_path != target_last_path:
+                        try:
+                            upd_q = "MATCH (d:DocumentNode {id: $id}) SET d.local_path = $path"
+                            await asyncio.to_thread(self.kuzu_conn.execute, upd_q, {"id": doc_meta["id"], "path": resolved_path})
+                        except Exception:
+                            pass
+                            
+                    extracted = inspector.extract_pages_from_source(resolved_path, page_numbers)
+                    if extracted:
+                        return extracted
+            except Exception as fs_err:
+                logger.debug(f"[HLSM] FileSystemInspector page extraction notice: {fs_err}")
+
+        results.sort(key=lambda x: x["page_number"])
+        return results
 
     async def delete_by_pattern(self, pattern: str, session_key: Optional[str] = None) -> Dict[str, int]:
         """
