@@ -106,7 +106,7 @@ trafilatura==2.1.0
 duckduckgo-search==8.1.1
 beautifulsoup4
 crawl4ai>=0.4.0
-scrapling>=0.2.0
+scrapling>=0.4.15
 curl-cffi>=0.7.0
 msgspec>=0.21.0
 browserforge>=1.2.4
