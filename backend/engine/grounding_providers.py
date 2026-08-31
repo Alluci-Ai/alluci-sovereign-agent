@@ -128,9 +128,11 @@ class ArchitectureGroundingProvider(BaseGroundingProvider):
             "architecture", "architectural", "how are you built", "system design",
             "6 domains", "functional domains", "topological physics", "mlx engine",
             "lce", "avl gate", "discrete projection kernel", "pmet filtration",
-            "vietoris-rips", "stella octangula", "barcode clock", "markov trace"
+            "vietoris-rips", "stella octangula", "barcode clock", "markov trace",
+            "codebase"
         ]
-        return any(k in body_lower for k in arch_keywords)
+        has_subsystem = any(re.search(rf"\b{re.escape(trig)}\b", body_lower) for trig in self.subsystem_map.keys())
+        return any(k in body_lower for k in arch_keywords) or has_subsystem
 
     async def provide_grounding(self, prompt: str, parsed_intent: ParsedGoalTuple) -> Optional[GroundingResult]:
         body_lower = prompt.lower()

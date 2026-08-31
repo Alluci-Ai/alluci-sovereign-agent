@@ -1,5 +1,5 @@
 
-from typing import Optional, Literal, List, Dict, Any
+from typing import Optional, Literal, List, Dict, Any, Tuple
 from fastapi import APIRouter, HTTPException, Depends, Body, Request
 from fastapi.responses import StreamingResponse
 from ..security.auth import verify_authenticated
