@@ -2422,6 +2422,84 @@ class HLSMManager:
         results.sort(key=lambda x: x["page_number"])
         return results
 
+    async def synthesize_document_hierarchical_overview(self, document_query: str) -> Optional[str]:
+        """
+        Synthesizes a structured multi-page hierarchical grounding block from KùzuDB L3 DocumentNode,
+        PageNode, and ConceptNode entities.
+        Provides an evenly distributed structural representation across all pages from start to finish.
+        """
+        clean_doc = os.path.basename(document_query.strip("`'\" \t\n"))
+        if not self.kuzu_conn:
+            return None
+
+        try:
+            # 1. Match DocumentNode
+            find_doc_q = (
+                "MATCH (d:DocumentNode) "
+                "RETURN d.id, d.name, d.title, d.sha256, d.summary, d.acronyms, d.local_path"
+            )
+            raw_docs = await asyncio.to_thread(self.kuzu_conn.execute, find_doc_q)
+            doc_rows = _extract_kuzu_rows(raw_docs)
+            matched_doc = None
+            
+            for r in doc_rows:
+                did, dname, dtitle, dsha, dsum, dacr, dpath = str(r[0]), str(r[1]), str(r[2]), str(r[3]), str(r[4]), str(r[5]), str(r[6])
+                if (clean_doc.lower() in dname.lower() or clean_doc.lower() in dtitle.lower() or 
+                    dsha.startswith(clean_doc.lower()) or not clean_doc or clean_doc.lower() in ["document", "pdf", "whitepaper", "paper"]):
+                    matched_doc = {
+                        "id": did, "name": dname, "title": dtitle, "sha256": dsha,
+                        "summary": dsum, "acronyms": dacr, "local_path": dpath
+                    }
+                    break
+            
+            if not matched_doc:
+                return None
+
+            doc_id = matched_doc["id"]
+
+            # 2. Fetch all PageNodes
+            find_pages_q = (
+                "MATCH (d:DocumentNode {id: $doc_id})-[:HAS_PAGE]->(p:PageNode) "
+                "RETURN p.page_number, p.summary, p.char_count ORDER BY p.page_number ASC"
+            )
+            raw_pages = await asyncio.to_thread(self.kuzu_conn.execute, find_pages_q, {"doc_id": doc_id})
+            page_rows = _extract_kuzu_rows(raw_pages)
+
+            # 3. Fetch all ConceptNodes
+            find_concepts_q = (
+                "MATCH (d:DocumentNode {id: $doc_id})-[:HAS_PAGE]->(p:PageNode)-[:DEFINES_CONCEPT]->(c:ConceptNode) "
+                "RETURN c.page_number, c.name, c.formal_definition, c.math_formula ORDER BY c.page_number ASC"
+            )
+            raw_concepts = await asyncio.to_thread(self.kuzu_conn.execute, find_concepts_q, {"doc_id": doc_id})
+            concept_rows = _extract_kuzu_rows(raw_concepts)
+
+            # Format structured hierarchical synthesis
+            total_p = len(page_rows)
+            sections = []
+            sections.append(
+                f"[AUTHENTIC HIERARCHICAL DOCUMENT SYNTHESIS: {matched_doc['title']} ({matched_doc['name']}) | Total Pages: {total_p} | Acronyms: {matched_doc['acronyms']}]\n"
+                f"### CORE DOCUMENT ABSTRACT & SUMMARY:\n{matched_doc['summary']}"
+            )
+
+            if concept_rows:
+                concept_lines = []
+                for cr in concept_rows:
+                    cp_num, cname, cdef, cform = int(cr[0]), str(cr[1]), str(cr[2]), str(cr[3])
+                    concept_lines.append(f"- **{cname}** (Page {cp_num}): {cdef} {f'[Formula: {cform}]' if cform else ''}")
+                sections.append("### FORMAL MATHEMATICAL CONCEPTS & DEFINITIONS:\n" + "\n".join(concept_lines))
+
+            if page_rows:
+                page_lines = []
+                for pr in page_rows:
+                    p_num, p_sum, p_chars = int(pr[0]), str(pr[1]), int(pr[2])
+                    page_lines.append(f"- **Page {p_num}** ({p_chars:,} chars): {p_sum}")
+                sections.append("### PAGE-BY-PAGE STRUCTURAL DIGEST (Complete Coverage Across All Pages):\n" + "\n".join(page_lines))
+
+            return "\n\n".join(sections)
+        except Exception as synth_err:
+            logger.debug(f"[HLSM] Document synthesis notice: {synth_err}")
+            return None
+
     async def delete_by_pattern(self, pattern: str, session_key: Optional[str] = None) -> Dict[str, int]:
         """
         Searches all H-LSM memory tiers (L0 Working, L1 Episodic, L2 Semantic, L3 Graph) for entries

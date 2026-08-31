@@ -130,24 +130,52 @@ class MLXEngine:
             await asyncio.sleep(0.1)
 
     @staticmethod
-    def _apply_streaming_attention_sink(full_prompt: str, max_chars: int = 16000) -> str:
+    def _apply_streaming_attention_sink(full_prompt: str, max_chars: int = 250000) -> str:
         """
         Streaming Attention Sink Context Manager.
-        When prompt exceeds max_chars, anchors the first 2,000 chars (system instructions,
-        grounding laws, zero-trust security bounds) and preserves the most recent (max_chars - 2000)
-        chars of the active conversational tail.
+        Dynamically scales to modern Apple Silicon MLX context windows (up to 250,000 characters).
+        Enforces Payload-Aware Slicing: protects active document payloads from being truncated,
+        rolling only historical multi-turn conversational turns.
         """
         if len(full_prompt) <= max_chars:
             return full_prompt
-        
-        sink_size = 2000
+
+        # Check for multi-turn structure (<|turn>user ... <|turn|>)
+        turn_split = full_prompt.split("<|turn>user\n")
+        if len(turn_split) > 2:
+            # Multi-turn conversational history: Keep system anchor (turn_split[0]) and the latest turn (turn_split[-1])
+            system_anchor = turn_split[0]
+            latest_turn = "<|turn>user\n" + turn_split[-1]
+            
+            # Pack as many recent intermediate turns as fit within max_chars
+            available_budget = max_chars - len(system_anchor) - len(latest_turn) - 150
+            if available_budget > 0:
+                recent_turns = []
+                for intermediate in reversed(turn_split[1:-1]):
+                    turn_str = "<|turn>user\n" + intermediate
+                    if len(turn_str) <= available_budget:
+                        recent_turns.insert(0, turn_str)
+                        available_budget -= len(turn_str)
+                    else:
+                        break
+                
+                middle_str = "".join(recent_turns)
+                if middle_str:
+                    logger.info(f"[AttentionSink] Rolled older conversational turns ({len(full_prompt)} -> {len(system_anchor) + len(middle_str) + len(latest_turn)} chars).")
+                    return f"{system_anchor}[... earlier conversational turns consolidated to H-LSM ...]\n\n{middle_str}{latest_turn}"
+            
+            logger.info(f"[AttentionSink] Rolled all previous conversational turns ({len(full_prompt)} -> {len(system_anchor) + len(latest_turn)} chars).")
+            return f"{system_anchor}[... previous conversational turns archived to H-LSM episodic memory ...]\n\n{latest_turn}"
+
+        # If a single massive turn exceeds 250,000 chars, preserve top 50KB header and latest 200KB payload
+        sink_size = min(50000, max_chars // 5)
         tail_size = max_chars - sink_size
         
         attention_sink = full_prompt[:sink_size]
         active_tail = full_prompt[-tail_size:]
         
-        logger.info(f"[AttentionSink] Context length {len(full_prompt)} chars exceeds threshold {max_chars}. Applying rolling attention sink eviction.")
-        return f"{attention_sink}\n\n[... intermediate conversational turns archived to H-LSM episodic memory ...]\n\n{active_tail}"
+        logger.info(f"[AttentionSink] Single turn ({len(full_prompt)} chars) exceeds {max_chars} budget. Preserving 50KB header and 200KB payload tail.")
+        return f"{attention_sink}\n\n[... intermediate content referenced from H-LSM L3 Knowledge Graph ...]\n\n{active_tail}"
 
     def _apply_ace_logic(self, system_instruction: str, temperature: float) -> tuple[str, float]:
         """Synthesizes a silent system-layer ACE attunement directive and adjusts sampling temperature natively."""

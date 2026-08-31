@@ -60,3 +60,45 @@ async def test_modular_orchestrator_avoids_blueprint_hijack_on_document():
     if grounding:
         assert "Alluci Sovereign Agent Architecture Blueprint" not in grounding
         assert "AUTHENTIC SYSTEM ARCHITECTURE" not in grounding
+
+
+def test_attention_sink_preserves_large_document_payload():
+    from backend.inference.mlx_engine import MLXEngine
+
+    # Simulate a 130KB document payload (like Hoffman paper)
+    doc_header = "ORIGINAL RESEARCH ARTICLE: Objects of Consciousness by Donald Hoffman\n"
+    theoretical_core = "Section 2: Theory of Conscious Agents. Let C = (W, X, G, P, D, A, N)... " * 2000
+    doc_footer = "\nReferences: Turing (1937), Nagel, Tononi. Frontiers in Psychology 2014."
+    
+    full_doc = doc_header + theoretical_core + doc_footer
+    assert len(full_doc) > 130000
+
+    prompt = f"<bos><|turn>system\nYou are Alluci.<|turn|>\n<|turn>user\nProvide an overview of this paper:\n{full_doc}<|turn|>\n<|turn>model\n"
+    
+    # Process through streaming attention sink
+    processed = MLXEngine._apply_streaming_attention_sink(prompt, max_chars=250000)
+    
+    # Ensure the entire document remains intact without slicing
+    assert len(processed) == len(prompt)
+    assert "Section 2: Theory of Conscious Agents" in processed
+    assert "References: Turing" in processed
+
+
+def test_attention_sink_rolls_multiturn_conversational_history():
+    from backend.inference.mlx_engine import MLXEngine
+
+    system_hdr = "<bos><|turn>system\nYou are Alluci.<|turn|>\n"
+    turn_1 = "<|turn>user\nHello turn 1<|turn|>\n<|turn>model\nResponse turn 1<|turn|>\n" * 100
+    turn_2 = "<|turn>user\nHello turn 2<|turn|>\n<|turn>model\nResponse turn 2<|turn|>\n" * 100
+    latest_turn = "<|turn>user\nActive turn with crucial query<|turn|>\n<|turn>model\n"
+    
+    full_prompt = system_hdr + turn_1 + turn_2 + latest_turn
+    
+    # Process through streaming attention sink with a tighter budget
+    processed = MLXEngine._apply_streaming_attention_sink(full_prompt, max_chars=3000)
+    
+    assert len(processed) <= 3500
+    # Latest turn and system header must be preserved
+    assert "Active turn with crucial query" in processed
+    assert "<bos><|turn>system" in processed
+    assert "consolidated to H-LSM" in processed or "archived to H-LSM" in processed

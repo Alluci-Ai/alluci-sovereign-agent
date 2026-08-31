@@ -422,31 +422,16 @@ async def _check_codebase_and_architecture_context(prompt: str) -> Tuple[Optiona
         return None, None
 
 
-async def _check_document_page_grounding(prompt: str) -> Optional[str]:
+async def _check_document_grounding(prompt: str) -> Optional[str]:
     """
-    Detects requests for specific document pages (e.g., 'pages 6, 7, 8 and 9', 'page 12', 'pages 4-7 of Hoffman')
-    and retrieves exact verbatim page text from L3 PageNode entities or authentic source files on disk.
+    Detects document inquiries:
+    1. Specific page requests (e.g., 'pages 6, 7, 8 and 9', 'page 12', 'pages 4-7 of Hoffman')
+       -> Retrieves exact verbatim page text.
+    2. Comprehensive document overview/summary requests (e.g., 'overview of Hoffman paper', 'explain CIMC whitepaper')
+       -> Synthesizes hierarchical multi-page overview from L3 PageNode & ConceptNode entities.
     """
     body_lower = prompt.lower()
-    # Check for page pattern
-    page_match = re.search(r'\bpages?\s*([0-9\s,\-andto]+)', prompt, re.IGNORECASE)
-    if not page_match:
-        return None
-
-    raw_nums_str = page_match.group(1).strip()
-    page_numbers = []
-    if "-" in raw_nums_str or "to" in raw_nums_str:
-        range_parts = re.split(r'-|\bto\b', raw_nums_str)
-        if len(range_parts) == 2 and range_parts[0].strip().isdigit() and range_parts[1].strip().isdigit():
-            start_p, end_p = int(range_parts[0].strip()), int(range_parts[1].strip())
-            page_numbers = list(range(min(start_p, end_p), max(start_p, end_p) + 1))
-    
-    if not page_numbers:
-        digits = re.findall(r'\b\d+\b', raw_nums_str)
-        page_numbers = [int(d) for d in digits if int(d) < 1000]
-
-    if not page_numbers or len(page_numbers) > 50:
-        return None
+    from .. import services
 
     # Identify document reference in prompt
     doc_keywords = []
@@ -454,37 +439,67 @@ async def _check_document_page_grounding(prompt: str) -> Optional[str]:
     if fname_match:
         doc_keywords.extend(fname_match)
     else:
-        candidates = ["hoffman", "cimc", "consciousness", "objects of consciousness", "whitepaper", "paper", "report"]
+        candidates = ["hoffman", "cimc", "consciousness", "objects of consciousness", "whitepaper", "paper", "report", "document"]
         for c in candidates:
             if c in body_lower:
                 doc_keywords.append(c)
 
     doc_query = doc_keywords[0] if doc_keywords else ""
 
-    from .. import services
-    if hasattr(services, "hlsm_manager") and services.hlsm_manager:
+    # Check for specific page requests
+    page_match = re.search(r'\bpages?\s*([0-9\s,\-andto]+)', prompt, re.IGNORECASE)
+    if page_match:
+        raw_nums_str = page_match.group(1).strip()
+        page_numbers = []
+        if "-" in raw_nums_str or "to" in raw_nums_str:
+            range_parts = re.split(r'-|\bto\b', raw_nums_str)
+            if len(range_parts) == 2 and range_parts[0].strip().isdigit() and range_parts[1].strip().isdigit():
+                start_p, end_p = int(range_parts[0].strip()), int(range_parts[1].strip())
+                page_numbers = list(range(min(start_p, end_p), max(start_p, end_p) + 1))
+        
+        if not page_numbers:
+            digits = re.findall(r'\b\d+\b', raw_nums_str)
+            page_numbers = [int(d) for d in digits if int(d) < 1000]
+
+        if page_numbers and len(page_numbers) <= 50:
+            if hasattr(services, "hlsm_manager") and services.hlsm_manager:
+                try:
+                    page_records = await services.hlsm_manager.retrieve_page_range(
+                        document_query=doc_query,
+                        page_numbers=page_numbers
+                    )
+                    if page_records:
+                        page_blocks = []
+                        doc_name = page_records[0].get("filename", doc_query or "Document")
+                        for p in page_records:
+                            p_num = p.get("page_number", 0)
+                            p_txt = p.get("text", "").strip()
+                            p_hdr = p.get("header", f"--- [PAGE {p_num}] ---")
+                            if p_txt:
+                                page_blocks.append(f"{p_hdr}\n{p_txt}")
+                        
+                        if page_blocks:
+                            joined_pages = "\n\n".join(page_blocks)
+                            return f"[AUTHENTIC SOURCE DOCUMENT PAGE GROUNDING (Document: {doc_name} | Requested Pages: {', '.join(str(p) for p in page_numbers)})]:\n{joined_pages}"
+                except Exception as e:
+                    logger.debug(f"[GeminiRouter] Page grounding resolution notice: {e}")
+
+    # If general document overview/explanation is requested and document query found
+    is_overview_request = any(k in body_lower for k in ["overview", "explain", "explanation", "summarize", "summary", "breakdown", "break down", "tell me about", "what is this", "what does"])
+    if is_overview_request and doc_query and hasattr(services, "hlsm_manager") and services.hlsm_manager:
         try:
-            page_records = await services.hlsm_manager.retrieve_page_range(
-                document_query=doc_query,
-                page_numbers=page_numbers
-            )
-            if page_records:
-                page_blocks = []
-                doc_name = page_records[0].get("filename", doc_query or "Document")
-                for p in page_records:
-                    p_num = p.get("page_number", 0)
-                    p_txt = p.get("text", "").strip()
-                    p_hdr = p.get("header", f"--- [PAGE {p_num}] ---")
-                    if p_txt:
-                        page_blocks.append(f"{p_hdr}\n{p_txt}")
-                
-                if page_blocks:
-                    joined_pages = "\n\n".join(page_blocks)
-                    return f"[AUTHENTIC SOURCE DOCUMENT PAGE GROUNDING (Document: {doc_name} | Requested Pages: {', '.join(str(p) for p in page_numbers)})]:\n{joined_pages}"
+            synth = await services.hlsm_manager.synthesize_document_hierarchical_overview(doc_query)
+            if synth:
+                return synth
         except Exception as e:
-            logger.debug(f"[GeminiRouter] Page grounding resolution notice: {e}")
+            logger.debug(f"[GeminiRouter] Hierarchical document overview synthesis notice: {e}")
 
     return None
+
+
+# Backward-compatibility alias
+_check_document_page_grounding = _check_document_grounding
+
 
 
 @router.post("/gemini/proxy", dependencies=[Depends(verify_authenticated)])
@@ -521,8 +536,8 @@ async def gemini_proxy(
         if local_file_or_report:
             return {"result": local_file_or_report}
 
-        # 3. Dynamic Document Page Grounding Check (< 15ms)
-        page_grounding = await _check_document_page_grounding(raw_user_prompt)
+        # 3. Dynamic Document Page & Overview Grounding Check (< 15ms)
+        doc_grounding = await _check_document_grounding(raw_user_prompt)
 
         # 4. Dynamic Web Search Grounding Check (< 500ms)
         web_grounding = await _check_web_search_grounding(raw_user_prompt)
@@ -549,18 +564,18 @@ async def gemini_proxy(
 
         # Construct Authoritative Grounded Prompt
         grounding_blocks = []
-        if page_grounding:
-            grounding_blocks.append(page_grounding)
+        if doc_grounding:
+            grounding_blocks.append(doc_grounding)
         if web_grounding:
             grounding_blocks.append(f"[WEB SEARCH GROUNDING DATA]:\n{web_grounding}")
-        if code_grounding and not files and not page_grounding:
+        if code_grounding and not files and not doc_grounding:
             grounding_blocks.append(f"[AUTHENTIC DISK GROUNDING & MANIFESTS]:\n{code_grounding}")
         if memory_block:
             grounding_blocks.append(f"[RECALLED H-LSM MEMORY CONTEXT]:\n{memory_block}")
 
         if grounding_blocks:
             combined_grounding = "\n\n".join(grounding_blocks)
-            if files or page_grounding:
+            if files or doc_grounding:
                 directive = "INSTRUCTION: Answer the User Directive directly, comprehensively, and accurately based on the provided document text and reference grounding context above. Ground all factual claims strictly in the authentic reference data provided."
             else:
                 directive = specialized_directive or (
@@ -647,8 +662,8 @@ async def gemini_proxy_stream(
         # 2. Fast Local Hard Drive & Workspace File / Report Reader Check (< 50ms)
         local_file_or_report = await _check_local_workspace_file_or_report(raw_user_prompt)
 
-        # 3. Dynamic Document Page Grounding Check (< 15ms)
-        page_grounding = await _check_document_page_grounding(raw_user_prompt)
+        # 3. Dynamic Document Page & Overview Grounding Check (< 15ms)
+        doc_grounding = await _check_document_grounding(raw_user_prompt)
 
         # 4. Dynamic Web Search Grounding Check (< 500ms)
         web_grounding = await _check_web_search_grounding(raw_user_prompt)
@@ -675,18 +690,18 @@ async def gemini_proxy_stream(
 
         # Construct Authoritative Grounded Prompt
         grounding_blocks = []
-        if page_grounding:
-            grounding_blocks.append(page_grounding)
+        if doc_grounding:
+            grounding_blocks.append(doc_grounding)
         if web_grounding:
             grounding_blocks.append(f"[WEB SEARCH GROUNDING DATA]:\n{web_grounding}")
-        if code_grounding and not files and not page_grounding:
+        if code_grounding and not files and not doc_grounding:
             grounding_blocks.append(f"[AUTHENTIC DISK GROUNDING & MANIFESTS]:\n{code_grounding}")
         if memory_block:
             grounding_blocks.append(f"[RECALLED H-LSM MEMORY CONTEXT]:\n{memory_block}")
 
         if grounding_blocks:
             combined_grounding = "\n\n".join(grounding_blocks)
-            if files or page_grounding:
+            if files or doc_grounding:
                 directive = "INSTRUCTION: Answer the User Directive directly, comprehensively, and accurately based on the provided document text and reference grounding context above. Ground all factual claims strictly in the authentic reference data provided."
             else:
                 directive = specialized_directive or (
