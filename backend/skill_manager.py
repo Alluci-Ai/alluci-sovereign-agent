@@ -1,5 +1,6 @@
 import yaml  # type: ignore
 import os
+import re
 from .logging_config import get_logger
 from typing import List, Dict, Any, Optional
 from datetime import datetime
@@ -119,7 +120,23 @@ class SkillManager:
         if not prompt or not prompt.strip():
             return None
             
-        prompt_lower = prompt.lower()
+        # 1. Isolate pure user directive envelope from attached files and trailing reference blocks
+        clean_directive = prompt
+        if "--- [ATTACHED FILE:" in clean_directive:
+            clean_directive = clean_directive.split("--- [ATTACHED FILE:")[0]
+        if "--- REFERENCE GROUNDING CONTEXT" in clean_directive:
+            parts = clean_directive.split("--- REFERENCE GROUNDING CONTEXT")
+            clean_directive = parts[0].replace("### USER DIRECTIVE / QUESTION:", "")
+
+        prompt_lower = clean_directive.strip().lower()
+        if not prompt_lower:
+            return None
+
+        # 2. Check for explicit negative constraints / directives
+        neg_pattern = r'\b(do not|don\'t|dont|never|without|avoid|refrain from|omit|skip)\s+([a-z\s]{0,20})?(apply|use|framework|skill|methodology|strategy|dag|tools?)\b'
+        if re.search(neg_pattern, prompt_lower):
+            return None
+
         skills = self.list_skills_sync()
         matched_skills = []
         

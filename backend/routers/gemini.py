@@ -532,7 +532,12 @@ async def gemini_proxy(
                     fn, fdata, fmime = f.get("name", "attachment"), f.get("data", ""), f.get("mimeType", "")
                     p_text = extract_text_from_file_payload(fn, fdata, fmime)
                     if p_text and not p_text.startswith(("[BINARY", "[UNSUPPORTED")):
-                        asyncio.create_task(services.hlsm_manager.ingest_document_payload(filename=fn, content=p_text, session_key=session_id or "web_chat"))
+                        asyncio.create_task(services.hlsm_manager.ingest_document_payload(
+                            filename=fn,
+                            content=p_text,
+                            session_key=session_id or "web_chat",
+                            metadata={"mime_type": fmime, "file_data": fdata}
+                        ))
 
         return {"result": response}
     except Exception as e:
@@ -706,6 +711,17 @@ async def gemini_proxy_stream(
                         analytics.record_message(session_key=session_id or "web_chat", role="assistant", content=full_response)
                     if hasattr(services, "hlsm_manager") and services.hlsm_manager:
                         asyncio.create_task(services.hlsm_manager.ingest_distilled_intent(session_key=session_id or "web_chat", message_id=msg_id, prompt=prompt, response=full_response))
+                        if files:
+                            for f in files:
+                                fn, fdata, fmime = f.get("name", "attachment"), f.get("data", ""), f.get("mimeType", "")
+                                p_text = extract_text_from_file_payload(fn, fdata, fmime)
+                                if p_text and not p_text.startswith(("[BINARY", "[UNSUPPORTED")):
+                                    asyncio.create_task(services.hlsm_manager.ingest_document_payload(
+                                        filename=fn,
+                                        content=p_text,
+                                        session_key=session_id or "web_chat",
+                                        metadata={"mime_type": fmime, "file_data": fdata}
+                                    ))
                     
                     # Intercept dynamic artifacts (presentation, html, code, text) and surface side panel
                     asyncio.create_task(_process_dynamic_artifact_block(full_response, prompt))

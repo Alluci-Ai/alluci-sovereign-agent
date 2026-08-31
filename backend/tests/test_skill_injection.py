@@ -48,6 +48,26 @@ def test_natural_conversational_deduction():
     assert ctx2 is not None
     assert "hcd_01" in ctx2
 
+def test_negative_directive_suppresses_skill_injection():
+    vault = MagicMock()
+    sm = SkillManager(vault=vault)
+    ctx = sm.resolve_skill_context_for_prompt("just explain in detail the whitepaper. do not apply any frameworks to it.")
+    assert ctx is None
+
+def test_document_envelope_isolation_prevents_spurious_skill_matching():
+    vault = MagicMock()
+    sm = SkillManager(vault=vault)
+    # The attached file contains words like "strategic planning" and "empathy mapping", but the user directive is a pure summary request
+    prompt = (
+        "Please summarize this document.\n\n"
+        "--- [ATTACHED FILE: doc.pdf] ---\n"
+        "This document discusses strategic planning, okrs, empathy mapping, and organizational design frameworks.\n"
+        "--- [END ATTACHED FILE] ---"
+    )
+    ctx = sm.resolve_skill_context_for_prompt(prompt)
+    assert ctx is None
+
+
 def test_router_prepare_system_instruction():
     from backend.inference.router import ModelRouter
     from unittest.mock import patch
@@ -61,4 +81,3 @@ def test_router_prepare_system_instruction():
         sys_inst = router._prepare_system_instruction("give me a comprehensive overview of your Human Centered Design skill.")
         assert "<COGNITIVE_SKILL_CONTEXT id=\"hcd_01\">" in sys_inst
         assert "You are Alluci" in sys_inst
-

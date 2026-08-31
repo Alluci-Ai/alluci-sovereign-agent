@@ -205,13 +205,26 @@ class IntentDecomposer:
         ]
         is_code = any(re.search(p, body_lower) for p in code_patterns)
 
-        # 4. Check for Actionable Multi-Step Execution (DAG Plan)
-        action_verbs = [
-            r"\b(use|apply|run|execute|build|implement|create|generate a plan|model|calculate|analyze and draft|audit and report|prepare a data room|set up|automate|discover|conduct)\b"
-        ]
-        is_actionable = any(re.search(p, body_lower) for p in action_verbs)
+        # 4. Check for Negation Directives (e.g., "do not apply", "without frameworks", "never run", "avoid DAG")
+        negation_pattern = r'\b(do not|don\'t|dont|never|without|avoid|refrain from|omit|skip)\s+([a-z\s]{0,20})?(apply|use|execute|run|implement|build|model|framework|skill|dag|tools?)\b'
+        has_negation = bool(re.search(negation_pattern, body_lower))
 
-        # 5. Extract Domain, Matched Skills & Tools
+        # 5. Check for Informational / Explanatory / Summarization Intent
+        informational_patterns = [
+            r"\b(explain|summarize|summary|overview|what is|tell me about|walk me through|clarify|elaborate|read and summarize|break down)\b"
+        ]
+        is_informational = any(re.search(p, body_lower) for p in informational_patterns)
+
+        # 6. Check for Actionable Multi-Step Execution (DAG Plan)
+        action_verbs = [
+            r"\b(run|execute|build|implement|create|generate a plan|model|calculate|analyze and draft|audit and report|prepare a data room|set up|automate|conduct)\b"
+        ]
+        if not has_negation and not is_informational:
+            action_verbs.append(r"\b(use|apply|discover)\b")
+
+        is_actionable = any(re.search(p, body_lower) for p in action_verbs) and not is_informational and not has_negation
+
+        # 7. Extract Domain, Matched Skills & Tools
         matched_skills: List[str] = []
         matched_tools: List[str] = []
         suggested_agent = "executive"
@@ -219,34 +232,35 @@ class IntentDecomposer:
         intent_type = IntentType.GENERAL_CONVERSATIONAL
 
         # Explicit skill ID matching (e.g. fnd_02, codi_01, spe_01, auth_01)
-        explicit_skill_ids = re.findall(r'\b([a-z]{2,5}_\d{2})\b', body_lower)
-        for sid in explicit_skill_ids:
-            if sid not in matched_skills:
-                matched_skills.append(sid)
-                domain = CapabilityDomain.AUTONOMOUS_SUBAGENTS
+        if not has_negation:
+            explicit_skill_ids = re.findall(r'\b([a-z]{2,5}_\d{2})\b', body_lower)
+            for sid in explicit_skill_ids:
+                if sid not in matched_skills:
+                    matched_skills.append(sid)
+                    domain = CapabilityDomain.AUTONOMOUS_SUBAGENTS
 
-        # Explicit tool ID matching (e.g. fnd_tool_02, founder_insight_market_shift_tool)
-        explicit_tool_ids = re.findall(r'\b([a-z0-9_]+_tool(?:_[0-9]+)?)\b', body_lower)
-        for tid in explicit_tool_ids:
-            if tid not in matched_tools:
-                matched_tools.append(tid)
+            # Explicit tool ID matching (e.g. fnd_tool_02, founder_insight_market_shift_tool)
+            explicit_tool_ids = re.findall(r'\b([a-z0-9_]+_tool(?:_[0-9]+)?)\b', body_lower)
+            for tid in explicit_tool_ids:
+                if tid not in matched_tools:
+                    matched_tools.append(tid)
 
-        for skill_id, meta in self.SKILL_MAPPING.items():
-            for kw in meta["keywords"]:
-                if re.search(rf"\b{re.escape(kw)}\b", body_lower):
-                    if skill_id not in matched_skills:
-                        matched_skills.append(skill_id)
-                        suggested_agent = meta["agent"]
-                        domain = meta["domain"]
-                        intent_type = meta["intent"]
-                    break
+            for skill_id, meta in self.SKILL_MAPPING.items():
+                for kw in meta["keywords"]:
+                    if re.search(rf"\b{re.escape(kw)}\b", body_lower):
+                        if skill_id not in matched_skills:
+                            matched_skills.append(skill_id)
+                            suggested_agent = meta["agent"]
+                            domain = meta["domain"]
+                            intent_type = meta["intent"]
+                        break
 
-        for tool_name, keywords in self.TOOL_MAPPING.items():
-            for kw in keywords:
-                if re.search(rf"\b{re.escape(kw)}\b", body_lower):
-                    if tool_name not in matched_tools:
-                        matched_tools.append(tool_name)
-                    break
+            for tool_name, keywords in self.TOOL_MAPPING.items():
+                for kw in keywords:
+                    if re.search(rf"\b{re.escape(kw)}\b", body_lower):
+                        if tool_name not in matched_tools:
+                            matched_tools.append(tool_name)
+                        break
 
         # Refine Intent Type
         if is_code:
@@ -260,10 +274,13 @@ class IntentDecomposer:
         elif is_introspection and not (is_actionable and (matched_skills or matched_tools)):
             intent_type = IntentType.SYSTEM_INTROSPECTION
             domain = CapabilityDomain.AUTONOMOUS_SUBAGENTS
-        elif is_actionable and len(matched_skills) >= 1:
+        elif is_informational:
+            intent_type = IntentType.INFORMATIONAL_QA
+            domain = CapabilityDomain.GENERAL_EXECUTIVE
+        elif is_actionable and len(matched_skills) >= 1 and not has_negation:
             intent_type = IntentType.MULTI_STEP_DAG_EXECUTION
 
-        # 6. Extract Constraints
+        # 8. Extract Constraints
         constraints: List[str] = []
         # Budget constraint
         budget_match = re.search(r'(\$\s*[\d,]+(?:\.\d+)?|\b\d+(?:\.\d+)?\s*(?:k|m|million|billion|thousand)\s*(?:dollars?|usd)?|\bbudget of\s*[^,\.]+)', body_lower)
@@ -285,19 +302,19 @@ class IntentDecomposer:
         if stack_matches:
             constraints.append(f"Tech Stack: {', '.join(sorted(set(stack_matches)))}")
 
-        # 7. Evaluate Ambiguity & Socratic Options
+        # 9. Evaluate Ambiguity & Socratic Options
         word_count = len(clean_prompt.split())
         ambiguity_score = 0.0
         clarifications: List[str] = []
 
-        if word_count < 4 and not is_introspection:
+        if word_count < 4 and not is_introspection and not is_informational:
             ambiguity_score = 0.85
             clarifications = [
                 "Could you specify the target domain (e.g., Strategic Planning, Code Engineering, Financial Cap Table, or Deep Research)?",
                 "Do you have existing baseline numbers, repositories, or documents to ground this analysis?",
                 "What is your intended deliverable format (e.g., Markdown Dossier, Interactive DAG Plan, Executable Code Diff)?"
             ]
-        elif word_count < 7 and not constraints and not matched_skills and not is_introspection and not is_research:
+        elif word_count < 7 and not constraints and not matched_skills and not is_introspection and not is_research and not is_informational:
             ambiguity_score = 0.60
             clarifications = [
                 "Would you like an executive strategic overview or a granular multi-step execution plan?",
@@ -311,6 +328,13 @@ class IntentDecomposer:
         if is_introspection and not (is_actionable and (matched_skills or matched_tools)):
             core_objective = "Enumerate, explain, and ground all authentic Skills, Tools, and Architectural Capabilities directly from disk manifests."
 
+        is_actionable_dag = (
+            (is_actionable or intent_type == IntentType.MULTI_STEP_DAG_EXECUTION)
+            and not is_informational
+            and not has_negation
+            and ambiguity_score < 0.70
+        )
+
         return ParsedGoalTuple(
             raw_prompt=clean_prompt,
             core_objective=core_objective,
@@ -323,6 +347,6 @@ class IntentDecomposer:
             clarification_options=clarifications,
             required_skills=matched_skills,
             required_tools=matched_tools,
-            is_actionable_dag=(is_actionable or intent_type == IntentType.MULTI_STEP_DAG_EXECUTION) and ambiguity_score < 0.70,
+            is_actionable_dag=is_actionable_dag,
             confidence=round(1.0 - (ambiguity_score * 0.5), 2)
         )

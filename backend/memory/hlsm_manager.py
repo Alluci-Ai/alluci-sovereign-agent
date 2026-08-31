@@ -92,6 +92,81 @@ def _extract_kuzu_rows(raw_results: Any) -> List[Any]:
         return list(raw_results)
     return []
 
+
+def _distill_document_metadata(filename: str, content: str) -> Dict[str, Any]:
+    """
+    Fast, deterministic single-pass distillation of document structure:
+    Extracts title, 3-5 core key points, and domain acronym definitions.
+    """
+    clean_lines = [line.strip() for line in content.split("\n") if line.strip()]
+    if not clean_lines:
+        return {"title": filename, "summary": "", "key_points": [], "acronyms": ""}
+    
+    # 1. Title extraction
+    title = clean_lines[0].lstrip("#").strip()
+    if len(title) > 120 or len(title) < 4:
+        title = filename.rsplit(".", 1)[0].replace("_", " ").replace("-", " ").title()
+    
+    # 2. Acronym & definition extraction (e.g. "CIMC (California Institute for Machine Consciousness)" or "CIMC: ...")
+    acronym_map: Dict[str, str] = {}
+    
+    # Pattern A: Full Name (ACRONYM) or ACRONYM (Full Name)
+    matches_paren = re.findall(r'\b([A-Z][A-Za-z0-9\s&]{3,60})\s*\(([A-Z0-9]{2,10})\)|\b([A-Z0-9]{2,10})\s*\(([A-Z][A-Za-z0-9\s&]{3,60})\)', content)
+    for m in matches_paren:
+        if m[0] and m[1]:
+            full, acr = m[0].strip(), m[1].strip()
+            if len(acr) <= 8 and acr.isupper():
+                acronym_map[acr] = full
+        elif m[2] and m[3]:
+            acr, full = m[2].strip(), m[3].strip()
+            if len(acr) <= 8 and acr.isupper():
+                acronym_map[acr] = full
+
+    # Pattern B: Colon definition e.g. CIMC: California Institute for Machine Consciousness
+    matches_colon = re.findall(r'\b([A-Z0-9]{2,10})\s*:\s*([A-Z][A-Za-z0-9\s&]{4,60})', content)
+    for acr, full in matches_colon:
+        if len(acr) <= 8 and acr.isupper() and acr not in acronym_map:
+            acronym_map[acr] = full.strip()
+
+    # Pattern C: Acronym from filename or title if first letters match (e.g. CIMC -> California Institute for Machine Consciousness)
+    title_words = [w for w in title.split() if w and w[0].isupper()]
+    if len(title_words) >= 2:
+        constructed_acr = "".join(w[0] for w in title_words if w.lower() not in {"for", "the", "and", "of", "in", "to", "a"})
+        if len(constructed_acr) >= 2 and constructed_acr not in acronym_map:
+            acronym_map[constructed_acr] = title
+
+    acronyms_str = ", ".join(f"{k}: {v}" for k, v in acronym_map.items())
+
+    # 3. Key Points extraction (take informative paragraphs or bullet items)
+    key_points = []
+    for line in clean_lines[1:30]:
+        if line.startswith(("-", "•", "*", "1.", "2.", "3.", "4.", "5.", "I.", "II.", "III.")) and len(line) > 20:
+            key_points.append(line.lstrip("-•* 0123456789.IVX").strip())
+        elif len(line) > 40 and not line.startswith("#") and len(key_points) < 4:
+            key_points.append(line)
+        if len(key_points) >= 5:
+            break
+            
+    if not key_points and len(clean_lines) > 1:
+        key_points = clean_lines[1:4]
+
+    # 4. Summary construction
+    summary_parts = []
+    if title:
+        summary_parts.append(f"Title: {title}.")
+    if acronyms_str:
+        summary_parts.append(f"Key Acronyms: {acronyms_str}.")
+    if key_points:
+        summary_parts.append(f"Core Points: {' | '.join(key_points[:3])}")
+    summary = " ".join(summary_parts)
+
+    return {
+        "title": title,
+        "summary": summary[:1200],
+        "key_points": key_points[:5],
+        "acronyms": acronyms_str[:500]
+    }
+
 # ─── Configuration Constants ──────────────────────────────────────────────────
 
 L0_TTL_SECONDS: float = 3600.0          # 1 hour working memory TTL
@@ -216,10 +291,19 @@ class HLSMManager:
                     "CREATE NODE TABLE IF NOT EXISTS L3Memory (id STRING, content STRING, source STRING, session_key STRING, l1_id STRING, created_at DOUBLE, PRIMARY KEY (id))"
                 )
                 self.kuzu_conn.execute(
+                    "CREATE NODE TABLE IF NOT EXISTS DocumentNode (id STRING, name STRING, title STRING, sha256 STRING, local_path STRING, mime_type STRING, summary STRING, acronyms STRING, created_at DOUBLE, session_key STRING, access_count INT64, PRIMARY KEY (id))"
+                )
+                self.kuzu_conn.execute(
+                    "CREATE NODE TABLE IF NOT EXISTS KeyPointNode (id STRING, text STRING, document_id STRING, PRIMARY KEY (id))"
+                )
+                self.kuzu_conn.execute(
                     "CREATE NODE TABLE IF NOT EXISTS GraphNode (name STRING, PRIMARY KEY (name))"
                 )
                 self.kuzu_conn.execute(
                     "CREATE REL TABLE IF NOT EXISTS RELATES_TO (FROM GraphNode TO GraphNode, predicate STRING, source_memory STRING, weight DOUBLE)"
+                )
+                self.kuzu_conn.execute(
+                    "CREATE REL TABLE IF NOT EXISTS HAS_KEY_POINT (FROM DocumentNode TO KeyPointNode)"
                 )
             except ImportError:
                 logger.warning("[HLSM] kuzu library not installed. L2 Semantic Memory disabled.")
@@ -908,30 +992,78 @@ class HLSMManager:
             return None
 
     async def l3_search(self, query: str, limit: int = 10) -> List[HLSMRetrievalResult]:
-        """Search L3 Knowledge Graph nodes."""
+        """
+        Search L3 Knowledge Graph nodes, including DocumentNode, KeyPointNode, and L3Memory entities.
+        """
         if not self.kuzu_conn:
             return []
         try:
-            # Fallback search on L3Memory content for simple retrieval
+            results = []
+            seen_ids = set()
+            clean_q = query.strip().lower()
+            search_terms = [t for t in re.split(r'[\s_\-\.\(\)]+', clean_q) if len(t) > 2]
+
+            # 1. Match DocumentNode entities by title, acronyms, name, or summary
+            try:
+                doc_query = (
+                    "MATCH (d:DocumentNode) "
+                    "RETURN d.id, d.name, d.title, d.summary, d.acronyms, d.local_path, d.created_at "
+                    "LIMIT 50"
+                )
+                raw_docs = await asyncio.to_thread(self.kuzu_conn.execute, doc_query)
+                doc_rows = _extract_kuzu_rows(raw_docs)
+                for row in doc_rows:
+                    d_id, d_name, d_title, d_summary, d_acronyms, d_path, d_created = row
+                    d_text = f"{d_name} {d_title} {d_summary} {d_acronyms}".lower()
+                    
+                    # Check for direct substring or token overlap
+                    match_score = 0.0
+                    if clean_q in d_text:
+                        match_score = 1.5
+                    elif search_terms:
+                        matches = sum(1 for t in search_terms if t in d_text)
+                        match_score = (matches / len(search_terms)) * 1.3 if matches > 0 else 0.0
+
+                    if match_score >= 0.3:
+                        doc_content = (
+                            f"[GROUNDED DOCUMENT PROVENANCE: {d_title} (`{d_name}`) | Acronyms: {d_acronyms} | Path: {d_path}]\n"
+                            f"Executive Summary: {d_summary}"
+                        )
+                        seen_ids.add(d_id)
+                        results.append(HLSMRetrievalResult(
+                            id=d_id,
+                            content=doc_content,
+                            tier=3,
+                            source="document_provenance",
+                            relevance_score=min(1.5, match_score * 1.4),
+                            retention_score=1.0,
+                        ))
+            except Exception as doc_err:
+                logger.debug(f"[HLSM L3] DocumentNode query notice: {doc_err}")
+
+            # 2. General L3Memory search
             cypher_query = (
                 "MATCH (m:L3Memory) "
                 "RETURN m.id, m.content, m.source, m.l1_id, m.created_at "
                 "LIMIT $limit"
             )
             raw_results = await asyncio.to_thread(self.kuzu_conn.execute, cypher_query, {"limit": limit})
-            results = []
             rows = _extract_kuzu_rows(raw_results)
             for row in rows:
                 kuzu_id, content, source, l1_id, created_at = row
-                results.append(HLSMRetrievalResult(
-                    id=kuzu_id,
-                    content=content,
-                    tier=3,
-                    source=source,
-                    relevance_score=1.0,
-                    retention_score=1.0,
-                ))
-            return results
+                if kuzu_id not in seen_ids:
+                    seen_ids.add(kuzu_id)
+                    results.append(HLSMRetrievalResult(
+                        id=kuzu_id,
+                        content=content,
+                        tier=3,
+                        source=source,
+                        relevance_score=1.0,
+                        retention_score=1.0,
+                    ))
+
+            results.sort(key=lambda r: r.relevance_score, reverse=True)
+            return results[:limit]
         except Exception as e:
             logger.error(f"[HLSM L3] Search failed: {e}")
             return []
@@ -1781,13 +1913,107 @@ class HLSMManager:
         metadata: Optional[Dict[str, Any]] = None
     ) -> List[str]:
         """
-        Asynchronously chunks and indexes an uploaded document into L2 Semantic Memory and
-        L3 Knowledge Graph Memory with file pointers back to original provenance.
+        Asynchronously fingerprints, deduplicates (CAS), and indexes an uploaded document into
+        L1 Episodic (FTS5), L2 Semantic Memory, and L3 Knowledge Graph with DocumentNode & KeyPointNode.
         """
         if not content or not content.strip():
             return []
 
         clean_text = _sanitize_hlsm_text(content)
+        meta = metadata or {}
+        now = time.time()
+        
+        # 1. Content-Addressable Cryptographic SHA-256 Fingerprint
+        doc_sha256 = hashlib.sha256(content.encode("utf-8")).hexdigest()
+        doc_node_id = f"doc_{doc_sha256[:16]}"
+        local_path = meta.get("file_path", "") or f"workspace/uploads/{filename}"
+        mime_type = meta.get("mime_type", "") or "application/octet-stream"
+
+        # 2. Check for Duplicate Document in KùzuDB (Zero-Storage Bloat Law)
+        if self.kuzu_conn:
+            try:
+                dup_check_q = "MATCH (d:DocumentNode {sha256: $sha256}) RETURN d.id, d.name, d.access_count"
+                raw_dup = await asyncio.to_thread(self.kuzu_conn.execute, dup_check_q, {"sha256": doc_sha256})
+                dup_rows = _extract_kuzu_rows(raw_dup)
+                if dup_rows:
+                    existing_id = str(dup_rows[0][0])
+                    upd_q = "MATCH (d:DocumentNode {id: $id}) SET d.access_count = d.access_count + 1, d.session_key = $session_key"
+                    await asyncio.to_thread(self.kuzu_conn.execute, upd_q, {"id": existing_id, "session_key": session_key or ""})
+                    logger.info(f"[HLSM] Deduplication hit for '{filename}' (SHA: {doc_sha256[:8]}). Updated access count for {existing_id}.")
+                    return [existing_id]
+            except Exception as dup_err:
+                logger.debug(f"[HLSM] Deduplication lookup notice: {dup_err}")
+
+        # 3. Single-Pass Semantic Distillation & Acronym Extraction
+        distilled = _distill_document_metadata(filename, clean_text)
+        doc_title = distilled["title"]
+        doc_summary = distilled["summary"]
+        doc_acronyms = distilled["acronyms"]
+        key_points = distilled["key_points"]
+
+        # 4. Ingest L3 DocumentNode and KeyPointNode entities
+        if self.kuzu_conn:
+            try:
+                # Merge DocumentNode
+                create_doc_q = (
+                    "MERGE (d:DocumentNode {id: $id}) "
+                    "SET d.name = $name, d.title = $title, d.sha256 = $sha256, d.local_path = $local_path, "
+                    "d.mime_type = $mime_type, d.summary = $summary, d.acronyms = $acronyms, "
+                    "d.created_at = $created_at, d.session_key = $session_key, d.access_count = 1"
+                )
+                await asyncio.to_thread(self.kuzu_conn.execute, create_doc_q, {
+                    "id": doc_node_id,
+                    "name": filename,
+                    "title": doc_title,
+                    "sha256": doc_sha256,
+                    "local_path": local_path,
+                    "mime_type": mime_type,
+                    "summary": doc_summary,
+                    "acronyms": doc_acronyms,
+                    "created_at": now,
+                    "session_key": session_key or "",
+                })
+
+                # Merge KeyPointNodes & HAS_KEY_POINT relations
+                for kp_idx, kp_text in enumerate(key_points):
+                    kp_id = f"kp_{doc_sha256[:12]}_{kp_idx}"
+                    create_kp_q = (
+                        "MERGE (k:KeyPointNode {id: $id}) "
+                        "SET k.text = $text, k.document_id = $doc_id"
+                    )
+                    await asyncio.to_thread(self.kuzu_conn.execute, create_kp_q, {
+                        "id": kp_id,
+                        "text": str(kp_text)[:500],
+                        "doc_id": doc_node_id,
+                    })
+                    rel_q = (
+                        "MATCH (d:DocumentNode {id: $doc_id}), (k:KeyPointNode {id: $kp_id}) "
+                        "MERGE (d)-[:HAS_KEY_POINT]->(k)"
+                    )
+                    await asyncio.to_thread(self.kuzu_conn.execute, rel_q, {
+                        "doc_id": doc_node_id,
+                        "kp_id": kp_id,
+                    })
+
+                # Also insert high-level summary as an L3Memory entity
+                l3_summary_id = f"l3_doc_{doc_sha256[:12]}"
+                l3_doc_content = f"[DOCUMENT SUMMARY: {doc_title} ({filename}) | Acronyms: {doc_acronyms}]\n{doc_summary}"
+                create_l3_q = (
+                    "MERGE (m:L3Memory {id: $id}) "
+                    "SET m.content = $content, m.source = 'document_ingest', m.l1_id = $filename, "
+                    "m.session_key = $session_key, m.created_at = $created_at"
+                )
+                await asyncio.to_thread(self.kuzu_conn.execute, create_l3_q, {
+                    "id": l3_summary_id,
+                    "content": l3_doc_content[:1500],
+                    "filename": filename,
+                    "session_key": session_key or "",
+                    "created_at": now,
+                })
+            except Exception as l3_err:
+                logger.error(f"[HLSM] Failed to store DocumentNode into L3: {l3_err}", exc_info=True)
+
+        # 5. Chunk and Ingest into L1 (FTS5 Episodic) and L2 (SemanticMemory)
         words = clean_text.split()
         chunk_size = 500
         overlap = 100
@@ -1798,20 +2024,43 @@ class HLSMManager:
             chunks.append(" ".join(chunk_words))
             start += (chunk_size - overlap)
 
-        ingested_ids = []
-        now = time.time()
+        ingested_ids = [doc_node_id]
 
-        for idx, chunk in enumerate(chunks[:20]):
-            chunk_id = f"doc_{uuid.uuid4().hex[:12]}_c{idx}"
-            chunk_header = f"[DOCUMENT: {filename} | Chunk {idx+1}/{len(chunks)}]\n{chunk}"
+        for idx, chunk in enumerate(chunks[:25]):
+            chunk_id = f"doc_{doc_sha256[:8]}_c{idx}"
+            chunk_header = f"[DOCUMENT: {filename} | Title: {doc_title} | Acronyms: {doc_acronyms} | Chunk {idx+1}/{len(chunks)}]\n{chunk}"
 
+            # Store in L1 Episodic Memory for SQLite FTS5 instant lexical match
+            try:
+                l1_entry = HLSMEpisodicEntry(
+                    id=chunk_id,
+                    content=chunk_header,
+                    source="document_ingest",
+                    session_key=session_key or "",
+                    psi_at_encoding=0.0,
+                    topological_importance=1.2,
+                    extra_metadata=json.dumps({
+                        "filename": filename,
+                        "title": doc_title,
+                        "sha256": doc_sha256,
+                        "chunk_index": idx,
+                        "total_chunks": len(chunks),
+                        "local_path": local_path
+                    })
+                )
+                self._l1_sql_insert(l1_entry)
+            except Exception as l1_err:
+                logger.debug(f"[HLSM] L1 SQL insert notice for chunk {chunk_id}: {l1_err}")
+
+            # Store in L2 SemanticMemory in KùzuDB
             if self.kuzu_conn:
                 try:
+                    betti_sig = self.dpk.get_betti_signature(self.dpk.project_state(chunk_header))
                     query = (
                         "CREATE (m:SemanticMemory {"
                         "id: $id, content: $content, source: 'document_ingest', session_key: $session_key, "
-                        "psi_at_encoding: 0.0, topological_importance: 1.0, betti_1_support: 0.0, "
-                        "betti_signature: '', access_count: 1, created_at: $created_at, l1_id: $filename, "
+                        "psi_at_encoding: 0.0, topological_importance: 1.2, betti_1_support: 0.0, "
+                        "betti_signature: $betti_signature, access_count: 1, created_at: $created_at, l1_id: $filename, "
                         "is_barcode: false, uri: $uri, blob_path: '', ttl: 0.0"
                         "})"
                     )
@@ -1822,6 +2071,7 @@ class HLSMManager:
                             "id": chunk_id,
                             "content": chunk_header[:1500],
                             "session_key": session_key or "",
+                            "betti_signature": betti_sig,
                             "created_at": now,
                             "filename": filename or "",
                             "uri": f"file:{filename}:chunk_{idx}"
@@ -1831,7 +2081,7 @@ class HLSMManager:
                 except Exception as e:
                     logger.warning(f"[HLSM] Failed to store document chunk into L2: {e}")
 
-        logger.info(f"[HLSM] Ingested {len(ingested_ids)} chunks from document '{filename}' into L2/L3 memory.")
+        logger.info(f"[HLSM] Ingested document '{filename}' (SHA: {doc_sha256[:8]}) into L1 (FTS5), L2 (Semantic), and L3 (DocumentNode '{doc_title}').")
         return ingested_ids
 
     async def delete_by_pattern(self, pattern: str, session_key: Optional[str] = None) -> Dict[str, int]:

@@ -62,6 +62,26 @@ class TestIntentDecomposer:
         assert result.ambiguity_score >= 0.70
         assert len(result.clarification_options) >= 2
 
+    def test_negation_directive_suppresses_dag(self):
+        prompt = "just explain in detail the Whitepaper. do not apply any frameworks to it."
+        result = self.decomposer.decompose(prompt)
+        assert result.intent_type == IntentType.INFORMATIONAL_QA
+        assert result.is_actionable_dag is False
+        assert len(result.required_skills) == 0
+
+    def test_informational_summarization_intent(self):
+        prompt = "Please analyze and summarize this CIMC Whitepaper"
+        result = self.decomposer.decompose(prompt)
+        assert result.intent_type == IntentType.INFORMATIONAL_QA
+        assert result.is_actionable_dag is False
+
+    def test_without_frameworks_negation(self):
+        prompt = "walk me through this topic without using frameworks or executing a DAG"
+        result = self.decomposer.decompose(prompt)
+        assert result.intent_type == IntentType.INFORMATIONAL_QA
+        assert result.is_actionable_dag is False
+        assert len(result.required_skills) == 0
+
 
 class TestManifestGrounding:
     """Tests dynamic discovery and verification of 26 skills and 15 tools from disk truth."""
