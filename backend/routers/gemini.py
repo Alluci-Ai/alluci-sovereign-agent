@@ -310,7 +310,7 @@ def _process_attached_files(prompt: str, files: Optional[List[Dict[str, Any]]] =
     if not files:
         return prompt
 
-    MAX_FILE_CHARS = 30000
+    MAX_FILE_CHARS = 150000
     appended_text = prompt
     for file_obj in files:
         file_name = file_obj.get("name", "attached_file.txt")
@@ -528,7 +528,7 @@ async def gemini_proxy(
         web_grounding = await _check_web_search_grounding(raw_user_prompt)
 
         # 5. Dynamic Codebase & Architecture Grounding Check (< 15ms)
-        code_grounding, specialized_directive = await _check_codebase_and_architecture_context(raw_user_prompt)
+        code_grounding, specialized_directive = await _check_codebase_and_architecture_context(prompt)
 
         # 6. Dynamic 4-Tier H-LSM Context Hydration across L1/L2/L3 (Tri-Hybrid RRF)
         memory_block = ""
@@ -553,16 +553,19 @@ async def gemini_proxy(
             grounding_blocks.append(page_grounding)
         if web_grounding:
             grounding_blocks.append(f"[WEB SEARCH GROUNDING DATA]:\n{web_grounding}")
-        if code_grounding:
+        if code_grounding and not files and not page_grounding:
             grounding_blocks.append(f"[AUTHENTIC DISK GROUNDING & MANIFESTS]:\n{code_grounding}")
         if memory_block:
             grounding_blocks.append(f"[RECALLED H-LSM MEMORY CONTEXT]:\n{memory_block}")
 
         if grounding_blocks:
             combined_grounding = "\n\n".join(grounding_blocks)
-            directive = specialized_directive or (
-                "INSTRUCTION: Answer the User Directive directly, comprehensively, and accurately based on the verified Reference Grounding Context above. Ground all factual claims strictly in the authentic reference data provided."
-            )
+            if files or page_grounding:
+                directive = "INSTRUCTION: Answer the User Directive directly, comprehensively, and accurately based on the provided document text and reference grounding context above. Ground all factual claims strictly in the authentic reference data provided."
+            else:
+                directive = specialized_directive or (
+                    "INSTRUCTION: Answer the User Directive directly, comprehensively, and accurately based on the verified Reference Grounding Context above. Ground all factual claims strictly in the authentic reference data provided."
+                )
             effective_prompt = (
                 f"### USER DIRECTIVE / QUESTION:\n"
                 f"{raw_user_prompt.strip()}\n\n"
@@ -651,7 +654,7 @@ async def gemini_proxy_stream(
         web_grounding = await _check_web_search_grounding(raw_user_prompt)
 
         # 5. Dynamic Codebase & Architecture Grounding Check (< 15ms)
-        code_grounding, specialized_directive = await _check_codebase_and_architecture_context(raw_user_prompt)
+        code_grounding, specialized_directive = await _check_codebase_and_architecture_context(prompt)
 
         # 6. Dynamic 4-Tier H-LSM Context Hydration across L1/L2/L3 (Tri-Hybrid RRF)
         memory_block = ""
@@ -676,16 +679,19 @@ async def gemini_proxy_stream(
             grounding_blocks.append(page_grounding)
         if web_grounding:
             grounding_blocks.append(f"[WEB SEARCH GROUNDING DATA]:\n{web_grounding}")
-        if code_grounding:
+        if code_grounding and not files and not page_grounding:
             grounding_blocks.append(f"[AUTHENTIC DISK GROUNDING & MANIFESTS]:\n{code_grounding}")
         if memory_block:
             grounding_blocks.append(f"[RECALLED H-LSM MEMORY CONTEXT]:\n{memory_block}")
 
         if grounding_blocks:
             combined_grounding = "\n\n".join(grounding_blocks)
-            directive = specialized_directive or (
-                "INSTRUCTION: Answer the User Directive directly, comprehensively, and accurately based on the verified Reference Grounding Context above. Ground all factual claims strictly in the authentic reference data provided."
-            )
+            if files or page_grounding:
+                directive = "INSTRUCTION: Answer the User Directive directly, comprehensively, and accurately based on the provided document text and reference grounding context above. Ground all factual claims strictly in the authentic reference data provided."
+            else:
+                directive = specialized_directive or (
+                    "INSTRUCTION: Answer the User Directive directly, comprehensively, and accurately based on the verified Reference Grounding Context above. Ground all factual claims strictly in the authentic reference data provided."
+                )
             effective_prompt = (
                 f"### USER DIRECTIVE / QUESTION:\n"
                 f"{raw_user_prompt.strip()}\n\n"

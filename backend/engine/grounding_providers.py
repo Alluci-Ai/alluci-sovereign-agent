@@ -215,6 +215,21 @@ class ArchitectureGroundingProvider(BaseGroundingProvider):
 
     async def can_handle(self, prompt: str, parsed_intent: ParsedGoalTuple) -> bool:
         body_lower = prompt.lower()
+
+        # 1. If prompt is asking about an external document/paper/pdf or attached file, do NOT trigger architecture grounding
+        doc_indicators = [
+            r'\b(paper|whitepaper|white-paper|document|pdf|article|report|study|author|hoffman|cimc|uploaded)\b',
+            r'\b(\.pdf|\.docx|\.txt|\.md)\b',
+            r'---\s*\[attached file:'
+        ]
+        if any(re.search(p, body_lower) for p in doc_indicators) and not any(k in body_lower for k in ["alluci architecture", "alluci codebase", "your architecture", "how are you built", "system design of alluci"]):
+            return False
+
+        # 2. Check if intent is explicitly SYSTEM_INTROSPECTION
+        from .intent_decomposer import IntentType
+        if parsed_intent.intent_type == IntentType.SYSTEM_INTROSPECTION:
+            return True
+
         # Avoid firing on pure skill/tool inventory questions unless architecture is explicitly asked
         catalog_patterns = [
             r"\b(list|show|enumerate|inventory)\b.*\b(skills|tools|frameworks|capabilities|manifests?)\b"
@@ -223,14 +238,11 @@ class ArchitectureGroundingProvider(BaseGroundingProvider):
             return False
 
         arch_keywords = [
-            "architecture", "architectural", "how are you built", "system design",
-            "6 domains", "functional domains", "topological physics", "mlx engine",
-            "lce", "avl gate", "discrete projection kernel", "pmet filtration",
-            "vietoris-rips", "stella octangula", "barcode clock", "markov trace",
-            "codebase", "alluci sovereign agent", "alluci application", "alluci codebase", "alluci architecture"
+            "your architecture", "alluci architecture", "how are you built", "system design of alluci",
+            "6 functional domains", "6 domains", "topological physics of alluci", "alluci sovereign agent architecture",
+            "alluci codebase", "alluci application architecture"
         ]
-        has_subsystem = any(re.search(rf"\b{re.escape(trig)}\b", body_lower) for trig in self.subsystem_map.keys())
-        return any(k in body_lower for k in arch_keywords) or has_subsystem
+        return any(k in body_lower for k in arch_keywords)
 
     async def provide_grounding(self, prompt: str, parsed_intent: ParsedGoalTuple) -> Optional[GroundingResult]:
         body_lower = prompt.lower()
@@ -267,7 +279,7 @@ class ArchitectureGroundingProvider(BaseGroundingProvider):
                 if len(matched_subsystems) >= 2:
                     break
 
-        directive = None if parsed_intent.required_skills else "INSTRUCTION: Explain the system architecture accurately and comprehensively based strictly on the verified architectural blueprints and subsystem sources above."
+        directive = "INSTRUCTION: Explain the system architecture accurately and comprehensively based strictly on the verified architectural blueprints and subsystem sources above." if not parsed_intent.required_skills else None
         return GroundingResult(content="\n\n".join(parts), specialized_directive=directive)
 
 

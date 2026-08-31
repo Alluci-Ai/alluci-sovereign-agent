@@ -183,13 +183,19 @@ class IntentDecomposer:
         clean_prompt = prompt.strip()
         body_lower = clean_prompt.lower()
 
-        # 1. Check for Introspection / Capability Queries
+        # 1. Check for Introspection / Capability Queries (Alluci-specific)
+        doc_query_patterns = [
+            r"\b(paper|whitepaper|white-paper|document|pdf|article|report|study|author|hoffman|cimc|uploaded)\b",
+            r"\b(\.pdf|\.docx|\.txt|\.md)\b"
+        ]
+        is_doc_query = any(re.search(p, body_lower) for p in doc_query_patterns)
+
         introspection_patterns = [
             r"\b(what|list|explain|show|describe|tell me about)\b.*\b(skill|skills|tool|tools|capability|capabilities|manifest|commands|sub-?agents|what can you do|what makes you different)\b",
             r"\b(who are you|what are you|inventory|what do you do)\b",
-            r"\b(architecture|codebase|repository|models\.py|hlsm|verusid|dpk|ppn|pmet|avl|s-cot)\b"
+            r"\b(your architecture|alluci architecture|alluci codebase|alluci application|alluci system|models\.py|hlsm_manager|verusid|dpk|ppn|pmet filtration|avl gate|s-cot|simplicial chain-of-thought)\b"
         ]
-        is_introspection = any(re.search(p, body_lower) for p in introspection_patterns)
+        is_introspection = any(re.search(p, body_lower) for p in introspection_patterns) and not is_doc_query
         
         # 2. Check for Deep Web Research Intent (Requires explicit external web harvesting directives)
         research_patterns = [
