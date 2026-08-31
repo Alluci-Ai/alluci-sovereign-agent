@@ -4,6 +4,7 @@ import { useStore } from '../../store/useStore';
 import { Search, Trash2, FileText, Database, Info, Layers, Zap } from 'lucide-react';
 import { HLSMStats } from '../../components/Memory/HLSMStats';
 import { ConsolidationTrigger } from '../../components/Memory/ConsolidationTrigger';
+import { MemoryHealthDashboard } from '../../components/Memory/MemoryHealthDashboard';
 import { sovereignService } from '../../sovereignService';
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -124,6 +125,9 @@ export const MemoryPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                     </p>
                 </div>
             </div>
+
+            {/* 4-Tier Memory Auditor & Deduplicator Dashboard */}
+            <MemoryHealthDashboard onMemoryUpdated={fetchMemories} />
 
             {/* Stats Dashboard */}
             <div className="glass-card p-6 bg-zinc-950/40 border-zinc-800/50">

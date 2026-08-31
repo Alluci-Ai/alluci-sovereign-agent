@@ -82,6 +82,22 @@ class TestIntentDecomposer:
         assert result.is_actionable_dag is False
         assert len(result.required_skills) == 0
 
+    def test_comparative_document_analysis_not_deep_research(self):
+        prompt = "compare the CIMC's stance that consciousness is a functional property of information processing vs Dr. Donald Hoffmans stance that Consciousness is Fundamental based on this Objects of Consciousness research paper."
+        result = self.decomposer.decompose(prompt)
+        assert result.intent_type == IntentType.INFORMATIONAL_QA
+        assert result.is_actionable_dag is False
+        assert result.suggested_agent == "executive"
+        assert len(result.required_skills) == 0
+
+    def test_explain_research_paper_not_deep_research(self):
+        prompt = "please explain and summarize this research paper."
+        result = self.decomposer.decompose(prompt)
+        assert result.intent_type == IntentType.INFORMATIONAL_QA
+        assert result.is_actionable_dag is False
+        assert result.suggested_agent == "executive"
+
+
 
 class TestManifestGrounding:
     """Tests dynamic discovery and verification of 26 skills and 15 tools from disk truth."""

@@ -320,12 +320,19 @@ class HLSMManager:
         # Markov Trace & Spectral Geometry Engine (PPN Trace Logic)
         self.trace_engine = MarkovTraceEngine()
 
+        # Deep 4-Tier Memory Auditor & Deduplication Engine
+        from .hlsm_auditor import HLSMDeepAuditor
+        from .hlsm_deduplicator import HLSMDeduplicator
+        self.auditor = HLSMDeepAuditor(db_engine=self.db_engine, kuzu_conn=self.kuzu_conn)
+        self.deduplicator = HLSMDeduplicator(db_engine=self.db_engine, kuzu_conn=self.kuzu_conn)
+
         logger.info(
             "[HLSM] Initialized. "
             f"L0={'Redis' if redis_client else 'SQL-fallback'}, "
             f"L1=SQL, "
             f"L2={'KùzuDB' if self.kuzu_conn else 'disabled'}, "
-            "Trace=MarkovEngine"
+            "Trace=MarkovEngine, "
+            "Auditor=Active, Deduplicator=Active"
         )
 
     def _get_token_count(self, text: str) -> int:
@@ -1025,9 +1032,20 @@ class HLSMManager:
                         match_score = (matches / len(search_terms)) * 1.3 if matches > 0 else 0.0
 
                     if match_score >= 0.3:
+                        kp_lines = []
+                        try:
+                            kp_query = "MATCH (d:DocumentNode {id: $id})-[:HAS_KEY_POINT]->(k:KeyPointNode) RETURN k.text LIMIT 5"
+                            raw_kp = await asyncio.to_thread(self.kuzu_conn.execute, kp_query, {"id": d_id})
+                            kp_rows = _extract_kuzu_rows(raw_kp)
+                            for kp in kp_rows:
+                                kp_lines.append(f"  • {kp[0]}")
+                        except Exception:
+                            pass
+
+                        kp_section = f"\nKey Theses & Core Points:\n" + "\n".join(kp_lines) if kp_lines else ""
                         doc_content = (
                             f"[GROUNDED DOCUMENT PROVENANCE: {d_title} (`{d_name}`) | Acronyms: {d_acronyms} | Path: {d_path}]\n"
-                            f"Executive Summary: {d_summary}"
+                            f"Executive Summary: {d_summary}{kp_section}"
                         )
                         seen_ids.add(d_id)
                         results.append(HLSMRetrievalResult(
@@ -1552,12 +1570,32 @@ class HLSMManager:
         pruned_l0 = await asyncio.to_thread(self._prune_expired_l0_sql)
         summary["pruned_l0"] = pruned_l0
 
+        # ── 4-Tier Memory Deduplication & Orphan GC Sweep ─────────────────────
+        try:
+            dedup_res = await self.deduplicate(dry_run=False)
+            deleted_recs = dedup_res.get("deleted_records", {})
+            summary["deduplicated_l0"] = deleted_recs.get("l0_working", 0)
+            summary["deduplicated_l1"] = deleted_recs.get("l1_episodic", 0)
+            summary["deduplicated_l3"] = deleted_recs.get("l3_graph", 0)
+            summary["freed_bytes"] = dedup_res.get("freed_bytes_total", 0)
+            summary["health_score"] = dedup_res.get("health_score_after", 1.0)
+
+            from ..metrics import HLSM_HEALTH_SCORE, HLSM_DUPLICATE_CLUSTERS, HLSM_SELF_HEALING_TOTAL
+            HLSM_HEALTH_SCORE.set(dedup_res.get("health_score_after", 1.0))
+            HLSM_DUPLICATE_CLUSTERS.set(dedup_res.get("remaining_duplicates", 0))
+            if dedup_res.get("freed_bytes_total", 0) > 0:
+                HLSM_SELF_HEALING_TOTAL.inc()
+        except Exception as dedup_err:
+            logger.debug(f"[HLSM] Consolidation deduplication notice: {dedup_err}")
+
         logger.info(
             f"[HLSM] Consolidation complete: "
             f"promoted={summary['promoted']}, "
             f"pruned_l1={summary['pruned_l1']}, "
             f"pruned_l2={summary['pruned_l2']}, "
-            f"pruned_l0={summary['pruned_l0']}"
+            f"pruned_l0={summary['pruned_l0']}, "
+            f"dedup_freed_bytes={summary.get('freed_bytes', 0)}, "
+            f"health_score={summary.get('health_score', 1.0)}"
         )
         return summary
 
@@ -2171,3 +2209,35 @@ class HLSMManager:
         counts["total_deleted"] = counts["deleted_l0"] + counts["deleted_l1"] + counts["deleted_l2"] + counts["deleted_l3"]
         logger.info(f"[HLSM] Pattern memory deletion complete for '{search_pat}': {counts}")
         return counts
+
+    async def run_deep_audit(self) -> Dict[str, Any]:
+        """
+        [ Deep 4-Tier Memory Auditor ]
+        Runs an asynchronous non-destructive forensic audit across L0, L1, L2, and L3.
+        Returns health score, duplicate clusters, orphan counts, and retrieval bias risk.
+        """
+        if getattr(self, "auditor", None) is None:
+            from .hlsm_auditor import HLSMDeepAuditor
+            self.auditor = HLSMDeepAuditor(db_engine=self.db_engine, kuzu_conn=self.kuzu_conn)
+        self.auditor.db_engine = self.db_engine
+        self.auditor.kuzu_conn = self.kuzu_conn
+        report = await self.auditor.run_deep_audit(self)
+        return report.to_dict()
+
+    async def deduplicate(
+        self,
+        dry_run: bool = False,
+        cluster_ids: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        """
+        [ Dynamic 4-Tier Memory Deduplicator & GC ]
+        Executes atomic deduplication and orphan garbage collection across all memory tiers.
+        Preserves authoritative canonical master records while eliminating bloat and retrieval bias.
+        """
+        if getattr(self, "deduplicator", None) is None:
+            from .hlsm_deduplicator import HLSMDeduplicator
+            self.deduplicator = HLSMDeduplicator(db_engine=self.db_engine, kuzu_conn=self.kuzu_conn)
+        self.deduplicator.db_engine = self.db_engine
+        self.deduplicator.kuzu_conn = self.kuzu_conn
+        return await self.deduplicator.deduplicate_all(self, dry_run=dry_run, cluster_ids=cluster_ids)
+

@@ -638,7 +638,15 @@ async def gemini_proxy_stream(
 
                 if is_cancel:
                     orchestrator_reply = await orch.handle_user_message(effective_prompt)
-                elif parsed_intent.is_actionable_dag or parsed_intent.intent_type in (IntentType.MULTI_STEP_DAG_EXECUTION, IntentType.DEEP_RESEARCH):
+                elif (
+                    parsed_intent.is_actionable_dag
+                    and not files
+                    and parsed_intent.intent_type not in (
+                        IntentType.INFORMATIONAL_QA,
+                        IntentType.SYSTEM_INTROSPECTION,
+                        IntentType.GENERAL_CONVERSATIONAL
+                    )
+                ):
                     orchestrator_reply = await orch.handle_user_message(effective_prompt)
                     logger.info(f"[GeminiRouter] Handled orchestrator auto-dispatch for intent '{parsed_intent.intent_type.value}': '{prompt[:50]}...'")
             except Exception as dispatch_err:

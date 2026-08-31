@@ -17,7 +17,6 @@ def daemon_with_mock_db():
 async def test_daemon_inject_hlsm(daemon_with_mock_db):
     daemon_with_mock_db.inject_hlsm("mock_hlsm")
     assert daemon_with_mock_db._hlsm == "mock_hlsm"
-    assert daemon_with_mock_db._dream_orchestrator is not None
 
 def test_get_db_fallback():
     daemon = HeartbeatDaemon(MagicMock(), MagicMock(), 1)
@@ -31,25 +30,23 @@ async def test_daemon_start_stop():
         # Fire and forget start to allow tick_loop to mock complete
         asyncio.create_task(daemon.start())
         await asyncio.sleep(0.01)
-        assert daemon._running is True
+        assert daemon._running
         
         await daemon.stop()
-        assert daemon._running is False
+        assert not daemon._running
 
 @pytest.mark.asyncio
-async def test_tick_loop_dream_orchestrator(daemon_with_mock_db):
+async def test_tick_loop_quiet_hours_dream_cycle(daemon_with_mock_db):
     daemon_with_mock_db._running = True
-    daemon_with_mock_db._dream_orchestrator = AsyncMock()
-    daemon_with_mock_db._dream_orchestrator.evaluate_sleep_trigger.return_value = True
-    daemon_with_mock_db._dream_orchestrator.is_dreaming = True
-    
-    with patch("backend.services.ace_engine", MagicMock(get_affective_state=MagicMock(return_value="state")), create=True):
-        async def dummy_sleep(*args, **kwargs):
-            daemon_with_mock_db._running = False
-        with patch("asyncio.sleep", new_callable=AsyncMock, side_effect=dummy_sleep):
-            await daemon_with_mock_db._tick_loop()
-    
-    daemon_with_mock_db._dream_orchestrator.trigger_dream_cycle.assert_awaited_once()
+    daemon_with_mock_db._is_quiet_hours = MagicMock(return_value=True)
+    daemon_with_mock_db._run_quiet_hours_dreaming_cycle = AsyncMock()
+
+    async def dummy_sleep(*args, **kwargs):
+        daemon_with_mock_db._running = False
+    with patch("asyncio.sleep", new_callable=AsyncMock, side_effect=dummy_sleep):
+        await daemon_with_mock_db._tick_loop()
+
+    daemon_with_mock_db._run_quiet_hours_dreaming_cycle.assert_awaited_once()
 
 @pytest.mark.asyncio
 async def test_tick_loop_manifest_exception(daemon_with_mock_db):

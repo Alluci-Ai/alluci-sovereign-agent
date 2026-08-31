@@ -161,6 +161,21 @@ export class AlluciSovereignService {
         });
     }
 
+    async auditMemory() {
+        return this._fetch('/memory/audit');
+    }
+
+    async deduplicateMemory(dryRun: boolean = false, clusterIds?: string[]) {
+        return this._fetch('/memory/deduplicate', {
+            method: 'POST',
+            body: JSON.stringify({ dry_run: dryRun, cluster_ids: clusterIds })
+        });
+    }
+
+    async getDuplicateClusters() {
+        return this._fetch('/memory/duplicates');
+    }
+
     // ─── Agents API ────────────────────────────────────────────────────────
     
     async listAgents() {

@@ -191,9 +191,9 @@ class IntentDecomposer:
         ]
         is_introspection = any(re.search(p, body_lower) for p in introspection_patterns)
         
-        # 2. Check for Deep Web Research Intent
+        # 2. Check for Deep Web Research Intent (Requires explicit external web harvesting directives)
         research_patterns = [
-            r"\b(research|deep research|search the web|scour the web|find recent|latest news|market trends|academic papers|investigate)\b"
+            r"\b(deep research|search the web|scour the web|scour the internet|find online|latest news online|harvest web data|search online for|look up online|deep web research)\b"
         ]
         is_research = any(re.search(p, body_lower) for p in research_patterns)
 
@@ -209,13 +209,19 @@ class IntentDecomposer:
         negation_pattern = r'\b(do not|don\'t|dont|never|without|avoid|refrain from|omit|skip)\s+([a-z\s]{0,20})?(apply|use|execute|run|implement|build|model|framework|skill|dag|tools?)\b'
         has_negation = bool(re.search(negation_pattern, body_lower))
 
-        # 5. Check for Informational / Explanatory / Summarization Intent
-        informational_patterns = [
-            r"\b(explain|summarize|summary|overview|what is|tell me about|walk me through|clarify|elaborate|read and summarize|break down)\b"
+        # 5. Check for Comparative Intent (e.g., "compare X vs Y", "contrast A and B")
+        comparative_patterns = [
+            r"\b(compare|contrast|versus|\bvs\b|evaluate against|differentiate between|comparison between|distinguish between)\b"
         ]
-        is_informational = any(re.search(p, body_lower) for p in informational_patterns)
+        is_comparative = any(re.search(p, body_lower) for p in comparative_patterns)
 
-        # 6. Check for Actionable Multi-Step Execution (DAG Plan)
+        # 6. Check for Informational / Explanatory / Summarization Intent
+        informational_patterns = [
+            r"\b(explain|summarize|summary|overview|what is|tell me about|walk me through|clarify|elaborate|read and summarize|break down|synthesize)\b"
+        ]
+        is_informational = any(re.search(p, body_lower) for p in informational_patterns) or is_comparative
+
+        # 7. Check for Actionable Multi-Step Execution (DAG Plan)
         action_verbs = [
             r"\b(run|execute|build|implement|create|generate a plan|model|calculate|analyze and draft|audit and report|prepare a data room|set up|automate|conduct)\b"
         ]
@@ -224,7 +230,7 @@ class IntentDecomposer:
 
         is_actionable = any(re.search(p, body_lower) for p in action_verbs) and not is_informational and not has_negation
 
-        # 7. Extract Domain, Matched Skills & Tools
+        # 8. Extract Domain, Matched Skills & Tools
         matched_skills: List[str] = []
         matched_tools: List[str] = []
         suggested_agent = "executive"
@@ -232,7 +238,7 @@ class IntentDecomposer:
         intent_type = IntentType.GENERAL_CONVERSATIONAL
 
         # Explicit skill ID matching (e.g. fnd_02, codi_01, spe_01, auth_01)
-        if not has_negation:
+        if not has_negation and not is_informational:
             explicit_skill_ids = re.findall(r'\b([a-z]{2,5}_\d{2})\b', body_lower)
             for sid in explicit_skill_ids:
                 if sid not in matched_skills:
@@ -267,16 +273,17 @@ class IntentDecomposer:
             intent_type = IntentType.CODE_ENGINEERING
             suggested_agent = "codi"
             domain = CapabilityDomain.AUTONOMOUS_SUBAGENTS
-        elif is_research and not matched_skills:
-            intent_type = IntentType.DEEP_RESEARCH
-            suggested_agent = "rocco"
-            domain = CapabilityDomain.AUTONOMOUS_SUBAGENTS
         elif is_introspection and not (is_actionable and (matched_skills or matched_tools)):
             intent_type = IntentType.SYSTEM_INTROSPECTION
             domain = CapabilityDomain.AUTONOMOUS_SUBAGENTS
         elif is_informational:
             intent_type = IntentType.INFORMATIONAL_QA
             domain = CapabilityDomain.GENERAL_EXECUTIVE
+            suggested_agent = "executive"
+        elif is_research and not matched_skills:
+            intent_type = IntentType.DEEP_RESEARCH
+            suggested_agent = "rocco"
+            domain = CapabilityDomain.AUTONOMOUS_SUBAGENTS
         elif is_actionable and len(matched_skills) >= 1 and not has_negation:
             intent_type = IntentType.MULTI_STEP_DAG_EXECUTION
 

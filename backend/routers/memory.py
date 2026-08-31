@@ -220,3 +220,54 @@ async def demote_memory(entry_id: str, request: Request, csrf_protect: CsrfProte
         session.add(entry)
         session.commit()
     return {"status": "SUCCESS"}
+
+
+@router.get("/memory/audit", dependencies=[Depends(verify_authenticated)])
+async def audit_memory():
+    """
+    [ Deep 4-Tier Memory Auditor ]
+    Runs a non-destructive forensic audit across L0, L1, L2, and L3.
+    Returns health score, duplicate clusters, orphan counts, and retrieval bias risk.
+    """
+    if not services.hlsm_manager:
+        raise HTTPException(status_code=503, detail="H-LSM manager not ready")
+    return await services.hlsm_manager.run_deep_audit()
+
+
+@router.post("/memory/deduplicate", dependencies=[Depends(verify_authenticated)])
+async def deduplicate_memory(
+    request: Request,
+    data: Optional[Dict[str, Any]] = Body(None),
+    csrf_protect: CsrfProtect = Depends()
+):
+    """
+    [ Dynamic 4-Tier Memory Deduplicator & GC ]
+    Executes atomic deduplication and orphan garbage collection across all memory tiers.
+    Supports dry_run=true for previewing changes before execution.
+    """
+    await csrf_protect.validate_csrf(request)
+    if not services.hlsm_manager:
+        raise HTTPException(status_code=503, detail="H-LSM manager not ready")
+    
+    payload = data or {}
+    dry_run = payload.get("dry_run", False)
+    cluster_ids = payload.get("cluster_ids", None)
+    return await services.hlsm_manager.deduplicate(dry_run=dry_run, cluster_ids=cluster_ids)
+
+
+@router.get("/memory/duplicates", dependencies=[Depends(verify_authenticated)])
+async def get_duplicate_clusters():
+    """
+    Returns all detected duplicate clusters and orphan nodes across the H-LSM fabric.
+    """
+    if not services.hlsm_manager:
+        raise HTTPException(status_code=503, detail="H-LSM manager not ready")
+    audit_report = await services.hlsm_manager.run_deep_audit()
+    return {
+        "health_score": audit_report.get("health_score", 1.0),
+        "duplicate_clusters": audit_report.get("duplicate_clusters", []),
+        "orphan_counts": audit_report.get("orphan_counts", {}),
+        "wasted_bytes_total": audit_report.get("wasted_bytes_total", 0),
+        "retrieval_bias_risk": audit_report.get("retrieval_bias_risk", "NONE")
+    }
+

@@ -55,6 +55,21 @@ AVL_GATE_REJECTIONS_TOTAL = Counter(
     []
 )
 
+HLSM_HEALTH_SCORE = Gauge(
+    "alluci_hlsm_health_score",
+    "Current H-LSM memory health score (0.0 - 1.0)"
+)
+
+HLSM_DUPLICATE_CLUSTERS = Gauge(
+    "alluci_hlsm_duplicate_clusters_total",
+    "Current number of duplicate clusters across all H-LSM memory tiers"
+)
+
+HLSM_SELF_HEALING_TOTAL = Counter(
+    "alluci_hlsm_self_healing_total",
+    "Total autonomous memory self-healing deduplication sweeps executed"
+)
+
 # ── Middleware ────────────────────────────────────────────────────────────────
 
 async def metrics_middleware(request: Request, call_next):

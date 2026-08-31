@@ -155,6 +155,8 @@ async def _run_probe(
             return await _probe_url_fetch(probe_config)
         if probe_type == "memory_pattern":
             return await _probe_memory_pattern(probe_config)
+        if probe_type == "memory_integrity":
+            return await _probe_memory_integrity(probe_config)
         if probe_type == "system_health":
             return await _probe_system_health(probe_config)
         if probe_type == "bridge_silence":
@@ -324,6 +326,49 @@ async def _probe_memory_pattern(cfg: Dict) -> Tuple[bool, str]:
     except Exception as exc:
         logger.error("[HB] memory_pattern error: %s", exc, exc_info=True)
         return False, f"Memory pattern error: {exc}"
+
+
+async def _probe_memory_integrity(cfg: Dict) -> Tuple[bool, str]:
+    """
+    [ 4-Tier Memory Integrity & Self-Healing Probe ]
+    Probes H-LSM 4-tier memory integrity across L0, L1, L2, and L3.
+    If health_score < 0.95, duplicate clusters > 0, or dangling orphans are detected,
+    autonomously triggers a self-healing deduplication pass.
+    """
+    try:
+        from . import services
+        hlsm_mgr = getattr(services, "hlsm_manager", None)
+        if not hlsm_mgr or not hasattr(hlsm_mgr, "run_deep_audit"):
+            return False, "HLSMManager not available"
+
+        audit_report = await hlsm_mgr.run_deep_audit()
+        score = audit_report.get("health_score", 1.0)
+        dupe_clusters = audit_report.get("duplicate_clusters", [])
+        orphans = audit_report.get("orphan_counts", {})
+        orphan_total = orphans.get("dangling_keypoints", 0) + orphans.get("orphaned_l3_memories", 0)
+
+        from .metrics import HLSM_HEALTH_SCORE, HLSM_DUPLICATE_CLUSTERS
+        HLSM_HEALTH_SCORE.set(score)
+        HLSM_DUPLICATE_CLUSTERS.set(len(dupe_clusters))
+
+        if score < 0.95 or len(dupe_clusters) > 0 or orphan_total > 0:
+            if hasattr(hlsm_mgr, "deduplicate"):
+                dedup_res = await hlsm_mgr.deduplicate(dry_run=False)
+                deleted_recs = dedup_res.get("deleted_records", {})
+                freed = dedup_res.get("freed_bytes_total", 0)
+                score_after = dedup_res.get("health_score_after", 1.0)
+
+                logger.info(
+                    f"[Heartbeat] Autonomous memory self-healing executed: "
+                    f"Pruned {deleted_recs.get('total', 0)} duplicates, freed {freed} bytes. "
+                    f"Health score restored: {score * 100:.1f}% → {score_after * 100:.1f}%."
+                )
+                return True, f"Self-healed {len(dupe_clusters)} duplicate clusters & {orphan_total} orphan nodes (Freed {freed} bytes)"
+
+        return False, f"Memory integrity optimal: score={score * 100:.1f}%, duplicates=0"
+    except Exception as exc:
+        logger.error(f"[Heartbeat] Memory integrity probe error: {exc}", exc_info=True)
+        return False, f"Memory integrity probe error: {exc}"
 
 
 async def _probe_system_health(cfg: Dict) -> Tuple[bool, str]:
@@ -734,7 +779,34 @@ class HeartbeatDaemon:
                 if self._is_quiet_hours():
                     await self._run_quiet_hours_dreaming_cycle()
 
-                # 4. Evaluate Standard Heartbeat Orders
+                # 4. Autonomous Memory Integrity & Self-Healing Watchdog Pass
+                hlsm_mgr = getattr(self, "_hlsm", None) or getattr(services, "hlsm_manager", None)
+                if hlsm_mgr is not None and hasattr(hlsm_mgr, "run_deep_audit"):
+                    try:
+                        audit_report = await hlsm_mgr.run_deep_audit()
+                        score = audit_report.get("health_score", 1.0)
+                        dupes = audit_report.get("duplicate_clusters", [])
+                        orphans = audit_report.get("orphan_counts", {})
+                        orphan_total = orphans.get("dangling_keypoints", 0) + orphans.get("orphaned_l3_memories", 0)
+
+                        from .metrics import HLSM_HEALTH_SCORE, HLSM_DUPLICATE_CLUSTERS
+                        HLSM_HEALTH_SCORE.set(score)
+                        HLSM_DUPLICATE_CLUSTERS.set(len(dupes))
+
+                        if score < 0.95 or len(dupes) > 0 or orphan_total > 0:
+                            if hasattr(hlsm_mgr, "deduplicate"):
+                                dedup_res = await hlsm_mgr.deduplicate(dry_run=False)
+                                deleted_recs = dedup_res.get("deleted_records", {})
+                                freed = dedup_res.get("freed_bytes_total", 0)
+                                self.logger.info(
+                                    f"[HB] Autonomous memory self-healing complete: "
+                                    f"Pruned {deleted_recs.get('total', 0)} entities, freed {freed} bytes. "
+                                    f"Health score restored: {score * 100:.1f}% → {dedup_res.get('health_score_after', 1.0) * 100:.1f}%."
+                                )
+                    except Exception as mem_tick_err:
+                        self.logger.debug(f"[HB] Autonomous memory watchdog notice: {mem_tick_err}")
+
+                # 5. Evaluate Standard Heartbeat Orders
                 await self._evaluate_all_orders()
             except asyncio.CancelledError:
                 break

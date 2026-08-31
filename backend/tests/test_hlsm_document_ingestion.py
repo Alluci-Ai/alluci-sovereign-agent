@@ -109,3 +109,41 @@ Computational functionalism argues that machine consciousness is realizable on a
     ctx = await manager.retrieve_context(objective="explain the CIMC Whitepaper in detail", session_key="test_session_1")
     prompt_block = ctx.to_prompt_block()
     assert "CIMC" in prompt_block or "California Institute" in prompt_block
+
+
+@pytest.mark.asyncio
+async def test_multi_document_n_way_grounding(temp_hlsm_manager):
+    manager = temp_hlsm_manager
+
+    # 1. Ingest Document 1: CIMC Whitepaper
+    doc1 = """# The California Institute for Machine Consciousness Research Program Whitepaper
+CIMC (California Institute for Machine Consciousness)
+Thesis: Consciousness is a computable, substrate-independent functional property of information processing.
+"""
+    await manager.ingest_document_payload(
+        filename="CIMC_Whitepaper.pdf",
+        content=doc1,
+        session_key="session_compare",
+        metadata={"mime_type": "application/pdf", "file_path": "/Users/alluci/docs/CIMC_Whitepaper.pdf"}
+    )
+
+    # 2. Ingest Document 2: Donald Hoffman's Objects of Consciousness
+    doc2 = """# Objects of Consciousness
+Author: Donald D. Hoffman
+Thesis: Conscious Realism posits that consciousness is fundamental. Spacetime and physical objects are not objective reality, but an evolutionary species-specific desktop user interface.
+"""
+    await manager.ingest_document_payload(
+        filename="Objects_of_Consciousness.pdf",
+        content=doc2,
+        session_key="session_compare",
+        metadata={"mime_type": "application/pdf", "file_path": "/Users/alluci/docs/Objects_of_Consciousness.pdf"}
+    )
+
+    # 3. Retrieve comparative context
+    comp_query = "compare the CIMC's stance that consciousness is a functional property of information processing vs Dr. Donald Hoffmans stance that Consciousness is Fundamental based on this Objects of Consciousness research paper"
+    ctx = await manager.retrieve_context(objective=comp_query, session_key="session_compare")
+    prompt_block = ctx.to_prompt_block()
+
+    # Verify both entities are preserved in the recall context without cross-contamination
+    assert "CIMC" in prompt_block or "California Institute" in prompt_block
+    assert "Objects of Consciousness" in prompt_block or "Hoffman" in prompt_block
