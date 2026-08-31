@@ -81,7 +81,7 @@ mss==9.0.1
 pypdf==4.3.1
 python-docx==1.1.2
 secure==0.3.0
-zeroconf==0.132.0
+zeroconf==0.150.2
 fastapi-csrf-protect==1.0.7
 
 # ─── Audio & TTS ─────────────────────────────────────────────────────────────
