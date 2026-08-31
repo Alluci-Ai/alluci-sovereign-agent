@@ -168,7 +168,7 @@ class TargetSkillExecutionGroundingProvider(BaseGroundingProvider):
             return None
 
         # 3. Synthesize dynamic, goal-driven directive
-        skill_names = ", ".join([s.get("name", s.get("id")) for s in loaded_skills]) or "Target Framework"
+        skill_names = ", ".join([str(s.get("name") or s.get("id", "")) for s in loaded_skills if s.get("name") or s.get("id")]) or "Target Framework"
         directive = (
             f"INSTRUCTION: Apply the verified '{skill_names}' strategic framework and execution methodology provided above "
             f"to accomplish the user directive: '{parsed_intent.core_objective}'. "
