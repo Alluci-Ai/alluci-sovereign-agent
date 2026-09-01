@@ -206,7 +206,7 @@ class MLXEngine:
         system_instruction: str = "",
         tools: Optional[list] = None
     ) -> str:
-        """Formats prompt using native Gemma 4 turn structures and applies Streaming Attention Sinks."""
+        """Formats prompt using the loaded tokenizer's native chat template and applies Streaming Attention Sinks."""
         messages = []
         if tools:
             serialized_tools = json.dumps(tools, indent=2)
@@ -222,12 +222,29 @@ class MLXEngine:
             
         messages.append({"role": "user", "content": prompt})
         
-        formatted = ""
-        if system_instruction:
-            formatted += f"<bos><|turn>system\n{system_instruction}<|turn|>\n"
+        # 1. Native Tokenizer Chat Template (GLM-4, Gemma 4, Qwen, etc.)
+        if self.tokenizer is not None and hasattr(self.tokenizer, "apply_chat_template") and getattr(self.tokenizer, "chat_template", None):
+            try:
+                formatted = self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+                return MLXEngine._apply_streaming_attention_sink(formatted)
+            except Exception as tmpl_err:
+                logger.debug(f"[MLXEngine] apply_chat_template fallback notice: {tmpl_err}")
+
+        # 2. Dynamic Fallback to model-family-specific templates
+        is_glm = bool(self.loaded_model_id and "glm" in self.loaded_model_id.lower())
+        if is_glm:
+            formatted = "[gMASK]<sop>"
+            if system_instruction:
+                formatted += f"<|system|>\n{system_instruction}"
+            formatted += f"<|user|>\n{prompt}<|assistant|>"
         else:
-            formatted += "<bos>"
-        formatted += f"<|turn>user\n{prompt}<|turn|>\n<|turn>model\n"
+            # Gemma 4 fallback
+            formatted = ""
+            if system_instruction:
+                formatted += f"<bos><|turn>system\n{system_instruction}<|turn|>\n"
+            else:
+                formatted += "<bos>"
+            formatted += f"<|turn>user\n{prompt}<|turn|>\n<|turn>model\n"
         
         # Apply Streaming Attention Sink for infinite multi-turn stability
         return MLXEngine._apply_streaming_attention_sink(formatted)
@@ -330,6 +347,11 @@ class MLXEngine:
                         gen_kwargs["max_tokens"] = min(max_tokens, 4096)
                         MLXEngine._clear_vram_cache()
 
+                    stop_tokens = [
+                        "<turn|>", "<eos>", "<|endoftext|>", "<|user|>", 
+                        "<|observation|>", "<|assistant|>", "<end_of_turn>", "<start_of_turn>"
+                    ]
+
                     try:
                         for response in stream_generate(
                             self.engine,
@@ -339,7 +361,7 @@ class MLXEngine:
                             chunk = response.text
                             sync_buffer += chunk
                             loop.call_soon_threadsafe(queue.put_nowait, chunk)
-                            if "<turn|>" in sync_buffer or "<eos>" in sync_buffer or "<|endoftext|>" in sync_buffer:
+                            if any(st in sync_buffer for st in stop_tokens):
                                 break
                     except Exception as gen_err:
                         if use_speculative:
@@ -353,7 +375,7 @@ class MLXEngine:
                                 chunk = response.text
                                 sync_buffer += chunk
                                 loop.call_soon_threadsafe(queue.put_nowait, chunk)
-                                if "<turn|>" in sync_buffer or "<eos>" in sync_buffer or "<|endoftext|>" in sync_buffer:
+                                if any(st in sync_buffer for st in stop_tokens):
                                     break
                         else:
                             raise
@@ -370,6 +392,10 @@ class MLXEngine:
             gen_future = loop.run_in_executor(self.executor, _sync_gen)
 
         has_started = False
+        stop_tokens = [
+            "<turn|>", "<eos>", "<|endoftext|>", "<|user|>", 
+            "<|observation|>", "<|assistant|>", "<end_of_turn>", "<start_of_turn>"
+        ]
         while True:
             chunk = await queue.get()
             if chunk is None:
@@ -378,7 +404,7 @@ class MLXEngine:
             # Direct DELTA token streaming (July 31st Native Logic)
             import re
             clean_chunk = re.sub(r'<\|channel.*?>thought\n?|<\|channel.*?>|<channel\|>', '', chunk)
-            for stop_tag in ["<turn|>", "<eos>", "<|endoftext|>"]:
+            for stop_tag in stop_tokens:
                 if stop_tag in clean_chunk:
                     clean_chunk = clean_chunk.split(stop_tag)[0]
 
