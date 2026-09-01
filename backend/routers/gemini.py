@@ -664,6 +664,7 @@ async def gemini_proxy(
             
             # Formulate Dynamic Adaptive Directive via CognitiveDirectiveRegistry
             from ..engine.directive_registry import CognitiveDirectiveRegistry
+            from ..engine.intent_decomposer import detect_document_genre, detect_conversational_bandwidth
             directive_registry = CognitiveDirectiveRegistry()
             
             source_labels = []
@@ -675,13 +676,25 @@ async def gemini_proxy(
                 source_labels.extend(parsed_intent.detected_urls)
             
             source_label = " & ".join(source_labels) if source_labels else "THE REFERENCE SOURCE"
+            detected_doc_genre = detect_document_genre(combined_grounding, filename=doc_name or "", raw_prompt=raw_user_prompt)
+            detected_bandwidth = detect_conversational_bandwidth(raw_user_prompt, modality=parsed_intent.directive_modality, genre=detected_doc_genre)
             
             if doc_grounding or url_grounding:
-                directive = directive_registry.synthesize_directive(parsed_intent.directive_modality, source_label)
+                directive = directive_registry.synthesize_directive(
+                    parsed_intent.directive_modality,
+                    source_label,
+                    document_genre=detected_doc_genre,
+                    conversational_bandwidth=detected_bandwidth
+                )
             elif files:
                 directive = "INSTRUCTION: Answer the User Directive directly, comprehensively, and accurately based on the provided document text and reference grounding context above. Ground all factual claims strictly in the authentic reference data provided."
             else:
-                directive = specialized_directive or directive_registry.synthesize_directive(parsed_intent.directive_modality, source_label)
+                directive = specialized_directive or directive_registry.synthesize_directive(
+                    parsed_intent.directive_modality,
+                    source_label,
+                    document_genre=detected_doc_genre,
+                    conversational_bandwidth=detected_bandwidth
+                )
 
             effective_prompt = (
                 f"### USER DIRECTIVE / QUESTION:\n"
@@ -825,6 +838,7 @@ async def gemini_proxy_stream(
             
             # Formulate Dynamic Adaptive Directive via CognitiveDirectiveRegistry
             from ..engine.directive_registry import CognitiveDirectiveRegistry
+            from ..engine.intent_decomposer import detect_document_genre, detect_conversational_bandwidth
             directive_registry = CognitiveDirectiveRegistry()
             
             source_labels = []
@@ -836,13 +850,25 @@ async def gemini_proxy_stream(
                 source_labels.extend(parsed_intent.detected_urls)
             
             source_label = " & ".join(source_labels) if source_labels else "THE REFERENCE SOURCE"
+            detected_doc_genre = detect_document_genre(combined_grounding, filename=doc_name or "", raw_prompt=raw_user_prompt)
+            detected_bandwidth = detect_conversational_bandwidth(raw_user_prompt, modality=parsed_intent.directive_modality, genre=detected_doc_genre)
             
             if doc_grounding or url_grounding:
-                directive = directive_registry.synthesize_directive(parsed_intent.directive_modality, source_label)
+                directive = directive_registry.synthesize_directive(
+                    parsed_intent.directive_modality,
+                    source_label,
+                    document_genre=detected_doc_genre,
+                    conversational_bandwidth=detected_bandwidth
+                )
             elif files:
                 directive = "INSTRUCTION: Answer the User Directive directly, comprehensively, and accurately based on the provided document text and reference grounding context above. Ground all factual claims strictly in the authentic reference data provided."
             else:
-                directive = specialized_directive or directive_registry.synthesize_directive(parsed_intent.directive_modality, source_label)
+                directive = specialized_directive or directive_registry.synthesize_directive(
+                    parsed_intent.directive_modality,
+                    source_label,
+                    document_genre=detected_doc_genre,
+                    conversational_bandwidth=detected_bandwidth
+                )
 
             effective_prompt = (
                 f"### USER DIRECTIVE / QUESTION:\n"
@@ -1468,11 +1494,12 @@ async def _process_dynamic_artifact_block(full_response: str, prompt: str, outpu
                 code_m = re.search(r'```(?:python|typescript|js|ts|cpp|c|sh|json)?\n([\s\S]*?)```', full_response)
                 content = code_m.group(1).strip() if code_m else full_response
         elif is_research_req:
-            from ..engine.intent_decomposer import IntentDecomposer
+            from ..engine.intent_decomposer import IntentDecomposer, detect_document_genre
             from ..engine.directive_registry import CognitiveDirectiveRegistry
             
             p_intent = IntentDecomposer().decompose(prompt)
-            cat_name, default_title = CognitiveDirectiveRegistry().get_artifact_metadata(p_intent.directive_modality, "Document")
+            doc_genre = detect_document_genre(full_response, raw_prompt=prompt)
+            cat_name, default_title = CognitiveDirectiveRegistry().get_artifact_metadata(p_intent.directive_modality, "Document", document_genre=doc_genre)
             kind = cat_name
             
             first_h1 = re.search(r'^#\s+([^\n]+)', full_response, re.MULTILINE)
@@ -1511,7 +1538,8 @@ async def _process_dynamic_artifact_block(full_response: str, prompt: str, outpu
     folder_name = f"{date_str}_{slug}"
 
     artifacts_base = os.path.abspath(output_dir) if output_dir else os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "workspace", "artifacts"))
-    cat_dir = kind if kind in ["comparisons", "critiques", "articles", "contrarian", "narratives", "creative", "mathematics", "research", "presentations", "code"] else "research"
+    valid_categories = ["comparisons", "critiques", "articles", "contrarian", "narratives", "creative", "mathematics", "research", "presentations", "code", "finance", "legal", "engineering", "policy", "clinical", "education"]
+    cat_dir = kind if kind in valid_categories else "research"
     save_dir = os.path.join(artifacts_base, cat_dir, folder_name)
     os.makedirs(save_dir, exist_ok=True)
 
@@ -1541,6 +1569,24 @@ async def _process_dynamic_artifact_block(full_response: str, prompt: str, outpu
             }, mf, indent=2)
     except Exception:
         pass
+
+    # Sovereign Hybrid Memory Distillation to H-LSM L3 Knowledge Graph
+    try:
+        from .. import services
+        if services.memory and len(md_content.split()) >= 300 and kind in [
+            "research", "finance", "legal", "engineering", "policy", "clinical", "education",
+            "comparisons", "critiques", "articles", "mathematics"
+        ]:
+            distill_content = f"Artifact Synthesized: {title} ({kind})\nURI: {md_file_path}\n\nSummary Excerpt:\n{md_content[:1500]}"
+            await services.memory.l1_store(
+                content=distill_content,
+                source=f"artifact_{kind}",
+                session_key="system_artifact_distillation",
+                extra_metadata={"artifact_uri": md_file_path, "category": kind, "title": title}
+            )
+            logger.info(f"[GeminiRouter] Auto-distilled substantive artifact '{title}' ({kind}) into H-LSM Memory")
+    except Exception as e:
+        logger.debug(f"[GeminiRouter] Non-blocking artifact distillation notice: {e}")
 
     from .. import services
     if services.orchestrator and hasattr(services.orchestrator, "ws_gateway") and services.orchestrator.ws_gateway:

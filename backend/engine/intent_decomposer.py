@@ -42,6 +42,185 @@ class DirectiveModality(str, Enum):
     CONCEPTUAL_QA = "CONCEPTUAL_QA"
 
 
+class ConversationalBandwidth(str, Enum):
+    EXHAUSTIVE_MONOGRAPH = "exhaustive_monograph"
+    TECHNICAL_DOSSIER = "technical_dossier"
+    EXECUTIVE_BRIEFING = "executive_briefing"
+    DIRECT_PRECISION_QA = "direct_precision_qa"
+    NATURAL_CONVERSATION = "natural_conversation"
+
+
+class DocumentGenre(str, Enum):
+    SCIENTIFIC_MATHEMATICAL = "SCIENTIFIC_MATHEMATICAL"
+    BIOMEDICAL_CLINICAL = "BIOMEDICAL_CLINICAL"
+    BUSINESS_FINANCIAL = "BUSINESS_FINANCIAL"
+    LEGAL_REGULATORY = "LEGAL_REGULATORY"
+    ENGINEERING_SYSTEMS = "ENGINEERING_SYSTEMS"
+    STRATEGIC_POLICY = "STRATEGIC_POLICY"
+    EDUCATIONAL_PEDAGOGICAL = "EDUCATIONAL_PEDAGOGICAL"
+    NARRATIVE_LITERARY = "NARRATIVE_LITERARY"
+    GENERAL_DOCUMENT = "GENERAL_DOCUMENT"
+
+
+def detect_document_genre(text: str = "", filename: str = "", raw_prompt: str = "") -> DocumentGenre:
+    """
+    Deterministically profiles the intrinsic epistemic genre of a document or query context
+    by analyzing semantic vocabulary, mathematical syntax, financial metrics, legal phrasing,
+    engineering terms, and structural markers.
+    """
+    combined = f"{filename} {raw_prompt} {text[:8000]}".lower()
+
+    # 1. Scientific & Mathematical (Theorems, proofs, physics, math symbols, academic markers)
+    math_symbols = ["\\mathcal", "\\int", "\\sum", "\\to", "\\times", "\\in", "\\mathbb", "\\partial", "\\boxed", "$$"]
+    math_symbol_hits = sum(1 for sym in math_symbols if sym.lower() in combined)
+    sci_keywords = [
+        "theorem", "lemma", "proof", "axiom", "hypothesis", "corollary", "quantum",
+        "wavefunction", "state space", "measurable space", "markov", "topology", "physics",
+        "consciousness", "neuroscience", "eigenvalue", "kernel", "operator", "falsification",
+        "empirical study", "methodology", "doi:", "arxiv", "bibtex", "peer review",
+        "objects of consciousness", "cimc", "hoffman", "prakash"
+    ]
+    sci_score = sum(2 for kw in sci_keywords if kw in combined) + math_symbol_hits * 3
+
+    # 2. Biomedical & Clinical (Clinical trials, pharmacology, oncology, endpoints, hazard ratios)
+    bio_keywords = [
+        "clinical trial", "phase i", "phase ii", "phase iii", "phase iv", "hazard ratio",
+        "overall survival", "progression-free", "adverse event", "pharmacology", "pharmacokinetics",
+        "pharmacodynamics", "kaplan-meier", "endpoints", "biomarker", "fda approval", "ema",
+        "oncology", "randomized controlled", "placebo", "cohort", "inclusion criteria",
+        "exclusion criteria", "toxicity", "dose-limiting", "monoclonal antibody", "nejm", "lancet"
+    ]
+    bio_score = sum(2 for kw in bio_keywords if kw in combined)
+
+    # 3. Business, Financial & Venture (Unit economics, balance sheets, pitch decks, SEC filings)
+    biz_keywords = [
+        "ebitda", "arr", "mrr", "cac", "ltv", "balance sheet", "cash flow", "income statement",
+        "valuation", "cap table", "pitch deck", "tam", "sam", "som", "gross margin", "operating margin",
+        "p&l", "financial model", "quarterly results", "10-k", "10-q", "sec filing", "dividend",
+        "guidance", "revenue growth", "burn rate", "runway", "go-to-market", "gtm", "market sizing",
+        "customer acquisition", "churn rate", "net retention", "series a", "series b", "seed round"
+    ]
+    biz_score = sum(2 for kw in biz_keywords if kw in combined)
+
+    # 4. Legal, Contractual & Regulatory (MSAs, NDAs, covenants, indemnification, statutes)
+    legal_keywords = [
+        "agreement", "contract", "nda", "msa", "terms of service", "privacy policy",
+        "indemnification", "indemnity", "liability", "jurisdiction", "covenants",
+        "representations and warranties", "force majeure", "arbitration", "statute",
+        "regulation", "gdpr", "hipaa", "compliance audit", "subcontractor", "governing law",
+        "severability", "termination clause", "herein", "hereto", "whereas", "in witness whereof"
+    ]
+    legal_score = sum(2 for kw in legal_keywords if kw in combined)
+
+    # 5. Engineering & Systems Architecture (RFCs, APIs, SLAs, distributed topologies)
+    eng_keywords = [
+        "rfc", "api contract", "endpoint", "microservice", "latency", "throughput", "sla",
+        "slo", "sli", "kubernetes", "docker", "failover", "circuit breaker", "load balancer",
+        "grpc", "protobuf", "graphql", "data pipeline", "database schema", "cache invalidation",
+        "concurrency", "distributed system", "message queue", "kafka", "redis cluster"
+    ]
+    eng_score = sum(2 for kw in eng_keywords if kw in combined)
+
+    # 6. Strategic Policy & Institutional Governance (Charters, whitepapers, geopolitics)
+    policy_keywords = [
+        "public policy", "geopolitical", "institutional governance", "treaty", "stakeholder impact",
+        "charter", "regulatory framework", "ethical guidelines", "socioeconomic", "diplomacy",
+        "sovereignty", "policy trade-off", "public sector", "fiduciary stewardship"
+    ]
+    policy_score = sum(2 for kw in policy_keywords if kw in combined)
+
+    # 7. Educational & Pedagogical (Curricula, tutorials, worked examples, misconceptions)
+    edu_keywords = [
+        "curriculum", "syllabus", "lesson plan", "tutorial", "textbook", "learning objectives",
+        "worked example", "misconceptions", "practice problems", "active recall", "pedagogy",
+        "rubric", "study guide", "quiz", "homework", "concept map", "prerequisites",
+        "scaffolding", "masterclass", "step-by-step guide"
+    ]
+    edu_score = sum(2 for kw in edu_keywords if kw in combined)
+
+    # 8. Narrative, Books & Essays (Literary, memoirs, biographies, dialogue)
+    narrative_keywords = [
+        "novel", "memoir", "biography", "fiction", "character development", "protagonist",
+        "narrative arc", "thematic motif", "allegory", "poetic", "screenplay", "prose style",
+        "historical narrative", "literary criticism"
+    ]
+    narrative_score = sum(2 for kw in narrative_keywords if kw in combined)
+
+    scores = {
+        DocumentGenre.SCIENTIFIC_MATHEMATICAL: sci_score,
+        DocumentGenre.BIOMEDICAL_CLINICAL: bio_score,
+        DocumentGenre.BUSINESS_FINANCIAL: biz_score,
+        DocumentGenre.LEGAL_REGULATORY: legal_score,
+        DocumentGenre.ENGINEERING_SYSTEMS: eng_score,
+        DocumentGenre.STRATEGIC_POLICY: policy_score,
+        DocumentGenre.EDUCATIONAL_PEDAGOGICAL: edu_score,
+        DocumentGenre.NARRATIVE_LITERARY: narrative_score,
+    }
+
+    best_genre, best_score = max(scores.items(), key=lambda item: item[1])
+    return best_genre if best_score >= 2 else DocumentGenre.GENERAL_DOCUMENT
+
+
+def detect_conversational_bandwidth(
+    raw_prompt: str = "",
+    modality: DirectiveModality = DirectiveModality.CONCEPTUAL_QA,
+    genre: DocumentGenre = DocumentGenre.GENERAL_DOCUMENT,
+    text_sample: str = ""
+) -> ConversationalBandwidth:
+    """
+    Deterministically profiles the required interaction density and conversational pacing.
+    """
+    prompt_lower = raw_prompt.lower().strip()
+
+    # 1. Direct Precision QA (Pinpoint facts, formula lookups, single metric queries)
+    precision_triggers = [
+        "what is the formula", "extract the formula", "what is the equation", "extract equation",
+        "what was the ebitda", "what is the ebitda", "what is the arr", "what is the cac",
+        "what is the port", "what is the liability cap", "is indemnification",
+        "what section", "what page", "exact definition of", "define "
+    ]
+    if any(pt in prompt_lower for pt in precision_triggers) and len(prompt_lower) < 180:
+        return ConversationalBandwidth.DIRECT_PRECISION_QA
+
+    # 2. Executive Briefing (TL;DR, High-level, Executive Summary)
+    briefing_triggers = [
+        "executive summary", "briefing", "high-level", "tl;dr", "tldr", "quick summary",
+        "executive overview", "bullet points", "key takeaways", "highlights", "brief overview", "1-page"
+    ]
+    if any(bt in prompt_lower for bt in briefing_triggers):
+        return ConversationalBandwidth.EXECUTIVE_BRIEFING
+
+    # 3. Exhaustive Monograph (Explicit publication-grade, monograph, treatise requests)
+    exhaustive_triggers = [
+        "exhaustive", "monograph", "treatise", "publication-grade", "publication grade",
+        "comprehensive analysis", "full paper analysis", "deep-dive monograph", "academic synthesis",
+        "exhaustive analysis", "complete breakdown"
+    ]
+    if any(et in prompt_lower for et in exhaustive_triggers) or modality in [
+        DirectiveModality.ACADEMIC_ARTICLE, DirectiveModality.MULTI_DOCUMENT_COMPARISON, DirectiveModality.CRITICAL_ANALYSIS
+    ]:
+        return ConversationalBandwidth.EXHAUSTIVE_MONOGRAPH
+
+    # 4. Natural Conversation (Dialogue, open-ended, brainstorming, co-working, greetings)
+    conversational_triggers = [
+        "what do you think", "how do you feel", "can we brainstorm", "help me brainstorm",
+        "let's work together", "step by step", "step-by-step", "hello", "hi ", "hey",
+        "let's discuss", "what are your thoughts", "can you help me understand"
+    ]
+    if any(ct in prompt_lower for ct in conversational_triggers) or (
+        modality == DirectiveModality.CONCEPTUAL_QA and len(prompt_lower) < 250 and not any(w in prompt_lower for w in ["analyze", "evaluate", "breakdown", "dossier", "spec", "architecture"])
+    ):
+        return ConversationalBandwidth.NATURAL_CONVERSATION
+
+    # 5. Technical Dossier (Default for technical specs, architectural deep-dives, RFCs)
+    if modality == DirectiveModality.FORMULA_EXTRACTION:
+        return ConversationalBandwidth.TECHNICAL_DOSSIER
+    if genre in [DocumentGenre.ENGINEERING_SYSTEMS, DocumentGenre.LEGAL_REGULATORY, DocumentGenre.BUSINESS_FINANCIAL]:
+        return ConversationalBandwidth.TECHNICAL_DOSSIER
+
+    return ConversationalBandwidth.EXHAUSTIVE_MONOGRAPH
+
+
 class CapabilityDomain(str, Enum):
     COMPUTE_INFERENCE = "compute_and_inference"
     TOPOLOGICAL_PHYSICS = "topological_physics"
@@ -61,6 +240,8 @@ class ParsedGoalTuple(BaseModel):
     core_objective: str
     intent_type: IntentType
     directive_modality: DirectiveModality = DirectiveModality.CONCEPTUAL_QA
+    detected_genre: DocumentGenre = DocumentGenre.GENERAL_DOCUMENT
+    detected_bandwidth: ConversationalBandwidth = ConversationalBandwidth.EXHAUSTIVE_MONOGRAPH
     detected_urls: List[str] = Field(default_factory=list)
     domain: CapabilityDomain
     suggested_agent: str = "executive"
@@ -377,14 +558,19 @@ class IntentDecomposer:
             modality = DirectiveModality.VIRAL_PUBLIC_NARRATIVE
         elif any(w in body_lower for w in ["formula", "formulas", "latex", "equation", "equations", "math", "mathematical", "kernel", "tuple", "theorem", "proof", "extract the math"]):
             modality = DirectiveModality.FORMULA_EXTRACTION
-        elif any(w in body_lower for w in ["overview", "treatise", "breakdown", "dossier", "comprehensive", "summarize", "summary", "explain this paper", "explain the paper"]):
+        elif any(w in body_lower for w in ["overview", "treatise", "breakdown", "dossier", "comprehensive", "summarize", "summary", "explain this paper", "explain the paper", "exhaustive", "strategic analysis", "in-depth analysis", "detailed analysis"]):
             modality = DirectiveModality.COMPREHENSIVE_OVERVIEW
+
+        genre = detect_document_genre(clean_prompt, raw_prompt=clean_prompt)
+        bandwidth = detect_conversational_bandwidth(clean_prompt, modality=modality, genre=genre)
 
         return ParsedGoalTuple(
             raw_prompt=clean_prompt,
             core_objective=core_objective,
             intent_type=intent_type,
             directive_modality=modality,
+            detected_genre=genre,
+            detected_bandwidth=bandwidth,
             detected_urls=cleaned_urls,
             domain=domain,
             suggested_agent=suggested_agent,
