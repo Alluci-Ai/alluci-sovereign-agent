@@ -197,13 +197,13 @@ def test_select_optimal_local_model_glm_routing():
     from backend.config import settings
     router = ModelRouter(settings)
     
-    # 1. Long document request -> routes to local GLM-1M
+    # 1. Long document request -> routes to local GLM-4
     model_long = router.select_optimal_local_model("Please provide a comprehensive overview and explain the 30-page whitepaper in detail", estimated_tokens=12000)
-    assert model_long is not None and "glm-4-9b-chat-1m" in model_long
+    assert model_long is not None and "GLM-4" in model_long
 
-    # 2. Mathematical proof request -> routes to local Thinking or 31B
+    # 2. Mathematical proof request -> routes to local GLM-4-32B or 31B
     model_proof = router.select_optimal_local_model("Formulate the mathematical proof and simplicial complex topology for conscious agents")
-    assert model_proof is not None and ("Thinking" in model_proof or "31b" in model_proof)
+    assert model_proof is not None and ("GLM-4" in model_proof or "31b" in model_proof)
 
 
 @pytest.mark.asyncio

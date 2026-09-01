@@ -53,13 +53,13 @@ class MLXEngine:
     draft_engine: Optional[Any] = None
     draft_model_id: Optional[str] = None
 
-    def load_draft_model_sync(self, draft_model_override: Optional[str] = "Alluci/alluci-polytope-gemma-4-e2b-it-4bit"):
-        """Synchronously loads the lightweight edge model as a speculative drafting engine."""
-        if self.draft_engine is not None and self.draft_model_id == draft_model_override:
+    def load_draft_model_sync(self, draft_model_override: Optional[str] = None):
+        """Synchronously loads the lightweight edge model as a speculative drafting engine if compatible."""
+        if not draft_model_override or (self.draft_engine is not None and self.draft_model_id == draft_model_override):
             return
 
         try:
-            model_name = (draft_model_override or "").split("/")[-1]
+            model_name = draft_model_override.split("/")[-1]
             model_dir = os.path.abspath(f"mirror_cache/{model_name}")
             if not os.path.exists(model_dir):
                 return
@@ -69,7 +69,7 @@ class MLXEngine:
             self.draft_model_id = draft_model_override
             logger.info(f"MLXEngine: Speculative Draft Engine [{model_name}] loaded successfully.")
         except Exception as draft_err:
-            logger.warning(f"MLXEngine: Could not load draft model {draft_model_override}: {draft_err}")
+            logger.debug(f"MLXEngine: Draft model {draft_model_override} skipped: {draft_err}")
             self.draft_engine = None
 
     def load_model_sync(self, target_model_override: Optional[str] = None):
@@ -217,34 +217,49 @@ class MLXEngine:
             )
             system_instruction = f"{tool_directive}\n\n{system_instruction}" if system_instruction else tool_directive
 
+    def _format_prompt(
+        self,
+        prompt: str,
+        system_instruction: str = "",
+        tools: Optional[list] = None
+    ) -> str:
+        """Formats prompt using model-specific turn structures and applies Streaming Attention Sinks."""
+        messages = []
+        if tools:
+            serialized_tools = json.dumps(tools, indent=2)
+            tool_directive = (
+                f"You are an autonomous agent. You have access to the following tools:\n{serialized_tools}\n"
+                "To use a tool, you MUST output a raw JSON object exactly matching the schema. "
+                "Do not output conversational text when using a tool."
+            )
+            system_instruction = f"{tool_directive}\n\n{system_instruction}" if system_instruction else tool_directive
+
         if system_instruction:
             messages.append({"role": "system", "content": system_instruction})
             
         messages.append({"role": "user", "content": prompt})
         
-        # 1. Native Tokenizer Chat Template (GLM-4, Gemma 4, Qwen, etc.)
-        if self.tokenizer is not None and hasattr(self.tokenizer, "apply_chat_template") and getattr(self.tokenizer, "chat_template", None):
-            try:
-                formatted = self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-                return MLXEngine._apply_streaming_attention_sink(formatted)
-            except Exception as tmpl_err:
-                logger.debug(f"[MLXEngine] apply_chat_template fallback notice: {tmpl_err}")
-
-        # 2. Dynamic Fallback to model-family-specific templates
         is_glm = bool(self.loaded_model_id and "glm" in self.loaded_model_id.lower())
+        
+        # 1. Native Tokenizer Chat Template for GLM / Qwen Architectures
         if is_glm:
+            if self.tokenizer is not None and hasattr(self.tokenizer, "apply_chat_template") and getattr(self.tokenizer, "chat_template", None):
+                try:
+                    formatted = self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+                    return MLXEngine._apply_streaming_attention_sink(formatted)
+                except Exception as tmpl_err:
+                    logger.debug(f"[MLXEngine] apply_chat_template fallback notice: {tmpl_err}")
+
             formatted = "[gMASK]<sop>"
             if system_instruction:
                 formatted += f"<|system|>\n{system_instruction}"
             formatted += f"<|user|>\n{prompt}<|assistant|>"
         else:
-            # Gemma 4 fallback
-            formatted = ""
+            # 2. Clean Gemma 4 Turn Formatting (Avoids forcing internal <|think|> chain-of-thought dumps)
+            formatted = "<bos>"
             if system_instruction:
-                formatted += f"<bos><|turn>system\n{system_instruction}<|turn|>\n"
-            else:
-                formatted += "<bos>"
-            formatted += f"<|turn>user\n{prompt}<|turn|>\n<|turn>model\n"
+                formatted += f"<|turn>system\n{system_instruction}<turn|>\n"
+            formatted += f"<|turn>user\n{prompt}<turn|>\n<|turn>model\n"
         
         # Apply Streaming Attention Sink for infinite multi-turn stability
         return MLXEngine._apply_streaming_attention_sink(formatted)

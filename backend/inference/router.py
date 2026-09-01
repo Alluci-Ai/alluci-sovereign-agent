@@ -1159,7 +1159,7 @@ class ModelRouter(ExecutiveRouter):
                     if os.path.exists(glm_v):
                         return "mirror_cache/GLM-4.6V-4bit"
         
-        # 2. Long Document / Massive Context (> 8,000 tokens or ~32,000 characters)
+        # 2. Long Document / Massive Context / Academic Papers
         prompt_token_est = estimated_tokens or (len(prompt) // 4)
         is_long_doc_request = (
             prompt_token_est > 8000 or
@@ -1169,9 +1169,12 @@ class ModelRouter(ExecutiveRouter):
             ])
         )
         if is_long_doc_request:
-            glm_1m = os.path.abspath("mirror_cache/glm-4-9b-chat-1m-6bit")
-            if os.path.exists(glm_1m):
-                return "mirror_cache/glm-4-9b-chat-1m-6bit"
+            glm_32b = os.path.abspath("mirror_cache/GLM-4-32B-0414-4bit")
+            if os.path.exists(glm_32b):
+                return "mirror_cache/GLM-4-32B-0414-4bit"
+            glm_9b = os.path.abspath("mirror_cache/GLM-4-9B-0414-8bit")
+            if os.path.exists(glm_9b):
+                return "mirror_cache/GLM-4-9B-0414-8bit"
             
         # 3. Deep Mathematical Proofs / Complex Strategic Architecture / Socratic Thinking
         deep_proof_triggers = [
@@ -1180,9 +1183,9 @@ class ModelRouter(ExecutiveRouter):
             "markovian kernel", "conscious agent", "theorem", "proof of"
         ]
         if any(w in body_lower for w in deep_proof_triggers):
-            thinking_path = os.path.abspath("mirror_cache/GLM-4.1V-9B-Thinking-4bit")
-            if os.path.exists(thinking_path):
-                return "mirror_cache/GLM-4.1V-9B-Thinking-4bit"
+            glm_32b = os.path.abspath("mirror_cache/GLM-4-32B-0414-4bit")
+            if os.path.exists(glm_32b):
+                return "mirror_cache/GLM-4-32B-0414-4bit"
             dense_path = os.path.abspath("mirror_cache/alluci-polytope-gemma-4-31b-it-bf16")
             if os.path.exists(dense_path):
                 return "Alluci/alluci-polytope-gemma-4-31b-it-bf16"
