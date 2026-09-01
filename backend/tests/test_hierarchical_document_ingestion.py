@@ -162,7 +162,7 @@ async def test_check_document_page_grounding_interceptor(temp_hlsm_manager):
     services.hlsm_manager = temp_hlsm_manager
 
     prompt = "please look at pages 6, 7, 8 and 9 of the Hoffman_Objects of Consciousness.pdf and explain these specific pages please."
-    grounding = await _check_document_page_grounding(prompt)
+    grounding, doc_sha, doc_name = await _check_document_page_grounding(prompt)
 
     assert grounding is not None
     assert "[AUTHENTIC SOURCE DOCUMENT PAGE GROUNDING" in grounding
@@ -238,5 +238,41 @@ async def test_dynamic_research_artifact_packaging(tmp_path):
     with open(os.path.join(art_dir, "source.html"), "r") as f:
         html_text = f.read()
         assert "<h1>Objects of Consciousness — Comprehensive Treatise Analysis</h1>" in html_text
+
+
+@pytest.mark.asyncio
+async def test_sha256_scoped_memory_isolation(temp_hlsm_manager):
+    """Verifies that scoping retrieval to a specific document SHA-256 blocks cross-document memory bleeding."""
+    # Ingest Document A (Hoffman)
+    doc_a_content = (
+        "--- [DOCUMENT: Hoffman.pdf | PAGE 1/1] ---\n"
+        "Conscious agents 7-tuple model and interface theory of perception."
+    )
+    ids_a = await temp_hlsm_manager.ingest_document_payload(
+        filename="Hoffman.pdf", content=doc_a_content, session_key="session_a"
+    )
+    
+    # Ingest Document B (CIMC)
+    doc_b_content = (
+        "--- [DOCUMENT: CIMC.pdf | PAGE 1/1] ---\n"
+        "Integrated Information Theory with Tononi Phi metric and Karl Friston Free Energy Principle."
+    )
+    ids_b = await temp_hlsm_manager.ingest_document_payload(
+        filename="CIMC.pdf", content=doc_b_content, session_key="session_b"
+    )
+
+    import hashlib
+    sha_a = hashlib.sha256(doc_a_content.encode("utf-8")).hexdigest()
+    sha_b = hashlib.sha256(doc_b_content.encode("utf-8")).hexdigest()
+
+    # Query with sha_a scope: should retrieve only Hoffman, zero Tononi/FEP
+    res_a = await temp_hlsm_manager.retrieve_context(
+        objective="Extract mathematical formulas and models of consciousness",
+        doc_sha256=sha_a
+    )
+    prompt_block_a = res_a.to_prompt_block()
+    assert "Tononi" not in prompt_block_a
+    assert "Free Energy Principle" not in prompt_block_a
+
 
 

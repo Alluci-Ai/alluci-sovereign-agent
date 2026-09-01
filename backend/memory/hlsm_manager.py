@@ -783,18 +783,18 @@ class HLSMManager:
             session.add(entry)
             session.commit()
 
-    async def l1_search(self, query: str, limit: int = 10) -> List[HLSMRetrievalResult]:
+    async def l1_search(self, query: str, limit: int = 10, doc_sha256: Optional[str] = None) -> List[HLSMRetrievalResult]:
         """
         Full-text search across L1 episodic memories.
         Uses FTS5 for high-performance matching.
         """
-        results = await asyncio.to_thread(self._l1_fts_search, query, limit)
+        results = await asyncio.to_thread(self._l1_fts_search, query, limit, doc_sha256)
         if results:
             ids_to_update = [r.id for r in results]
             await asyncio.to_thread(self._l1_update_access, ids_to_update)
         return results
 
-    def _l1_fts_search(self, query: str, limit: int) -> List[HLSMRetrievalResult]:
+    def _l1_fts_search(self, query: str, limit: int, doc_sha256: Optional[str] = None) -> List[HLSMRetrievalResult]:
         """
         SQLite FTS5 MATCH or PostgreSQL ILIKE search for episodic entries.
         Returns entries sorted by retention × relevance.
@@ -809,18 +809,37 @@ class HLSMManager:
 
             if "sqlite" in db_url:
                 try:
-                    # High-performance FTS5 MATCH
-                    raw = session.exec(sa_text(  # type: ignore
-                        "SELECT main.id, main.content, main.source, main.session_key, "
-                        "main.psi_at_encoding, main.topological_importance, "
-                        "main.betti_1_support, main.access_count, main.last_accessed, "
-                        "main.retention_score "
-                        "FROM hlsm_episodic main "
-                        "JOIN hlsm_episodic_fts fts ON main.id = fts.id "
-                        "WHERE hlsm_episodic_fts MATCH :q "
-                        "ORDER BY rank "
-                        "LIMIT :limit"
-                    ).bindparams(q=clean_query, limit=limit)).fetchall()
+                    # High-performance FTS5 MATCH with optional document SHA-256 scoping
+                    if doc_sha256:
+                        raw = session.exec(sa_text(  # type: ignore
+                            "SELECT main.id, main.content, main.source, main.session_key, "
+                            "main.psi_at_encoding, main.topological_importance, "
+                            "main.betti_1_support, main.access_count, main.last_accessed, "
+                            "main.retention_score "
+                            "FROM hlsm_episodic main "
+                            "JOIN hlsm_episodic_fts fts ON main.id = fts.id "
+                            "WHERE hlsm_episodic_fts MATCH :q "
+                            "AND (main.extra_metadata LIKE :sha_pat OR main.id LIKE :id_pat) "
+                            "ORDER BY rank "
+                            "LIMIT :limit"
+                        ).bindparams(
+                            q=clean_query, 
+                            limit=limit, 
+                            sha_pat=f"%{doc_sha256[:8]}%", 
+                            id_pat=f"doc_{doc_sha256[:8]}%"
+                        )).fetchall()
+                    else:
+                        raw = session.exec(sa_text(  # type: ignore
+                            "SELECT main.id, main.content, main.source, main.session_key, "
+                            "main.psi_at_encoding, main.topological_importance, "
+                            "main.betti_1_support, main.access_count, main.last_accessed, "
+                            "main.retention_score "
+                            "FROM hlsm_episodic main "
+                            "JOIN hlsm_episodic_fts fts ON main.id = fts.id "
+                            "WHERE hlsm_episodic_fts MATCH :q "
+                            "ORDER BY rank "
+                            "LIMIT :limit"
+                        ).bindparams(q=clean_query, limit=limit)).fetchall()
                 except Exception as e:
                     logger.debug(f"[HLSM L1] FTS5 search failed: {e} - falling back to LIKE")
                     # Robust keyword-split fallback to standard LIKE with stop-word filtering
@@ -830,12 +849,16 @@ class HLSMManager:
                         like_clauses = " OR ".join([f"LOWER(content) LIKE :w{i}" for i in range(len(words))])
                         params: Dict[str, Any] = {f"w{i}": f"%{w}%" for i, w in enumerate(words)}
                         params["limit"] = limit * 2
+                        sha_clause = " AND (extra_metadata LIKE :sha_pat OR id LIKE :id_pat)" if doc_sha256 else ""
+                        if doc_sha256:
+                            params["sha_pat"] = f"%{doc_sha256[:8]}%"
+                            params["id_pat"] = f"doc_{doc_sha256[:8]}%"
                         raw = session.exec(sa_text(  # type: ignore
                             "SELECT id, content, source, session_key, psi_at_encoding, "
                             "topological_importance, betti_1_support, access_count, "
                             "last_accessed, retention_score "
                             "FROM hlsm_episodic "
-                            f"WHERE {like_clauses} "
+                            f"WHERE ({like_clauses}){sha_clause} "
                             "ORDER BY last_accessed DESC "
                             "LIMIT :limit"
                         ).bindparams(**params)).fetchall()
@@ -843,15 +866,20 @@ class HLSMManager:
                         raw = []
             else:
                 # PostgreSQL High-Performance FTS (Native tsvector)
+                sha_clause = " AND (extra_metadata LIKE :sha_pat OR id LIKE :id_pat)" if doc_sha256 else ""
+                params = {"q": query, "limit": limit}
+                if doc_sha256:
+                    params["sha_pat"] = f"%{doc_sha256[:8]}%"
+                    params["id_pat"] = f"doc_{doc_sha256[:8]}%"
                 raw = session.exec(sa_text(  # type: ignore
                     "SELECT id, content, source, session_key, psi_at_encoding, "
                     "topological_importance, betti_1_support, access_count, "
                     "last_accessed, retention_score "
                     "FROM hlsm_episodic "
-                    "WHERE to_tsvector('english', content) @@ plainto_tsquery('english', :q) "
+                    f"WHERE to_tsvector('english', content) @@ plainto_tsquery('english', :q){sha_clause} "
                     "ORDER BY last_accessed DESC "
                     "LIMIT :limit"
-                ).bindparams(q=query, limit=limit)).fetchall()
+                ).bindparams(**params)).fetchall()
 
             stop_words = {"the", "and", "can", "you", "all", "your", "are", "for", "with", "this", "that", "what", "how", "tell", "show", "list", "hello", "alluci", "from", "into"}
             query_words = set(clean_query.lower().split()) - stop_words
@@ -998,7 +1026,7 @@ class HLSMManager:
             logger.error(f"[HLSM L2] KùzuDB store failed for {entry.id}: {e}", exc_info=True)
             return None
 
-    async def l2_search(self, query: str, limit: int = 10) -> List[HLSMRetrievalResult]:
+    async def l2_search(self, query: str, limit: int = 10, doc_sha256: Optional[str] = None) -> List[HLSMRetrievalResult]:
         """
         O(1) Topological Barcode search against L2 KùzuDB collection.
         Replaces slow cosine-similarity vector searches with instantaneous graph lookups.
@@ -1011,18 +1039,31 @@ class HLSMManager:
             query_betti = str(self.dpk.get_betti_signature(self.dpk.project_state(query)))
             
             # 2. Execute an O(1) graph match in KùzuDB based on the barcode
-            cypher_query = (
-                "MATCH (m:SemanticMemory {betti_signature: $sig}) "
-                "RETURN m.id, m.content, m.source, m.session_key, m.psi_at_encoding, "
-                "m.topological_importance, m.betti_1_support, m.access_count, m.created_at, "
-                "m.is_barcode, m.uri, m.blob_path, m.ttl "
-                "LIMIT $limit"
-            )
+            if doc_sha256:
+                doc_prefix = f"doc_{doc_sha256[:8]}"
+                cypher_query = (
+                    "MATCH (m:SemanticMemory {betti_signature: $sig}) "
+                    "WHERE m.id STARTS WITH $prefix "
+                    "RETURN m.id, m.content, m.source, m.session_key, m.psi_at_encoding, "
+                    "m.topological_importance, m.betti_1_support, m.access_count, m.created_at, "
+                    "m.is_barcode, m.uri, m.blob_path, m.ttl "
+                    "LIMIT $limit"
+                )
+                params = {"sig": query_betti, "prefix": doc_prefix, "limit": limit}
+            else:
+                cypher_query = (
+                    "MATCH (m:SemanticMemory {betti_signature: $sig}) "
+                    "RETURN m.id, m.content, m.source, m.session_key, m.psi_at_encoding, "
+                    "m.topological_importance, m.betti_1_support, m.access_count, m.created_at, "
+                    "m.is_barcode, m.uri, m.blob_path, m.ttl "
+                    "LIMIT $limit"
+                )
+                params = {"sig": query_betti, "limit": limit}
             
             raw_results = await asyncio.to_thread(
                 self.kuzu_conn.execute, 
                 cypher_query, 
-                {"sig": query_betti, "limit": limit}
+                params
             )
             
             results = []
@@ -1193,7 +1234,7 @@ class HLSMManager:
             logger.error(f"[HLSM L3] KùzuDB store failed: {e}", exc_info=True)
             return None
 
-    async def l3_search(self, query: str, limit: int = 10) -> List[HLSMRetrievalResult]:
+    async def l3_search(self, query: str, limit: int = 10, doc_sha256: Optional[str] = None) -> List[HLSMRetrievalResult]:
         """
         Search L3 Knowledge Graph nodes, including DocumentNode, KeyPointNode, and L3Memory entities.
         """
@@ -1207,12 +1248,20 @@ class HLSMManager:
 
             # 1. Match DocumentNode entities by title, acronyms, name, or summary
             try:
-                doc_query = (
-                    "MATCH (d:DocumentNode) "
-                    "RETURN d.id, d.name, d.title, d.summary, d.acronyms, d.local_path, d.created_at "
-                    "LIMIT 50"
-                )
-                raw_docs = await asyncio.to_thread(self.kuzu_conn.execute, doc_query)
+                if doc_sha256:
+                    doc_query = (
+                        "MATCH (d:DocumentNode {sha256: $sha}) "
+                        "RETURN d.id, d.name, d.title, d.summary, d.acronyms, d.local_path, d.created_at "
+                        "LIMIT 5"
+                    )
+                    raw_docs = await asyncio.to_thread(self.kuzu_conn.execute, doc_query, {"sha": doc_sha256})
+                else:
+                    doc_query = (
+                        "MATCH (d:DocumentNode) "
+                        "RETURN d.id, d.name, d.title, d.summary, d.acronyms, d.local_path, d.created_at "
+                        "LIMIT 50"
+                    )
+                    raw_docs = await asyncio.to_thread(self.kuzu_conn.execute, doc_query)
                 doc_rows = _extract_kuzu_rows(raw_docs)
                 for row in doc_rows:
                     d_id, d_name, d_title, d_summary, d_acronyms, d_path, d_created = row
@@ -1220,7 +1269,7 @@ class HLSMManager:
                     
                     # Check for direct substring or token overlap
                     match_score = 0.0
-                    if clean_q in d_text:
+                    if doc_sha256 or clean_q in d_text:
                         match_score = 1.5
                     elif search_terms:
                         matches = sum(1 for t in search_terms if t in d_text)
@@ -1254,26 +1303,30 @@ class HLSMManager:
             except Exception as doc_err:
                 logger.debug(f"[HLSM L3] DocumentNode query notice: {doc_err}")
 
-            # 2. General L3Memory search
-            cypher_query = (
-                "MATCH (m:L3Memory) "
-                "RETURN m.id, m.content, m.source, m.l1_id, m.created_at "
-                "LIMIT $limit"
-            )
-            raw_results = await asyncio.to_thread(self.kuzu_conn.execute, cypher_query, {"limit": limit})
-            rows = _extract_kuzu_rows(raw_results)
-            for row in rows:
-                kuzu_id, content, source, l1_id, created_at = row
-                if kuzu_id not in seen_ids:
-                    seen_ids.add(kuzu_id)
-                    results.append(HLSMRetrievalResult(
-                        id=kuzu_id,
-                        content=content,
-                        tier=3,
-                        source=source,
-                        relevance_score=1.0,
-                        retention_score=1.0,
-                    ))
+            # 2. General L3Memory search (only if not strictly scoped to a specific document)
+            if not doc_sha256:
+                try:
+                    cypher_query = (
+                        "MATCH (m:L3Memory) "
+                        "RETURN m.id, m.content, m.source, m.l1_id, m.created_at "
+                        "LIMIT $limit"
+                    )
+                    raw_results = await asyncio.to_thread(self.kuzu_conn.execute, cypher_query, {"limit": limit})
+                    rows = _extract_kuzu_rows(raw_results)
+                    for row in rows:
+                        kuzu_id, content, source, l1_id, created_at = row
+                        if kuzu_id not in seen_ids:
+                            seen_ids.add(kuzu_id)
+                            results.append(HLSMRetrievalResult(
+                                id=kuzu_id,
+                                content=content,
+                                tier=3,
+                                source=source,
+                                relevance_score=1.0,
+                                retention_score=1.0,
+                            ))
+                except Exception:
+                    pass
 
             results.sort(key=lambda r: r.relevance_score, reverse=True)
             return results[:limit]
@@ -1377,12 +1430,14 @@ class HLSMManager:
         session_key: str = "",
         valence: float = 0.5,
         max_per_tier: int = 5,
+        doc_sha256: Optional[str] = None,
     ) -> HLSMContext:
         """
         Main retrieval entrypoint. Called by orchestrator._build_system_context().
 
         Queries all three tiers in parallel, merges, applies affective modulation,
         and returns a structured HLSMContext ready for prompt injection.
+        Optional doc_sha256 enforces strict single-document isolation without cross-bleed.
 
         Args:
             objective: The current objective text (used as search query)
@@ -1390,6 +1445,7 @@ class HLSMManager:
             session_key: Current session identifier
             valence: Current affective valence ∈ [0, 1]
             max_per_tier: Max entries per tier in the returned context
+            doc_sha256: Optional SHA-256 hash to strictly isolate retrieval to a specific document
 
         Returns:
             HLSMContext with working, episodic, and semantic memory lists
@@ -1401,9 +1457,9 @@ class HLSMManager:
         # Parallel retrieval across all 4 tiers (L0 Working, L1 FTS5, L2 Semantic, L3 Knowledge Graph)
         l0_results, l1_results, l2_results, l3_results = await asyncio.gather(
             self.l0_retrieve(session_key),
-            self.l1_search(search_query, limit=max_per_tier * 2),
-            self.l2_search(search_query, limit=max_per_tier * 2),
-            self.l3_search(search_query, limit=max_per_tier * 2),
+            self.l1_search(search_query, limit=max_per_tier * 2, doc_sha256=doc_sha256),
+            self.l2_search(search_query, limit=max_per_tier * 2, doc_sha256=doc_sha256),
+            self.l3_search(search_query, limit=max_per_tier * 2, doc_sha256=doc_sha256),
             return_exceptions=True,
         )
 
@@ -2494,11 +2550,12 @@ class HLSMManager:
         results.sort(key=lambda x: x["page_number"])
         return results
 
-    async def synthesize_document_hierarchical_overview(self, document_query: str) -> Optional[str]:
+    async def synthesize_document_hierarchical_overview(self, document_query: str, as_dict: bool = False) -> Any:
         """
         Synthesizes a structured multi-page hierarchical grounding block from KùzuDB L3 DocumentNode,
         PageNode, and ConceptNode entities.
         Provides an evenly distributed structural representation across all pages from start to finish.
+        If as_dict=True, returns dict with text, sha256, name, title.
         """
         clean_doc = os.path.basename(document_query.strip("`'\" \t\n"))
         if not self.kuzu_conn:
@@ -2585,7 +2642,18 @@ class HLSMManager:
                 heading = "### THEMATIC CHAPTER CORRIDORS & AUTHENTIC SOURCE TEXT:\n\n"
                 sections.append(heading + "\n\n".join(corridors))
 
-            return "\n\n".join(sections)
+            res_text = "\n\n".join(sections)
+            if as_dict:
+                return {
+                    "text": res_text,
+                    "sha256": matched_doc["sha256"],
+                    "name": matched_doc["name"],
+                    "title": matched_doc["title"]
+                }
+            return res_text
+        except Exception as synth_err:
+            logger.debug(f"[HLSM] Document synthesis notice: {synth_err}")
+            return None
         except Exception as synth_err:
             logger.debug(f"[HLSM] Document synthesis notice: {synth_err}")
             return None

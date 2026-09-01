@@ -422,13 +422,14 @@ async def _check_codebase_and_architecture_context(prompt: str) -> Tuple[Optiona
         return None, None
 
 
-async def _check_document_grounding(prompt: str) -> Optional[str]:
+async def _check_document_grounding(prompt: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
     """
     Detects document inquiries:
     1. Specific page requests (e.g., 'pages 6, 7, 8 and 9', 'page 12', 'pages 4-7 of Hoffman')
        -> Retrieves exact verbatim page text.
-    2. Comprehensive document overview/summary requests (e.g., 'overview of Hoffman paper', 'explain CIMC whitepaper')
+    2. Comprehensive document overview/summary/formula/question requests
        -> Synthesizes hierarchical multi-page overview from L3 PageNode & ConceptNode entities.
+    Returns (grounding_text, doc_sha256, doc_name).
     """
     body_lower = prompt.lower()
     from .. import services
@@ -439,7 +440,10 @@ async def _check_document_grounding(prompt: str) -> Optional[str]:
     if fname_match:
         doc_keywords.extend(fname_match)
     else:
-        candidates = ["hoffman", "cimc", "consciousness", "objects of consciousness", "whitepaper", "paper", "report", "document"]
+        candidates = [
+            "objects of consciousness", "hoffman", "cimc", "consciousness", 
+            "whitepaper", "paper", "report", "document", "manuscript", "treatise"
+        ]
         for c in candidates:
             if c in body_lower:
                 doc_keywords.append(c)
@@ -480,21 +484,30 @@ async def _check_document_grounding(prompt: str) -> Optional[str]:
                         
                         if page_blocks:
                             joined_pages = "\n\n".join(page_blocks)
-                            return f"[AUTHENTIC SOURCE DOCUMENT PAGE GROUNDING (Document: {doc_name} | Requested Pages: {', '.join(str(p) for p in page_numbers)})]:\n{joined_pages}"
+                            grounding = f"[AUTHENTIC SOURCE DOCUMENT PAGE GROUNDING (Document: {doc_name} | Requested Pages: {', '.join(str(p) for p in page_numbers)})]:\n{joined_pages}"
+                            return grounding, None, doc_name
                 except Exception as e:
                     logger.debug(f"[GeminiRouter] Page grounding resolution notice: {e}")
 
-    # If general document overview/explanation is requested and document query found
-    is_overview_request = any(k in body_lower for k in ["overview", "explain", "explanation", "summarize", "summary", "breakdown", "break down", "tell me about", "what is this", "what does"])
-    if is_overview_request and doc_query and hasattr(services, "hlsm_manager") and services.hlsm_manager:
+    # General document inquiries (overview, formulas, analysis, explanations, questions)
+    is_doc_inquiry = any(k in body_lower for k in [
+        "overview", "explain", "explanation", "summarize", "summary", "breakdown", 
+        "break down", "tell me about", "what is this", "what does", "formula", "formulas", 
+        "latex", "equation", "equations", "math", "mathematical", "theorem", "proof", 
+        "extract", "analyze", "analysis", "paper", "whitepaper", "dossier"
+    ]) or bool(fname_match)
+    
+    if is_doc_inquiry and doc_query and hasattr(services, "hlsm_manager") and services.hlsm_manager:
         try:
-            synth = await services.hlsm_manager.synthesize_document_hierarchical_overview(doc_query)
-            if synth:
-                return synth
+            synth_res = await services.hlsm_manager.synthesize_document_hierarchical_overview(doc_query, as_dict=True)
+            if synth_res:
+                if isinstance(synth_res, dict):
+                    return synth_res.get("text"), synth_res.get("sha256"), synth_res.get("name")
+                return synth_res, None, None
         except Exception as e:
             logger.debug(f"[GeminiRouter] Hierarchical document overview synthesis notice: {e}")
 
-    return None
+    return None, None, None
 
 
 # Backward-compatibility alias
@@ -537,7 +550,7 @@ async def gemini_proxy(
             return {"result": local_file_or_report}
 
         # 3. Dynamic Document Page & Overview Grounding Check (< 15ms)
-        doc_grounding = await _check_document_grounding(raw_user_prompt)
+        doc_grounding, doc_sha256, doc_name = await _check_document_grounding(raw_user_prompt)
 
         # 4. Dynamic Web Search Grounding Check (< 500ms)
         web_grounding = await _check_web_search_grounding(raw_user_prompt)
@@ -545,7 +558,7 @@ async def gemini_proxy(
         # 5. Dynamic Codebase & Architecture Grounding Check (< 15ms)
         code_grounding, specialized_directive = await _check_codebase_and_architecture_context(prompt)
 
-        # 6. Dynamic 4-Tier H-LSM Context Hydration across L1/L2/L3 (Tri-Hybrid RRF)
+        # 6. Dynamic 4-Tier H-LSM Context Hydration across L1/L2/L3 (Tri-Hybrid RRF with SHA-256 scoping)
         memory_block = ""
         if hasattr(services, "hlsm_manager") and services.hlsm_manager and parsed_intent.intent_type != IntentType.SYSTEM_INTROSPECTION:
             try:
@@ -556,7 +569,8 @@ async def gemini_proxy(
                 memory_ctx = await services.hlsm_manager.retrieve_context(
                     objective=parsed_intent.core_objective,
                     psi=psi,
-                    session_key=session_id or "web_chat"
+                    session_key=session_id or "web_chat",
+                    doc_sha256=doc_sha256
                 )
                 memory_block = memory_ctx.to_prompt_block()
             except Exception as mem_err:
@@ -575,7 +589,40 @@ async def gemini_proxy(
 
         if grounding_blocks:
             combined_grounding = "\n\n".join(grounding_blocks)
-            if files or doc_grounding:
+            if doc_grounding:
+                body_lower = raw_user_prompt.lower()
+                is_math_req = any(w in body_lower for w in ["formula", "formulas", "latex", "equation", "equations", "math", "mathematical", "kernel", "tuple", "theorem", "proof"])
+                is_overview_req = any(w in body_lower for w in ["overview", "treatise", "breakdown", "dossier", "comprehensive", "summarize", "summary"])
+                
+                if is_math_req:
+                    directive = (
+                        f"INSTRUCTION FOR MATHEMATICAL EXTRACTION & FORMAL ANALYSIS OF {doc_name or 'THE SOURCE DOCUMENT'}:\n"
+                        "Extract, formulate, and rigorously explain all formal mathematical definitions, tuples, measurable spaces, "
+                        "Markov transition kernels, dynamical equations, asymptotic properties, and theorems from the authentic source text above.\n"
+                        "For each mathematical object:\n"
+                        "1. State the exact formula using standard LaTeX notation ($...$ or $$...$$).\n"
+                        "2. Provide an exhaustive, rigorous explanation of every variable, space, kernel, and operational mechanic strictly grounded in this paper.\n"
+                        "3. Detail its theoretical purpose and proof structure directly from the text.\n\n"
+                        "STRICT FACTUAL GROUNDING LAWS:\n"
+                        "1. Ground every formula and definition strictly in the authentic reference data provided above.\n"
+                        "2. DO NOT mention or blend external frameworks (such as Tononi's Integrated Information Theory Phi or Karl Friston's Free Energy Principle) unless they are explicitly present in this specific document."
+                    )
+                elif is_overview_req:
+                    directive = (
+                        f"INSTRUCTION FOR COMPREHENSIVE RESEARCH ANALYSIS OF {doc_name or 'THE SOURCE DOCUMENT'}:\n"
+                        "Provide an exhaustive, publication-grade academic analysis based STRICTLY AND EXCLUSIVELY on the authentic source document text provided above.\n"
+                        "Synthesize the core executive thesis, theoretical paradigms, chapter corridors, mathematical formalisms, and strategic implications.\n\n"
+                        "STRICT FACTUAL GROUNDING LAWS:\n"
+                        "1. Ground every claim strictly in the authentic reference data provided above.\n"
+                        "2. DO NOT mention or blend external frameworks unless they are explicitly named in this specific document.\n"
+                        "3. Quote exact formulas and definitions directly from the text."
+                    )
+                else:
+                    directive = (
+                        f"INSTRUCTION: Answer the User Directive directly, comprehensively, and factually based exclusively on the provided text for {doc_name or 'the source document'}.\n"
+                        "Ground all factual claims strictly in the authentic reference data provided above."
+                    )
+            elif files:
                 directive = "INSTRUCTION: Answer the User Directive directly, comprehensively, and accurately based on the provided document text and reference grounding context above. Ground all factual claims strictly in the authentic reference data provided."
             else:
                 directive = specialized_directive or (
@@ -665,7 +712,7 @@ async def gemini_proxy_stream(
         local_file_or_report = await _check_local_workspace_file_or_report(raw_user_prompt)
 
         # 3. Dynamic Document Page & Overview Grounding Check (< 15ms)
-        doc_grounding = await _check_document_grounding(raw_user_prompt)
+        doc_grounding, doc_sha256, doc_name = await _check_document_grounding(raw_user_prompt)
 
         # 4. Dynamic Web Search Grounding Check (< 500ms)
         web_grounding = await _check_web_search_grounding(raw_user_prompt)
@@ -673,7 +720,7 @@ async def gemini_proxy_stream(
         # 5. Dynamic Codebase & Architecture Grounding Check (< 15ms)
         code_grounding, specialized_directive = await _check_codebase_and_architecture_context(prompt)
 
-        # 6. Dynamic 4-Tier H-LSM Context Hydration across L1/L2/L3 (Tri-Hybrid RRF)
+        # 6. Dynamic 4-Tier H-LSM Context Hydration across L1/L2/L3 (Tri-Hybrid RRF with SHA-256 scoping)
         memory_block = ""
         if hasattr(services, "hlsm_manager") and services.hlsm_manager and parsed_intent.intent_type != IntentType.SYSTEM_INTROSPECTION:
             try:
@@ -684,7 +731,8 @@ async def gemini_proxy_stream(
                 memory_ctx = await services.hlsm_manager.retrieve_context(
                     objective=parsed_intent.core_objective,
                     psi=psi,
-                    session_key=session_id or "web_chat"
+                    session_key=session_id or "web_chat",
+                    doc_sha256=doc_sha256
                 )
                 memory_block = memory_ctx.to_prompt_block()
             except Exception as mem_err:
@@ -704,21 +752,38 @@ async def gemini_proxy_stream(
         if grounding_blocks:
             combined_grounding = "\n\n".join(grounding_blocks)
             if doc_grounding:
-                directive = (
-                    "INSTRUCTION FOR COMPREHENSIVE RESEARCH DOSSIER COMPILATION:\n"
-                    "Provide an exhaustive, publication-grade academic analysis and research dossier based STRICTLY AND EXCLUSIVELY on the authentic source document text provided above.\n"
-                    "Structure your response with clear, comprehensive markdown headings:\n"
-                    "# [Document Title] — Comprehensive Treatise & Research Dossier\n\n"
-                    "## 1. Executive Thesis & Core Strategic Purpose\n\n"
-                    "## 2. Theoretical Frameworks & Foundational Paradigms (Detail only the specific paradigms and ontologies explicitly formulated in this text)\n\n"
-                    "## 3. Comprehensive Section-by-Section / Page-by-Page Deep Dive (Exposition of the specific arguments, proofs, and definitions across the document)\n\n"
-                    "## 4. Formal Mathematical Definitions, Formulas & Theorems (Quote exact mathematical 6-tuples, kernels, and theorems directly from the text)\n\n"
-                    "## 5. Strategic Implications & Future Research Directions\n\n"
-                    "STRICT FACTUAL GROUNDING LAWS:\n"
-                    "1. Ground every claim strictly in the authentic reference data provided above.\n"
-                    "2. DO NOT mention or import external frameworks (such as Karl Friston's Free Energy Principle or computational functionalism) unless they are explicitly named in the reference text above.\n"
-                    "3. DO NOT fabricate empirical lab experiments, human trials, or fake mathematical equations. Quote the exact definitions directly from the text."
-                )
+                body_lower = raw_user_prompt.lower()
+                is_math_req = any(w in body_lower for w in ["formula", "formulas", "latex", "equation", "equations", "math", "mathematical", "kernel", "tuple", "theorem", "proof"])
+                is_overview_req = any(w in body_lower for w in ["overview", "treatise", "breakdown", "dossier", "comprehensive", "summarize", "summary"])
+                
+                if is_math_req:
+                    directive = (
+                        f"INSTRUCTION FOR MATHEMATICAL EXTRACTION & FORMAL ANALYSIS OF {doc_name or 'THE SOURCE DOCUMENT'}:\n"
+                        "Extract, formulate, and rigorously explain all formal mathematical definitions, tuples, measurable spaces, "
+                        "Markov transition kernels, dynamical equations, asymptotic properties, and theorems from the authentic source text above.\n"
+                        "For each mathematical object:\n"
+                        "1. State the exact formula using standard LaTeX notation ($...$ or $$...$$).\n"
+                        "2. Provide an exhaustive, rigorous explanation of every variable, space, kernel, and operational mechanic strictly grounded in this paper.\n"
+                        "3. Detail its theoretical purpose and proof structure directly from the text.\n\n"
+                        "STRICT FACTUAL GROUNDING LAWS:\n"
+                        "1. Ground every formula and definition strictly in the authentic reference data provided above.\n"
+                        "2. DO NOT mention or blend external frameworks (such as Tononi's Integrated Information Theory Phi or Karl Friston's Free Energy Principle) unless they are explicitly present in this specific document."
+                    )
+                elif is_overview_req:
+                    directive = (
+                        f"INSTRUCTION FOR COMPREHENSIVE RESEARCH ANALYSIS OF {doc_name or 'THE SOURCE DOCUMENT'}:\n"
+                        "Provide an exhaustive, publication-grade academic analysis based STRICTLY AND EXCLUSIVELY on the authentic source document text provided above.\n"
+                        "Synthesize the core executive thesis, theoretical paradigms, chapter corridors, mathematical formalisms, and strategic implications.\n\n"
+                        "STRICT FACTUAL GROUNDING LAWS:\n"
+                        "1. Ground every claim strictly in the authentic reference data provided above.\n"
+                        "2. DO NOT mention or blend external frameworks unless they are explicitly named in this specific document.\n"
+                        "3. Quote exact formulas and definitions directly from the text."
+                    )
+                else:
+                    directive = (
+                        f"INSTRUCTION: Answer the User Directive directly, comprehensively, and factually based exclusively on the provided text for {doc_name or 'the source document'}.\n"
+                        "Ground all factual claims strictly in the authentic reference data provided above."
+                    )
             elif files:
                 directive = "INSTRUCTION: Answer the User Directive directly, comprehensively, and accurately based on the provided document text and reference grounding context above. Ground all factual claims strictly in the authentic reference data provided."
             else:
