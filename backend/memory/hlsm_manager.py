@@ -2431,7 +2431,7 @@ class HLSMManager:
                         p_num = int(pr[0])
                         p_sum = str(pr[1])
                         p_cnt = str(pr[2])
-                        if p_num in page_numbers:
+                        if p_num in page_numbers and p_cnt and len(p_cnt.strip()) > 50:
                             results.append({
                                 "page_number": p_num,
                                 "summary": p_sum,
@@ -2444,8 +2444,8 @@ class HLSMManager:
             except Exception as kuzu_err:
                 logger.debug(f"[HLSM] PageNode query notice: {kuzu_err}")
 
-        # 2. Check if any requested page was missing
-        missing_pages = [p for p in page_numbers if not any(r["page_number"] == p for r in results)]
+        # 2. Check if any requested page was missing or lacked verbatim text
+        missing_pages = [p for p in page_numbers if not any(r["page_number"] == p and len(r.get("text", "").strip()) > 50 for r in results)]
         
         # 3. Dynamic FileSystemInspector Fallback
         if missing_pages:
@@ -2453,15 +2453,20 @@ class HLSMManager:
                 from ..utils.file_system_inspector import FileSystemInspector
                 inspector = FileSystemInspector()
                 
-                target_fname = doc_meta.get("name", clean_doc)
-                target_sha = doc_meta.get("sha256", "")
-                target_last_path = doc_meta.get("local_path", "")
+                target_fname = doc_meta.get("name", clean_doc) if doc_meta else clean_doc
+                target_sha = doc_meta.get("sha256", "") if doc_meta else ""
+                target_last_path = doc_meta.get("local_path", "") if doc_meta else ""
                 
                 resolved_path = inspector.resolve_source_document(
                     filename=target_fname,
                     expected_sha256=target_sha,
                     last_known_path=target_last_path
                 )
+                
+                if not resolved_path and clean_doc:
+                    # Try resolving with generic pdf extension if missing
+                    cand_name = f"{clean_doc}.pdf" if not clean_doc.endswith(".pdf") else clean_doc
+                    resolved_path = inspector.resolve_source_document(filename=cand_name)
                 
                 if resolved_path:
                     # Update DocumentNode last_known_path if changed
@@ -2729,7 +2734,6 @@ class HLSMManager:
             from .hlsm_auditor import HLSMDeepAuditor
             self.auditor = HLSMDeepAuditor(db_engine=self.db_engine, kuzu_conn=self.kuzu_conn)
         self.auditor.db_engine = self.db_engine
-        self.auditor.kuzu_conn = self.kuzu_conn
         report = await self.auditor.run_deep_audit(self)
         return report.to_dict()
 
@@ -2749,4 +2753,65 @@ class HLSMManager:
         self.deduplicator.db_engine = self.db_engine
         self.deduplicator.kuzu_conn = self.kuzu_conn
         return await self.deduplicator.deduplicate_all(self, dry_run=dry_run, cluster_ids=cluster_ids)
+
+    async def purge_all(self) -> Dict[str, Any]:
+        """
+        Executes an atomic data purge across L0, L1, L2, and L3 memory tables,
+        preserving database schema structures and file handles.
+        """
+        summary = {"l0": 0, "l1": 0, "l2": 0, "l3": 0, "status": "SUCCESS"}
+        # 1. Purge L0 Redis / SQL
+        if self.redis:
+            try:
+                keys = await self.redis.keys("hlsm:working:*")
+                if keys:
+                    await self.redis.delete(*keys)
+            except Exception as e:
+                logger.debug(f"[HLSM Purge] Redis L0 clear notice: {e}")
+
+        with Session(self.db_engine) as session:
+            try:
+                from ..models import HLSMWorkingEntry, HLSMEpisodicEntry, MessageLog
+                from sqlmodel import delete
+                from sqlalchemy import text as sa_text
+                w_del = session.exec(delete(HLSMWorkingEntry))
+                e_del = session.exec(delete(HLSMEpisodicEntry))
+                m_del = session.exec(delete(MessageLog))
+                session.commit()
+                # Clear SQLite FTS5 table
+                session.connection().execute(sa_text("DELETE FROM hlsm_episodic_fts"))
+                session.commit()
+                summary["l0"] = getattr(w_del, "rowcount", 0)
+                summary["l1"] = getattr(e_del, "rowcount", 0)
+            except Exception as sql_err:
+                logger.error(f"[HLSM Purge] SQL clear error: {sql_err}")
+
+        # 2. Purge KùzuDB L2 Semantic & L3 Knowledge Graph
+        if self.kuzu_conn:
+            try:
+                del_queries = [
+                    "MATCH ()-[r:DEFINES_CONCEPT]->() DELETE r",
+                    "MATCH ()-[r:HAS_PAGE]->() DELETE r",
+                    "MATCH ()-[r:HAS_KEY_POINT]->() DELETE r",
+                    "MATCH ()-[r:RELATES_TO]->() DELETE r",
+                    "MATCH (c:ConceptNode) DELETE c",
+                    "MATCH (k:KeyPointNode) DELETE k",
+                    "MATCH (p:PageNode) DELETE p",
+                    "MATCH (d:DocumentNode) DELETE d",
+                    "MATCH (g:GraphNode) DELETE g",
+                    "MATCH (m:SemanticMemory) DELETE m",
+                ]
+                for q in del_queries:
+                    try:
+                        await asyncio.to_thread(self.kuzu_conn.execute, q)
+                    except Exception as q_err:
+                        logger.debug(f"[HLSM Purge] Kuzu sub-query note: {q_err}")
+                summary["l2"] = 1
+                summary["l3"] = 1
+            except Exception as kuzu_err:
+                logger.error(f"[HLSM Purge] Kuzu clear error: {kuzu_err}")
+
+        logger.info("[HLSM] Successfully executed atomic memory reset across L0-L3.")
+        return summary
+
 

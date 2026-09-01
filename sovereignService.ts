@@ -172,9 +172,12 @@ export class AlluciSovereignService {
         });
     }
 
-    async getDuplicateClusters() {
-        return this._fetch('/memory/duplicates');
+    async purgeAllMemories() {
+        return this._fetch('/memory/purge_all', {
+            method: 'POST'
+        });
     }
+
 
     // ─── Agents API ────────────────────────────────────────────────────────
     

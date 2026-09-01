@@ -706,15 +706,18 @@ async def gemini_proxy_stream(
             if doc_grounding:
                 directive = (
                     "INSTRUCTION FOR COMPREHENSIVE RESEARCH DOSSIER COMPILATION:\n"
-                    "Provide an exhaustive, publication-grade academic analysis and research dossier based strictly on the provided authentic source document text above.\n"
+                    "Provide an exhaustive, publication-grade academic analysis and research dossier based STRICTLY AND EXCLUSIVELY on the authentic source document text provided above.\n"
                     "Structure your response with clear, comprehensive markdown headings:\n"
                     "# [Document Title] — Comprehensive Treatise & Research Dossier\n\n"
                     "## 1. Executive Thesis & Core Strategic Purpose\n\n"
-                    "## 2. Theoretical Frameworks & Key Methodologies (Detail all foundational paradigms, e.g. Free Energy Principle, Markov Kernels, Functionalism, Conscious Realism)\n\n"
-                    "## 3. Comprehensive Section-by-Section Deep Dive (Detail the specific arguments, findings, and concepts across every chapter and page cluster)\n\n"
-                    "## 4. Formal Mathematical Definitions, Formulas & Theorems\n\n"
-                    "## 5. Strategic Implications for Artificial General Intelligence, Machine Consciousness & Future Research\n\n"
-                    "Ground every claim strictly in the authentic reference data provided. Provide a thorough, rigorous, multi-paragraph exposition for each section."
+                    "## 2. Theoretical Frameworks & Foundational Paradigms (Detail only the specific paradigms and ontologies explicitly formulated in this text)\n\n"
+                    "## 3. Comprehensive Section-by-Section / Page-by-Page Deep Dive (Exposition of the specific arguments, proofs, and definitions across the document)\n\n"
+                    "## 4. Formal Mathematical Definitions, Formulas & Theorems (Quote exact mathematical 6-tuples, kernels, and theorems directly from the text)\n\n"
+                    "## 5. Strategic Implications & Future Research Directions\n\n"
+                    "STRICT FACTUAL GROUNDING LAWS:\n"
+                    "1. Ground every claim strictly in the authentic reference data provided above.\n"
+                    "2. DO NOT mention or import external frameworks (such as Karl Friston's Free Energy Principle or computational functionalism) unless they are explicitly named in the reference text above.\n"
+                    "3. DO NOT fabricate empirical lab experiments, human trials, or fake mathematical equations. Quote the exact definitions directly from the text."
                 )
             elif files:
                 directive = "INSTRUCTION: Answer the User Directive directly, comprehensively, and accurately based on the provided document text and reference grounding context above. Ground all factual claims strictly in the authentic reference data provided."

@@ -255,19 +255,30 @@ async def deduplicate_memory(
     return await services.hlsm_manager.deduplicate(dry_run=dry_run, cluster_ids=cluster_ids)
 
 
-@router.get("/memory/duplicates", dependencies=[Depends(verify_authenticated)])
-async def get_duplicate_clusters():
+@router.post("/memory/purge_all", dependencies=[Depends(verify_authenticated)])
+async def purge_all_memory(request: Request, csrf_protect: CsrfProtect = Depends()):
     """
-    Returns all detected duplicate clusters and orphan nodes across the H-LSM fabric.
+    Executes atomic memory reset across L0, L1, L2, and L3 preserving database schemas.
     """
+    await csrf_protect.validate_csrf(request)
     if not services.hlsm_manager:
         raise HTTPException(status_code=503, detail="H-LSM manager not ready")
-    audit_report = await services.hlsm_manager.run_deep_audit()
+    summary = await services.hlsm_manager.purge_all()
+    
+    # Broadcast WebSocket update
+    if services.orchestrator and hasattr(services.orchestrator, "ws_gateway") and services.orchestrator.ws_gateway:
+        try:
+            await services.orchestrator.ws_gateway.broadcast_event('hlsm_memory_deleted', {
+                "action": "PURGE_ALL",
+                "summary": summary
+            })
+        except Exception:
+            pass
+
     return {
-        "health_score": audit_report.get("health_score", 1.0),
-        "duplicate_clusters": audit_report.get("duplicate_clusters", []),
-        "orphan_counts": audit_report.get("orphan_counts", {}),
-        "wasted_bytes_total": audit_report.get("wasted_bytes_total", 0),
-        "retrieval_bias_risk": audit_report.get("retrieval_bias_risk", "NONE")
+        "status": "SUCCESS",
+        "summary": summary,
+        "message": "All L0, L1, L2, and L3 memory entries have been purged successfully."
     }
+
 

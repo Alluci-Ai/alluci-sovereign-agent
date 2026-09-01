@@ -4,7 +4,6 @@ import { useStore } from '../../store/useStore';
 import { Search, Trash2, FileText, Database, Info, Layers, Zap } from 'lucide-react';
 import { HLSMStats } from '../../components/Memory/HLSMStats';
 import { ConsolidationTrigger } from '../../components/Memory/ConsolidationTrigger';
-import { MemoryHealthDashboard } from '../../components/Memory/MemoryHealthDashboard';
 import { sovereignService } from '../../sovereignService';
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -111,6 +110,65 @@ export const MemoryPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         } catch (e) { console.error("Demote failed", e); }
     };
 
+    const [actionMsg, setActionMsg] = useState<{ text: string; type: 'info' | 'success' | 'warning' } | null>(null);
+    const [actionRunning, setActionRunning] = useState(false);
+
+    const handleAudit = async () => {
+        setActionRunning(true);
+        try {
+            const report = await sovereignService.auditMemory();
+            const scorePct = ((report.health_score || 1.0) * 100).toFixed(1);
+            const dups = report.duplicate_clusters?.length || 0;
+            const wasted = report.wasted_bytes_total || 0;
+            setActionMsg({
+                text: `Audit Complete: Health ${scorePct}% | ${dups} duplicate clusters (${wasted} B wasted) | Retrieval Bias: ${report.retrieval_bias_risk || 'NONE'}`,
+                type: report.health_score < 0.9 ? 'warning' : 'success'
+            });
+            setTimeout(() => setActionMsg(null), 8000);
+        } catch (e) {
+            setActionMsg({ text: "Audit failed to execute", type: 'warning' });
+        } finally {
+            setActionRunning(false);
+        }
+    };
+
+    const handleDeduplicate = async () => {
+        setActionRunning(true);
+        try {
+            const res = await sovereignService.deduplicateMemory(false);
+            setActionMsg({
+                text: `Deduplication complete: ${res.pruned_count || 0} duplicate entries pruned. Reclaimed ${res.reclaimed_bytes || 0} B.`,
+                type: 'success'
+            });
+            fetchMemories();
+            setTimeout(() => setActionMsg(null), 6000);
+        } catch (e) {
+            setActionMsg({ text: "Deduplication error", type: 'warning' });
+        } finally {
+            setActionRunning(false);
+        }
+    };
+
+    const handlePurgeAll = async () => {
+        if (!window.confirm("⚠️ Are you sure you want to PURGE ALL memories from L0, L1, L2, and L3 databases? This will clear all stored memories without deleting the database structures.")) {
+            return;
+        }
+        setActionRunning(true);
+        try {
+            await sovereignService.purgeAllMemories();
+            setActionMsg({
+                text: "All L0, L1, L2, and L3 memory entries have been purged successfully.",
+                type: 'success'
+            });
+            fetchMemories();
+            setTimeout(() => setActionMsg(null), 6000);
+        } catch (e) {
+            setActionMsg({ text: "Purge failed", type: 'warning' });
+        } finally {
+            setActionRunning(false);
+        }
+    };
+
     return (
         <div className="flex flex-col h-full max-w-4xl mx-auto w-full space-y-6 overflow-hidden">
             {/* H-LSM Header */}
@@ -121,13 +179,53 @@ export const MemoryPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                         <h3 className="text-2xl font-bold tracking-tight text-white">Hierarchical Long-Short Manifold</h3>
                     </div>
                     <p className="text-xs font-mono text-zinc-500 uppercase tracking-widest">
-                        Tiered Cognitive Memory (L0: Working | L1: Episodic | L2: Semantic)
+                        Tiered Cognitive Memory (L0: Working | L1: Episodic | L2: Semantic | L3: Graph)
                     </p>
+                </div>
+                
+                {/* Header Action Buttons */}
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={handleAudit}
+                        disabled={actionRunning}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono rounded-lg bg-zinc-900/80 hover:bg-zinc-800 text-zinc-300 border border-zinc-700/60 transition-all disabled:opacity-50"
+                        title="Run Deep 4-Tier Memory Audit"
+                    >
+                        <Zap size={13} className="text-indigo-400" />
+                        <span>Audit</span>
+                    </button>
+                    <button
+                        onClick={handleDeduplicate}
+                        disabled={actionRunning}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono rounded-lg bg-emerald-950/40 hover:bg-emerald-900/50 text-emerald-300 border border-emerald-800/50 transition-all disabled:opacity-50"
+                        title="Deduplicate Bloat & Clean Graph"
+                    >
+                        <Layers size={13} className="text-emerald-400" />
+                        <span>Deduplicate Bloat</span>
+                    </button>
+                    <button
+                        onClick={handlePurgeAll}
+                        disabled={actionRunning}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono rounded-lg bg-rose-950/40 hover:bg-rose-900/50 text-rose-300 border border-rose-800/50 transition-all disabled:opacity-50"
+                        title="Purge All Memories from L0-L3"
+                    >
+                        <Trash2 size={13} className="text-rose-400" />
+                        <span>Purge All</span>
+                    </button>
                 </div>
             </div>
 
-            {/* 4-Tier Memory Auditor & Deduplicator Dashboard */}
-            <MemoryHealthDashboard onMemoryUpdated={fetchMemories} />
+            {/* Notification Banner */}
+            {actionMsg && (
+                <div className={`p-3 rounded-lg border text-xs font-mono flex items-center justify-between ${
+                    actionMsg.type === 'success' ? 'bg-emerald-950/40 border-emerald-800 text-emerald-300' :
+                    actionMsg.type === 'warning' ? 'bg-amber-950/40 border-amber-800 text-amber-300' :
+                    'bg-zinc-900 border-zinc-700 text-zinc-300'
+                }`}>
+                    <span>{actionMsg.text}</span>
+                    <button onClick={() => setActionMsg(null)} className="text-zinc-500 hover:text-white ml-2">✕</button>
+                </div>
+            )}
 
             {/* Stats Dashboard */}
             <div className="glass-card p-6 bg-zinc-950/40 border-zinc-800/50">
@@ -136,7 +234,7 @@ export const MemoryPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
             {/* Control Strip */}
             <div className="flex flex-col md:flex-row gap-4 items-center">
-                <div className="relative flex-1 group">
+                <div className="relative flex-1 group w-full">
                     <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600 group-focus-within:text-emerald-500 transition-colors" />
                     <input
                         value={searchQuery}
