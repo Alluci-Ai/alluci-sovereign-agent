@@ -2565,16 +2565,16 @@ class HLSMManager:
                     p_cnt = str(pr[2]) if len(pr) > 2 and pr[2] else ""
                     body = p_cnt if p_cnt else p_sum
                     
-                    current_corridor.append(f"--- [Page {p_num}] ---\n{body}")
+                    current_corridor.append(f"[Page {p_num}]\n{body}")
                     
                     if len(current_corridor) >= corridor_size or idx == len(page_rows) - 1:
                         c_end = p_num
                         c_title = f"Thematic Corridor: Pages {current_c_start}–{c_end}" if current_c_start != c_end else f"Section: Page {current_c_start}"
-                        corridors.append(f"#### {c_title}\n" + "\n\n".join(current_corridor))
+                        corridors.append(f"#### {c_title}\n\n" + "\n\n".join(current_corridor))
                         current_corridor = []
                         current_c_start = p_num + 1
 
-                heading = "### THEMATIC CHAPTER CORRIDORS & AUTHENTIC SOURCE TEXT:\n"
+                heading = "### THEMATIC CHAPTER CORRIDORS & AUTHENTIC SOURCE TEXT:\n\n"
                 sections.append(heading + "\n\n".join(corridors))
 
             return "\n\n".join(sections)

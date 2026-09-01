@@ -104,6 +104,12 @@ class Settings(BaseSettings):
     LOCAL_MODEL_MEDIUM: str = "alluci-polytope-gemma-4-26b-a4b-it-4bit"
     LOCAL_MODEL_LIGHT: str = Field(default="alluci-polytope-gemma-4-12B-it-4bit", title="Local Model Lite")
     LOCAL_MODEL_LITE: str = Field(default="alluci-polytope-gemma-4-e2b-it-4bit", title="Local Model Edge")
+    INFERENCE_TOP_P: float = Field(default=0.92, title="Inference Top-P", description="Nucleus sampling threshold to filter out low-probability degenerative tail tokens.")
+    INFERENCE_MIN_P: float = Field(default=0.05, title="Inference Min-P", description="Minimum relative probability cutoff for sampling.")
+    INFERENCE_REPETITION_PENALTY: float = Field(default=1.08, title="Inference Repetition Penalty", description="Multiplicative penalty applied to recently generated tokens to prevent repetition loops.")
+    INFERENCE_REPETITION_CONTEXT_SIZE: int = Field(default=64, title="Repetition Context Size", description="Sliding window token length for repetition penalty evaluation.")
+    INFERENCE_LOOP_BREAKER_ENABLED: bool = Field(default=True, title="Degenerative Loop Breaker", description="Enables real-time streaming n-gram loop detection to intercept autoregressive collapse.")
+
     
     # Storage
     DATABASE_URL: str = "sqlite:///db.sqlite3"

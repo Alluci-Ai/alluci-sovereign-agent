@@ -72,6 +72,11 @@ class ConfigEditor:
         "DREAMING_CYCLE_TIMEZONE",
         "DREAMING_CYCLE_MAX_DURATION_MINUTES",
         "DREAMING_CYCLE_YIELD_ON_USER_ACTIVITY",
+        "INFERENCE_TOP_P",
+        "INFERENCE_MIN_P",
+        "INFERENCE_REPETITION_PENALTY",
+        "INFERENCE_REPETITION_CONTEXT_SIZE",
+        "INFERENCE_LOOP_BREAKER_ENABLED",
     })
 
     def __init__(self, settings_instance):

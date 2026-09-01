@@ -7,12 +7,54 @@ from concurrent.futures import ThreadPoolExecutor
 
 import mlx.core as mx
 from mlx_lm import generate, stream_generate
-from mlx_lm.sample_utils import make_sampler
+from mlx_lm.sample_utils import make_sampler, make_logits_processors
 from mlx_lm.utils import load_model, hf_repo_to_path, load_adapters, load_tokenizer
 
 from backend.inference.profiler import HardwareProfiler
 
 logger = logging.getLogger("MLXEngine")
+
+
+def detect_degenerative_loop(tokens: list) -> Optional[str]:
+    """
+    Real-Time Streaming Degenerative Loop Circuit Breaker.
+    Monitors trailing emitted words/tokens for autoregressive limit-cycle collapse.
+    Returns the repeating n-gram string if a loop is detected, else None.
+    """
+    if len(tokens) < 5:
+        return None
+
+    # Check 1-gram (single word) repeat >= 5 times
+    last_word = tokens[-1].strip().lower()
+    if len(last_word) >= 2 and all(tokens[-i].strip().lower() == last_word for i in range(1, 6)):
+        return last_word
+
+    # Check 2-gram repeat >= 3 times
+    if len(tokens) >= 6:
+        g2 = [tokens[-2].strip().lower(), tokens[-1].strip().lower()]
+        if g2[0] and g2[1]:
+            if [tokens[-4].strip().lower(), tokens[-3].strip().lower()] == g2 and \
+               [tokens[-6].strip().lower(), tokens[-5].strip().lower()] == g2:
+                return " ".join(g2)
+
+    # Check 3-gram repeat >= 3 times
+    if len(tokens) >= 9:
+        g3 = [tokens[-3].strip().lower(), tokens[-2].strip().lower(), tokens[-1].strip().lower()]
+        if all(g3):
+            if [tokens[-6].strip().lower(), tokens[-5].strip().lower(), tokens[-4].strip().lower()] == g3 and \
+               [tokens[-9].strip().lower(), tokens[-8].strip().lower(), tokens[-7].strip().lower()] == g3:
+                return " ".join(g3)
+
+    # Check 4-gram repeat >= 3 times
+    if len(tokens) >= 12:
+        g4 = [tokens[-4].strip().lower(), tokens[-3].strip().lower(), tokens[-2].strip().lower(), tokens[-1].strip().lower()]
+        if all(g4):
+            if [tokens[-8].strip().lower(), tokens[-7].strip().lower(), tokens[-6].strip().lower(), tokens[-5].strip().lower()] == g4 and \
+               [tokens[-12].strip().lower(), tokens[-11].strip().lower(), tokens[-10].strip().lower(), tokens[-9].strip().lower()] == g4:
+                return " ".join(g4)
+
+    return None
+
 
 def _polytope_get_classes(config: dict):
     if config.get("model_type") == "gemma4_assistant" or config.get("model_type") == "gemma4_text" or config.get("model_type") == "gemma4":
@@ -339,11 +381,21 @@ class MLXEngine:
         loop = asyncio.get_running_loop()
         queue: asyncio.Queue[Optional[str]] = asyncio.Queue()
 
+        # Dynamic Sampling & Anti-Degeneration Configuration from Settings
+        from backend import services
+        settings = getattr(services, "settings", None)
+        top_p = float(getattr(settings, "INFERENCE_TOP_P", 0.92)) if settings else 0.92
+        min_p = float(getattr(settings, "INFERENCE_MIN_P", 0.05)) if settings else 0.05
+        rep_penalty = float(getattr(settings, "INFERENCE_REPETITION_PENALTY", 1.08)) if settings else 1.08
+        rep_ctx_size = int(getattr(settings, "INFERENCE_REPETITION_CONTEXT_SIZE", 64)) if settings else 64
+        loop_breaker_enabled = bool(getattr(settings, "INFERENCE_LOOP_BREAKER_ENABLED", True)) if settings else True
+
         async with self._inference_lock:
             def _sync_gen():
                 try:
-                    sampler = make_sampler(temp=temperature)
+                    sampler = make_sampler(temp=temperature, top_p=top_p, min_p=min_p)
                     sync_buffer = ""
+                    rolling_words: list = []
                     assert self.engine is not None and self.tokenizer is not None, "Model not loaded"
 
                     gen_kwargs: Dict[str, Any] = {
@@ -351,6 +403,15 @@ class MLXEngine:
                         "max_tokens": max_tokens,
                         "sampler": sampler
                     }
+
+                    if rep_penalty and rep_penalty > 1.0:
+                        try:
+                            gen_kwargs["logits_processors"] = make_logits_processors(
+                                repetition_penalty=rep_penalty,
+                                repetition_context_size=rep_ctx_size
+                            )
+                        except Exception as lp_err:
+                            logger.debug(f"[MLXEngine] logits_processors notice: {lp_err}")
 
                     if use_speculative and self.draft_engine is not None:
                         gen_kwargs["draft_model"] = self.draft_engine
@@ -375,6 +436,23 @@ class MLXEngine:
                         ):
                             chunk = response.text
                             sync_buffer += chunk
+                            
+                            # In-Flight Degenerative Loop Monitoring
+                            if loop_breaker_enabled and chunk.strip():
+                                words = chunk.strip().split()
+                                rolling_words.extend(words)
+                                if len(rolling_words) > 32:
+                                    rolling_words = rolling_words[-32:]
+                                
+                                loop_token = detect_degenerative_loop(rolling_words)
+                                if loop_token:
+                                    logger.warning(
+                                        f"[MLXEngine Circuit Breaker] Autoregressive repetition loop detected on '{loop_token}'. "
+                                        "Halting stream gracefully."
+                                    )
+                                    loop.call_soon_threadsafe(queue.put_nowait, "\n\n[Section Synthesis Concluded]")
+                                    break
+
                             loop.call_soon_threadsafe(queue.put_nowait, chunk)
                             if any(st in sync_buffer for st in stop_tokens):
                                 break
@@ -389,6 +467,22 @@ class MLXEngine:
                             ):
                                 chunk = response.text
                                 sync_buffer += chunk
+                                
+                                if loop_breaker_enabled and chunk.strip():
+                                    words = chunk.strip().split()
+                                    rolling_words.extend(words)
+                                    if len(rolling_words) > 32:
+                                        rolling_words = rolling_words[-32:]
+                                    
+                                    loop_token = detect_degenerative_loop(rolling_words)
+                                    if loop_token:
+                                        logger.warning(
+                                            f"[MLXEngine Circuit Breaker] Autoregressive repetition loop detected on '{loop_token}'. "
+                                            "Halting stream gracefully."
+                                        )
+                                        loop.call_soon_threadsafe(queue.put_nowait, "\n\n[Section Synthesis Concluded]")
+                                        break
+
                                 loop.call_soon_threadsafe(queue.put_nowait, chunk)
                                 if any(st in sync_buffer for st in stop_tokens):
                                     break
