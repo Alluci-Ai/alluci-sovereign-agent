@@ -703,7 +703,20 @@ async def gemini_proxy_stream(
 
         if grounding_blocks:
             combined_grounding = "\n\n".join(grounding_blocks)
-            if files or doc_grounding:
+            if doc_grounding:
+                directive = (
+                    "INSTRUCTION FOR COMPREHENSIVE RESEARCH DOSSIER COMPILATION:\n"
+                    "Provide an exhaustive, publication-grade academic analysis and research dossier based strictly on the provided authentic source document text above.\n"
+                    "Structure your response with clear, comprehensive markdown headings:\n"
+                    "# [Document Title] — Comprehensive Treatise & Research Dossier\n\n"
+                    "## 1. Executive Thesis & Core Strategic Purpose\n\n"
+                    "## 2. Theoretical Frameworks & Key Methodologies (Detail all foundational paradigms, e.g. Free Energy Principle, Markov Kernels, Functionalism, Conscious Realism)\n\n"
+                    "## 3. Comprehensive Section-by-Section Deep Dive (Detail the specific arguments, findings, and concepts across every chapter and page cluster)\n\n"
+                    "## 4. Formal Mathematical Definitions, Formulas & Theorems\n\n"
+                    "## 5. Strategic Implications for Artificial General Intelligence, Machine Consciousness & Future Research\n\n"
+                    "Ground every claim strictly in the authentic reference data provided. Provide a thorough, rigorous, multi-paragraph exposition for each section."
+                )
+            elif files:
                 directive = "INSTRUCTION: Answer the User Directive directly, comprehensively, and accurately based on the provided document text and reference grounding context above. Ground all factual claims strictly in the authentic reference data provided."
             else:
                 directive = specialized_directive or (
@@ -1096,10 +1109,12 @@ async def _process_dynamic_artifact_block(full_response: str, prompt: str):
     else:
         # Fallback heuristic for prompts asking for presentation / html / code / research artifacts
         is_artifact_req = any(w in body_lower for w in ["artifact", "slide deck", "presentation", "html app", "web app", "code file"])
-        is_research_req = len(full_response) > 1000 and any(w in body_lower for w in [
-            "comprehensive", "deep analysis", "overview", "whitepaper", "treatise", 
-            "objects of consciousness", "cimc", "explain in detail", "research dossier"
-        ])
+        is_research_req = (
+            len(full_response) > 150 and any(w in body_lower for w in [
+                "comprehensive", "deep analysis", "overview", "whitepaper", "treatise", 
+                "objects of consciousness", "cimc", "explain in detail", "research dossier", "paper", "document"
+            ])
+        ) or ("# " in full_response and "## " in full_response)
         
         if is_artifact_req:
             if "presentation" in body_lower or "slide" in body_lower or "deck" in body_lower:

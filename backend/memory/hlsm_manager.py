@@ -2555,13 +2555,11 @@ class HLSMManager:
                     p_cnt = str(pr[2]) if len(pr) > 2 and pr[2] else ""
                     p_chars = int(pr[3]) if len(pr) > 3 and pr[3] else len(p_cnt)
                     
-                    # For concise papers (< 15 pages), include full verbatim page blocks
-                    if total_p <= 15 and p_cnt:
-                        page_lines.append(f"--- [PAGE {p_num}/{total_p} ({p_chars:,} chars)] ---\n{p_cnt}")
-                    else:
-                        page_lines.append(f"- **Page {p_num}** ({p_chars:,} chars): {p_sum}")
+                    # Include full verbatim page blocks across all pages for complete academic grounding
+                    body = p_cnt if p_cnt else p_sum
+                    page_lines.append(f"--- [PAGE {p_num}/{total_p} ({p_chars:,} chars)] ---\n{body}")
                 
-                heading = "### COMPLETE VERBATIM PAGE CORRIDORS:\n" if total_p <= 15 else "### PAGE-BY-PAGE STRUCTURAL DIGEST (Complete Coverage Across All Pages):\n"
+                heading = "### COMPLETE VERBATIM PAGE CORRIDORS (All Pages Grounded):\n"
                 sections.append(heading + "\n\n".join(page_lines))
 
             return "\n\n".join(sections)
