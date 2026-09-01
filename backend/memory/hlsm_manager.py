@@ -2368,7 +2368,7 @@ class HLSMManager:
                             "id": chunk_id,
                             "content": chunk_header[:1500],
                             "session_key": session_key or "",
-                            "betti_signature": betti_sig,
+                            "betti_signature": str(betti_sig),
                             "created_at": now,
                             "filename": filename or "",
                             "uri": f"file:{filename}:chunk_{idx}"
