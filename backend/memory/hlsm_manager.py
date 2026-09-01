@@ -208,19 +208,74 @@ def _extract_formal_concepts(page_text: str, filename: str, page_num: int) -> Li
 
 def _distill_document_metadata(filename: str, content: str) -> Dict[str, Any]:
     """
-    Fast, deterministic single-pass distillation of document structure:
-    Extracts title, 3-5 core key points, and domain acronym definitions.
+    Fast, layout-aware distillation of document structure:
+    Filters out academic banners/DOI headers, extracts true title, genuine abstract block,
+    formal key points, and domain acronym definitions.
     """
     clean_lines = [line.strip() for line in content.split("\n") if line.strip()]
     if not clean_lines:
         return {"title": filename, "summary": "", "key_points": [], "acronyms": ""}
     
-    # 1. Title extraction
-    title = clean_lines[0].lstrip("#").strip()
-    if len(title) > 120 or len(title) < 4:
-        title = filename.rsplit(".", 1)[0].replace("_", " ").replace("-", " ").title()
+    # 1. Layout-Aware Title extraction
+    # Filter out generic publication / journal / status banners
+    banner_patterns = [
+        r'^\s*original research article\b',
+        r'^\s*research article\b',
+        r'^\s*review article\b',
+        r'^\s*frontiers in\b',
+        r'^\s*published\b',
+        r'^\s*doi\b',
+        r'^\s*http[s]?://',
+        r'^\s*volume\s+\d+',
+        r'^\s*proceedings of\b',
+        r'^\s*journal of\b',
+        r'^\s*draft\b',
+        r'^\s*technical report\b',
+        r'^\s*whitepaper\b',
+        r'^\s*table of contents\b',
+        r'^\s*page\s+\d+',
+        r'^\s*version\s+\d+',
+        r'^\s*issn\b',
+        r'^\s*isbn\b'
+    ]
     
-    # 2. Acronym & definition extraction (e.g. "CIMC (California Institute for Machine Consciousness)" or "CIMC: ...")
+    title = ""
+    for line in clean_lines[:15]:
+        line_clean = line.lstrip("# \t").strip()
+        if len(line_clean) < 3:
+            continue
+        if any(re.search(pat, line_clean, re.IGNORECASE) for pat in banner_patterns):
+            continue
+        # Skip author affiliation lines e.g. "1 Department of..." or emails
+        if re.match(r'^\d+\s+(Department|School|Faculty|Institute|University|Center)\b', line_clean, re.IGNORECASE):
+            continue
+        if "@" in line_clean and ("edu" in line_clean or "org" in line_clean or "com" in line_clean):
+            continue
+        if len(line_clean) <= 150:
+            title = line_clean
+            break
+            
+    if not title or len(title) < 4:
+        clean_fn = filename.rsplit(".", 1)[0].replace("_", " ").replace("-", " ").strip()
+        title = clean_fn.title()
+    
+    # 2. Extract genuine Abstract / Core Summary block
+    abstract_text = ""
+    abstract_match = re.search(r'\b(?:abstract|summary)\b[:\s\n]+([\s\S]{100,2000}?)(?:\n\s*\n\s*(?:introduction|keywords|1\.|\bI\b|background|\b1\s+introduction\b)|$)', content[:6000], re.IGNORECASE)
+    if abstract_match:
+        abstract_text = " ".join(abstract_match.group(1).split()).strip()
+    
+    if not abstract_text:
+        # Fallback to first 2-3 clean, informative paragraphs
+        intro_paragraphs = []
+        for line in clean_lines[1:25]:
+            if len(line) > 60 and not any(re.search(pat, line, re.IGNORECASE) for pat in banner_patterns):
+                intro_paragraphs.append(line)
+                if len(intro_paragraphs) >= 3:
+                    break
+        abstract_text = " ".join(intro_paragraphs)
+    
+    # 3. Acronym & definition extraction (e.g. "CIMC (California Institute for Machine Consciousness)" or "CIMC: ...")
     acronym_map: Dict[str, str] = {}
     
     # Pattern A: Full Name (ACRONYM) or ACRONYM (Full Name)
@@ -250,32 +305,36 @@ def _distill_document_metadata(filename: str, content: str) -> Dict[str, Any]:
 
     acronyms_str = ", ".join(f"{k}: {v}" for k, v in acronym_map.items())
 
-    # 3. Key Points extraction (take informative paragraphs or bullet items)
+    # 4. Key Points extraction (take informative paragraphs or bullet items)
     key_points = []
     for line in clean_lines[1:30]:
         if line.startswith(("-", "•", "*", "1.", "2.", "3.", "4.", "5.", "I.", "II.", "III.")) and len(line) > 20:
             key_points.append(line.lstrip("-•* 0123456789.IVX").strip())
         elif len(line) > 40 and not line.startswith("#") and len(key_points) < 4:
-            key_points.append(line)
+            if not any(re.search(pat, line, re.IGNORECASE) for pat in banner_patterns):
+                key_points.append(line)
         if len(key_points) >= 5:
             break
             
     if not key_points and len(clean_lines) > 1:
-        key_points = clean_lines[1:4]
+        key_points = [l for l in clean_lines[1:5] if len(l) > 30][:4]
 
-    # 4. Summary construction
+    # 5. Summary construction
     summary_parts = []
     if title:
         summary_parts.append(f"Title: {title}.")
     if acronyms_str:
         summary_parts.append(f"Key Acronyms: {acronyms_str}.")
-    if key_points:
+    if abstract_text:
+        summary_parts.append(f"Abstract / Core Thesis: {abstract_text[:800]}")
+    elif key_points:
         summary_parts.append(f"Core Points: {' | '.join(key_points[:3])}")
     summary = " ".join(summary_parts)
 
     return {
         "title": title,
-        "summary": summary[:1200],
+        "summary": summary[:1800],
+        "abstract": abstract_text[:1800],
         "key_points": key_points[:5],
         "acronyms": acronyms_str[:500]
     }
@@ -2457,10 +2516,10 @@ class HLSMManager:
 
             doc_id = matched_doc["id"]
 
-            # 2. Fetch all PageNodes
+            # 2. Fetch all PageNodes (including full content)
             find_pages_q = (
                 "MATCH (d:DocumentNode {id: $doc_id})-[:HAS_PAGE]->(p:PageNode) "
-                "RETURN p.page_number, p.summary, p.char_count ORDER BY p.page_number ASC"
+                "RETURN p.page_number, p.summary, p.content, p.char_count ORDER BY p.page_number ASC"
             )
             raw_pages = await asyncio.to_thread(self.kuzu_conn.execute, find_pages_q, {"doc_id": doc_id})
             page_rows = _extract_kuzu_rows(raw_pages)
@@ -2478,7 +2537,7 @@ class HLSMManager:
             sections = []
             sections.append(
                 f"[AUTHENTIC HIERARCHICAL DOCUMENT SYNTHESIS: {matched_doc['title']} ({matched_doc['name']}) | Total Pages: {total_p} | Acronyms: {matched_doc['acronyms']}]\n"
-                f"### CORE DOCUMENT ABSTRACT & SUMMARY:\n{matched_doc['summary']}"
+                f"### CORE DOCUMENT ABSTRACT & THESIS:\n{matched_doc['summary']}"
             )
 
             if concept_rows:
@@ -2491,14 +2550,88 @@ class HLSMManager:
             if page_rows:
                 page_lines = []
                 for pr in page_rows:
-                    p_num, p_sum, p_chars = int(pr[0]), str(pr[1]), int(pr[2])
-                    page_lines.append(f"- **Page {p_num}** ({p_chars:,} chars): {p_sum}")
-                sections.append("### PAGE-BY-PAGE STRUCTURAL DIGEST (Complete Coverage Across All Pages):\n" + "\n".join(page_lines))
+                    p_num = int(pr[0])
+                    p_sum = str(pr[1])
+                    p_cnt = str(pr[2]) if len(pr) > 2 and pr[2] else ""
+                    p_chars = int(pr[3]) if len(pr) > 3 and pr[3] else len(p_cnt)
+                    
+                    # For concise papers (< 15 pages), include full verbatim page blocks
+                    if total_p <= 15 and p_cnt:
+                        page_lines.append(f"--- [PAGE {p_num}/{total_p} ({p_chars:,} chars)] ---\n{p_cnt}")
+                    else:
+                        page_lines.append(f"- **Page {p_num}** ({p_chars:,} chars): {p_sum}")
+                
+                heading = "### COMPLETE VERBATIM PAGE CORRIDORS:\n" if total_p <= 15 else "### PAGE-BY-PAGE STRUCTURAL DIGEST (Complete Coverage Across All Pages):\n"
+                sections.append(heading + "\n\n".join(page_lines))
 
             return "\n\n".join(sections)
         except Exception as synth_err:
             logger.debug(f"[HLSM] Document synthesis notice: {synth_err}")
             return None
+
+    async def re_distill_indexed_documents(self) -> Dict[str, Any]:
+        """
+        Scans all existing DocumentNode entities and L1 chunks in H-LSM,
+        re-distills titles and abstracts using layout-aware heuristics,
+        and updates KùzuDB and SQLite records to ensure 100% metadata accuracy.
+        """
+        updated_docs = []
+        if not self.kuzu_conn:
+            return {"status": "skipped", "updated": []}
+
+        try:
+            # 1. Fetch all DocumentNodes
+            find_docs_q = "MATCH (d:DocumentNode) RETURN d.id, d.name, d.local_path, d.sha256"
+            raw_docs = await asyncio.to_thread(self.kuzu_conn.execute, find_docs_q)
+            doc_rows = _extract_kuzu_rows(raw_docs)
+
+            for r in doc_rows:
+                doc_id, doc_name, doc_path, doc_sha = str(r[0]), str(r[1]), str(r[2]), str(r[3])
+                
+                # Fetch all page contents for this document
+                find_p_q = "MATCH (d:DocumentNode {id: $id})-[:HAS_PAGE]->(p:PageNode) RETURN p.content ORDER BY p.page_number ASC"
+                raw_pages = await asyncio.to_thread(self.kuzu_conn.execute, find_p_q, {"id": doc_id})
+                page_rows = _extract_kuzu_rows(raw_pages)
+                
+                full_text = "\n\n".join(str(pr[0]) for pr in page_rows if pr and pr[0])
+                if not full_text:
+                    # Fallback to L1 chunks
+                    def _get_l1_text():
+                        with Session(self.db_engine) as session:
+                            chunks = session.exec(
+                                select(HLSMEpisodicEntry).where(col(HLSMEpisodicEntry.extra_metadata).like(f"%{doc_sha[:8]}%"))
+                            ).all()
+                            return "\n\n".join(c.content for c in chunks)
+                    if self.db_engine:
+                        try:
+                            full_text = await asyncio.to_thread(_get_l1_text)
+                        except Exception:
+                            pass
+
+                if full_text:
+                    new_distilled = _distill_document_metadata(doc_name, full_text)
+                    new_title = new_distilled["title"]
+                    new_summary = new_distilled["summary"]
+                    new_acronyms = new_distilled["acronyms"]
+
+                    # Update DocumentNode in KùzuDB
+                    upd_doc_q = (
+                        "MATCH (d:DocumentNode {id: $id}) "
+                        "SET d.title = $title, d.summary = $summary, d.acronyms = $acronyms"
+                    )
+                    await asyncio.to_thread(self.kuzu_conn.execute, upd_doc_q, {
+                        "id": doc_id,
+                        "title": new_title,
+                        "summary": new_summary,
+                        "acronyms": new_acronyms
+                    })
+                    updated_docs.append({"id": doc_id, "name": doc_name, "title": new_title})
+                    logger.info(f"[HLSM] Re-distilled metadata for '{doc_name}' -> Title: '{new_title}'")
+
+            return {"status": "success", "updated_count": len(updated_docs), "documents": updated_docs}
+        except Exception as e:
+            logger.error(f"[HLSM] Re-distillation error: {e}", exc_info=True)
+            return {"status": "error", "error": str(e)}
 
     async def delete_by_pattern(self, pattern: str, session_key: Optional[str] = None) -> Dict[str, int]:
         """

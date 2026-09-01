@@ -626,6 +626,8 @@ async def gemini_proxy(
                             session_key=session_id or "web_chat",
                             metadata={"mime_type": fmime, "file_data": fdata}
                         ))
+        if response:
+            asyncio.create_task(_process_dynamic_artifact_block(response, prompt))
 
         return {"result": response}
     except Exception as e:
@@ -1019,16 +1021,71 @@ def _build_html5_presentation_deck(title: str, content_raw: str) -> str:
 </html>'''
 
 
+def _build_html5_research_dossier(title: str, markdown_content: str) -> str:
+    """Renders a styled HTML5 document for research deliverables adhering to Triad Bundle Law."""
+    import html
+    escaped_title = html.escape(title)
+    lines = markdown_content.split("\n")
+    html_body_lines = []
+    in_code = False
+    for line in lines:
+        if line.startswith("```"):
+            if in_code:
+                html_body_lines.append("</pre></code>")
+                in_code = False
+            else:
+                html_body_lines.append("<pre><code>")
+                in_code = True
+            continue
+        if in_code:
+            html_body_lines.append(html.escape(line))
+            continue
+        if line.startswith("# "):
+            html_body_lines.append(f"<h1>{html.escape(line[2:].strip())}</h1>")
+        elif line.startswith("## "):
+            html_body_lines.append(f"<h2>{html.escape(line[3:].strip())}</h2>")
+        elif line.startswith("### "):
+            html_body_lines.append(f"<h3>{html.escape(line[4:].strip())}</h3>")
+        elif line.startswith(("- ", "* ")):
+            html_body_lines.append(f"<li>{html.escape(line[2:].strip())}</li>")
+        elif line.strip():
+            html_body_lines.append(f"<p>{html.escape(line.strip())}</p>")
+        else:
+            html_body_lines.append("<br/>")
+    
+    body_html = "\n".join(html_body_lines)
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>{escaped_title}</title>
+<style>
+  body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #e2e8f0; background: #0f172a; max-width: 900px; margin: 0 auto; padding: 2rem; }}
+  h1 {{ color: #38bdf8; border-bottom: 2px solid #334155; padding-bottom: 0.5rem; }}
+  h2 {{ color: #818cf8; margin-top: 1.5rem; }}
+  h3 {{ color: #cbd5e1; }}
+  pre {{ background: #1e293b; padding: 1rem; border-radius: 8px; overflow-x: auto; border: 1px solid #334155; }}
+  code {{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: #38bdf8; }}
+  p {{ margin-bottom: 1rem; }}
+  li {{ margin-bottom: 0.5rem; }}
+</style>
+</head>
+<body>
+{body_html}
+</body>
+</html>"""
+
+
 async def _process_dynamic_artifact_block(full_response: str, prompt: str):
     """
-    Parses LLM responses for dynamic artifact blocks or artifact creation prompts.
-    Saves the file under ./workspace/artifacts/{kind}/{YYYY-MM-DD}_{title_slug}/
-    and broadcasts artifact.open over WebSocket to slide open the side panel.
+    Parses LLM responses for dynamic artifact blocks, slide decks, or comprehensive research dossiers.
+    Saves the deliverable under ./workspace/artifacts/{category}/{YYYY-MM-DD}_{title_slug}/ as an atomic triad
+    (metadata.json, source.md, source.html) and broadcasts artifact.open over WebSocket to slide open the side panel.
     """
     import re, os, uuid, json, datetime
     body_lower = prompt.lower()
     
-    # Check for explicit ```artifact block
+    # 1. Check for explicit ```artifact block
     art_match = re.search(r'```artifact\s+kind=["\']?([a-zA-Z0-9_\-]+)["\']?\s+title=["\']?([^"\n]+)["\']?\n([\s\S]*?)```', full_response)
     
     kind, title, content = None, None, None
@@ -1037,8 +1094,13 @@ async def _process_dynamic_artifact_block(full_response: str, prompt: str):
         title = art_match.group(2).strip()
         content = art_match.group(3).strip()
     else:
-        # Fallback heuristic for prompts asking for presentation / html / code artifacts
+        # Fallback heuristic for prompts asking for presentation / html / code / research artifacts
         is_artifact_req = any(w in body_lower for w in ["artifact", "slide deck", "presentation", "html app", "web app", "code file"])
+        is_research_req = len(full_response) > 1000 and any(w in body_lower for w in [
+            "comprehensive", "deep analysis", "overview", "whitepaper", "treatise", 
+            "objects of consciousness", "cimc", "explain in detail", "research dossier"
+        ])
+        
         if is_artifact_req:
             if "presentation" in body_lower or "slide" in body_lower or "deck" in body_lower:
                 kind = "presentation"
@@ -1055,14 +1117,35 @@ async def _process_dynamic_artifact_block(full_response: str, prompt: str):
                 title = "Code Source File"
                 code_m = re.search(r'```(?:python|typescript|js|ts|cpp|c|sh|json)?\n([\s\S]*?)```', full_response)
                 content = code_m.group(1).strip() if code_m else full_response
+        elif is_research_req:
+            kind = "research"
+            first_h1 = re.search(r'^#\s+([^\n]+)', full_response, re.MULTILINE)
+            if first_h1:
+                title = first_h1.group(1).strip()
+            elif "objects of consciousness" in body_lower or "hoffman" in body_lower:
+                title = "Objects of Consciousness — Comprehensive Treatise Analysis"
+            elif "cimc" in body_lower or "machine consciousness" in body_lower:
+                title = "CIMC Whitepaper — Comprehensive Research Dossier"
+            else:
+                title = "Comprehensive Research Analysis"
+            content = full_response
 
     if not kind or not content or not title:
         return
 
     # Convert presentation artifacts into standalone HTML5 presentation slide decks
     if kind == "presentation":
-        content = _build_html5_presentation_deck(title, content)
-        kind = "presentation"
+        html_content = _build_html5_presentation_deck(title, content)
+        md_content = content
+    elif kind == "research":
+        html_content = _build_html5_research_dossier(title, content)
+        md_content = content
+    elif kind in ["html", "web"]:
+        html_content = content
+        md_content = f"# {title}\n\n```html\n{content}\n```"
+    else:
+        html_content = f"<pre><code>{content}</code></pre>"
+        md_content = content
 
     clean_title = re.sub(r'[^a-zA-Z0-9]+', '_', (title or "artifact").lower()).strip('_')
     slug_parts = [p for p in clean_title.split('_') if p][:4]
@@ -1071,14 +1154,18 @@ async def _process_dynamic_artifact_block(full_response: str, prompt: str):
     folder_name = f"{date_str}_{slug}"
 
     artifacts_base = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "workspace", "artifacts"))
-    cat_dir = "presentations" if kind in ["presentation", "html"] else ("code" if kind == "code" else "documents")
+    cat_dir = "presentations" if kind in ["presentation", "html"] else ("code" if kind == "code" else ("research" if kind == "research" else "documents"))
     save_dir = os.path.join(artifacts_base, cat_dir, folder_name)
     os.makedirs(save_dir, exist_ok=True)
 
-    ext = ".html" if kind in ["presentation", "html", "web"] else ".txt"
-    file_path = os.path.join(save_dir, f"source{ext}")
-    with open(file_path, "w", encoding="utf-8") as f:
-        f.write(content)
+    # Persist Atomic Triad Bundle
+    md_file_path = os.path.join(save_dir, "source.md")
+    with open(md_file_path, "w", encoding="utf-8") as f:
+        f.write(md_content)
+
+    html_file_path = os.path.join(save_dir, "source.html")
+    with open(html_file_path, "w", encoding="utf-8") as f:
+        f.write(html_content)
 
     meta_path = os.path.join(save_dir, "metadata.json")
     art_id = f"art_{uuid.uuid4().hex[:12]}"
@@ -1088,21 +1175,31 @@ async def _process_dynamic_artifact_block(full_response: str, prompt: str):
                 "artifact_id": art_id,
                 "title": title,
                 "category": kind,
-                "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
+                "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                "triad_bundle": {
+                    "source_md": "source.md",
+                    "source_html": "source.html",
+                    "metadata": "metadata.json"
+                }
             }, mf, indent=2)
     except Exception:
         pass
 
     from .. import services
     if services.orchestrator and hasattr(services.orchestrator, "ws_gateway") and services.orchestrator.ws_gateway:
+        completion_msg = (
+            "Your Comprehensive Research Dossier is ready and surfaced in your Artifact Panel." 
+            if kind == "research" else 
+            "Your Executive Presentation is ready and surfaced in your Artifact Workspace."
+        )
         await services.orchestrator.ws_gateway.broadcast_event('artifact.open', {
             "type": "artifact.open",
             "artifactId": art_id,
             "title": title,
             "kind": kind,
-            "content": content,
-            "mimeType": "text/html" if kind in ["presentation", "html", "web"] else "text/markdown",
+            "content": md_content,
+            "mimeType": "text/markdown" if kind == "research" else ("text/html" if kind in ["presentation", "html", "web"] else "text/markdown"),
             "source": "system",
-            "completion_message": "Your Executive Presentation is ready and surfaced in your Artifact Workspace."
+            "completion_message": completion_msg
         })
-        logger.info(f"[GeminiRouter] Intercepted and broadcasted dynamic artifact '{title}' ({kind})")
+        logger.info(f"[GeminiRouter] Intercepted and broadcasted dynamic artifact '{title}' ({kind}) -> {save_dir}")

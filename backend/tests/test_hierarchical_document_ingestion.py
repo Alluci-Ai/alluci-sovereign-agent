@@ -170,3 +170,72 @@ async def test_check_document_page_grounding_interceptor(temp_hlsm_manager):
     assert "PAGE 7" in grounding
     assert "PAGE 8" in grounding
     assert "PAGE 9" in grounding
+
+
+def test_distill_document_metadata_academic_banner_stripping():
+    sample_academic_text = (
+        "ORIGINAL RESEARCH ARTICLE\n"
+        "published: 17 June 2014\n"
+        "doi: 10.3389/fpsyg.2014.00577\n"
+        "Objects of consciousness\n"
+        "Donald D. Hoffman 1* and Chetan Prakash 2\n"
+        "1 Department of Cognitive Sciences, University of California, Irvine, CA, USA\n"
+        "2 Department of Mathematics, California State University, San Bernardino, CA, USA\n\n"
+        "ABSTRACT\n"
+        "We present a mathematical model of consciousness, focusing on what we call conscious agents. "
+        "We define a conscious agent as a 7-tuple (W, X, G, P, D, A, N) where P, D, and A are Markovian transition kernels. "
+        "We discuss the interface theory of perception and show that evolutionary games favor fitness over truth."
+    )
+    distilled = _distill_document_metadata("Hoffman_Objects of Consciousness.pdf", sample_academic_text)
+    assert distilled["title"] == "Objects of consciousness"
+    assert "We present a mathematical model of consciousness" in distilled["abstract"]
+    assert "ORIGINAL RESEARCH ARTICLE" not in distilled["title"]
+
+
+def test_select_optimal_local_model_glm_routing():
+    from backend.inference.router import ModelRouter
+    from backend.config import settings
+    router = ModelRouter(settings)
+    
+    # 1. Long document request -> routes to local GLM-1M
+    model_long = router.select_optimal_local_model("Please provide a comprehensive overview and explain the 30-page whitepaper in detail", estimated_tokens=12000)
+    assert model_long is not None and "glm-4-9b-chat-1m" in model_long
+
+    # 2. Mathematical proof request -> routes to local Thinking or 31B
+    model_proof = router.select_optimal_local_model("Formulate the mathematical proof and simplicial complex topology for conscious agents")
+    assert model_proof is not None and ("Thinking" in model_proof or "31b" in model_proof)
+
+
+@pytest.mark.asyncio
+async def test_dynamic_research_artifact_packaging():
+    from backend.routers.gemini import _process_dynamic_artifact_block
+    
+    mock_response = (
+        "# Objects of Consciousness — Comprehensive Treatise Analysis\n\n"
+        "## Executive Summary\n"
+        "This dossier provides an exhaustive analysis of the Conscious Realism framework.\n\n"
+        "## Mathematical Foundations\n"
+        "A conscious agent is formalized as a 7-tuple $C = ((X, \\mathcal{X}), (G, \\mathcal{G}), W, P, D, A, N)$."
+        + "\n\n" + "Detailed exposition of theorems and evolutionary fitness simulations. " * 30
+    )
+    mock_prompt = "Please provide a comprehensive overview and deep analysis of the Hoffman Objects of Consciousness paper"
+    
+    await _process_dynamic_artifact_block(mock_response, mock_prompt)
+    
+    # Check that artifact triad was persisted in workspace/artifacts/research/
+    import glob
+    matching_dirs = glob.glob("workspace/artifacts/research/*_objects_of_consciousness*")
+    assert len(matching_dirs) >= 1
+    art_dir = matching_dirs[-1]
+    assert os.path.exists(os.path.join(art_dir, "metadata.json"))
+    assert os.path.exists(os.path.join(art_dir, "source.md"))
+    assert os.path.exists(os.path.join(art_dir, "source.html"))
+    
+    with open(os.path.join(art_dir, "source.md"), "r") as f:
+        md_text = f.read()
+        assert "Conscious Realism" in md_text
+    
+    with open(os.path.join(art_dir, "source.html"), "r") as f:
+        html_text = f.read()
+        assert "<h1>Objects of Consciousness — Comprehensive Treatise Analysis</h1>" in html_text
+

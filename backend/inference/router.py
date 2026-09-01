@@ -1143,10 +1143,10 @@ class ModelRouter(ExecutiveRouter):
             
         return system_instruction
 
-    def select_optimal_local_model(self, prompt: str, files: Optional[list] = None) -> Optional[str]:
+    def select_optimal_local_model(self, prompt: str, files: Optional[list] = None, estimated_tokens: int = 0) -> Optional[str]:
         """
         Dynamically selects the optimal local model from mirror_cache based on task modality,
-        reasoning complexity, and execution speed requirements.
+        context window size, reasoning complexity, and execution speed requirements.
         """
         body_lower = prompt.lower()
         
@@ -1159,19 +1159,40 @@ class ModelRouter(ExecutiveRouter):
                     if os.path.exists(glm_v):
                         return "mirror_cache/GLM-4.6V-4bit"
         
-        # 2. High-Speed Coding / Terminal / AST Diffing Tasks (Codi sub-agent)
+        # 2. Long Document / Massive Context (> 8,000 tokens or ~32,000 characters)
+        prompt_token_est = estimated_tokens or (len(prompt) // 4)
+        is_long_doc_request = (
+            prompt_token_est > 8000 or
+            any(w in body_lower for w in [
+                "whitepaper", "treatise", "full paper", "entire paper", "long form",
+                "comprehensive overview", "explain in detail", "objects of consciousness", "cimc"
+            ])
+        )
+        if is_long_doc_request:
+            glm_1m = os.path.abspath("mirror_cache/glm-4-9b-chat-1m-6bit")
+            if os.path.exists(glm_1m):
+                return "mirror_cache/glm-4-9b-chat-1m-6bit"
+            
+        # 3. Deep Mathematical Proofs / Complex Strategic Architecture / Socratic Thinking
+        deep_proof_triggers = [
+            "mathematical proof", "simplicial complex", "betti invariant", "stella octangula", 
+            "cap table waterfall", "comprehensive architecture blueprint", "formal definition",
+            "markovian kernel", "conscious agent", "theorem", "proof of"
+        ]
+        if any(w in body_lower for w in deep_proof_triggers):
+            thinking_path = os.path.abspath("mirror_cache/GLM-4.1V-9B-Thinking-4bit")
+            if os.path.exists(thinking_path):
+                return "mirror_cache/GLM-4.1V-9B-Thinking-4bit"
+            dense_path = os.path.abspath("mirror_cache/alluci-polytope-gemma-4-31b-it-bf16")
+            if os.path.exists(dense_path):
+                return "Alluci/alluci-polytope-gemma-4-31b-it-bf16"
+
+        # 4. High-Speed Coding / Terminal / AST Diffing Tasks (Codi sub-agent)
         coding_triggers = ["write code", "fix syntax", "ast diff", "compiler", "implement function", "refactor", "run command", "terminal", "make test", "npm run", "pytest"]
         if any(w in body_lower for w in coding_triggers):
             moe_path = os.path.abspath("mirror_cache/alluci-polytope-gemma-4-26b-a4b-it-4bit")
             if os.path.exists(moe_path):
                 return "Alluci/alluci-polytope-gemma-4-26b-a4b-it-4bit"
-            
-        # 3. Deep Mathematical Proofs / Complex Strategic Architecture
-        deep_proof_triggers = ["mathematical proof", "simplicial complex", "betti invariant", "stella octangula", "cap table waterfall", "comprehensive architecture blueprint"]
-        if any(w in body_lower for w in deep_proof_triggers):
-            dense_path = os.path.abspath("mirror_cache/alluci-polytope-gemma-4-31b-it-bf16")
-            if os.path.exists(dense_path):
-                return "Alluci/alluci-polytope-gemma-4-31b-it-bf16"
             
         return None
 
