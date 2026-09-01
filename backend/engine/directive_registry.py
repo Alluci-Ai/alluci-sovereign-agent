@@ -35,40 +35,51 @@ class BaseDirectiveStrategy(ABC):
 class MultiDocumentComparisonStrategy(BaseDirectiveStrategy):
     def build_directive(self, source_label: str) -> str:
         return (
-            f"INSTRUCTION FOR MULTI-SOURCE COMPARATIVE ANALYSIS ({source_label.upper()}):\n"
-            "Conduct an exhaustive, multidimensional comparative analysis across all referenced source documents, URLs, or frameworks provided above.\n"
-            "Structure your analysis to clearly address:\n"
-            "1. Core Ontological & Methodological Foundations (Where do the paradigms agree vs. fundamentally clash?).\n"
-            "2. Mathematical Formalism & Empirical Architecture Concordance (Compare specific equations, kernels, metric spaces, or architectures).\n"
-            "3. Key Assumptions & Boundary Condition Matrix (Tabular or structured breakdown of unstated assumptions, scope limits, and axioms).\n"
-            "4. Theoretical Synthesis & Strategic Trade-Offs.\n\n"
+            f"INSTRUCTION FOR MULTI-SOURCE COMPARATIVE MONOGRAPH ({source_label.upper()}):\n"
+            "Author an exhaustive, publication-grade comparative research monograph synthesizing and contrasting the provided reference sources.\n"
+            "Structure your analysis across the following multi-chapter academic architecture:\n"
+            "1. Source Boundary & Epistemic Declaration: Declare the exact scope and distinguish direct source claims from comparative reconstructions.\n"
+            "2. Executive Comparative Synthesis & Boxed Ontological Inversions: Contrast foundational assumptions and paradigm shifts in display boxes (e.g. \\boxed{A \\to B}).\n"
+            "3. Comparative Epistemic Status Matrix: Markdown table comparing Definitions, Theorems, Hypotheses, Conjectures, and Open Limits across all sources.\n"
+            "4. Mathematical State Space & Formal Concordance: Derive and compare mathematical formalisms, operators, kernels, and metric spaces in standard LaTeX ($...$ and $$...$$).\n"
+            "5. Domain-to-Domain Isomorphism Alignment Tables: Construct explicit Markdown tables mapping parameters, variables, and state mappings across both frameworks.\n"
+            "6. Taxonomical Decomposition & Non-Implications: Construct category definition tables with explicit non-implication relations ($A \\not\\Rightarrow B$).\n"
+            "7. Dialectical Friction & Trade-Off Matrix: Deep comparative audit of where the paradigms agree, clash, or exhibit epistemic blind spots.\n"
+            "8. Concrete Engineering & Empirical Implementations: Compare computational platforms, architectures, and experimental platforms.\n"
+            "9. Empirical Falsification & Critical Roadmaps: Explicit numbered failure conditions and validation pathways.\n"
+            "10. Condensed Formal Mathematical Spine & Scholarly Assessment: Compile the consolidated mathematical pipeline and final bottom-line assessment.\n\n"
             "STRICT FACTUAL GROUNDING LAWS:\n"
-            "1. Ground all comparative statements strictly in the corresponding reference sections provided above.\n"
-            "2. DO NOT attribute concepts from Source A to Source B unless explicitly stated in the source text.\n"
-            "3. Clearly cite specific section numbers, page corridors, or URLs for each comparative claim."
+            "1. Ground all comparative statements strictly in the corresponding reference text provided above.\n"
+            "2. DO NOT blend or attribute concepts across sources unless explicitly present in the text.\n"
+            "3. Maintain rigorous publication-grade academic prose throughout."
         )
 
     def get_artifact_category(self) -> str:
         return "comparisons"
 
     def get_default_artifact_title(self, source_label: str) -> str:
-        return f"Comparative Analysis — {source_label}"
+        return f"Comparative Monograph — {source_label}"
 
 
 class CriticalAnalysisStrategy(BaseDirectiveStrategy):
     def build_directive(self, source_label: str) -> str:
         return (
             f"INSTRUCTION FOR CRITICAL ANALYSIS, DIALECTICAL AUDIT & PEER REVIEW ({source_label.upper()}):\n"
-            "Perform an adversarial, epistemically rigorous critical audit of the source document(s), URL(s), or framework(s) above.\n"
-            "Structure your evaluation across the following analytical dimensions:\n"
-            "1. Axiomatic & Methodological Stress-Testing (Audit core lemmas, definitions, and experimental/theoretical setups for hidden vulnerabilities).\n"
-            "2. Logical Coherence & Epistemic Gaps (Identify tautologies, unproven inferences, circular definitions, or unstated assumptions).\n"
-            "3. Empirical & Theoretical Boundary Condition Failures (Where does this model break down under extreme parameters or counter-examples?).\n"
-            "4. Alternative Paradigms & Constructive Epistemic Reformulation.\n\n"
+            "Perform an adversarial, publication-grade critical audit and peer review of the source document(s) or framework(s) above.\n"
+            "Structure your evaluation across the following multi-chapter scholarly architecture:\n"
+            "1. Source Scope & Epistemic Boundary Declaration: Clarify the exact scope of the audit and establish evidentiary standards.\n"
+            "2. Executive Abstract & Core Theoretical Claims: Synthesize the primary thesis and construct boxed dependency chains (\\boxed{A \\to B}).\n"
+            "3. Epistemic Status Matrix: Construct a markdown table categorizing Definitions, Theorems, Hypotheses, Conjectures, and Unresolved Limits.\n"
+            "4. Formal Axiomatic & Mathematical Stress-Testing: Reconstruct core lemmas, state spaces, transition kernels, and optimization bounds in LaTeX ($...$ and $$...$$) and audit for hidden mathematical vulnerabilities.\n"
+            "5. Logical Coherence & Epistemic Gap Analysis: Expose tautologies, circular definitions, unproven inferences, or unstated assumptions.\n"
+            "6. Taxonomical Precision & Category Errors: Build taxonomy tables isolating distinct concepts and formalize non-implications ($A \\not\\Rightarrow B$).\n"
+            "7. Empirical & Theoretical Boundary Condition Failures: Audit where the model breaks down under extreme parameters or counter-examples.\n"
+            "8. Dialectical Engagement with Alternative Paradigms: Rigorously analyze why alternative or competing frameworks challenge this model.\n"
+            "9. Concrete Falsification Criteria & Constructive Reformulation: Detail explicit numbered falsifiers and proposed mathematical resolutions.\n"
+            "10. Condensed Formal Mathematical Spine & Final Peer Review Synthesis.\n\n"
             "STRICT FACTUAL GROUNDING LAWS:\n"
-            "1. Directly quote or reference exact statements, equations, or theorems from the text before presenting your critique.\n"
-            "2. Ensure critiques are grounded in formal scientific, mathematical, or empirical reasoning rather than generic skepticism.\n"
-            "3. Do not misrepresent the author's stated positions."
+            "1. Ground all critiques in authentic textual statements and equations from the reference data.\n"
+            "2. Use formal scientific and mathematical argumentation rather than superficial commentary."
         )
 
     def get_artifact_category(self) -> str:
@@ -101,18 +112,21 @@ class AcademicArticleStrategy(BaseDirectiveStrategy):
     def build_directive(self, source_label: str) -> str:
         return (
             f"INSTRUCTION FOR SCHOLARLY JOURNAL ARTICLE & ACADEMIC MONOGRAPH ({source_label.upper()}):\n"
-            "Author a formal, publication-grade scholarly research paper based on the provided reference grounding context.\n"
-            "Follow standard academic journal/preprint structure:\n"
-            "# [Paper Title]\n"
-            "## Abstract (Rigorous, self-contained mathematical/conceptual summary)\n"
-            "## 1. Introduction & Epistemic Problem Formulation\n"
-            "## 2. Theoretical Foundations & Related Literature Positioning\n"
-            "## 3. Mathematical State Space Modeling & Formal Definitions (Use LaTeX notation $...$ and $$...$$)\n"
-            "## 4. Analytical Results, Proofs & Theoretical Corroboration\n"
-            "## 5. Discussion, Limitations & Future Research Directions\n\n"
+            "Author an exhaustive, publication-grade scholarly research paper and monograph strictly based on the provided reference grounding context.\n"
+            "Enforce the 10-Layer Publication Monograph Architecture:\n"
+            "1. Source Boundary & Epistemic Declaration: Explicitly declare the primary evidentiary basis and distinguish author statements from analytical reconstructions.\n"
+            "2. Abstract & Core Ontological Inversion: Provide a self-contained scholarly abstract and construct boxed conceptual causal chains (\\boxed{A \\to B}).\n"
+            "3. Epistemic Status Classification Matrix: Construct a markdown table separating Definitions, Axioms, Hypotheses, Constructive Theorems, Conjectures, and Open Limits.\n"
+            "4. Mathematical State Space Modeling & Formal Derivations: Formulate all state spaces $\\mathcal{S}$, transition kernels $\\mathcal{L}$, operators $\\mathcal{P}$, constraint functionals $\\mathcal{C}$, and optimization bounds in standard LaTeX display math ($...$ and $$...$$).\n"
+            "5. Domain-to-Domain Isomorphism Alignment Tables: Construct explicit tables mapping parameters and variables across domains.\n"
+            "6. Taxonomical Decompositions & Non-Implications: Construct category definition tables with explicit non-implications ($A \\not\\Rightarrow B$).\n"
+            "7. Dialectical Paradigm Audits: Systematically evaluate allied and rejected theories with precise functional reasons for agreement or rejection.\n"
+            "8. Concrete Engineering Platforms: Detail computational mechanisms and architectures (e.g. NCAs, RCNs, attractor manifolds).\n"
+            "9. Empirical Falsification Criteria & Staged Roadmap: Formulate explicit numbered falsification conditions and staged research phases.\n"
+            "10. Condensed Formal Mathematical Spine & Scholarly Synthesis: Compile the complete consolidated LaTeX equation block at the conclusion.\n\n"
             "STRICT FACTUAL GROUNDING LAWS:\n"
-            "1. Derive all mathematical formalisms, lemmas, and proofs strictly from the authentic source text.\n"
-            "2. Maintain formal academic tone, high information density, and precise notation throughout."
+            "1. Ground all formalisms, lemmas, and proofs strictly in the authentic reference data provided above.\n"
+            "2. Maintain formal academic tone, high information density, and precise LaTeX notation throughout."
         )
 
     def get_artifact_category(self) -> str:
@@ -127,14 +141,16 @@ class NonConsensusContrarianStrategy(BaseDirectiveStrategy):
         return (
             f"INSTRUCTION FOR NON-CONSENSUS CONTRARIAN THESIS & FIRST-PRINCIPLES REFRAMING ({source_label.upper()}):\n"
             "Formulate an uncompromising, first-principles contrarian analysis of the consensus paradigm presented in the source context.\n"
-            "Structure your thesis to illuminate:\n"
-            "1. The Orthodox Consensus Narrative (What does mainstream thinking take for granted?).\n"
-            "2. Institutional & Epistemic Blind Spots (Where are the hidden assumptions, flawed incentive structures, or unexamined anomalies?).\n"
-            "3. First-Principles Counter-Thesis (Construct a rigorous, logically sound alternative hypothesis grounded in anomalous edge cases).\n"
-            "4. Asymmetric Second-Order Implications (If the contrarian thesis holds, what are the cascading scientific, technological, or strategic consequences?).\n\n"
+            "Structure your thesis across the following analytical architecture:\n"
+            "1. The Orthodox Consensus Narrative: Identify what mainstream thinking takes for granted.\n"
+            "2. Institutional & Epistemic Blind Spots: Expose unexamined assumptions, flawed incentives, or ignored anomalies.\n"
+            "3. First-Principles Counter-Thesis: Construct a rigorous, logically sound alternative hypothesis grounded in anomalous edge cases (using boxed causal flows \\boxed{A \\to B}).\n"
+            "4. Mathematical State Space & Formal Reconstruction: Reconstruct the counter-thesis in LaTeX ($...$ and $$...$$).\n"
+            "5. Epistemic Status & Falsification Matrix: Provide a markdown table of empirical conditions that would prove or disprove the thesis.\n"
+            "6. Asymmetric Second-Order Strategic Implications: Cascading scientific, technological, and governance consequences.\n\n"
             "STRICT FACTUAL GROUNDING LAWS:\n"
             "1. Ground the contrarian critique in authentic empirical anomalies and mathematical constraints from the source data.\n"
-            "2. Ensure the thesis is intellectually rigorous, logically sound, and actionable rather than superficial contrarianism."
+            "2. Ensure the thesis is intellectually rigorous, logically sound, and actionable."
         )
 
     def get_artifact_category(self) -> str:
@@ -170,16 +186,20 @@ class ViralPublicNarrativeStrategy(BaseDirectiveStrategy):
 class FormulaExtractionStrategy(BaseDirectiveStrategy):
     def build_directive(self, source_label: str) -> str:
         return (
-            f"INSTRUCTION FOR MATHEMATICAL EXTRACTION & FORMAL ANALYSIS ({source_label.upper()}):\n"
-            "Extract, formulate, and rigorously explain all formal mathematical definitions, tuples, measurable spaces, "
+            f"INSTRUCTION FOR COMPREHENSIVE MATHEMATICAL FORMALISM & DERIVATION MONOGRAPH ({source_label.upper()}):\n"
+            "Extract, formulate, derive, and rigorously explain all formal mathematical objects, state spaces, measurable spaces, "
             "Markov transition kernels, dynamical equations, asymptotic properties, and theorems from the authentic source text above.\n"
-            "For each mathematical object:\n"
-            "1. State the exact formula using standard LaTeX notation ($...$ or $$...$$).\n"
-            "2. Provide an exhaustive, rigorous explanation of every variable, space, kernel, and operational mechanic strictly grounded in this paper.\n"
-            "3. Detail its theoretical purpose and proof structure directly from the text.\n\n"
+            "Structure your mathematical treatise across the following formal architecture:\n"
+            "1. Source Evidentiary Boundary: Declare all extracted mathematical objects and distinguish literal definitions from analytical reconstructions.\n"
+            "2. Epistemic Status Matrix: Markdown table categorizing Definitions, Axioms, Hypotheses, Constructive Theorems, Conjectures, and Open Limits.\n"
+            "3. Complete Mathematical Architecture & LaTeX Derivations: Formulate all state spaces $\\mathcal{S}$, measurable tuples $((X, \\mathcal{X}), (G, \\mathcal{G}))$, transition operators $\\mathcal{L}$, convolution integrals, and optimization functionals in explicit LaTeX ($...$ and $$...$$).\n"
+            "4. Domain-to-Domain Isomorphism Mapping Tables: Explicit table mapping dynamical system parameters to physical observables (e.g. Markov states $\\leftrightarrow$ Quantum basis $|x\\rangle$, period $\\leftrightarrow$ wavelength $\\lambda$).\n"
+            "5. Taxonomical Variable & Space Dictionary: Comprehensive table defining every variable, domain, codomain, dimension, and physical/information unit.\n"
+            "6. Asymptotic Dynamics, Convergence & Proof Structures: Rigorous step-by-step mathematical derivation of long-term limits ($n \\to \\infty$).\n"
+            "7. Condensed Formal Mathematical Spine: Compiling the entire mathematical pipeline into an authoritative, consolidated display LaTeX equation block at the conclusion.\n\n"
             "STRICT FACTUAL GROUNDING LAWS:\n"
-            "1. Ground every formula and definition strictly in the authentic reference data provided above.\n"
-            "2. DO NOT mention or blend external frameworks unless explicitly present in this specific document."
+            "1. Derive every formula and definition strictly from the authentic reference data provided above.\n"
+            "2. DO NOT omit equations or replace math with qualitative commentary—deliver full, explicit LaTeX derivations throughout."
         )
 
     def get_artifact_category(self) -> str:
@@ -192,13 +212,23 @@ class FormulaExtractionStrategy(BaseDirectiveStrategy):
 class ComprehensiveOverviewStrategy(BaseDirectiveStrategy):
     def build_directive(self, source_label: str) -> str:
         return (
-            f"INSTRUCTION FOR COMPREHENSIVE RESEARCH ANALYSIS ({source_label.upper()}):\n"
-            "Provide an exhaustive, publication-grade academic analysis based STRICTLY AND EXCLUSIVELY on the authentic source document text provided above.\n"
-            "Synthesize the core executive thesis, theoretical paradigms, chapter corridors, mathematical formalisms, and strategic implications.\n\n"
+            f"INSTRUCTION FOR EXHAUSTIVE PUBLICATION-GRADE RESEARCH MONOGRAPH ({source_label.upper()}):\n"
+            "Provide an exhaustive, publication-grade academic synthesis and treatise based STRICTLY AND EXCLUSIVELY on the authentic source document text provided above.\n"
+            "DO NOT write a superficial 5-paragraph summary. Enforce the 10-Layer Publication Monograph Architecture across granular, logically progressive thematic chapters:\n"
+            "1. Source Boundary & Epistemic Declaration: Explicitly declare the primary evidentiary basis and distinguish direct source claims from formal analytical reconstructions.\n"
+            "2. Abstract & Core Ontological Inversion: Formulate the foundational thesis, explanatory target, and construct boxed conceptual causal chains (\\boxed{A \\to B}) and vertical dependency diagrams.\n"
+            "3. Epistemic Status Classification Matrix: Construct a comprehensive markdown table categorizing every major proposition as a Definition, Axiom, Hypothesis, Constructive Theorem, Conjecture, or Unresolved Open Limit.\n"
+            "4. Formal Mathematical State Space Modeling: Derive and reconstruct all state spaces $\\mathcal{S}$, transition operators $\\mathcal{T}$, convolution kernels $\\mathcal{L}$, constraint functionals $\\mathcal{C}$, and optimization bounds in standard LaTeX display math ($...$ and $$...$$).\n"
+            "5. Domain-to-Domain Isomorphism Alignment Tables: Construct explicit tables mapping parameters and variables across domains (e.g. Dynamical States $\\leftrightarrow$ Quantum Observables).\n"
+            "6. Taxonomical Decompositions & Logical Non-Implications: Construct category definition tables with explicit non-implication relations ($A \\not\\Rightarrow B$, e.g. $\\text{consciousness} \\not\\Rightarrow \\text{self}$).\n"
+            "7. Dialectical Paradigm Audits: Systematically evaluate allied and rejected theories (e.g. GWT, HOT, FEP, AST, IIT, Searle) with precise functional reasons for agreement or rejection.\n"
+            "8. Concrete Experimental Platforms & Distributed Architectures: Formulate computational mechanisms for experimental platforms (e.g. NCAs, RCNs, attractor manifolds in artificial psychology).\n"
+            "9. Empirical Falsification Criteria & Staged Research Roadmap: Formulate explicit numbered falsification conditions and a staged engineering roadmap.\n"
+            "10. Ethical Asymmetry, Governance & Condensed Formal Mathematical Spine: Detail ethical risk profiles, the distributed governance trigger (\\boxed{\\text{architect} \\neq \\text{sovereign}}), and compile the complete consolidated LaTeX equation block at the conclusion.\n\n"
             "STRICT FACTUAL GROUNDING LAWS:\n"
-            "1. Ground every claim strictly in the authentic reference data provided above.\n"
-            "2. DO NOT mention or blend external frameworks unless explicitly named in this specific document.\n"
-            "3. Quote exact formulas and definitions directly from the text."
+            "1. Ground every claim and formula strictly in the authentic reference data provided above.\n"
+            "2. DO NOT mention external frameworks unless directly relevant to the document's dialectical positioning.\n"
+            "3. Maintain exhaustive academic depth, rigorous information density, and publication-grade LaTeX formatting throughout."
         )
 
     def get_artifact_category(self) -> str:

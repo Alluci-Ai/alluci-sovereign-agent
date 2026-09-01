@@ -696,7 +696,17 @@ async def gemini_proxy(
 
         # Fetch system context
         system_instruction = ""
-        if services.orchestrator:
+        if doc_grounding or url_grounding:
+            system_instruction = (
+                "You are an authoritative, world-class academic research scholar and theoretical scientist. "
+                "Your objective is to author an exhaustive, publication-grade academic research monograph strictly grounded in the provided source reference. "
+                "Adhere to the highest standards of formal academic rigor: declare source evidentiary boundaries, formulate boxed conceptual causal chains (\\boxed{A \\to B}), "
+                "construct comprehensive Epistemic Status Classification Matrices, formulate explicit LaTeX mathematical derivations ($...$ and $$...$$), "
+                "provide domain isomorphism mapping tables, formalize taxonomical definitions with non-implication relations (A \\not\\Rightarrow B), "
+                "conduct deep dialectical audits of neighboring and rejected paradigms, detail concrete experimental platforms, and provide numbered empirical falsification criteria. "
+                "Deliver deep, monograph-grade treatises without premature compression or superficial summaries."
+            )
+        elif services.orchestrator:
             ctx_res = await services.orchestrator._build_system_context()
             system_instruction = ctx_res[0] if isinstance(ctx_res, (tuple, list)) else str(ctx_res)
 
@@ -854,12 +864,16 @@ async def gemini_proxy_stream(
 
         system_instruction = ""
         orch = services.orchestrator
-        if doc_grounding:
-            # PURE ACADEMIC GROUNDING: Strip all internal sovereign agent architecture, tools, and PPN/DPK context
+        if doc_grounding or url_grounding:
+            # PURE ACADEMIC & RESEARCH GROUNDING:
             system_instruction = (
-                "You are a rigorous, objective academic research analyst. Your sole function is to provide an exact, factual, "
-                "and unbiased analysis of the provided source document without referencing external system architectures, "
-                "unrelated cognitive frameworks, or unverified claims. Base all conclusions strictly on the provided document text."
+                "You are an authoritative, world-class academic research scholar and theoretical scientist. "
+                "Your objective is to author an exhaustive, publication-grade academic research monograph strictly grounded in the provided source reference. "
+                "Adhere to the highest standards of formal academic rigor: declare source evidentiary boundaries, formulate boxed conceptual causal chains (\\boxed{A \\to B}), "
+                "construct comprehensive Epistemic Status Classification Matrices, formulate explicit LaTeX mathematical derivations ($...$ and $$...$$), "
+                "provide domain isomorphism mapping tables, formalize taxonomical definitions with non-implication relations (A \\not\\Rightarrow B), "
+                "conduct deep dialectical audits of neighboring and rejected paradigms, detail concrete experimental platforms, and provide numbered empirical falsification criteria. "
+                "Deliver deep, monograph-grade treatises without premature compression or superficial summaries."
             )
         elif orch is not None and not local_file_or_report and not mem_purge_reply:
             ctx_res = await orch._build_system_context(compact_index=True)
@@ -1161,52 +1175,247 @@ def _build_html5_presentation_deck(title: str, content_raw: str) -> str:
 
 
 def _build_html5_research_dossier(title: str, markdown_content: str) -> str:
-    """Renders a styled HTML5 document for research deliverables adhering to Triad Bundle Law."""
-    import html
+    """
+    Renders a publication-grade HTML5 research monograph with KaTeX LaTeX mathematics support,
+    Markdown table rendering, dark-mode glassmorphism styling, and responsive layout.
+    """
+    import html, re
+
     escaped_title = html.escape(title)
-    lines = markdown_content.split("\n")
-    html_body_lines = []
-    in_code = False
-    for line in lines:
-        if line.startswith("```"):
-            if in_code:
-                html_body_lines.append("</pre></code>")
-                in_code = False
-            else:
-                html_body_lines.append("<pre><code>")
-                in_code = True
-            continue
-        if in_code:
-            html_body_lines.append(html.escape(line))
-            continue
-        if line.startswith("# "):
-            html_body_lines.append(f"<h1>{html.escape(line[2:].strip())}</h1>")
-        elif line.startswith("## "):
-            html_body_lines.append(f"<h2>{html.escape(line[3:].strip())}</h2>")
-        elif line.startswith("### "):
-            html_body_lines.append(f"<h3>{html.escape(line[4:].strip())}</h3>")
-        elif line.startswith(("- ", "* ")):
-            html_body_lines.append(f"<li>{html.escape(line[2:].strip())}</li>")
-        elif line.strip():
-            html_body_lines.append(f"<p>{html.escape(line.strip())}</p>")
-        else:
-            html_body_lines.append("<br/>")
     
-    body_html = "\n".join(html_body_lines)
+    # Process markdown lines into structured HTML
+    lines = markdown_content.split("\n")
+    html_blocks = []
+    in_code = False
+    code_lang = ""
+    code_buffer = []
+    in_table = False
+    table_buffer = []
+    in_list = False
+    list_type = "ul"
+
+    def flush_table(buffer: List[str]) -> str:
+        if not buffer:
+            return ""
+        rows = []
+        is_header = True
+        for row_str in buffer:
+            # Check for separator row |---|---|
+            if re.match(r'^\s*\|?\s*[-:]+[-| :]*\|\s*$', row_str):
+                is_header = False
+                continue
+            cells = [c.strip() for c in row_str.strip().strip('|').split('|')]
+            tag = "th" if is_header else "td"
+            cell_html = "".join(f"<{tag}>{c}</{tag}>" for c in cells)
+            rows.append(f"<tr>{cell_html}</tr>")
+        return f"<div class=\"table-container\"><table>{''.join(rows)}</table></div>"
+
+    for line in lines:
+        stripped = line.strip()
+
+        # Code block handling
+        if stripped.startswith("```"):
+            if in_code:
+                raw_code = html.escape("\n".join(code_buffer))
+                html_blocks.append(f"<pre><code class=\"language-{code_lang}\">{raw_code}</code></pre>")
+                code_buffer = []
+                in_code = False
+                code_lang = ""
+            else:
+                if in_table:
+                    html_blocks.append(flush_table(table_buffer))
+                    table_buffer = []
+                    in_table = False
+                if in_list:
+                    html_blocks.append(f"</{list_type}>")
+                    in_list = False
+                in_code = True
+                code_lang = stripped[3:].strip()
+            continue
+
+        if in_code:
+            code_buffer.append(line)
+            continue
+
+        # Table row handling (| col1 | col2 |)
+        if "|" in line and (line.startswith("|") or stripped.endswith("|") or " | " in line):
+            if in_list:
+                html_blocks.append(f"</{list_type}>")
+                in_list = False
+            in_table = True
+            table_buffer.append(line)
+            continue
+        elif in_table:
+            html_blocks.append(flush_table(table_buffer))
+            table_buffer = []
+            in_table = False
+
+        # List item handling
+        if re.match(r'^\s*[-*+]\s+', line):
+            if not in_list or list_type != "ul":
+                if in_list:
+                    html_blocks.append(f"</{list_type}>")
+                html_blocks.append("<ul>")
+                in_list = True
+                list_type = "ul"
+            item_text = re.sub(r'^\s*[-*+]\s+', '', line)
+            # Format bold/italic
+            item_text = re.sub(r'\*\*([^*]+)\*\*', r'<strong>\1</strong>', item_text)
+            item_text = re.sub(r'\*([^*]+)\*', r'<em>\1</em>', item_text)
+            item_text = re.sub(r'`([^`]+)`', r'<code>\1</code>', item_text)
+            html_blocks.append(f"<li>{item_text}</li>")
+            continue
+        elif re.match(r'^\s*\d+\.\s+', line):
+            if not in_list or list_type != "ol":
+                if in_list:
+                    html_blocks.append(f"</{list_type}>")
+                html_blocks.append("<ol>")
+                in_list = True
+                list_type = "ol"
+            item_text = re.sub(r'^\s*\d+\.\s+', '', line)
+            item_text = re.sub(r'\*\*([^*]+)\*\*', r'<strong>\1</strong>', item_text)
+            item_text = re.sub(r'\*([^*]+)\*', r'<em>\1</em>', item_text)
+            item_text = re.sub(r'`([^`]+)`', r'<code>\1</code>', item_text)
+            html_blocks.append(f"<li>{item_text}</li>")
+            continue
+        elif in_list:
+            html_blocks.append(f"</{list_type}>")
+            in_list = False
+
+        # Headings
+        if stripped.startswith("#### "):
+            h_text = html.escape(stripped[5:].strip())
+            html_blocks.append(f"<h4>{h_text}</h4>")
+        elif stripped.startswith("### "):
+            h_text = html.escape(stripped[4:].strip())
+            html_blocks.append(f"<h3>{h_text}</h3>")
+        elif stripped.startswith("## "):
+            h_text = html.escape(stripped[3:].strip())
+            html_blocks.append(f"<h2>{h_text}</h2>")
+        elif stripped.startswith("# "):
+            h_text = html.escape(stripped[2:].strip())
+            html_blocks.append(f"<h1>{h_text}</h1>")
+        elif stripped.startswith(">"):
+            # Blockquote
+            quote_text = stripped.lstrip("> ").strip()
+            quote_text = re.sub(r'\*\*([^*]+)\*\*', r'<strong>\1</strong>', quote_text)
+            html_blocks.append(f"<blockquote>{quote_text}</blockquote>")
+        elif stripped.startswith("---") or stripped.startswith("***"):
+            html_blocks.append("<hr/>")
+        elif stripped:
+            # Paragraph formatting
+            p_text = line
+            p_text = re.sub(r'\*\*([^*]+)\*\*', r'<strong>\1</strong>', p_text)
+            p_text = re.sub(r'\*([^*]+)\*', r'<em>\1</em>', p_text)
+            p_text = re.sub(r'`([^`]+)`', r'<code>\1</code>', p_text)
+            html_blocks.append(f"<p>{p_text}</p>")
+
+    if in_table:
+        html_blocks.append(flush_table(table_buffer))
+    if in_list:
+        html_blocks.append(f"</{list_type}>")
+    if in_code:
+        raw_code = html.escape("\n".join(code_buffer))
+        html_blocks.append(f"<pre><code class=\"language-{code_lang}\">{raw_code}</code></pre>")
+
+    body_html = "\n".join(html_blocks)
+
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{escaped_title}</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body, {{
+    delimiters: [
+      {{left: '$$', right: '$$', display: true}},
+      {{left: '$', right: '$', display: false}},
+      {{left: '\\\\[', right: '\\\\]', display: true}},
+      {{left: '\\\\(', right: '\\\\)', display: false}}
+    ],
+    throwOnError: false
+  }});"></script>
 <style>
-  body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #e2e8f0; background: #0f172a; max-width: 900px; margin: 0 auto; padding: 2rem; }}
-  h1 {{ color: #38bdf8; border-bottom: 2px solid #334155; padding-bottom: 0.5rem; }}
-  h2 {{ color: #818cf8; margin-top: 1.5rem; }}
-  h3 {{ color: #cbd5e1; }}
-  pre {{ background: #1e293b; padding: 1rem; border-radius: 8px; overflow-x: auto; border: 1px solid #334155; }}
-  code {{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: #38bdf8; }}
-  p {{ margin-bottom: 1rem; }}
-  li {{ margin-bottom: 0.5rem; }}
+  :root {{
+    --bg-main: #0a0e17;
+    --bg-card: rgba(18, 24, 38, 0.85);
+    --border-card: rgba(255, 255, 255, 0.08);
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --accent-blue: #38bdf8;
+    --accent-indigo: #818cf8;
+    --accent-emerald: #34d399;
+  }}
+  * {{ box-sizing: border-box; }}
+  body {{
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    line-height: 1.7;
+    color: var(--text-primary);
+    background: var(--bg-main);
+    max-width: 1040px;
+    margin: 0 auto;
+    padding: 3rem 2rem;
+  }}
+  h1 {{ font-size: 2.2rem; font-weight: 800; color: var(--accent-blue); border-bottom: 2px solid var(--border-card); padding-bottom: 0.75rem; margin-top: 1rem; }}
+  h2 {{ font-size: 1.6rem; font-weight: 700; color: var(--accent-indigo); margin-top: 2.5rem; border-bottom: 1px solid var(--border-card); padding-bottom: 0.4rem; }}
+  h3 {{ font-size: 1.25rem; font-weight: 600; color: var(--text-primary); margin-top: 1.75rem; }}
+  h4 {{ font-size: 1.05rem; font-weight: 600; color: var(--accent-emerald); margin-top: 1.25rem; }}
+  p {{ margin-bottom: 1.2rem; color: var(--text-secondary); font-size: 1.02rem; }}
+  strong {{ color: var(--text-primary); font-weight: 700; }}
+  em {{ color: #cbd5e1; font-style: italic; }}
+  ul, ol {{ margin: 1rem 0; padding-left: 2rem; color: var(--text-secondary); }}
+  li {{ margin-bottom: 0.6rem; line-height: 1.6; }}
+  blockquote {{
+    border-left: 4px solid var(--accent-blue);
+    background: rgba(56, 189, 248, 0.05);
+    margin: 1.5rem 0;
+    padding: 1rem 1.5rem;
+    border-radius: 0 8px 8px 0;
+    color: #cbd5e1;
+    font-style: italic;
+  }}
+  hr {{ border: 0; height: 1px; background: var(--border-card); margin: 2.5rem 0; }}
+  pre {{
+    background: #0f172a;
+    border: 1px solid var(--border-card);
+    padding: 1.2rem;
+    border-radius: 10px;
+    overflow-x: auto;
+    margin: 1.5rem 0;
+  }}
+  code {{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace; color: var(--accent-blue); font-size: 0.95em; }}
+  .table-container {{
+    overflow-x: auto;
+    margin: 1.5rem 0;
+    border: 1px solid var(--border-card);
+    border-radius: 10px;
+    background: var(--bg-card);
+  }}
+  table {{
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95rem;
+    text-align: left;
+  }}
+  th {{
+    background: rgba(30, 41, 59, 0.8);
+    color: var(--accent-blue);
+    padding: 12px 16px;
+    border-bottom: 2px solid var(--border-card);
+    font-weight: 700;
+  }}
+  td {{
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border-card);
+    color: var(--text-secondary);
+  }}
+  tr:last-child td {{ border-bottom: none; }}
+  tr:hover td {{ background: rgba(255, 255, 255, 0.02); }}
+  .katex {{ font-size: 1.1em; color: var(--text-primary); }}
+  .katex-display {{ margin: 1.2rem 0; overflow-x: auto; overflow-y: hidden; padding: 0.5rem 0; }}
 </style>
 </head>
 <body>

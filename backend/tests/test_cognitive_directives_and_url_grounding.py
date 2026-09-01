@@ -74,7 +74,7 @@ def test_cognitive_directive_registry_synthesizers():
 
     # Multi-doc comparison
     dir_comp = registry.synthesize_directive(DirectiveModality.MULTI_DOCUMENT_COMPARISON, "Hoffman.pdf & CIMC.pdf")
-    assert "MULTI-SOURCE COMPARATIVE ANALYSIS" in dir_comp
+    assert "MULTI-SOURCE COMPARATIVE" in dir_comp
     assert "HOFFMAN.PDF & CIMC.PDF" in dir_comp
     assert "STRICT FACTUAL GROUNDING LAWS" in dir_comp
 
