@@ -3,6 +3,7 @@ import { useStore } from '../../store/useStore';
 import { Settings, Save, Code, LayoutList, Eye, EyeOff } from 'lucide-react';
 import GatewayUrlCard from '../shell/GatewayUrlCard';
 import LocaleSelector from '../shell/LocaleSelector';
+import DreamingCycleCard from './DreamingCycleCard';
 
 const DAEMON_URL = import.meta.env.VITE_DAEMON_URL || '';
 
@@ -207,9 +208,12 @@ export const ConfigPanel: React.FC = () => {
                         <div className="flex-1 overflow-auto flex flex-col p-4 gap-6">
 
                             {mode === 'form' && (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in duration-300">
-                                    <GatewayUrlCard />
-                                    <LocaleSelector />
+                                <div className="flex flex-col gap-4 animate-in fade-in duration-300">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <GatewayUrlCard />
+                                        <LocaleSelector />
+                                    </div>
+                                    <DreamingCycleCard />
                                 </div>
                             )}
 

@@ -24,6 +24,25 @@ from sqlmodel import Session, select, col
 logger = get_logger("CronEngine")
 
 
+def get_host_local_timezone_info() -> Dict[str, Any]:
+    """
+    Scans and resolves the host hardware's active local timezone and UTC offset.
+    """
+    import time
+    now_local = datetime.now().astimezone()
+    tz_obj = now_local.tzinfo
+    tz_name = time.tzname[time.daylight] if time.daylight else time.tzname[0]
+    utc_offset = now_local.strftime("%z")
+    return {
+        "timezone_name": str(tz_obj) if tz_obj else tz_name,
+        "tz_abbr": tz_name,
+        "utc_offset": utc_offset,
+        "local_time_str": now_local.strftime("%Y-%m-%d %H:%M:%S"),
+        "hour": now_local.hour,
+        "minute": now_local.minute
+    }
+
+
 class ScheduleType(str, Enum):
     INTERVAL = "interval"
     CRON = "cron"
@@ -48,6 +67,22 @@ class CronEngine:
         self.channel_registry = channel_registry or {}
         self.task_manager = task_manager
         self._running = False
+        self._dreaming_in_progress = False
+        self._dreaming_preempt_requested = False
+        self._last_dreaming_date = None
+
+    def preempt_dreaming(self):
+        """
+        Signals active dreaming cycle to immediately abort and yield the Metal GPU lock
+        upon interactive user chat activity.
+        """
+        if self._dreaming_in_progress:
+            self._dreaming_preempt_requested = True
+            logger.info("[CronEngine] Preemption signal dispatched to active Dreaming Cycle: Yielding Metal GPU lock immediately.")
+
+    @property
+    def is_dreaming_active(self) -> bool:
+        return self._dreaming_in_progress
         self._tick_task: Optional[asyncio.Task] = None
         self._tick_interval = 60  # seconds
 
@@ -151,7 +186,17 @@ class CronEngine:
             except Exception as e:
                 logger.error(f"[CronEngine] Failed to refresh token for {domain}: {e}")
 
-    async def _check_overnight_dreaming_cycle(self):
+    async def trigger_manual_dreaming_cycle(self) -> Dict[str, Any]:
+        """
+        Allows the user to trigger a manual Dreaming Cycle on demand from the Config Panel.
+        """
+        if self._dreaming_in_progress:
+            return {"status": "already_running", "message": "Dreaming Cycle is currently active."}
+        
+        asyncio.create_task(self._check_overnight_dreaming_cycle(force=True))
+        return {"status": "initiated", "message": "Manual Dreaming Cycle initiated in background."}
+
+    async def _check_overnight_dreaming_cycle(self, force: bool = False):
         """
         Executes the overnight Self-Instruct and LoRA Forge sequence.
 
@@ -167,30 +212,53 @@ class CronEngine:
                          Replay and Elastic Weight Consolidation to permanently
                          bake the day's learnings into the 12B Student model.
         """
-        now = datetime.now(timezone.utc)
-        # Trigger natively at 2:00 AM UTC
-        if now.hour != 2 or now.minute != 0:
-            return
-
-        logger.info("[ DREAMING CYCLE ] 2:00 AM UTC — Initiating Overnight Dreaming Cycle.")
-
         from . import services
+        settings = getattr(services, "settings", None)
 
-        # ─── Gate: Ensure all subsystems are online ───────────────────────
-        hlsm = getattr(services, "hlsm_manager", None)
-        pcl = getattr(services, "pcl", None)
-        ace = getattr(services, "ace_engine", None)
-        router = getattr(services, "router", None)
-        orch = getattr(services, "orchestrator", None)
+        if not force:
+            enabled = getattr(settings, "DREAMING_CYCLE_ENABLED", True)
+            if not enabled:
+                return
 
-        if not hlsm:
-            logger.warning("[ DREAMING CYCLE ] H-LSM not available. Aborting.")
-            return
-        if not router:
-            logger.warning("[ DREAMING CYCLE ] Inference Router not available. Aborting.")
-            return
+            sched_time_str = getattr(settings, "DREAMING_CYCLE_TIME", "02:00")
+            try:
+                parts = sched_time_str.strip().split(":")
+                target_hour = int(parts[0])
+                target_minute = int(parts[1]) if len(parts) > 1 else 0
+            except Exception:
+                target_hour, target_minute = 2, 0
+
+            tz_setting = getattr(settings, "DREAMING_CYCLE_TIMEZONE", "LOCAL")
+            now_local = datetime.now().astimezone()
+            
+            # Match current local hour and minute
+            if now_local.hour != target_hour or now_local.minute != target_minute:
+                return
+
+            # Avoid re-triggering multiple times in the same minute
+            today_str = now_local.strftime("%Y-%m-%d-%H-%M")
+            if self._last_dreaming_date == today_str:
+                return
+            self._last_dreaming_date = today_str
+
+        logger.info(f"[ DREAMING CYCLE ] Initiating Overnight Dreaming Cycle (Force={force}).")
+        self._dreaming_in_progress = True
+        self._dreaming_preempt_requested = False
 
         try:
+            # ─── Gate: Ensure all subsystems are online ───────────────────────
+            hlsm = getattr(services, "hlsm_manager", None)
+            pcl = getattr(services, "pcl", None)
+            ace = getattr(services, "ace_engine", None)
+            router = getattr(services, "router", None)
+            orch = getattr(services, "orchestrator", None)
+
+            if not hlsm:
+                logger.warning("[ DREAMING CYCLE ] H-LSM not available. Aborting.")
+                return
+            if not router:
+                logger.warning("[ DREAMING CYCLE ] Inference Router not available. Aborting.")
+                return
             from .engine.lora_forge import LoRAForge, VRAMHypervisor
             from .engine.dpo_harvester import DPOHarvester
 
@@ -501,6 +569,9 @@ class CronEngine:
             logger.warning(f"[ DREAMING CYCLE ] LoRA Forge or dependency missing: {e}")
         except Exception as e:
             logger.error(f"[ DREAMING CYCLE ] Execution failed: {e}", exc_info=True)
+        finally:
+            self._dreaming_in_progress = False
+            self._dreaming_preempt_requested = False
 
     # ── Job Evaluation ────────────────────────────────────────────────────
 

@@ -2553,19 +2553,29 @@ class HLSMManager:
                 sections.append("### FORMAL MATHEMATICAL CONCEPTS & DEFINITIONS:\n" + "\n".join(concept_lines))
 
             if page_rows:
-                page_lines = []
-                for pr in page_rows:
+                # Group into natural thematic chapter corridors
+                corridor_size = 5 if total_p > 15 else 3 if total_p > 6 else 1
+                corridors = []
+                current_corridor = []
+                current_c_start = 1
+                
+                for idx, pr in enumerate(page_rows):
                     p_num = int(pr[0])
                     p_sum = str(pr[1])
                     p_cnt = str(pr[2]) if len(pr) > 2 and pr[2] else ""
-                    p_chars = int(pr[3]) if len(pr) > 3 and pr[3] else len(p_cnt)
-                    
-                    # Include full verbatim page blocks across all pages for complete academic grounding
                     body = p_cnt if p_cnt else p_sum
-                    page_lines.append(f"--- [PAGE {p_num}/{total_p} ({p_chars:,} chars)] ---\n{body}")
-                
-                heading = "### COMPLETE VERBATIM PAGE CORRIDORS (All Pages Grounded):\n"
-                sections.append(heading + "\n\n".join(page_lines))
+                    
+                    current_corridor.append(f"--- [Page {p_num}] ---\n{body}")
+                    
+                    if len(current_corridor) >= corridor_size or idx == len(page_rows) - 1:
+                        c_end = p_num
+                        c_title = f"Thematic Corridor: Pages {current_c_start}–{c_end}" if current_c_start != c_end else f"Section: Page {current_c_start}"
+                        corridors.append(f"#### {c_title}\n" + "\n\n".join(current_corridor))
+                        current_corridor = []
+                        current_c_start = p_num + 1
+
+                heading = "### THEMATIC CHAPTER CORRIDORS & AUTHENTIC SOURCE TEXT:\n"
+                sections.append(heading + "\n\n".join(corridors))
 
             return "\n\n".join(sections)
         except Exception as synth_err:

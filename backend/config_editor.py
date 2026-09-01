@@ -67,6 +67,11 @@ class ConfigEditor:
         "AUTH_COOKIE_NAME",
         "AUTH_COOKIE_SAMESITE",
         "REDIS_URL",
+        "DREAMING_CYCLE_ENABLED",
+        "DREAMING_CYCLE_TIME",
+        "DREAMING_CYCLE_TIMEZONE",
+        "DREAMING_CYCLE_MAX_DURATION_MINUTES",
+        "DREAMING_CYCLE_YIELD_ON_USER_ACTIVITY",
     })
 
     def __init__(self, settings_instance):

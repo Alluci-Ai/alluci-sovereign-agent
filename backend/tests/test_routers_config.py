@@ -25,7 +25,7 @@ def test_get_config_not_ready():
 
 def test_get_config_success():
     services.config_editor = MagicMock()
-    services.config_editor.read_config.return_value = {"test": "val"}
+    services.config_editor.get_config.return_value = {"test": "val"}
     res = client.get("/config")
     assert res.status_code == 200
     assert res.json() == {"test": "val"}

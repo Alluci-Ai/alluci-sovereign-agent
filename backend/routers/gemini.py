@@ -736,9 +736,23 @@ async def gemini_proxy_stream(
         else:
             effective_prompt = raw_user_prompt
 
+        # 5. Dreaming Cycle GPU Preemption on User Interactive Chat
+        try:
+            if services.cron_engine and getattr(services.settings, "DREAMING_CYCLE_YIELD_ON_USER_ACTIVITY", True):
+                services.cron_engine.preempt_dreaming()
+        except Exception as pe:
+            logger.debug(f"[GeminiRouter] Preemption notice: {pe}")
+
         system_instruction = ""
         orch = services.orchestrator
-        if orch is not None and not local_file_or_report and not mem_purge_reply:
+        if doc_grounding:
+            # PURE ACADEMIC GROUNDING: Strip all internal sovereign agent architecture, tools, and PPN/DPK context
+            system_instruction = (
+                "You are a rigorous, objective academic research analyst. Your sole function is to provide an exact, factual, "
+                "and unbiased analysis of the provided source document without referencing external system architectures, "
+                "unrelated cognitive frameworks, or unverified claims. Base all conclusions strictly on the provided document text."
+            )
+        elif orch is not None and not local_file_or_report and not mem_purge_reply:
             ctx_res = await orch._build_system_context(compact_index=True)
             system_instruction = ctx_res[0] if isinstance(ctx_res, (tuple, list)) else str(ctx_res)
 

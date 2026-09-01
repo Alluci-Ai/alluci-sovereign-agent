@@ -158,6 +158,14 @@ class Settings(BaseSettings):
     AGENT_USER_EMAIL: str = "query@alluci.ai"
     AGENT_CLIENT_ID: str = "https://registry.alluci-ai.internal/profiles/agent-v4"
     AGENT_CLIENT_NAME: str = "Alluci Sovereign Assistant"
+
+    # Dreaming Cycle & LoRA Forge Configuration
+    DREAMING_CYCLE_ENABLED: bool = Field(default=True, title="Dreaming Cycle Enabled", description="Enables overnight self-instruct and preference harvesting distillation.")
+    DREAMING_CYCLE_TIME: str = Field(default="02:00", title="Dreaming Cycle Time", description="Local time (HH:MM in 24-hour format) to initiate the overnight Dreaming Cycle.")
+    DREAMING_CYCLE_TIMEZONE: str = Field(default="LOCAL", title="Dreaming Cycle Timezone", description="Timezone setting ('LOCAL' for automatic host detection, or specific IANA timezone name).")
+    DREAMING_CYCLE_MAX_DURATION_MINUTES: int = Field(default=45, title="Dreaming Cycle Max Duration", description="Maximum duration in minutes before automatically concluding the cycle.")
+    DREAMING_CYCLE_YIELD_ON_USER_ACTIVITY: bool = Field(default=True, title="Yield GPU on User Activity", description="Immediately preempts and yields Metal GPU locks if an interactive user chat arrives.")
+
     AGENT_CLIENT_URI: str = "https://alluci.ai"
     AGENT_LOGO_URI: str = "https://alluci.ai/logo.png"
     AGENT_TOS_URI: str = "https://alluci.ai/tos"
