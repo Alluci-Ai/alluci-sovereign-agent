@@ -242,22 +242,6 @@ class MLXEngine:
         return system_instruction, temperature
 
 
-    def _format_prompt(
-        self,
-        prompt: str,
-        system_instruction: str = "",
-        tools: Optional[list] = None
-    ) -> str:
-        """Formats prompt using the loaded tokenizer's native chat template and applies Streaming Attention Sinks."""
-        messages = []
-        if tools:
-            serialized_tools = json.dumps(tools, indent=2)
-            tool_directive = (
-                f"You are an autonomous agent. You have access to the following tools:\n{serialized_tools}\n"
-                "To use a tool, you MUST output a raw JSON object exactly matching the schema. "
-                "Do not output conversational text when using a tool."
-            )
-            system_instruction = f"{tool_directive}\n\n{system_instruction}" if system_instruction else tool_directive
 
     def _format_prompt(
         self,

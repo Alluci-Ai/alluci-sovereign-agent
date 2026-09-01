@@ -70,6 +70,8 @@ class CronEngine:
         self._dreaming_in_progress = False
         self._dreaming_preempt_requested = False
         self._last_dreaming_date = None
+        self._tick_task: Optional[asyncio.Task] = None
+        self._tick_interval = 60  # seconds
 
     def preempt_dreaming(self):
         """
@@ -83,8 +85,6 @@ class CronEngine:
     @property
     def is_dreaming_active(self) -> bool:
         return self._dreaming_in_progress
-        self._tick_task: Optional[asyncio.Task] = None
-        self._tick_interval = 60  # seconds
 
     # ── Lifecycle ─────────────────────────────────────────────────────────
 
@@ -798,6 +798,7 @@ class CronEngine:
             if not original or original.agent_id != agent_id:
                 return None
             clone = CronJob(
+                agent_id=original.agent_id,
                 name=f"{original.name} (copy)",
                 schedule_type=original.schedule_type,
                 schedule_value=original.schedule_value,

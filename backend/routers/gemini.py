@@ -541,12 +541,12 @@ async def _check_document_grounding(prompt: str) -> Tuple[Optional[str], Optiona
 
     # General document inquiries and multi-document synthesis
     if doc_keywords and hasattr(services, "hlsm_manager") and services.hlsm_manager:
-        synthesized_blocks = []
-        doc_shas = []
-        doc_names = []
+        synthesized_blocks: List[str] = []
+        doc_shas: List[str] = []
+        doc_names: List[str] = []
         
         # Deduplicate queries to target distinct documents
-        unique_queries = []
+        unique_queries: List[str] = []
         for dk in doc_keywords:
             if not any(dk in u or u in dk for u in unique_queries):
                 unique_queries.append(dk)
@@ -556,12 +556,12 @@ async def _check_document_grounding(prompt: str) -> Tuple[Optional[str], Optiona
                 synth_res = await services.hlsm_manager.synthesize_document_hierarchical_overview(q, as_dict=True)
                 if synth_res and isinstance(synth_res, dict):
                     doc_sha = synth_res.get("sha256")
-                    doc_name = synth_res.get("name")
-                    if doc_sha and doc_sha not in doc_shas:
-                        doc_shas.append(doc_sha)
-                        doc_names.append(doc_name)
+                    doc_name = synth_res.get("name") or synth_res.get("title") or "Document"
+                    if doc_sha and str(doc_sha) not in doc_shas:
+                        doc_shas.append(str(doc_sha))
+                        doc_names.append(str(doc_name))
                         synthesized_blocks.append(
-                            f"[AUTHENTIC SOURCE DOCUMENT: {synth_res.get('title')} (`{doc_name}`) | SHA-256: {doc_sha[:12]}]:\n"
+                            f"[AUTHENTIC SOURCE DOCUMENT: {synth_res.get('title')} (`{doc_name}`) | SHA-256: {str(doc_sha)[:12]}]:\n"
                             f"{synth_res.get('text')}"
                         )
             except Exception as e:

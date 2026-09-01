@@ -8,7 +8,7 @@ def clear_sql():
     with Session(engine) as session:
         for table in ["hlsm_working", "hlsm_episodic", "hlsm_episodic_fts"]:
             try:
-                session.execute(text(f"DELETE FROM {table}"))
+                session.exec(text(f"DELETE FROM {table}"))  # type: ignore
             except Exception as e:
                 pass
         session.commit()
@@ -28,7 +28,7 @@ def clear_kuzu():
     import kuzu
     try:
         from backend.config import settings
-        db = kuzu.Database(settings.KUZU_DB_PATH)
+        db = kuzu.Database(settings.GRAPH_DB_PATH)
         conn = kuzu.Connection(db)
         conn.execute("MATCH (a)-[r]->(b) DELETE r")
         conn.execute("MATCH (n) DELETE n")

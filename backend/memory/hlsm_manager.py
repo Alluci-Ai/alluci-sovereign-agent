@@ -2689,9 +2689,6 @@ class HLSMManager:
         except Exception as synth_err:
             logger.debug(f"[HLSM] Document synthesis notice: {synth_err}")
             return None
-        except Exception as synth_err:
-            logger.debug(f"[HLSM] Document synthesis notice: {synth_err}")
-            return None
 
     async def re_distill_indexed_documents(self) -> Dict[str, Any]:
         """
@@ -2895,12 +2892,12 @@ class HLSMManager:
                 from ..models import HLSMWorkingEntry, HLSMEpisodicEntry, MessageLog
                 from sqlmodel import delete
                 from sqlalchemy import text as sa_text
-                w_del = session.exec(delete(HLSMWorkingEntry))
-                e_del = session.exec(delete(HLSMEpisodicEntry))
-                m_del = session.exec(delete(MessageLog))
+                w_del = session.exec(delete(HLSMWorkingEntry))  # type: ignore
+                e_del = session.exec(delete(HLSMEpisodicEntry))  # type: ignore
+                m_del = session.exec(delete(MessageLog))  # type: ignore
                 session.commit()
                 # Clear SQLite FTS5 table
-                session.connection().execute(sa_text("DELETE FROM hlsm_episodic_fts"))
+                session.exec(sa_text("DELETE FROM hlsm_episodic_fts"))  # type: ignore
                 session.commit()
                 summary["l0"] = getattr(w_del, "rowcount", 0)
                 summary["l1"] = getattr(e_del, "rowcount", 0)

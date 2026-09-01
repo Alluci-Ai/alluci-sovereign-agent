@@ -306,10 +306,13 @@ class CronJob(SQLModel, table=True):
 
 class CronRun(SQLModel, table=True):
     __tablename__ = "cron_run"  # type: ignore
-    id: int = Field(default=None, primary_key=True)
+    id: Optional[int] = Field(default=None, primary_key=True)
     job_id: int = Field(foreign_key="cron_job.id")
     started_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    finished_at: Optional[datetime] = Field(default=None)
     status: str = Field(default="queued")
+    delivery_status: Optional[str] = Field(default=None)
+    log_text: Optional[str] = Field(default=None)
     job: CronJob = Relationship(back_populates="runs")
 
 # --- Models for Execution Engine and Session Management ---
