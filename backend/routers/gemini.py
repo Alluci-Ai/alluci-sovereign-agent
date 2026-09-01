@@ -422,9 +422,60 @@ async def _check_codebase_and_architecture_context(prompt: str) -> Tuple[Optiona
         return None, None
 
 
+async def _check_url_grounding(urls: List[str]) -> Tuple[Optional[str], List[str], List[str]]:
+    """
+    Extracts, scrapes, and parses markdown from real-time URLs provided in user prompt.
+    Asynchronously ingests content into H-LSM memory fabric.
+    Returns (grounding_text, sha256_list, url_titles).
+    """
+    if not urls:
+        return None, [], []
+    
+    import hashlib
+    from ..ingestion_services.scraper import fetch_and_extract_markdown
+    from .. import services
+    
+    grounding_blocks = []
+    shas = []
+    titles = []
+    
+    for url in urls[:5]:
+        try:
+            markdown = await fetch_and_extract_markdown(url)
+            if markdown and len(markdown.strip()) > 50:
+                url_sha = hashlib.sha256(markdown.encode("utf-8")).hexdigest()
+                shas.append(url_sha)
+                
+                first_h1 = re.search(r'^#\s+([^\n]+)', markdown, re.MULTILINE)
+                title = first_h1.group(1).strip() if first_h1 else url
+                titles.append(title)
+                
+                # Dynamic Ingestion into H-LSM Memory Fabric
+                if hasattr(services, "hlsm_manager") and services.hlsm_manager:
+                    try:
+                        await services.hlsm_manager.ingest_document_payload(
+                            filename=url,
+                            content=markdown,
+                            session_key="url_realtime_ingest"
+                        )
+                    except Exception as ing_err:
+                        logger.debug(f"[GeminiRouter] URL H-LSM ingestion notice: {ing_err}")
+
+                grounding_blocks.append(
+                    f"[VERIFIED REAL-TIME URL SOURCE GROUNDING: {url} | Title: {title} | SHA-256: {url_sha[:12]}]:\n"
+                    f"{markdown}"
+                )
+        except Exception as e:
+            logger.warning(f"[GeminiRouter] URL scraping error for {url}: {e}")
+            
+    if grounding_blocks:
+        return "\n\n".join(grounding_blocks), shas, titles
+    return None, [], []
+
+
 async def _check_document_grounding(prompt: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
     """
-    Detects document inquiries:
+    Detects single and multi-document inquiries:
     1. Specific page requests (e.g., 'pages 6, 7, 8 and 9', 'page 12', 'pages 4-7 of Hoffman')
        -> Retrieves exact verbatim page text.
     2. Comprehensive document overview/summary/formula/question requests
@@ -434,25 +485,24 @@ async def _check_document_grounding(prompt: str) -> Tuple[Optional[str], Optiona
     body_lower = prompt.lower()
     from .. import services
 
-    # Identify document reference in prompt
+    # Identify all document references in prompt
     doc_keywords = []
-    fname_match = re.findall(r'([A-Za-z0-9_\-]+\.(?:pdf|docx|txt|md))\b', prompt, re.IGNORECASE)
-    if fname_match:
-        doc_keywords.extend(fname_match)
-    else:
-        candidates = [
-            "objects of consciousness", "hoffman", "cimc", "consciousness", 
-            "whitepaper", "paper", "report", "document", "manuscript", "treatise"
-        ]
-        for c in candidates:
-            if c in body_lower:
-                doc_keywords.append(c)
+    fname_matches = re.findall(r'([A-Za-z0-9_\-]+\.(?:pdf|docx|txt|md))\b', prompt, re.IGNORECASE)
+    if fname_matches:
+        doc_keywords.extend(fname_matches)
+    
+    candidates = [
+        "objects of consciousness", "hoffman", "cimc", "consciousness", 
+        "whitepaper", "paper", "report", "document", "manuscript", "treatise"
+    ]
+    for c in candidates:
+        if c in body_lower and c not in doc_keywords:
+            doc_keywords.append(c)
 
-    doc_query = doc_keywords[0] if doc_keywords else ""
-
-    # Check for specific page requests
+    # Check for specific page requests (single document)
     page_match = re.search(r'\bpages?\s*([0-9\s,\-andto]+)', prompt, re.IGNORECASE)
     if page_match:
+        doc_query = doc_keywords[0] if doc_keywords else ""
         raw_nums_str = page_match.group(1).strip()
         page_numbers = []
         if "-" in raw_nums_str or "to" in raw_nums_str:
@@ -489,23 +539,39 @@ async def _check_document_grounding(prompt: str) -> Tuple[Optional[str], Optiona
                 except Exception as e:
                     logger.debug(f"[GeminiRouter] Page grounding resolution notice: {e}")
 
-    # General document inquiries (overview, formulas, analysis, explanations, questions)
-    is_doc_inquiry = any(k in body_lower for k in [
-        "overview", "explain", "explanation", "summarize", "summary", "breakdown", 
-        "break down", "tell me about", "what is this", "what does", "formula", "formulas", 
-        "latex", "equation", "equations", "math", "mathematical", "theorem", "proof", 
-        "extract", "analyze", "analysis", "paper", "whitepaper", "dossier"
-    ]) or bool(fname_match)
-    
-    if is_doc_inquiry and doc_query and hasattr(services, "hlsm_manager") and services.hlsm_manager:
-        try:
-            synth_res = await services.hlsm_manager.synthesize_document_hierarchical_overview(doc_query, as_dict=True)
-            if synth_res:
-                if isinstance(synth_res, dict):
-                    return synth_res.get("text"), synth_res.get("sha256"), synth_res.get("name")
-                return synth_res, None, None
-        except Exception as e:
-            logger.debug(f"[GeminiRouter] Hierarchical document overview synthesis notice: {e}")
+    # General document inquiries and multi-document synthesis
+    if doc_keywords and hasattr(services, "hlsm_manager") and services.hlsm_manager:
+        synthesized_blocks = []
+        doc_shas = []
+        doc_names = []
+        
+        # Deduplicate queries to target distinct documents
+        unique_queries = []
+        for dk in doc_keywords:
+            if not any(dk in u or u in dk for u in unique_queries):
+                unique_queries.append(dk)
+                
+        for q in unique_queries[:3]:
+            try:
+                synth_res = await services.hlsm_manager.synthesize_document_hierarchical_overview(q, as_dict=True)
+                if synth_res and isinstance(synth_res, dict):
+                    doc_sha = synth_res.get("sha256")
+                    doc_name = synth_res.get("name")
+                    if doc_sha and doc_sha not in doc_shas:
+                        doc_shas.append(doc_sha)
+                        doc_names.append(doc_name)
+                        synthesized_blocks.append(
+                            f"[AUTHENTIC SOURCE DOCUMENT: {synth_res.get('title')} (`{doc_name}`) | SHA-256: {doc_sha[:12]}]:\n"
+                            f"{synth_res.get('text')}"
+                        )
+            except Exception as e:
+                logger.debug(f"[GeminiRouter] Multi-doc overview synthesis notice for {q}: {e}")
+
+        if synthesized_blocks:
+            combined_text = "\n\n".join(synthesized_blocks)
+            first_sha = doc_shas[0] if len(doc_shas) == 1 else None
+            label = " & ".join(doc_names) if doc_names else "Document"
+            return combined_text, first_sha, label
 
     return None, None, None
 
@@ -549,17 +615,21 @@ async def gemini_proxy(
         if local_file_or_report:
             return {"result": local_file_or_report}
 
-        # 3. Dynamic Document Page & Overview Grounding Check (< 15ms)
+        # 3. Dynamic Real-Time URL Scraping & Ingestion Check (< 250ms)
+        url_grounding, url_shas, url_titles = await _check_url_grounding(parsed_intent.detected_urls)
+
+        # 4. Dynamic Document Page & Overview Grounding Check (< 15ms)
         doc_grounding, doc_sha256, doc_name = await _check_document_grounding(raw_user_prompt)
 
-        # 4. Dynamic Web Search Grounding Check (< 500ms)
+        # 5. Dynamic Web Search Grounding Check (< 500ms)
         web_grounding = await _check_web_search_grounding(raw_user_prompt)
 
-        # 5. Dynamic Codebase & Architecture Grounding Check (< 15ms)
+        # 6. Dynamic Codebase & Architecture Grounding Check (< 15ms)
         code_grounding, specialized_directive = await _check_codebase_and_architecture_context(prompt)
 
-        # 6. Dynamic 4-Tier H-LSM Context Hydration across L1/L2/L3 (Tri-Hybrid RRF with SHA-256 scoping)
+        # 7. Dynamic 4-Tier H-LSM Context Hydration across L1/L2/L3 (Tri-Hybrid RRF with SHA-256 scoping)
         memory_block = ""
+        effective_doc_sha = doc_sha256 or (url_shas[0] if len(url_shas) == 1 else None)
         if hasattr(services, "hlsm_manager") and services.hlsm_manager and parsed_intent.intent_type != IntentType.SYSTEM_INTROSPECTION:
             try:
                 psi = 0.0
@@ -570,7 +640,7 @@ async def gemini_proxy(
                     objective=parsed_intent.core_objective,
                     psi=psi,
                     session_key=session_id or "web_chat",
-                    doc_sha256=doc_sha256
+                    doc_sha256=effective_doc_sha
                 )
                 memory_block = memory_ctx.to_prompt_block()
             except Exception as mem_err:
@@ -578,56 +648,41 @@ async def gemini_proxy(
 
         # Construct Authoritative Grounded Prompt
         grounding_blocks = []
+        if url_grounding:
+            grounding_blocks.append(url_grounding)
         if doc_grounding:
             grounding_blocks.append(doc_grounding)
         if web_grounding:
             grounding_blocks.append(f"[WEB SEARCH GROUNDING DATA]:\n{web_grounding}")
-        if code_grounding and not files and not doc_grounding:
+        if code_grounding and not files and not doc_grounding and not url_grounding:
             grounding_blocks.append(f"[AUTHENTIC DISK GROUNDING & MANIFESTS]:\n{code_grounding}")
         if memory_block:
             grounding_blocks.append(f"[RECALLED H-LSM MEMORY CONTEXT]:\n{memory_block}")
 
         if grounding_blocks:
             combined_grounding = "\n\n".join(grounding_blocks)
-            if doc_grounding:
-                body_lower = raw_user_prompt.lower()
-                is_math_req = any(w in body_lower for w in ["formula", "formulas", "latex", "equation", "equations", "math", "mathematical", "kernel", "tuple", "theorem", "proof"])
-                is_overview_req = any(w in body_lower for w in ["overview", "treatise", "breakdown", "dossier", "comprehensive", "summarize", "summary"])
-                
-                if is_math_req:
-                    directive = (
-                        f"INSTRUCTION FOR MATHEMATICAL EXTRACTION & FORMAL ANALYSIS OF {doc_name or 'THE SOURCE DOCUMENT'}:\n"
-                        "Extract, formulate, and rigorously explain all formal mathematical definitions, tuples, measurable spaces, "
-                        "Markov transition kernels, dynamical equations, asymptotic properties, and theorems from the authentic source text above.\n"
-                        "For each mathematical object:\n"
-                        "1. State the exact formula using standard LaTeX notation ($...$ or $$...$$).\n"
-                        "2. Provide an exhaustive, rigorous explanation of every variable, space, kernel, and operational mechanic strictly grounded in this paper.\n"
-                        "3. Detail its theoretical purpose and proof structure directly from the text.\n\n"
-                        "STRICT FACTUAL GROUNDING LAWS:\n"
-                        "1. Ground every formula and definition strictly in the authentic reference data provided above.\n"
-                        "2. DO NOT mention or blend external frameworks (such as Tononi's Integrated Information Theory Phi or Karl Friston's Free Energy Principle) unless they are explicitly present in this specific document."
-                    )
-                elif is_overview_req:
-                    directive = (
-                        f"INSTRUCTION FOR COMPREHENSIVE RESEARCH ANALYSIS OF {doc_name or 'THE SOURCE DOCUMENT'}:\n"
-                        "Provide an exhaustive, publication-grade academic analysis based STRICTLY AND EXCLUSIVELY on the authentic source document text provided above.\n"
-                        "Synthesize the core executive thesis, theoretical paradigms, chapter corridors, mathematical formalisms, and strategic implications.\n\n"
-                        "STRICT FACTUAL GROUNDING LAWS:\n"
-                        "1. Ground every claim strictly in the authentic reference data provided above.\n"
-                        "2. DO NOT mention or blend external frameworks unless they are explicitly named in this specific document.\n"
-                        "3. Quote exact formulas and definitions directly from the text."
-                    )
-                else:
-                    directive = (
-                        f"INSTRUCTION: Answer the User Directive directly, comprehensively, and factually based exclusively on the provided text for {doc_name or 'the source document'}.\n"
-                        "Ground all factual claims strictly in the authentic reference data provided above."
-                    )
+            
+            # Formulate Dynamic Adaptive Directive via CognitiveDirectiveRegistry
+            from ..engine.directive_registry import CognitiveDirectiveRegistry
+            directive_registry = CognitiveDirectiveRegistry()
+            
+            source_labels = []
+            if doc_name:
+                source_labels.append(doc_name)
+            if url_titles:
+                source_labels.extend(url_titles)
+            elif parsed_intent.detected_urls:
+                source_labels.extend(parsed_intent.detected_urls)
+            
+            source_label = " & ".join(source_labels) if source_labels else "THE REFERENCE SOURCE"
+            
+            if doc_grounding or url_grounding:
+                directive = directive_registry.synthesize_directive(parsed_intent.directive_modality, source_label)
             elif files:
                 directive = "INSTRUCTION: Answer the User Directive directly, comprehensively, and accurately based on the provided document text and reference grounding context above. Ground all factual claims strictly in the authentic reference data provided."
             else:
-                directive = specialized_directive or (
-                    "INSTRUCTION: Answer the User Directive directly, comprehensively, and accurately based on the verified Reference Grounding Context above. Ground all factual claims strictly in the authentic reference data provided."
-                )
+                directive = specialized_directive or directive_registry.synthesize_directive(parsed_intent.directive_modality, source_label)
+
             effective_prompt = (
                 f"### USER DIRECTIVE / QUESTION:\n"
                 f"{raw_user_prompt.strip()}\n\n"
@@ -711,17 +766,21 @@ async def gemini_proxy_stream(
         # 2. Fast Local Hard Drive & Workspace File / Report Reader Check (< 50ms)
         local_file_or_report = await _check_local_workspace_file_or_report(raw_user_prompt)
 
-        # 3. Dynamic Document Page & Overview Grounding Check (< 15ms)
+        # 3. Dynamic Real-Time URL Scraping & Ingestion Check (< 250ms)
+        url_grounding, url_shas, url_titles = await _check_url_grounding(parsed_intent.detected_urls)
+
+        # 4. Dynamic Document Page & Overview Grounding Check (< 15ms)
         doc_grounding, doc_sha256, doc_name = await _check_document_grounding(raw_user_prompt)
 
-        # 4. Dynamic Web Search Grounding Check (< 500ms)
+        # 5. Dynamic Web Search Grounding Check (< 500ms)
         web_grounding = await _check_web_search_grounding(raw_user_prompt)
 
-        # 5. Dynamic Codebase & Architecture Grounding Check (< 15ms)
+        # 6. Dynamic Codebase & Architecture Grounding Check (< 15ms)
         code_grounding, specialized_directive = await _check_codebase_and_architecture_context(prompt)
 
-        # 6. Dynamic 4-Tier H-LSM Context Hydration across L1/L2/L3 (Tri-Hybrid RRF with SHA-256 scoping)
+        # 7. Dynamic 4-Tier H-LSM Context Hydration across L1/L2/L3 (Tri-Hybrid RRF with SHA-256 scoping)
         memory_block = ""
+        effective_doc_sha = doc_sha256 or (url_shas[0] if len(url_shas) == 1 else None)
         if hasattr(services, "hlsm_manager") and services.hlsm_manager and parsed_intent.intent_type != IntentType.SYSTEM_INTROSPECTION:
             try:
                 psi = 0.0
@@ -732,7 +791,7 @@ async def gemini_proxy_stream(
                     objective=parsed_intent.core_objective,
                     psi=psi,
                     session_key=session_id or "web_chat",
-                    doc_sha256=doc_sha256
+                    doc_sha256=effective_doc_sha
                 )
                 memory_block = memory_ctx.to_prompt_block()
             except Exception as mem_err:
@@ -740,56 +799,41 @@ async def gemini_proxy_stream(
 
         # Construct Authoritative Grounded Prompt
         grounding_blocks = []
+        if url_grounding:
+            grounding_blocks.append(url_grounding)
         if doc_grounding:
             grounding_blocks.append(doc_grounding)
         if web_grounding:
             grounding_blocks.append(f"[WEB SEARCH GROUNDING DATA]:\n{web_grounding}")
-        if code_grounding and not files and not doc_grounding:
+        if code_grounding and not files and not doc_grounding and not url_grounding:
             grounding_blocks.append(f"[AUTHENTIC DISK GROUNDING & MANIFESTS]:\n{code_grounding}")
         if memory_block:
             grounding_blocks.append(f"[RECALLED H-LSM MEMORY CONTEXT]:\n{memory_block}")
 
         if grounding_blocks:
             combined_grounding = "\n\n".join(grounding_blocks)
-            if doc_grounding:
-                body_lower = raw_user_prompt.lower()
-                is_math_req = any(w in body_lower for w in ["formula", "formulas", "latex", "equation", "equations", "math", "mathematical", "kernel", "tuple", "theorem", "proof"])
-                is_overview_req = any(w in body_lower for w in ["overview", "treatise", "breakdown", "dossier", "comprehensive", "summarize", "summary"])
-                
-                if is_math_req:
-                    directive = (
-                        f"INSTRUCTION FOR MATHEMATICAL EXTRACTION & FORMAL ANALYSIS OF {doc_name or 'THE SOURCE DOCUMENT'}:\n"
-                        "Extract, formulate, and rigorously explain all formal mathematical definitions, tuples, measurable spaces, "
-                        "Markov transition kernels, dynamical equations, asymptotic properties, and theorems from the authentic source text above.\n"
-                        "For each mathematical object:\n"
-                        "1. State the exact formula using standard LaTeX notation ($...$ or $$...$$).\n"
-                        "2. Provide an exhaustive, rigorous explanation of every variable, space, kernel, and operational mechanic strictly grounded in this paper.\n"
-                        "3. Detail its theoretical purpose and proof structure directly from the text.\n\n"
-                        "STRICT FACTUAL GROUNDING LAWS:\n"
-                        "1. Ground every formula and definition strictly in the authentic reference data provided above.\n"
-                        "2. DO NOT mention or blend external frameworks (such as Tononi's Integrated Information Theory Phi or Karl Friston's Free Energy Principle) unless they are explicitly present in this specific document."
-                    )
-                elif is_overview_req:
-                    directive = (
-                        f"INSTRUCTION FOR COMPREHENSIVE RESEARCH ANALYSIS OF {doc_name or 'THE SOURCE DOCUMENT'}:\n"
-                        "Provide an exhaustive, publication-grade academic analysis based STRICTLY AND EXCLUSIVELY on the authentic source document text provided above.\n"
-                        "Synthesize the core executive thesis, theoretical paradigms, chapter corridors, mathematical formalisms, and strategic implications.\n\n"
-                        "STRICT FACTUAL GROUNDING LAWS:\n"
-                        "1. Ground every claim strictly in the authentic reference data provided above.\n"
-                        "2. DO NOT mention or blend external frameworks unless they are explicitly named in this specific document.\n"
-                        "3. Quote exact formulas and definitions directly from the text."
-                    )
-                else:
-                    directive = (
-                        f"INSTRUCTION: Answer the User Directive directly, comprehensively, and factually based exclusively on the provided text for {doc_name or 'the source document'}.\n"
-                        "Ground all factual claims strictly in the authentic reference data provided above."
-                    )
+            
+            # Formulate Dynamic Adaptive Directive via CognitiveDirectiveRegistry
+            from ..engine.directive_registry import CognitiveDirectiveRegistry
+            directive_registry = CognitiveDirectiveRegistry()
+            
+            source_labels = []
+            if doc_name:
+                source_labels.append(doc_name)
+            if url_titles:
+                source_labels.extend(url_titles)
+            elif parsed_intent.detected_urls:
+                source_labels.extend(parsed_intent.detected_urls)
+            
+            source_label = " & ".join(source_labels) if source_labels else "THE REFERENCE SOURCE"
+            
+            if doc_grounding or url_grounding:
+                directive = directive_registry.synthesize_directive(parsed_intent.directive_modality, source_label)
             elif files:
                 directive = "INSTRUCTION: Answer the User Directive directly, comprehensively, and accurately based on the provided document text and reference grounding context above. Ground all factual claims strictly in the authentic reference data provided."
             else:
-                directive = specialized_directive or (
-                    "INSTRUCTION: Answer the User Directive directly, comprehensively, and accurately based on the verified Reference Grounding Context above. Ground all factual claims strictly in the authentic reference data provided."
-                )
+                directive = specialized_directive or directive_registry.synthesize_directive(parsed_intent.directive_modality, source_label)
+
             effective_prompt = (
                 f"### USER DIRECTIVE / QUESTION:\n"
                 f"{raw_user_prompt.strip()}\n\n"
@@ -1215,7 +1259,13 @@ async def _process_dynamic_artifact_block(full_response: str, prompt: str, outpu
                 code_m = re.search(r'```(?:python|typescript|js|ts|cpp|c|sh|json)?\n([\s\S]*?)```', full_response)
                 content = code_m.group(1).strip() if code_m else full_response
         elif is_research_req:
-            kind = "research"
+            from ..engine.intent_decomposer import IntentDecomposer
+            from ..engine.directive_registry import CognitiveDirectiveRegistry
+            
+            p_intent = IntentDecomposer().decompose(prompt)
+            cat_name, default_title = CognitiveDirectiveRegistry().get_artifact_metadata(p_intent.directive_modality, "Document")
+            kind = cat_name
+            
             first_h1 = re.search(r'^#\s+([^\n]+)', full_response, re.MULTILINE)
             if first_h1:
                 title = first_h1.group(1).strip()
@@ -1224,7 +1274,7 @@ async def _process_dynamic_artifact_block(full_response: str, prompt: str, outpu
             elif "cimc" in body_lower or "machine consciousness" in body_lower:
                 title = "CIMC Whitepaper — Comprehensive Research Dossier"
             else:
-                title = "Comprehensive Research Analysis"
+                title = default_title
             content = full_response
 
     if not kind or not content or not title:
@@ -1234,14 +1284,15 @@ async def _process_dynamic_artifact_block(full_response: str, prompt: str, outpu
     if kind == "presentation":
         html_content = _build_html5_presentation_deck(title, content)
         md_content = content
-    elif kind == "research":
-        html_content = _build_html5_research_dossier(title, content)
-        md_content = content
     elif kind in ["html", "web"]:
         html_content = content
         md_content = f"# {title}\n\n```html\n{content}\n```"
-    else:
+    elif kind == "code":
         html_content = f"<pre><code>{content}</code></pre>"
+        md_content = content
+    else:
+        # High-grade academic HTML5 dossier styling for all analytical, narrative, and research categories
+        html_content = _build_html5_research_dossier(title, content)
         md_content = content
 
     clean_title = re.sub(r'[^a-zA-Z0-9]+', '_', (title or "artifact").lower()).strip('_')
@@ -1251,7 +1302,7 @@ async def _process_dynamic_artifact_block(full_response: str, prompt: str, outpu
     folder_name = f"{date_str}_{slug}"
 
     artifacts_base = os.path.abspath(output_dir) if output_dir else os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "workspace", "artifacts"))
-    cat_dir = "presentations" if kind in ["presentation", "html"] else ("code" if kind == "code" else ("research" if kind == "research" else "documents"))
+    cat_dir = kind if kind in ["comparisons", "critiques", "articles", "contrarian", "narratives", "creative", "mathematics", "research", "presentations", "code"] else "research"
     save_dir = os.path.join(artifacts_base, cat_dir, folder_name)
     os.makedirs(save_dir, exist_ok=True)
 

@@ -30,6 +30,18 @@ class IntentType(str, Enum):
     GENERAL_CONVERSATIONAL = "GENERAL_CONVERSATIONAL"
 
 
+class DirectiveModality(str, Enum):
+    FORMULA_EXTRACTION = "FORMULA_EXTRACTION"
+    COMPREHENSIVE_OVERVIEW = "COMPREHENSIVE_OVERVIEW"
+    MULTI_DOCUMENT_COMPARISON = "MULTI_DOCUMENT_COMPARISON"
+    CRITICAL_ANALYSIS = "CRITICAL_ANALYSIS"
+    CREATIVE_WRITING = "CREATIVE_WRITING"
+    ACADEMIC_ARTICLE = "ACADEMIC_ARTICLE"
+    NON_CONSENSUS_CONTRARIAN = "NON_CONSENSUS_CONTRARIAN"
+    VIRAL_PUBLIC_NARRATIVE = "VIRAL_PUBLIC_NARRATIVE"
+    CONCEPTUAL_QA = "CONCEPTUAL_QA"
+
+
 class CapabilityDomain(str, Enum):
     COMPUTE_INFERENCE = "compute_and_inference"
     TOPOLOGICAL_PHYSICS = "topological_physics"
@@ -48,6 +60,8 @@ class ParsedGoalTuple(BaseModel):
     raw_prompt: str
     core_objective: str
     intent_type: IntentType
+    directive_modality: DirectiveModality = DirectiveModality.CONCEPTUAL_QA
+    detected_urls: List[str] = Field(default_factory=list)
     domain: CapabilityDomain
     suggested_agent: str = "executive"
     constraints: List[str] = Field(default_factory=list)
@@ -327,12 +341,6 @@ class IntentDecomposer:
                 "Do you have existing baseline numbers, repositories, or documents to ground this analysis?",
                 "What is your intended deliverable format (e.g., Markdown Dossier, Interactive DAG Plan, Executable Code Diff)?"
             ]
-        elif word_count < 7 and not constraints and not matched_skills and not is_introspection and not is_research and not is_informational:
-            ambiguity_score = 0.60
-            clarifications = [
-                "Would you like an executive strategic overview or a granular multi-step execution plan?",
-                "Are there specific constraints (timeline, budget, tech stack) we should incorporate?"
-            ]
         else:
             ambiguity_score = max(0.0, min(0.4, 0.5 - (len(constraints) * 0.1) - (len(matched_skills) * 0.1)))
 
@@ -348,10 +356,36 @@ class IntentDecomposer:
             and ambiguity_score < 0.70
         )
 
+        # 10. Extract URLs
+        url_pattern = r'https?://[^\s<>"\')]+'
+        raw_urls = re.findall(url_pattern, clean_prompt)
+        cleaned_urls = [re.sub(r'[\.,;:\)\]]+$', '', u) for u in raw_urls]
+
+        # 11. Classify Cognitive Directive Modality
+        modality = DirectiveModality.CONCEPTUAL_QA
+        if any(w in body_lower for w in ["compare", "comparison", "contrast", "differences between", "similarities between", "versus", " vs ", " vs."]) or len(cleaned_urls) >= 2:
+            modality = DirectiveModality.MULTI_DOCUMENT_COMPARISON
+        elif any(w in body_lower for w in ["critique", "critical analysis", "audit", "challenge the claims", "flaws in", "limitations of", "stress test", "counter-arguments", "rebuttal", "evaluate the claims", "skeptical"]):
+            modality = DirectiveModality.CRITICAL_ANALYSIS
+        elif any(w in body_lower for w in ["creative writing", "story", "narrative", "fiction", "allegory", "screenplay", "metaphor", "poem", "poetic", "novel", "worldbuilding", "dialogue between"]):
+            modality = DirectiveModality.CREATIVE_WRITING
+        elif any(w in body_lower for w in ["academic article", "research paper", "arxiv", "journal article", "scholarly article", "scholarly paper", "monograph", "academic publication", "write a paper", "formal treatise"]):
+            modality = DirectiveModality.ACADEMIC_ARTICLE
+        elif any(w in body_lower for w in ["non-consensus", "contrarian", "counter-intuitive", "unpopular view", "heterodox", "heresy", "blind spots", "antithesis", "challenge the consensus", "dissenting"]):
+            modality = DirectiveModality.NON_CONSENSUS_CONTRARIAN
+        elif any(w in body_lower for w in ["viral", "x thread", "twitter thread", "linkedin", "substack", "hook", "social post", "thought leadership", "viral post", "viral article", "engaging post"]):
+            modality = DirectiveModality.VIRAL_PUBLIC_NARRATIVE
+        elif any(w in body_lower for w in ["formula", "formulas", "latex", "equation", "equations", "math", "mathematical", "kernel", "tuple", "theorem", "proof", "extract the math"]):
+            modality = DirectiveModality.FORMULA_EXTRACTION
+        elif any(w in body_lower for w in ["overview", "treatise", "breakdown", "dossier", "comprehensive", "summarize", "summary", "explain this paper", "explain the paper"]):
+            modality = DirectiveModality.COMPREHENSIVE_OVERVIEW
+
         return ParsedGoalTuple(
             raw_prompt=clean_prompt,
             core_objective=core_objective,
             intent_type=intent_type,
+            directive_modality=modality,
+            detected_urls=cleaned_urls,
             domain=domain,
             suggested_agent=suggested_agent,
             constraints=constraints,
