@@ -1106,7 +1106,7 @@ def _build_html5_research_dossier(title: str, markdown_content: str) -> str:
 </html>"""
 
 
-async def _process_dynamic_artifact_block(full_response: str, prompt: str):
+async def _process_dynamic_artifact_block(full_response: str, prompt: str, output_dir: Optional[str] = None):
     """
     Parses LLM responses for dynamic artifact blocks, slide decks, or comprehensive research dossiers.
     Saves the deliverable under ./workspace/artifacts/{category}/{YYYY-MM-DD}_{title_slug}/ as an atomic triad
@@ -1185,7 +1185,7 @@ async def _process_dynamic_artifact_block(full_response: str, prompt: str):
     date_str = datetime.date.today().strftime("%Y-%m-%d")
     folder_name = f"{date_str}_{slug}"
 
-    artifacts_base = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "workspace", "artifacts"))
+    artifacts_base = os.path.abspath(output_dir) if output_dir else os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "workspace", "artifacts"))
     cat_dir = "presentations" if kind in ["presentation", "html"] else ("code" if kind == "code" else ("research" if kind == "research" else "documents"))
     save_dir = os.path.join(artifacts_base, cat_dir, folder_name)
     os.makedirs(save_dir, exist_ok=True)

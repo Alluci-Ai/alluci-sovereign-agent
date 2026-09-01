@@ -217,7 +217,7 @@ def _distill_document_metadata(filename: str, content: str) -> Dict[str, Any]:
         return {"title": filename, "summary": "", "key_points": [], "acronyms": ""}
     
     # 1. Layout-Aware Title extraction
-    # Filter out generic publication / journal / status banners
+    # Filter out generic publication / journal / status banners & page markers
     banner_patterns = [
         r'^\s*original research article\b',
         r'^\s*research article\b',
@@ -236,13 +236,21 @@ def _distill_document_metadata(filename: str, content: str) -> Dict[str, Any]:
         r'^\s*page\s+\d+',
         r'^\s*version\s+\d+',
         r'^\s*issn\b',
-        r'^\s*isbn\b'
+        r'^\s*isbn\b',
+        r'^-{2,}\s*\[?page\b',
+        r'^\[?page\s+\d+\]?',
+        r'^-{2,}\s*\[?document\b',
+        r'^\[?thematic\s+corridor\b',
+        r'^\s*table\s+\d+',
+        r'^\s*figure\s+\d+'
     ]
     
     title = ""
-    for line in clean_lines[:15]:
-        line_clean = line.lstrip("# \t").strip()
+    for line in clean_lines[:20]:
+        line_clean = line.lstrip("# \t-").strip()
         if len(line_clean) < 3:
+            continue
+        if line_clean.startswith("---") or line_clean.lower().startswith("[page") or line_clean.lower().startswith("page "):
             continue
         if any(re.search(pat, line_clean, re.IGNORECASE) for pat in banner_patterns):
             continue
@@ -269,7 +277,7 @@ def _distill_document_metadata(filename: str, content: str) -> Dict[str, Any]:
         # Fallback to first 2-3 clean, informative paragraphs
         intro_paragraphs = []
         for line in clean_lines[1:25]:
-            if len(line) > 60 and not any(re.search(pat, line, re.IGNORECASE) for pat in banner_patterns):
+            if len(line) > 60 and not line.startswith("---") and not any(re.search(pat, line, re.IGNORECASE) for pat in banner_patterns):
                 intro_paragraphs.append(line)
                 if len(intro_paragraphs) >= 3:
                     break
@@ -279,24 +287,27 @@ def _distill_document_metadata(filename: str, content: str) -> Dict[str, Any]:
     acronym_map: Dict[str, str] = {}
     
     # Pattern A: Full Name (ACRONYM) or ACRONYM (Full Name)
-    matches_paren = re.findall(r'\b([A-Z][A-Za-z0-9\s&]{3,60})\s*\(([A-Z0-9]{2,10})\)|\b([A-Z0-9]{2,10})\s*\(([A-Z][A-Za-z0-9\s&]{3,60})\)', content)
+    matches_paren = re.findall(r'\b([A-Z][A-Za-z0-9\s&]{3,60})\s*\(([A-Z0-9]{2,8})\)|\b([A-Z0-9]{2,8})\s*\(([A-Z][A-Za-z0-9\s&]{3,60})\)', content)
     for m in matches_paren:
         if m[0] and m[1]:
             full, acr = m[0].strip(), m[1].strip()
-            if len(acr) <= 8 and acr.isupper():
+            if len(acr) <= 8 and acr.isupper() and len(full.split()) <= 6:
                 acronym_map[acr] = full
         elif m[2] and m[3]:
             acr, full = m[2].strip(), m[3].strip()
-            if len(acr) <= 8 and acr.isupper():
+            if len(acr) <= 8 and acr.isupper() and len(full.split()) <= 6:
                 acronym_map[acr] = full
 
     # Pattern B: Colon definition e.g. CIMC: California Institute for Machine Consciousness
-    matches_colon = re.findall(r'\b([A-Z0-9]{2,10})\s*:\s*([A-Z][A-Za-z0-9\s&]{4,60})', content)
+    matches_colon = re.findall(r'\b([A-Z0-9]{2,8})\s*:\s*([A-Z][A-Za-z0-9\s&]{4,40})', content)
     for acr, full in matches_colon:
-        if len(acr) <= 8 and acr.isupper() and acr not in acronym_map:
-            acronym_map[acr] = full.strip()
+        clean_full = full.strip()
+        # Avoid capturing entire explanatory sentences as acronym definitions
+        if len(acr) <= 8 and acr.isupper() and acr not in acronym_map and len(clean_full.split()) <= 6:
+            if not any(sw in clean_full.lower() for sw in ["is the", "was the", "we propose", "in this", "which is"]):
+                acronym_map[acr] = clean_full
 
-    # Pattern C: Acronym from filename or title if first letters match (e.g. CIMC -> California Institute for Machine Consciousness)
+    # Pattern C: Acronym from filename or title if first letters match
     title_words = [w for w in title.split() if w and w[0].isupper()]
     if len(title_words) >= 2:
         constructed_acr = "".join(w[0] for w in title_words if w.lower() not in {"for", "the", "and", "of", "in", "to", "a"})
@@ -2319,16 +2330,11 @@ class HLSMManager:
             approx_end_page = min(len(pages), max(approx_start_page, ((idx + 1) * chunk_size) // 450 + 1))
             page_tag = f"Page {approx_start_page}" if approx_start_page == approx_end_page else f"Pages {approx_start_page}-{approx_end_page}"
             
-            chunk_header = (
-                f"[DOCUMENT: {filename} | Title: {doc_title} | {page_tag} | "
-                f"Acronyms: {doc_acronyms} | Chunk {idx+1}/{total_chunks}]\n{chunk}"
-            )
-
             # Store in L1 Episodic Memory for SQLite FTS5 instant lexical match
             try:
                 l1_entry = HLSMEpisodicEntry(
                     id=chunk_id,
-                    content=chunk_header,
+                    content=chunk,
                     source="document_ingest",
                     session_key=session_key or "",
                     psi_at_encoding=0.0,
@@ -2341,6 +2347,8 @@ class HLSMManager:
                         "total_chunks": total_chunks,
                         "start_page": approx_start_page,
                         "end_page": approx_end_page,
+                        "page_tag": page_tag,
+                        "acronyms": doc_acronyms,
                         "local_path": local_path
                     })
                 )
@@ -2352,7 +2360,7 @@ class HLSMManager:
             # Store in L2 SemanticMemory in KùzuDB
             if self.kuzu_conn:
                 try:
-                    betti_sig = self.dpk.get_betti_signature(self.dpk.project_state(chunk_header))
+                    betti_sig = self.dpk.get_betti_signature(self.dpk.project_state(chunk))
                     query = (
                         "CREATE (m:SemanticMemory {"
                         "id: $id, content: $content, source: 'document_ingest', session_key: $session_key, "
@@ -2366,7 +2374,7 @@ class HLSMManager:
                         query,
                         {
                             "id": chunk_id,
-                            "content": chunk_header[:1500],
+                            "content": chunk[:1500],
                             "session_key": session_key or "",
                             "betti_signature": str(betti_sig),
                             "created_at": now,

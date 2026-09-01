@@ -207,7 +207,7 @@ def test_select_optimal_local_model_glm_routing():
 
 
 @pytest.mark.asyncio
-async def test_dynamic_research_artifact_packaging():
+async def test_dynamic_research_artifact_packaging(tmp_path):
     from backend.routers.gemini import _process_dynamic_artifact_block
     
     mock_response = (
@@ -216,15 +216,15 @@ async def test_dynamic_research_artifact_packaging():
         "This dossier provides an exhaustive analysis of the Conscious Realism framework.\n\n"
         "## Mathematical Foundations\n"
         "A conscious agent is formalized as a 7-tuple $C = ((X, \\mathcal{X}), (G, \\mathcal{G}), W, P, D, A, N)$."
-        + "\n\n" + "Detailed exposition of theorems and evolutionary fitness simulations. " * 30
+        + "\n\n" + "Detailed exposition of theorems and evolutionary fitness simulations."
     )
     mock_prompt = "Please provide a comprehensive overview and deep analysis of the Hoffman Objects of Consciousness paper"
     
-    await _process_dynamic_artifact_block(mock_response, mock_prompt)
+    await _process_dynamic_artifact_block(mock_response, mock_prompt, output_dir=str(tmp_path))
     
-    # Check that artifact triad was persisted in workspace/artifacts/research/
+    # Check that artifact triad was persisted in isolated tmp_path
     import glob
-    matching_dirs = glob.glob("workspace/artifacts/research/*_objects_of_consciousness*")
+    matching_dirs = glob.glob(f"{str(tmp_path)}/research/*_objects_of_consciousness*")
     assert len(matching_dirs) >= 1
     art_dir = matching_dirs[-1]
     assert os.path.exists(os.path.join(art_dir, "metadata.json"))
@@ -238,4 +238,5 @@ async def test_dynamic_research_artifact_packaging():
     with open(os.path.join(art_dir, "source.html"), "r") as f:
         html_text = f.read()
         assert "<h1>Objects of Consciousness — Comprehensive Treatise Analysis</h1>" in html_text
+
 
