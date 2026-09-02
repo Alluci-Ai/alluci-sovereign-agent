@@ -43,8 +43,9 @@ def test_research_monograph_directive_contains_figure_embedding_and_math():
     )
     
     assert "10-Layer Publication Monograph Architecture" in directive
-    assert "Supporting Technical Figure Walkthroughs" in directive
-    assert "![Caption](/api/v1/artifacts/extracted_figures/...)" in directive
+    assert "RAW UNESCAPED FIGURE IMAGE TAGS" in directive
+    assert "![Figure Caption](/api/v1/artifacts/extracted_figures/...)" in directive
+    assert "STRICT KATEX CONTINUITY LAW" in directive
     assert "Formal Mathematical State Space Modeling" in directive
     assert "Epistemic Status Classification Matrix" in directive
 

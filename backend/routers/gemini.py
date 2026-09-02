@@ -333,9 +333,10 @@ def _process_attached_files(prompt: str, files: Optional[List[Dict[str, Any]]] =
             appended_text += f"\n\n--- [ATTACHED FILE: {file_name}] ---\n{decoded_content.strip()}\n--- [END ATTACHED FILE] ---"
 
     if all_figures:
+        all_figures.sort(key=lambda x: (x.get("page_number", 1), x.get("figure_index", 0)))
         fig_lines = ["\n\n--- [ATTACHED TECHNICAL FIGURES & DIAGRAMS (EXTRACTED VISUAL ASSETS)] ---"]
-        fig_lines.append("The following substantive technical figures and diagrams were extracted from the attached document(s). When explaining the concepts or generating artifacts, cite and embed them using the exact Markdown image tags below:")
-        for fig in all_figures[:10]:
+        fig_lines.append("The following substantive technical figures and diagrams were extracted from the attached document(s). When explaining the concepts or generating artifacts, contextually embed them in their relevant chapters using raw unescaped Markdown image tags without backticks:")
+        for fig in all_figures[:12]:
             fig_path = fig.get("file_path", "")
             fig_name = os.path.basename(fig_path)
             doc_slug = fig.get("document_id", "general")
@@ -344,7 +345,8 @@ def _process_attached_files(prompt: str, files: Optional[List[Dict[str, Any]]] =
             summary = fig.get("visual_summary") or fig.get("caption") or "Technical visual asset"
             fig_lines.append(
                 f"- **{caption}** (Page {fig.get('page_number', 1)}, Type: {fig.get('figure_type', 'FIGURE')})\n"
-                f"  - Markdown Citation Tag: `![{caption}]({web_uri})`\n"
+                f"  - Markdown Image Embed Tag: ![{caption}]({web_uri})\n"
+                f"  - Direct Clickable View Link: [🔍 View High-Resolution Diagram]({web_uri})\n"
                 f"  - Visual Architecture & Content: {summary}"
             )
         fig_lines.append("--- [END ATTACHED TECHNICAL FIGURES] ---")
@@ -733,12 +735,14 @@ async def gemini_proxy(
         if doc_grounding or url_grounding or files:
             system_instruction = (
                 "You are an authoritative, world-class academic research scholar and theoretical scientist. "
-                "Your objective is to author an exhaustive, publication-grade academic research monograph strictly grounded in the provided source reference. "
-                "Adhere to the highest standards of formal academic rigor: declare source evidentiary boundaries, formulate boxed conceptual causal chains (\\boxed{A \\to B}), "
-                "construct comprehensive Epistemic Status Classification Matrices, formulate explicit LaTeX mathematical derivations ($...$ and $$...$$), "
-                "embed all supporting technical figure diagrams (using exact Markdown tags ![Caption](/api/v1/artifacts/extracted_figures/...)), "
-                "provide domain isomorphism mapping tables, formalize taxonomical definitions with non-implication relations (A \\not\\Rightarrow B), "
-                "conduct deep dialectical audits of neighboring and rejected paradigms, detail concrete experimental platforms, and provide numbered empirical falsification criteria. "
+                "Your objective is to author an exhaustive, publication-grade academic research monograph strictly grounded in the provided source reference.\n"
+                "Adhere to the highest standards of formal academic rigor:\n"
+                "1. Deliver minimum 3 to 4 dense, publication-grade analytical paragraphs per chapter quoting verbatim source claims, theoretical mechanisms, and proofs.\n"
+                "2. Formulate boxed conceptual causal chains (\\boxed{A \\to B}) and construct comprehensive Epistemic Status Classification Matrices.\n"
+                "3. Formulate explicit contiguous LaTeX mathematical derivations ($$...$$) with ZERO empty blank lines inside delimiters to ensure valid KaTeX rendering.\n"
+                "4. Contextually embed all supporting technical figure diagrams using raw unescaped Markdown image tags (![Caption](/api/v1/artifacts/extracted_figures/...)) followed by clickable view links ([🔍 View High-Resolution Diagram](/api/v1/artifacts/extracted_figures/...)). DO NOT wrap image tags in backticks, quotes, or code fences.\n"
+                "5. Provide domain isomorphism mapping tables, formalize taxonomical definitions with non-implication relations (A \\not\\Rightarrow B), "
+                "conduct deep dialectical audits of neighboring and rejected paradigms, detail concrete experimental platforms, and provide numbered empirical falsification criteria.\n"
                 "Deliver deep, monograph-grade treatises without premature compression or superficial summaries."
             )
         elif services.orchestrator:
@@ -911,12 +915,14 @@ async def gemini_proxy_stream(
             # PURE ACADEMIC & RESEARCH GROUNDING:
             system_instruction = (
                 "You are an authoritative, world-class academic research scholar and theoretical scientist. "
-                "Your objective is to author an exhaustive, publication-grade academic research monograph strictly grounded in the provided source reference. "
-                "Adhere to the highest standards of formal academic rigor: declare source evidentiary boundaries, formulate boxed conceptual causal chains (\\boxed{A \\to B}), "
-                "construct comprehensive Epistemic Status Classification Matrices, formulate explicit LaTeX mathematical derivations ($...$ and $$...$$), "
-                "embed all supporting technical figure diagrams (using exact Markdown tags ![Caption](/api/v1/artifacts/extracted_figures/...)), "
-                "provide domain isomorphism mapping tables, formalize taxonomical definitions with non-implication relations (A \\not\\Rightarrow B), "
-                "conduct deep dialectical audits of neighboring and rejected paradigms, detail concrete experimental platforms, and provide numbered empirical falsification criteria. "
+                "Your objective is to author an exhaustive, publication-grade academic research monograph strictly grounded in the provided source reference.\n"
+                "Adhere to the highest standards of formal academic rigor:\n"
+                "1. Deliver minimum 3 to 4 dense, publication-grade analytical paragraphs per chapter quoting verbatim source claims, theoretical mechanisms, and proofs.\n"
+                "2. Formulate boxed conceptual causal chains (\\boxed{A \\to B}) and construct comprehensive Epistemic Status Classification Matrices.\n"
+                "3. Formulate explicit contiguous LaTeX mathematical derivations ($$...$$) with ZERO empty blank lines inside delimiters to ensure valid KaTeX rendering.\n"
+                "4. Contextually embed all supporting technical figure diagrams using raw unescaped Markdown image tags (![Caption](/api/v1/artifacts/extracted_figures/...)) followed by clickable view links ([🔍 View High-Resolution Diagram](/api/v1/artifacts/extracted_figures/...)). DO NOT wrap image tags in backticks, quotes, or code fences.\n"
+                "5. Provide domain isomorphism mapping tables, formalize taxonomical definitions with non-implication relations (A \\not\\Rightarrow B), "
+                "conduct deep dialectical audits of neighboring and rejected paradigms, detail concrete experimental platforms, and provide numbered empirical falsification criteria.\n"
                 "Deliver deep, monograph-grade treatises without premature compression or superficial summaries."
             )
         elif orch is not None and not local_file_or_report and not mem_purge_reply:
