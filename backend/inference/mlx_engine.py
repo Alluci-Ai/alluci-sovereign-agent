@@ -12,45 +12,59 @@ from mlx_lm.utils import load_model, hf_repo_to_path, load_adapters, load_tokeni
 
 from backend.inference.profiler import HardwareProfiler
 
+import re
+
 logger = logging.getLogger("MLXEngine")
+
+
+def is_substantive_word(w: str) -> bool:
+    """Checks if a token is a substantive semantic word rather than markdown/table/code punctuation."""
+    cleaned = re.sub(r'[^a-zA-Z0-9]', '', w)
+    return len(cleaned) >= 3 and not cleaned.isdigit()
 
 
 def detect_degenerative_loop(tokens: list) -> Optional[str]:
     """
     Real-Time Streaming Degenerative Loop Circuit Breaker.
     Monitors trailing emitted words/tokens for autoregressive limit-cycle collapse.
-    Returns the repeating n-gram string if a loop is detected, else None.
+    Filters out Markdown table dividers, punctuation, list markers, and math delimiters.
+    Returns the repeating n-gram string if a genuine semantic loop is detected, else None.
     """
-    if len(tokens) < 5:
+    # Filter out pure punctuation and markdown structural formatting
+    substantive_words = [
+        re.sub(r'[^a-zA-Z0-9_]', '', t).lower() 
+        for t in tokens 
+        if is_substantive_word(t)
+    ]
+    
+    if len(substantive_words) < 8:
         return None
 
-    # Check 1-gram (single word) repeat >= 5 times
-    last_word = tokens[-1].strip().lower()
-    if len(last_word) >= 2 and all(tokens[-i].strip().lower() == last_word for i in range(1, 6)):
-        return last_word
+    # Check 1-gram (single substantive word) repeat >= 8 times
+    last_word = substantive_words[-1]
+    if len(last_word) >= 3 and len(substantive_words) >= 8:
+        if all(substantive_words[-i] == last_word for i in range(1, 9)):
+            return last_word
 
-    # Check 2-gram repeat >= 3 times
-    if len(tokens) >= 6:
-        g2 = [tokens[-2].strip().lower(), tokens[-1].strip().lower()]
-        if g2[0] and g2[1]:
-            if [tokens[-4].strip().lower(), tokens[-3].strip().lower()] == g2 and \
-               [tokens[-6].strip().lower(), tokens[-5].strip().lower()] == g2:
+    # Check 2-gram repeat >= 6 times (12 tokens)
+    if len(substantive_words) >= 12:
+        g2 = [substantive_words[-2], substantive_words[-1]]
+        if all(len(w) >= 3 for w in g2):
+            if all(substantive_words[-(2*i)-2 : -(2*i)] == g2 for i in range(1, 6)):
                 return " ".join(g2)
 
-    # Check 3-gram repeat >= 3 times
-    if len(tokens) >= 9:
-        g3 = [tokens[-3].strip().lower(), tokens[-2].strip().lower(), tokens[-1].strip().lower()]
-        if all(g3):
-            if [tokens[-6].strip().lower(), tokens[-5].strip().lower(), tokens[-4].strip().lower()] == g3 and \
-               [tokens[-9].strip().lower(), tokens[-8].strip().lower(), tokens[-7].strip().lower()] == g3:
+    # Check 3-gram repeat >= 4 times (12 tokens)
+    if len(substantive_words) >= 12:
+        g3 = [substantive_words[-3], substantive_words[-2], substantive_words[-1]]
+        if all(len(w) >= 3 for w in g3):
+            if all(substantive_words[-(3*i)-3 : -(3*i)] == g3 for i in range(1, 4)):
                 return " ".join(g3)
 
-    # Check 4-gram repeat >= 3 times
-    if len(tokens) >= 12:
-        g4 = [tokens[-4].strip().lower(), tokens[-3].strip().lower(), tokens[-2].strip().lower(), tokens[-1].strip().lower()]
-        if all(g4):
-            if [tokens[-8].strip().lower(), tokens[-7].strip().lower(), tokens[-6].strip().lower(), tokens[-5].strip().lower()] == g4 and \
-               [tokens[-12].strip().lower(), tokens[-11].strip().lower(), tokens[-10].strip().lower(), tokens[-9].strip().lower()] == g4:
+    # Check 4-gram repeat >= 4 times (16 tokens)
+    if len(substantive_words) >= 16:
+        g4 = [substantive_words[-4], substantive_words[-3], substantive_words[-2], substantive_words[-1]]
+        if all(len(w) >= 3 for w in g4):
+            if all(substantive_words[-(4*i)-4 : -(4*i)] == g4 for i in range(1, 4)):
                 return " ".join(g4)
 
     return None
@@ -404,7 +418,7 @@ class MLXEngine:
                     prompt_len = len(full_prompt)
                     if prompt_len > 8000:
                         logger.info(f"[Metal GPU Guard] Long prompt detected ({prompt_len} chars). Enabling Q4 KV cache safeguards.")
-                        gen_kwargs["max_tokens"] = min(max_tokens, 4096)
+                        gen_kwargs["max_tokens"] = min(max_tokens, 16384)
                         MLXEngine._clear_vram_cache()
 
                     stop_tokens = [
@@ -425,8 +439,8 @@ class MLXEngine:
                             if loop_breaker_enabled and chunk.strip():
                                 words = chunk.strip().split()
                                 rolling_words.extend(words)
-                                if len(rolling_words) > 32:
-                                    rolling_words = rolling_words[-32:]
+                                if len(rolling_words) > 64:
+                                    rolling_words = rolling_words[-64:]
                                 
                                 loop_token = detect_degenerative_loop(rolling_words)
                                 if loop_token:
@@ -455,8 +469,8 @@ class MLXEngine:
                                 if loop_breaker_enabled and chunk.strip():
                                     words = chunk.strip().split()
                                     rolling_words.extend(words)
-                                    if len(rolling_words) > 32:
-                                        rolling_words = rolling_words[-32:]
+                                    if len(rolling_words) > 64:
+                                        rolling_words = rolling_words[-64:]
                                     
                                     loop_token = detect_degenerative_loop(rolling_words)
                                     if loop_token:
