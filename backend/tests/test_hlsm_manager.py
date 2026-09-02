@@ -299,4 +299,15 @@ async def test_start_stop_consolidation(hlsm_manager):
     await hlsm_manager.stop_consolidation_loop()
     assert hlsm_manager._consolidation_task.cancelled() or hlsm_manager._consolidation_task.done()
 
+@pytest.mark.asyncio
+async def test_purge_l3(hlsm_manager):
+    mock_conn = MagicMock()
+    # Test when execute returns a list of rows
+    mock_conn.execute.return_value = [[42]]
+    hlsm_manager.kuzu_conn = mock_conn
+
+    res = await hlsm_manager.purge_l3()
+    assert res["status"] == "SUCCESS"
+    assert res["l3_nodes_deleted"] == 42
+
 import time

@@ -2944,8 +2944,9 @@ class HLSMManager:
             try:
                 try:
                     count_res = await asyncio.to_thread(self.kuzu_conn.execute, "MATCH (n) RETURN count(n) AS cnt")
-                    if count_res.has_next():
-                        summary["l3_nodes_deleted"] = count_res.get_next()[0]
+                    rows = _extract_kuzu_rows(count_res)
+                    if rows and len(rows) > 0 and len(rows[0]) > 0:
+                        summary["l3_nodes_deleted"] = rows[0][0]
                 except Exception:
                     pass
 
