@@ -16,54 +16,53 @@ import re
 
 logger = logging.getLogger("MLXEngine")
 
+LATEX_AND_FORMAT_KEYWORDS = {
+    "text", "quad", "qquad", "frac", "cdot", "times", "begin", "end", 
+    "pmatrix", "bmatrix", "hline", "phantom", "vspace", "hspace",
+    "nonumber", "label", "eqref", "aligned", "align"
+}
+
 
 def is_substantive_word(w: str) -> bool:
-    """Checks if a token is a substantive semantic word rather than markdown/table/code punctuation."""
-    cleaned = re.sub(r'[^a-zA-Z0-9]', '', w)
-    return len(cleaned) >= 3 and not cleaned.isdigit()
+    """Checks if a token is a substantive semantic word rather than markdown/table/latex/code punctuation."""
+    cleaned = re.sub(r'[^a-zA-Z0-9]', '', w).lower()
+    if len(cleaned) < 3 or cleaned.isdigit():
+        return False
+    if cleaned in LATEX_AND_FORMAT_KEYWORDS:
+        return False
+    return True
 
 
 def detect_degenerative_loop(tokens: list) -> Optional[str]:
     """
     Real-Time Streaming Degenerative Loop Circuit Breaker.
-    Monitors trailing emitted words/tokens for autoregressive limit-cycle collapse.
-    Filters out Markdown table dividers, punctuation, list markers, and math delimiters.
+    Monitors trailing emitted words/tokens for autoregressive multi-word limit-cycle collapse.
+    Ignores single-word repeats (handled by logits repetition penalty), LaTeX macros, markdown, and tables.
+    Requires repeating multi-word phrases (>= 3-gram) with substantive semantic content.
     Returns the repeating n-gram string if a genuine semantic loop is detected, else None.
     """
-    # Filter out pure punctuation and markdown structural formatting
+    # Filter out pure punctuation, formatting, and LaTeX structural commands
     substantive_words = [
         re.sub(r'[^a-zA-Z0-9_]', '', t).lower() 
         for t in tokens 
         if is_substantive_word(t)
     ]
     
-    if len(substantive_words) < 8:
+    # Require at least 15 substantive words to evaluate multi-word phrase loops
+    if len(substantive_words) < 15:
         return None
 
-    # Check 1-gram (single substantive word) repeat >= 8 times
-    last_word = substantive_words[-1]
-    if len(last_word) >= 3 and len(substantive_words) >= 8:
-        if all(substantive_words[-i] == last_word for i in range(1, 9)):
-            return last_word
-
-    # Check 2-gram repeat >= 6 times (12 tokens)
-    if len(substantive_words) >= 12:
-        g2 = [substantive_words[-2], substantive_words[-1]]
-        if all(len(w) >= 3 for w in g2):
-            if all(substantive_words[-(2*i)-2 : -(2*i)] == g2 for i in range(1, 6)):
-                return " ".join(g2)
-
-    # Check 3-gram repeat >= 4 times (12 tokens)
-    if len(substantive_words) >= 12:
+    # Check 3-gram repeat >= 5 times (15 tokens)
+    if len(substantive_words) >= 15:
         g3 = [substantive_words[-3], substantive_words[-2], substantive_words[-1]]
-        if all(len(w) >= 3 for w in g3):
-            if all(substantive_words[-(3*i)-3 : -(3*i)] == g3 for i in range(1, 4)):
+        if len(set(g3)) >= 2 and sum(len(w) for w in g3) >= 10:
+            if all(substantive_words[-(3*i)-3 : -(3*i)] == g3 for i in range(1, 5)):
                 return " ".join(g3)
 
     # Check 4-gram repeat >= 4 times (16 tokens)
     if len(substantive_words) >= 16:
         g4 = [substantive_words[-4], substantive_words[-3], substantive_words[-2], substantive_words[-1]]
-        if all(len(w) >= 3 for w in g4):
+        if len(set(g4)) >= 2 and sum(len(w) for w in g4) >= 14:
             if all(substantive_words[-(4*i)-4 : -(4*i)] == g4 for i in range(1, 4)):
                 return " ".join(g4)
 
