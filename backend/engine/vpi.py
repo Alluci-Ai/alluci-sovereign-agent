@@ -3,10 +3,12 @@ import gc
 from typing import List, Dict, Any, Optional
 
 try:
-    import mlx.core as mx
-    from mlx_vlm import load, generate
+    import mlx.core as mx  # type: ignore
+    from mlx_vlm import load, generate  # type: ignore
 except ImportError:
-    mx = None
+    mx = None  # type: ignore[assignment]
+    load = None  # type: ignore
+    generate = None  # type: ignore
 
 from ..config import settings
 
@@ -46,8 +48,11 @@ class VisualPolytopeIngestor:
         
         # Explicitly instruct MLX Metal to clear its cached compute graphs and buffers
         if mx is not None:
-            mx.clear_cache()
-            logger.debug("MLX Metal cache cleared successfully.")
+            try:
+                mx.clear_cache()
+                logger.debug("MLX Metal cache cleared successfully.")
+            except Exception:
+                pass
 
     def ingest_document_pages(
         self, 
@@ -70,7 +75,7 @@ class VisualPolytopeIngestor:
         Returns:
             A list of dictionaries representing the extracted structured data for each page.
         """
-        if mx is None:
+        if mx is None or load is None or generate is None:
             logger.error("MLX or mlx_vlm is not installed. VPI cannot execute on Apple Silicon.")
             raise ImportError("mlx and mlx_vlm are required for the Visual Polytope Ingestor.")
             
@@ -80,9 +85,9 @@ class VisualPolytopeIngestor:
 
         logger.info(f"VPI initiating ingestion for document '{document_id}' ({len(image_paths)} pages) in namespace '{namespace}'.")
         
-        extracted_pages = []
-        model = None
-        processor = None
+        extracted_pages: List[Dict[str, Any]] = []
+        model: Any = None
+        processor: Any = None
         
         try:
             # Load the visual model into Unified Memory
@@ -107,21 +112,22 @@ class VisualPolytopeIngestor:
                 
                 try:
                     max_key = "".join(["max_", "tok", "ens"])
-                    gen_kwargs = {max_key: max_gen_length, "temperature": temperature, "verbose": False}
-                    response = generate(
+                    gen_kwargs: Dict[str, Any] = {max_key: max_gen_length, "temperature": temperature, "verbose": False}
+                    raw_response: Any = generate(
                         model,
                         processor,
                         prompt_formatted,
                         image=[img_path],
                         **gen_kwargs
                     )
+                    extracted_text = getattr(raw_response, "text", str(raw_response)).strip()
                     
                     extracted_pages.append({
                         "page_number": index + 1,
                         "document_id": document_id,
                         "namespace": namespace,
                         "source_image": img_path,
-                        "extracted_markdown": response.strip(),
+                        "extracted_markdown": extracted_text,
                         "extraction_status": "success"
                     })
                 except Exception as e:
@@ -252,8 +258,11 @@ class VisualPolytopeIngestor:
             return substantive_figures
 
         # MLX VLM Active Evaluation
-        model = None
-        processor = None
+        if load is None or generate is None:
+            return substantive_figures
+
+        model: Any = None
+        processor: Any = None
         try:
             logger.info(f"[VPI] Loading VLM '{self.model_path}' for technical figure classification & dense captioning...")
             model, processor = load(self.model_path)
@@ -282,14 +291,15 @@ class VisualPolytopeIngestor:
                 prompt_formatted = f"User: <image>\n{classification_prompt}\nAssistant:"
                 try:
                     max_key = "".join(["max_", "tok", "ens"])
-                    eval_kwargs = {max_key: max_gen_length, "temperature": temperature, "verbose": False}
-                    response = generate(
+                    eval_kwargs: Dict[str, Any] = {max_key: max_gen_length, "temperature": temperature, "verbose": False}
+                    raw_resp: Any = generate(
                         model,
                         processor,
                         prompt_formatted,
                         image=[img_path],
                         **eval_kwargs
-                    ).strip()
+                    )
+                    response = getattr(raw_resp, "text", str(raw_resp)).strip()
 
                     if "DECORATIVE_LOGO" in response or "COVER_ART" in response:
                         logger.debug(f"[VPI VLM] Discarding decorative visual: {img_path}")
