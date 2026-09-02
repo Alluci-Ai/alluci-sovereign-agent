@@ -694,7 +694,12 @@ async def gemini_proxy(
             directive_registry = CognitiveDirectiveRegistry()
             
             source_labels = []
-            if doc_name:
+            if files:
+                for f in files:
+                    fn = f.get("name")
+                    if fn:
+                        source_labels.append(fn)
+            if doc_name and doc_name not in source_labels:
                 source_labels.append(doc_name)
             if url_titles:
                 source_labels.extend(url_titles)
@@ -702,25 +707,15 @@ async def gemini_proxy(
                 source_labels.extend(parsed_intent.detected_urls)
             
             source_label = " & ".join(source_labels) if source_labels else "THE REFERENCE SOURCE"
-            detected_doc_genre = detect_document_genre(combined_grounding, filename=doc_name or "", raw_prompt=raw_user_prompt)
+            detected_doc_genre = detect_document_genre(combined_grounding, filename=doc_name or (files[0].get("name", "") if files else ""), raw_prompt=raw_user_prompt)
             detected_bandwidth = detect_conversational_bandwidth(raw_user_prompt, modality=parsed_intent.directive_modality, genre=detected_doc_genre)
             
-            if doc_grounding or url_grounding:
-                directive = directive_registry.synthesize_directive(
-                    parsed_intent.directive_modality,
-                    source_label,
-                    document_genre=detected_doc_genre,
-                    conversational_bandwidth=detected_bandwidth
-                )
-            elif files:
-                directive = "INSTRUCTION: Answer the User Directive directly, comprehensively, and accurately based on the provided document text and reference grounding context above. Ground all factual claims strictly in the authentic reference data provided."
-            else:
-                directive = specialized_directive or directive_registry.synthesize_directive(
-                    parsed_intent.directive_modality,
-                    source_label,
-                    document_genre=detected_doc_genre,
-                    conversational_bandwidth=detected_bandwidth
-                )
+            directive = specialized_directive or directive_registry.synthesize_directive(
+                parsed_intent.directive_modality,
+                source_label,
+                document_genre=detected_doc_genre,
+                conversational_bandwidth=detected_bandwidth
+            )
 
             effective_prompt = (
                 f"### USER DIRECTIVE / QUESTION:\n"
@@ -735,12 +730,13 @@ async def gemini_proxy(
 
         # Fetch system context
         system_instruction = ""
-        if doc_grounding or url_grounding:
+        if doc_grounding or url_grounding or files:
             system_instruction = (
                 "You are an authoritative, world-class academic research scholar and theoretical scientist. "
                 "Your objective is to author an exhaustive, publication-grade academic research monograph strictly grounded in the provided source reference. "
                 "Adhere to the highest standards of formal academic rigor: declare source evidentiary boundaries, formulate boxed conceptual causal chains (\\boxed{A \\to B}), "
                 "construct comprehensive Epistemic Status Classification Matrices, formulate explicit LaTeX mathematical derivations ($...$ and $$...$$), "
+                "embed all supporting technical figure diagrams (using exact Markdown tags ![Caption](/api/v1/artifacts/extracted_figures/...)), "
                 "provide domain isomorphism mapping tables, formalize taxonomical definitions with non-implication relations (A \\not\\Rightarrow B), "
                 "conduct deep dialectical audits of neighboring and rejected paradigms, detail concrete experimental platforms, and provide numbered empirical falsification criteria. "
                 "Deliver deep, monograph-grade treatises without premature compression or superficial summaries."
@@ -868,7 +864,12 @@ async def gemini_proxy_stream(
             directive_registry = CognitiveDirectiveRegistry()
             
             source_labels = []
-            if doc_name:
+            if files:
+                for f in files:
+                    fn = f.get("name")
+                    if fn:
+                        source_labels.append(fn)
+            if doc_name and doc_name not in source_labels:
                 source_labels.append(doc_name)
             if url_titles:
                 source_labels.extend(url_titles)
@@ -876,25 +877,15 @@ async def gemini_proxy_stream(
                 source_labels.extend(parsed_intent.detected_urls)
             
             source_label = " & ".join(source_labels) if source_labels else "THE REFERENCE SOURCE"
-            detected_doc_genre = detect_document_genre(combined_grounding, filename=doc_name or "", raw_prompt=raw_user_prompt)
+            detected_doc_genre = detect_document_genre(combined_grounding, filename=doc_name or (files[0].get("name", "") if files else ""), raw_prompt=raw_user_prompt)
             detected_bandwidth = detect_conversational_bandwidth(raw_user_prompt, modality=parsed_intent.directive_modality, genre=detected_doc_genre)
             
-            if doc_grounding or url_grounding:
-                directive = directive_registry.synthesize_directive(
-                    parsed_intent.directive_modality,
-                    source_label,
-                    document_genre=detected_doc_genre,
-                    conversational_bandwidth=detected_bandwidth
-                )
-            elif files:
-                directive = "INSTRUCTION: Answer the User Directive directly, comprehensively, and accurately based on the provided document text and reference grounding context above. Ground all factual claims strictly in the authentic reference data provided."
-            else:
-                directive = specialized_directive or directive_registry.synthesize_directive(
-                    parsed_intent.directive_modality,
-                    source_label,
-                    document_genre=detected_doc_genre,
-                    conversational_bandwidth=detected_bandwidth
-                )
+            directive = specialized_directive or directive_registry.synthesize_directive(
+                parsed_intent.directive_modality,
+                source_label,
+                document_genre=detected_doc_genre,
+                conversational_bandwidth=detected_bandwidth
+            )
 
             effective_prompt = (
                 f"### USER DIRECTIVE / QUESTION:\n"
@@ -916,13 +907,14 @@ async def gemini_proxy_stream(
 
         system_instruction = ""
         orch = services.orchestrator
-        if doc_grounding or url_grounding:
+        if doc_grounding or url_grounding or files:
             # PURE ACADEMIC & RESEARCH GROUNDING:
             system_instruction = (
                 "You are an authoritative, world-class academic research scholar and theoretical scientist. "
                 "Your objective is to author an exhaustive, publication-grade academic research monograph strictly grounded in the provided source reference. "
                 "Adhere to the highest standards of formal academic rigor: declare source evidentiary boundaries, formulate boxed conceptual causal chains (\\boxed{A \\to B}), "
                 "construct comprehensive Epistemic Status Classification Matrices, formulate explicit LaTeX mathematical derivations ($...$ and $$...$$), "
+                "embed all supporting technical figure diagrams (using exact Markdown tags ![Caption](/api/v1/artifacts/extracted_figures/...)), "
                 "provide domain isomorphism mapping tables, formalize taxonomical definitions with non-implication relations (A \\not\\Rightarrow B), "
                 "conduct deep dialectical audits of neighboring and rejected paradigms, detail concrete experimental platforms, and provide numbered empirical falsification criteria. "
                 "Deliver deep, monograph-grade treatises without premature compression or superficial summaries."

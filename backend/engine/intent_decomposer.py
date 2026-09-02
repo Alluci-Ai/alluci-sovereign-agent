@@ -543,6 +543,13 @@ class IntentDecomposer:
         cleaned_urls = [re.sub(r'[\.,;:\)\]]+$', '', u) for u in raw_urls]
 
         # 11. Classify Cognitive Directive Modality
+        is_comprehensive_request = any(w in body_lower for w in [
+            "comprehensive", "exhaustive", "publication-grade", "publication grade", "monograph",
+            "treatise", "full breakdown", "deep dive", "deep-dive", "in-depth analysis",
+            "detailed analysis", "strategic analysis", "academic synthesis", "full analysis",
+            "entire paper", "whole paper", "entire document", "all aspects"
+        ])
+
         modality = DirectiveModality.CONCEPTUAL_QA
         if any(w in body_lower for w in ["compare", "comparison", "contrast", "differences between", "similarities between", "versus", " vs ", " vs."]) or len(cleaned_urls) >= 2:
             modality = DirectiveModality.MULTI_DOCUMENT_COMPARISON
@@ -550,16 +557,18 @@ class IntentDecomposer:
             modality = DirectiveModality.CRITICAL_ANALYSIS
         elif any(w in body_lower for w in ["creative writing", "story", "narrative", "fiction", "allegory", "screenplay", "metaphor", "poem", "poetic", "novel", "worldbuilding", "dialogue between"]):
             modality = DirectiveModality.CREATIVE_WRITING
-        elif any(w in body_lower for w in ["academic article", "research paper", "arxiv", "journal article", "scholarly article", "scholarly paper", "monograph", "academic publication", "write a paper", "formal treatise"]):
+        elif is_comprehensive_request or any(w in body_lower for w in ["overview", "breakdown", "dossier", "summarize", "summary", "explain this paper", "explain the paper"]):
+            modality = DirectiveModality.COMPREHENSIVE_OVERVIEW
+        elif any(w in body_lower for w in ["academic article", "research paper", "arxiv", "journal article", "scholarly article", "scholarly paper", "academic publication", "write a paper", "formal treatise"]):
             modality = DirectiveModality.ACADEMIC_ARTICLE
         elif any(w in body_lower for w in ["non-consensus", "contrarian", "counter-intuitive", "unpopular view", "heterodox", "heresy", "blind spots", "antithesis", "challenge the consensus", "dissenting"]):
             modality = DirectiveModality.NON_CONSENSUS_CONTRARIAN
         elif any(w in body_lower for w in ["viral", "x thread", "twitter thread", "linkedin", "substack", "hook", "social post", "thought leadership", "viral post", "viral article", "engaging post"]):
             modality = DirectiveModality.VIRAL_PUBLIC_NARRATIVE
-        elif any(w in body_lower for w in ["formula", "formulas", "latex", "equation", "equations", "math", "mathematical", "kernel", "tuple", "theorem", "proof", "extract the math"]):
+        elif any(w in body_lower for w in ["extract formula", "extract formulas", "extract the formulas", "extract equation", "extract equations", "extract the math", "list all formulas", "only the formulas", "what is the equation", "what is the formula", "formula only"]):
             modality = DirectiveModality.FORMULA_EXTRACTION
-        elif any(w in body_lower for w in ["overview", "treatise", "breakdown", "dossier", "comprehensive", "summarize", "summary", "explain this paper", "explain the paper", "exhaustive", "strategic analysis", "in-depth analysis", "detailed analysis"]):
-            modality = DirectiveModality.COMPREHENSIVE_OVERVIEW
+        elif any(w in body_lower for w in ["formula", "formulas", "latex", "equation", "equations", "math", "mathematical"]):
+            modality = DirectiveModality.FORMULA_EXTRACTION
 
         genre = detect_document_genre(clean_prompt, raw_prompt=clean_prompt)
         bandwidth = detect_conversational_bandwidth(clean_prompt, modality=modality, genre=genre)
