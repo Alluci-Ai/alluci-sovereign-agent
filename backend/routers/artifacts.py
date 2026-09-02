@@ -111,13 +111,56 @@ async def create_artifact(payload: Dict[str, Any] = Body(...)):
     artifact_id = f"art_{uuid.uuid4().hex[:12]}"
     now = datetime.now(timezone.utc)
 
-    # Save initial version content to disk
-    ext = ".html" if kind in ["html", "web"] else (".md" if kind in ["text", "markdown"] else (".json" if kind == "data" else ".txt"))
-    file_path = _get_artifact_storage_path(artifact_id, 1, f"source{ext}", title=title, category=kind)
-    if content:
-        with open(file_path, "w", encoding="utf-8") as f:
-            f.write(content)
+    # Save initial version content to disk as an atomic triad
+    topic_folder = _build_topic_folder_path(kind, title)
+    assets_folder = os.path.join(topic_folder, "assets")
+    os.makedirs(assets_folder, exist_ok=True)
 
+    # Copy referenced visual figures to assets/ if detected in markdown
+    copied_assets = []
+    if content:
+        import re, shutil
+        fig_refs = re.findall(r'(\/?workspace\/artifacts\/extracted_figures\/[^\s\)\"\']+)', content)
+        for ref_path in set(fig_refs):
+            clean_ref = ref_path.lstrip("/")
+            if os.path.exists(clean_ref):
+                asset_name = os.path.basename(clean_ref)
+                dest_path = os.path.join(assets_folder, asset_name)
+                try:
+                    shutil.copy2(clean_ref, dest_path)
+                    copied_assets.append({"original": clean_ref, "bundled": f"./assets/{asset_name}"})
+                except Exception as cp_err:
+                    logger.debug(f"[Artifacts] Asset bundle copy notice: {cp_err}")
+
+    # Persist source.md and source.html
+    md_path = os.path.join(topic_folder, "source.md")
+    html_path = os.path.join(topic_folder, "source.html")
+    meta_path = os.path.join(topic_folder, "metadata.json")
+
+    with open(md_path, "w", encoding="utf-8") as f_md:
+        f_md.write(content or "")
+
+    # Basic HTML render if not provided
+    html_content = content or ""
+    if not html_content.strip().startswith("<!DOCTYPE") and not html_content.strip().startswith("<html"):
+        html_content = f"<!DOCTYPE html>\n<html>\n<head><meta charset='utf-8'><title>{title}</title></head>\n<body>\n<pre>{content}</pre>\n</body>\n</html>"
+
+    with open(html_path, "w", encoding="utf-8") as f_html:
+        f_html.write(html_content)
+
+    meta_payload = {
+        "artifact_id": artifact_id,
+        "title": title,
+        "category": kind,
+        "mime_type": mime_type,
+        "created_at": now.isoformat(),
+        "bundled_assets": copied_assets,
+        **(metadata if isinstance(metadata, dict) else {})
+    }
+    with open(meta_path, "w", encoding="utf-8") as f_meta:
+        json.dump(meta_payload, f_meta, indent=2)
+
+    file_path = md_path if kind in ["text", "markdown", "documents"] else html_path
     source_uri = f"/api/v1/artifacts/{artifact_id}/file"
 
     with Session(db_engine) as session:
@@ -132,7 +175,7 @@ async def create_artifact(payload: Dict[str, Any] = Body(...)):
             current_version=1,
             source_uri=source_uri,
             content=content,
-            metadata_json=json.dumps(metadata) if metadata else None,
+            metadata_json=json.dumps(meta_payload),
             created_at=now,
             updated_at=now
         )
@@ -319,3 +362,32 @@ async def serve_artifact_file(artifact_id: str, version: Optional[int] = Query(N
             return Response(content=artifact.content, media_type=artifact.mime_type)
 
         raise HTTPException(status_code=404, detail="Artifact file payload not found")
+
+
+@router.get("/artifacts/extracted_figures/{doc_slug}/{filename}")
+async def serve_extracted_figure(doc_slug: str, filename: str):
+    """Serves an extracted technical figure image directly."""
+    # Sanitize doc_slug and filename to prevent path traversal
+    safe_slug = os.path.basename(doc_slug)
+    safe_filename = os.path.basename(filename)
+    fig_path = os.path.abspath(os.path.join(ARTIFACTS_DIR, "extracted_figures", safe_slug, safe_filename))
+
+    # Verify path is inside ARTIFACTS_DIR
+    if not fig_path.startswith(ARTIFACTS_DIR):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    if not os.path.exists(fig_path):
+        raise HTTPException(status_code=404, detail=f"Figure '{safe_filename}' not found")
+
+    ext = os.path.splitext(safe_filename)[1].lower()
+    media_types = {
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".svg": "image/svg+xml",
+        ".webp": "image/webp",
+        ".gif": "image/gif"
+    }
+    media_type = media_types.get(ext, "application/octet-stream")
+    return FileResponse(fig_path, media_type=media_type)
+

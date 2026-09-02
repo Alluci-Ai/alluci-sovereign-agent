@@ -136,6 +136,39 @@ export const TextRenderer: React.FC<RendererProps> = ({ artifact }) => {
               {children}
             </a>
           ),
+          img: ({ src, alt }) => {
+            const cleanSrc = src && !src.startsWith('http') && !src.startsWith('/') ? `/${src}` : src;
+            return (
+              <div style={{ margin: '20px 0', textAlign: 'center' }}>
+                <img
+                  src={cleanSrc}
+                  alt={alt || 'Technical Visual Asset'}
+                  style={{
+                    maxWidth: '100%',
+                    height: 'auto',
+                    borderRadius: '8px',
+                    border: '1px solid var(--glass-edge)',
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+                    objectFit: 'contain',
+                    maxHeight: '600px'
+                  }}
+                  loading="lazy"
+                />
+                {alt && (
+                  <p
+                    style={{
+                      fontSize: '12px',
+                      color: 'var(--text-secondary)',
+                      marginTop: '8px',
+                      fontStyle: 'italic'
+                    }}
+                  >
+                    {alt}
+                  </p>
+                )}
+              </div>
+            );
+          },
           code: ({ children }) => (
             <code
               style={{

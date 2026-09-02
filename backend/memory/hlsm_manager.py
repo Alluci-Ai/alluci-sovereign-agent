@@ -422,6 +422,7 @@ class HLSMContext:
     episodic_memories: List[HLSMRetrievalResult] = field(default_factory=list)
     semantic_memories: List[HLSMRetrievalResult] = field(default_factory=list)
     graph_memories: List[HLSMRetrievalResult] = field(default_factory=list)
+    figure_memories: List[Dict[str, Any]] = field(default_factory=list)
     total_chars: int = 0
     total_tokens: int = 0
     spectral_metrics: Optional[Dict[str, Any]] = None
@@ -431,7 +432,7 @@ class HLSMContext:
         Renders the H-LSM context as a structured prompt block.
         Sections are ordered by relevance and tier priority.
         """
-        if not (self.working_memories or self.episodic_memories or self.semantic_memories or self.graph_memories):
+        if not (self.working_memories or self.episodic_memories or self.semantic_memories or self.graph_memories or self.figure_memories):
             return ""
 
         lines = ["[ SOVEREIGN MEMORY CONTEXT ]"]
@@ -456,6 +457,15 @@ class HLSMContext:
             lines.append("\n── Knowledge Graph Entities (Relational Memory) ──")
             for m in self.graph_memories[:5]:
                 lines.append(f"  • {m.content[:500]}")
+
+        if self.figure_memories:
+            lines.append("\n── Substantive Technical Figures & Visual Assets ──")
+            for fig in self.figure_memories[:5]:
+                citation = fig.get("caption") or fig.get("id") or "Technical Figure"
+                path = fig.get("file_path") or ""
+                summary = fig.get("visual_summary") or fig.get("content") or ""
+                lines.append(f"  • [FIGURE: {citation}] (Local Path: `{path}`) — {summary[:300]}")
+            lines.append("  (Note: Cite and embed these figures in responses/artifacts using Markdown image syntax: `![Caption](<file_path>)`.)")
 
         return "\n".join(lines)
 
@@ -534,6 +544,15 @@ class HLSMManager:
                 )
                 self.kuzu_conn.execute(
                     "CREATE REL TABLE IF NOT EXISTS DEFINES_CONCEPT (FROM PageNode TO ConceptNode)"
+                )
+                self.kuzu_conn.execute(
+                    "CREATE NODE TABLE IF NOT EXISTS FigureNode (id STRING, document_id STRING, page_number INT64, figure_type STRING, caption STRING, visual_summary STRING, file_path STRING, width INT64, height INT64, is_vector BOOLEAN, sha256 STRING, PRIMARY KEY (id))"
+                )
+                self.kuzu_conn.execute(
+                    "CREATE REL TABLE IF NOT EXISTS CONTAINS_FIGURE (FROM PageNode TO FigureNode)"
+                )
+                self.kuzu_conn.execute(
+                    "CREATE REL TABLE IF NOT EXISTS ILLUSTRATED_BY (FROM ConceptNode TO FigureNode)"
                 )
             except ImportError:
                 logger.warning("[HLSM] kuzu library not installed. L2 Semantic Memory disabled.")
@@ -1338,7 +1357,42 @@ class HLSMManager:
             except Exception as doc_err:
                 logger.debug(f"[HLSM L3] DocumentNode query notice: {doc_err}")
 
-            # 2. General L3Memory search (only if not strictly scoped to a specific document)
+            # 2. Match FigureNode entities by caption, visual_summary, or type
+            try:
+                if doc_sha256:
+                    fig_query = (
+                        "MATCH (d:DocumentNode {sha256: $sha})-[:HAS_PAGE]->(p:PageNode)-[:CONTAINS_FIGURE]->(f:FigureNode) "
+                        "RETURN f.id, f.caption, f.visual_summary, f.file_path, f.figure_type, f.page_number, f.document_id "
+                        "LIMIT 10"
+                    )
+                    raw_figs = await asyncio.to_thread(self.kuzu_conn.execute, fig_query, {"sha": doc_sha256})
+                else:
+                    fig_query = (
+                        "MATCH (f:FigureNode) "
+                        "RETURN f.id, f.caption, f.visual_summary, f.file_path, f.figure_type, f.page_number, f.document_id "
+                        "LIMIT 30"
+                    )
+                    raw_figs = await asyncio.to_thread(self.kuzu_conn.execute, fig_query)
+
+                fig_rows = _extract_kuzu_rows(raw_figs)
+                for f_row in fig_rows:
+                    f_id, f_caption, f_summary, f_path, f_type, f_page, f_doc_id = f_row
+                    f_text = f"{f_caption} {f_summary} {f_type}".lower()
+                    if doc_sha256 or clean_q in f_text or any(t in f_text for t in search_terms if len(t) > 2):
+                        if f_id not in seen_ids:
+                            seen_ids.add(f_id)
+                            results.append(HLSMRetrievalResult(
+                                id=f_id,
+                                content=f"[TECHNICAL FIGURE ASSET: {f_caption}] (Local Path: `{f_path}` | Type: {f_type} | Page: {f_page})\nVisual Summary: {f_summary}",
+                                tier=3,
+                                source="figure_node",
+                                relevance_score=1.4,
+                                retention_score=1.0,
+                            ))
+            except Exception as fig_err:
+                logger.debug(f"[HLSM L3] FigureNode query notice: {fig_err}")
+
+            # 3. General L3Memory search (only if not strictly scoped to a specific document)
             if not doc_sha256:
                 try:
                     cypher_query = (
@@ -1380,16 +1434,16 @@ class HLSMManager:
             rows = _extract_kuzu_rows(raw_results)
             if rows:
                 l1_id = rows[0][0]
-                # Delete relationships that were sourced from this memory
-                rel_query = "MATCH ()-[r:RELATES_TO {source_memory: $l1_id}]->() DELETE r"
+                # Remove any RELATES_TO edges connected to this entry
+                rel_query = "MATCH (a)-[r:RELATES_TO {source_memory: $l1_id}]->(b) DELETE r"
                 await asyncio.to_thread(self.kuzu_conn.execute, rel_query, {"l1_id": l1_id})
                 
             query = "MATCH (m:L3Memory {id: $id}) DELETE m"
             await asyncio.to_thread(self.kuzu_conn.execute, query, {"id": kuzu_id})
-            logger.info(f"[HLSM L3] Pruned decayed entry: {kuzu_id}")
+            logger.info(f"[HLSM] Deleted L3 memory: {kuzu_id}")
             return True
         except Exception as e:
-            logger.error(f"[HLSM L3] Delete failed for {kuzu_id}: {e}")
+            logger.error(f"[HLSM] Failed to delete L3 memory {kuzu_id}: {e}")
             return False
 
     async def delete(self, entry_id: str) -> bool:
@@ -1455,8 +1509,7 @@ class HLSMManager:
 
         return True
 
-    # ─── Unified Retrieval ────────────────────────────────────────────────────
-
+    # ─── Multi-Tier Query Fusion ──────────────────────────────────────────────
 
     async def retrieve_context(
         self,
@@ -1483,10 +1536,9 @@ class HLSMManager:
             doc_sha256: Optional SHA-256 hash to strictly isolate retrieval to a specific document
 
         Returns:
-            HLSMContext with working, episodic, and semantic memory lists
+            HLSMContext with working, episodic, semantic, graph, and figure memory lists
         """
         # Derive a search query from the objective
-        # Use first 200 chars as search terms — sufficient for FTS + vector search
         search_query = objective[:200].strip()
 
         # Parallel retrieval across all 4 tiers (L0 Working, L1 FTS5, L2 Semantic, L3 Knowledge Graph)
@@ -1576,7 +1628,7 @@ class HLSMManager:
                 if mixing_rate == "sparse" or spectral_dim > 1.5:
                     max_per_tier = min(max_per_tier + 2, 8)
             except Exception as trace_err:
-                logger.debug(f"[HLSM] Markov trace rescoring skipped: {trace_err}")
+                logger.debug(f"[HLSM] Markov Trace rescoring note: {trace_err}")
 
         # Sort each tier by relevance
         l1_results.sort(key=lambda r: r.relevance_score, reverse=True)  # type: ignore
@@ -1589,12 +1641,34 @@ class HLSMManager:
         filtered_l2 = [m for m in l2_results if getattr(m, 'relevance_score', 0.0) >= RELEVANCE_FLOOR]  # type: ignore
         filtered_l3 = [m for m in l3_results if getattr(m, 'relevance_score', 0.0) >= RELEVANCE_FLOOR]  # type: ignore
 
+        # Extract FigureNode assets
+        figure_assets: List[Dict[str, Any]] = []
+        for m in (filtered_l3 + filtered_l1):
+            if getattr(m, 'source', '') in ["figure_node", "figure_extraction"] or "[TECHNICAL FIGURE" in getattr(m, 'content', ''):
+                lines = m.content.split("\n")
+                caption = lines[0].replace("[TECHNICAL FIGURE ASSET:", "").replace("[TECHNICAL FIGURE:", "").replace("]", "").strip()
+                path = ""
+                if "Local Path:" in m.content:
+                    path = m.content.split("Local Path:")[1].split("|")[0].replace("`", "").strip()
+                elif "File:" in m.content:
+                    path = m.content.split("File:")[1].split(")")[0].strip()
+                
+                summary = lines[1].replace("Visual Summary:", "").strip() if len(lines) > 1 else m.content
+                figure_assets.append({
+                    "id": m.id,
+                    "caption": caption,
+                    "file_path": path,
+                    "visual_summary": summary,
+                    "relevance_score": m.relevance_score,
+                })
+
         # Build context, respecting token budget
         ctx = HLSMContext(
             working_memories=l0_results[:max_per_tier],  # type: ignore
             episodic_memories=filtered_l1[:max_per_tier],
             semantic_memories=filtered_l2[:max_per_tier],
             graph_memories=filtered_l3[:max_per_tier],
+            figure_memories=figure_assets[:max_per_tier],
             spectral_metrics=spectral_metrics,
         )
         prompt = ctx.to_prompt_block()
@@ -2393,8 +2467,91 @@ class HLSMManager:
                     "session_key": session_key or "",
                     "created_at": now,
                 })
+
+                # Ingest Substantive Figure Nodes & Relationships
+                figures = meta.get("figures", [])
+                for fig_idx, fig in enumerate(figures):
+                    fig_id = fig.get("id") or f"fig_{doc_sha256[:8]}_{fig.get('page_number', 1)}_{fig_idx}"
+                    p_num = int(fig.get("page_number", 1))
+                    page_node_id = f"page_{doc_sha256[:10]}_p{p_num}"
+
+                    create_fig_q = (
+                        "MERGE (f:FigureNode {id: $id}) "
+                        "SET f.document_id = $doc_id, f.page_number = $page_num, f.figure_type = $fig_type, "
+                        "f.caption = $caption, f.visual_summary = $visual_summary, f.file_path = $file_path, "
+                        "f.width = $width, f.height = $height, f.is_vector = $is_vector, f.sha256 = $sha256"
+                    )
+                    await asyncio.to_thread(self.kuzu_conn.execute, create_fig_q, {
+                        "id": fig_id,
+                        "doc_id": doc_node_id,
+                        "page_num": p_num,
+                        "fig_type": str(fig.get("figure_type", "TECHNICAL_FIGURE")),
+                        "caption": str(fig.get("caption", ""))[:500],
+                        "visual_summary": str(fig.get("visual_summary", ""))[:1500],
+                        "file_path": str(fig.get("file_path", "")),
+                        "width": int(fig.get("width", 0)),
+                        "height": int(fig.get("height", 0)),
+                        "is_vector": bool(fig.get("is_vector", False)),
+                        "sha256": str(fig.get("sha256", "")),
+                    })
+
+                    # Connect PageNode to FigureNode
+                    rel_fig_q = (
+                        "MATCH (p:PageNode {id: $p_id}), (f:FigureNode {id: $f_id}) "
+                        "MERGE (p)-[:CONTAINS_FIGURE]->(f)"
+                    )
+                    await asyncio.to_thread(self.kuzu_conn.execute, rel_fig_q, {
+                        "p_id": page_node_id,
+                        "f_id": fig_id,
+                    })
+
+                    # Connect ConceptNodes on same page to FigureNode
+                    rel_cpt_fig_q = (
+                        "MATCH (c:ConceptNode {document_id: $doc_id, page_number: $p_num}), (f:FigureNode {id: $f_id}) "
+                        "MERGE (c)-[:ILLUSTRATED_BY]->(f)"
+                    )
+                    try:
+                        await asyncio.to_thread(self.kuzu_conn.execute, rel_cpt_fig_q, {
+                            "doc_id": doc_node_id,
+                            "p_num": p_num,
+                            "f_id": fig_id,
+                        })
+                    except Exception:
+                        pass
+
             except Exception as l3_err:
                 logger.error(f"[HLSM] Failed to store DocumentNode/PageNodes into L3: {l3_err}", exc_info=True)
+
+        # Ingest figures into L1 Episodic (FTS5)
+        figures = meta.get("figures", [])
+        for fig_idx, fig in enumerate(figures):
+            fig_id = fig.get("id") or f"fig_{doc_sha256[:8]}_{fig.get('page_number', 1)}_{fig_idx}"
+            fig_content = (
+                f"[TECHNICAL FIGURE ASSET: {fig.get('caption', 'Technical Diagram')}] (File: {fig.get('file_path', '')})\n"
+                f"Visual Summary: {fig.get('visual_summary', '')}\n"
+                f"Document: {doc_title} ({filename}) | Page: {fig.get('page_number', 1)}"
+            )
+            try:
+                l1_fig_entry = HLSMEpisodicEntry(
+                    id=fig_id,
+                    content=fig_content,
+                    source="figure_extraction",
+                    session_key=session_key or "",
+                    psi_at_encoding=0.0,
+                    topological_importance=1.4,
+                    extra_metadata=json.dumps({
+                        "filename": filename,
+                        "title": doc_title,
+                        "sha256": doc_sha256,
+                        "figure_id": fig_id,
+                        "file_path": fig.get("file_path", ""),
+                        "caption": fig.get("caption", ""),
+                        "page_number": fig.get("page_number", 1)
+                    })
+                )
+                self._l1_sql_insert(l1_fig_entry)
+            except Exception as l1_fig_err:
+                logger.debug(f"[HLSM] L1 figure insert notice: {l1_fig_err}")
 
         # 5. Full-Coverage Chunking across All Pages (100% indexed without 25-chunk cap)
         words = clean_text.split()
@@ -2907,11 +3064,14 @@ class HLSMManager:
         if self.kuzu_conn:
             try:
                 del_queries = [
+                    "MATCH ()-[r:CONTAINS_FIGURE]->() DELETE r",
+                    "MATCH ()-[r:ILLUSTRATED_BY]->() DELETE r",
                     "MATCH ()-[r:DEFINES_CONCEPT]->() DELETE r",
                     "MATCH ()-[r:HAS_PAGE]->() DELETE r",
                     "MATCH ()-[r:HAS_KEY_POINT]->() DELETE r",
                     "MATCH ()-[r:RELATES_TO]->() DELETE r",
                     "MATCH (a)-[r]->(b) DELETE r",
+                    "MATCH (f:FigureNode) DELETE f",
                     "MATCH (c:ConceptNode) DELETE c",
                     "MATCH (k:KeyPointNode) DELETE k",
                     "MATCH (p:PageNode) DELETE p",
@@ -2951,11 +3111,14 @@ class HLSMManager:
                     pass
 
                 del_queries = [
+                    "MATCH ()-[r:CONTAINS_FIGURE]->() DELETE r",
+                    "MATCH ()-[r:ILLUSTRATED_BY]->() DELETE r",
                     "MATCH ()-[r:DEFINES_CONCEPT]->() DELETE r",
                     "MATCH ()-[r:HAS_PAGE]->() DELETE r",
                     "MATCH ()-[r:HAS_KEY_POINT]->() DELETE r",
                     "MATCH ()-[r:RELATES_TO]->() DELETE r",
                     "MATCH (a)-[r]->(b) DELETE r",
+                    "MATCH (f:FigureNode) DELETE f",
                     "MATCH (c:ConceptNode) DELETE c",
                     "MATCH (k:KeyPointNode) DELETE k",
                     "MATCH (p:PageNode) DELETE p",

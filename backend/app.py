@@ -220,6 +220,9 @@ from fastapi.templating import Jinja2Templates
 templates = Jinja2Templates(directory="backend/templates")
 # Static files (CSS, JS, images)
 app.mount("/static", StaticFiles(directory="backend/static"), name="static")
+workspace_artifacts_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "workspace", "artifacts"))
+os.makedirs(workspace_artifacts_dir, exist_ok=True)
+app.mount("/workspace/artifacts", StaticFiles(directory=workspace_artifacts_dir), name="workspace_artifacts")
 
 # Include new routers
 from .routers import monitoring, metrics_json

@@ -507,3 +507,57 @@ class ArtifactPageRecord(SQLModel, table=True):
     render_uri: Optional[str] = Field(default=None)
     html_content: Optional[str] = Field(default=None)
 
+
+# --- Multimodal Technical Figure & Visual Asset Models ---
+
+class FigureType(str, Enum):
+    TECHNICAL_FIGURE = "TECHNICAL_FIGURE"
+    DATA_CHART = "DATA_CHART"
+    SYSTEM_DIAGRAM = "SYSTEM_DIAGRAM"
+    FLOWCHART = "FLOWCHART"
+    SCHEMATIC = "SCHEMATIC"
+    DECORATIVE_LOGO = "DECORATIVE_LOGO"
+    COVER_ART = "COVER_ART"
+    UNKNOWN = "UNKNOWN"
+
+class FigureExtractionMetadata(BaseModel):
+    id: str
+    document_id: str
+    page_number: int
+    figure_type: FigureType = FigureType.TECHNICAL_FIGURE
+    caption: str = ""
+    visual_summary: str = ""
+    in_text_citations: List[str] = []
+    file_path: str = ""
+    is_vector: bool = False
+    width: int = 0
+    height: int = 0
+    bbox: Optional[List[float]] = None
+    sha256: str = ""
+    extracted_text: str = ""
+
+class FigureContextPayload(BaseModel):
+    id: str
+    citation: str
+    local_path: str
+    figure_type: str
+    visual_summary: str
+    page_number: int
+    document_id: str
+    relevance_score: float = 0.0
+
+class FigureRecord(SQLModel, table=True):
+    __tablename__ = "figures"  # type: ignore
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    document_id: str = Field(index=True)
+    page_number: int = Field(default=1)
+    figure_type: str = Field(default=FigureType.TECHNICAL_FIGURE.value)
+    caption: str = Field(default="")
+    visual_summary: str = Field(default="")
+    file_path: str = Field(default="")
+    is_vector: bool = Field(default=False)
+    width: int = Field(default=0)
+    height: int = Field(default=0)
+    sha256: str = Field(index=True, default="")
+    created_at: float = Field(default_factory=lambda: time.time())
+
