@@ -93,6 +93,7 @@ class VisualPolytopeIngestor:
             # Load the visual model into Unified Memory
             logger.info(f"Loading visual model '{self.model_path}' into memory...")
             model, processor = load(self.model_path)
+            assert model is not None and processor is not None, "Model or processor failed to load"
             
             # The prompt used to enforce flawless structural extraction
             extraction_prompt = (
@@ -114,8 +115,8 @@ class VisualPolytopeIngestor:
                     max_key = "".join(["max_", "tok", "ens"])
                     gen_kwargs: Dict[str, Any] = {max_key: max_gen_length, "temperature": temperature, "verbose": False}
                     raw_response: Any = generate(
-                        model,
-                        processor,
+                        model,  # type: ignore
+                        processor,  # type: ignore
                         prompt_formatted,
                         image=[img_path],
                         **gen_kwargs
@@ -266,6 +267,7 @@ class VisualPolytopeIngestor:
         try:
             logger.info(f"[VPI] Loading VLM '{self.model_path}' for technical figure classification & dense captioning...")
             model, processor = load(self.model_path)
+            assert model is not None and processor is not None, "Model or processor failed to load"
 
             classification_prompt = (
                 "You are an expert technical visual analyzer. Analyze the provided image and its context.\n"
@@ -293,8 +295,8 @@ class VisualPolytopeIngestor:
                     max_key = "".join(["max_", "tok", "ens"])
                     eval_kwargs: Dict[str, Any] = {max_key: max_gen_length, "temperature": temperature, "verbose": False}
                     raw_resp: Any = generate(
-                        model,
-                        processor,
+                        model,  # type: ignore
+                        processor,  # type: ignore
                         prompt_formatted,
                         image=[img_path],
                         **eval_kwargs
