@@ -109,6 +109,9 @@ class Settings(BaseSettings):
     INFERENCE_REPETITION_PENALTY: float = Field(default=1.08, title="Inference Repetition Penalty", description="Multiplicative penalty applied to recently generated tokens to prevent repetition loops.")
     INFERENCE_REPETITION_CONTEXT_SIZE: int = Field(default=64, title="Repetition Context Size", description="Sliding window token length for repetition penalty evaluation.")
     INFERENCE_LOOP_BREAKER_ENABLED: bool = Field(default=True, title="Degenerative Loop Breaker", description="Enables real-time streaming n-gram loop detection to intercept autoregressive collapse.")
+    INFERENCE_LOOP_MIN_SUBSTANTIVE_TOKENS: int = Field(default=15, title="Min Substantive Tokens", description="Minimum semantic words required before evaluating n-gram repetition loops.")
+    INFERENCE_LOOP_REPEAT_THRESHOLD: int = Field(default=5, title="Loop Repeat Threshold", description="Number of consecutive repetitions of a multi-word phrase required to trip the circuit breaker.")
+    INFERENCE_MAX_OUTPUT_TOKENS: int = Field(default=16384, title="Max Output Tokens", description="Maximum generation token headroom for full monographs and long-form research documents.")
 
     
     # Storage

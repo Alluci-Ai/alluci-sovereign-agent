@@ -33,7 +33,11 @@ def is_substantive_word(w: str) -> bool:
     return True
 
 
-def detect_degenerative_loop(tokens: list) -> Optional[str]:
+def detect_degenerative_loop(
+    tokens: list, 
+    min_substantive_words: int = 15,
+    repeat_threshold: int = 5
+) -> Optional[str]:
     """
     Real-Time Streaming Degenerative Loop Circuit Breaker.
     Monitors trailing emitted words/tokens for autoregressive multi-word limit-cycle collapse.
@@ -48,22 +52,23 @@ def detect_degenerative_loop(tokens: list) -> Optional[str]:
         if is_substantive_word(t)
     ]
     
-    # Require at least 15 substantive words to evaluate multi-word phrase loops
-    if len(substantive_words) < 15:
+    # Require minimum substantive words to evaluate multi-word phrase loops
+    if len(substantive_words) < min_substantive_words:
         return None
 
-    # Check 3-gram repeat >= 5 times (15 tokens)
-    if len(substantive_words) >= 15:
+    # Check 3-gram repeat >= repeat_threshold times
+    if len(substantive_words) >= 3 * repeat_threshold:
         g3 = [substantive_words[-3], substantive_words[-2], substantive_words[-1]]
         if len(set(g3)) >= 2 and sum(len(w) for w in g3) >= 10:
-            if all(substantive_words[-(3*i)-3 : -(3*i)] == g3 for i in range(1, 5)):
+            if all(substantive_words[-(3*i)-3 : -(3*i)] == g3 for i in range(1, repeat_threshold)):
                 return " ".join(g3)
 
-    # Check 4-gram repeat >= 4 times (16 tokens)
-    if len(substantive_words) >= 16:
+    # Check 4-gram repeat >= (repeat_threshold - 1) times
+    r4_thresh = max(3, repeat_threshold - 1)
+    if len(substantive_words) >= 4 * r4_thresh:
         g4 = [substantive_words[-4], substantive_words[-3], substantive_words[-2], substantive_words[-1]]
         if len(set(g4)) >= 2 and sum(len(w) for w in g4) >= 14:
-            if all(substantive_words[-(4*i)-4 : -(4*i)] == g4 for i in range(1, 4)):
+            if all(substantive_words[-(4*i)-4 : -(4*i)] == g4 for i in range(1, r4_thresh)):
                 return " ".join(g4)
 
     return None
@@ -386,6 +391,9 @@ class MLXEngine:
         rep_penalty = float(getattr(settings, "INFERENCE_REPETITION_PENALTY", 1.08)) if settings else 1.08
         rep_ctx_size = int(getattr(settings, "INFERENCE_REPETITION_CONTEXT_SIZE", 64)) if settings else 64
         loop_breaker_enabled = bool(getattr(settings, "INFERENCE_LOOP_BREAKER_ENABLED", True)) if settings else True
+        min_substantive_tokens = int(getattr(settings, "INFERENCE_LOOP_MIN_SUBSTANTIVE_TOKENS", 15)) if settings else 15
+        repeat_threshold = int(getattr(settings, "INFERENCE_LOOP_REPEAT_THRESHOLD", 5)) if settings else 5
+        max_output_tokens = int(getattr(settings, "INFERENCE_MAX_OUTPUT_TOKENS", 16384)) if settings else 16384
 
         async with self._inference_lock:
             def _sync_gen():
@@ -417,7 +425,7 @@ class MLXEngine:
                     prompt_len = len(full_prompt)
                     if prompt_len > 8000:
                         logger.info(f"[Metal GPU Guard] Long prompt detected ({prompt_len} chars). Enabling Q4 KV cache safeguards.")
-                        gen_kwargs["max_tokens"] = min(max_tokens, 16384)
+                        gen_kwargs["max_tokens"] = min(max_tokens, max_output_tokens)
                         MLXEngine._clear_vram_cache()
 
                     stop_tokens = [
@@ -441,7 +449,11 @@ class MLXEngine:
                                 if len(rolling_words) > 64:
                                     rolling_words = rolling_words[-64:]
                                 
-                                loop_token = detect_degenerative_loop(rolling_words)
+                                loop_token = detect_degenerative_loop(
+                                    rolling_words,
+                                    min_substantive_words=min_substantive_tokens,
+                                    repeat_threshold=repeat_threshold
+                                )
                                 if loop_token:
                                     logger.warning(
                                         f"[MLXEngine Circuit Breaker] Autoregressive repetition loop detected on '{loop_token}'. "
@@ -471,7 +483,11 @@ class MLXEngine:
                                     if len(rolling_words) > 64:
                                         rolling_words = rolling_words[-64:]
                                     
-                                    loop_token = detect_degenerative_loop(rolling_words)
+                                    loop_token = detect_degenerative_loop(
+                                        rolling_words,
+                                        min_substantive_words=min_substantive_tokens,
+                                        repeat_threshold=repeat_threshold
+                                    )
                                     if loop_token:
                                         logger.warning(
                                             f"[MLXEngine Circuit Breaker] Autoregressive repetition loop detected on '{loop_token}'. "
