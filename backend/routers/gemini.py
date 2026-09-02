@@ -9,13 +9,15 @@ from ..logging_config import get_logger
 logger = get_logger("GeminiRouter")
 router = APIRouter(tags=["Gemini Proxy"])
 
+import os
 import base64
 import re
 import io
 import asyncio
 import uuid
 import time
-from ..utils.doc_parser import extract_text_from_file_payload
+import shutil
+from ..utils.doc_parser import extract_text_from_file_payload, extract_document_and_figures_from_payload
 
 async def _check_local_workspace_file_or_report(prompt: str) -> Optional[str]:
     """
@@ -305,26 +307,50 @@ async def _check_web_search_grounding(prompt: str) -> Optional[str]:
     return None
 
 
-def _process_attached_files(prompt: str, files: Optional[List[Dict[str, Any]]] = None) -> str:
-    """Decodes and appends attached file contents (TXT, MD, PDF, JSON, CSV, DOCX, Code) to prompt context with KV cache safety bounds."""
+def _process_attached_files(prompt: str, files: Optional[List[Dict[str, Any]]] = None) -> Tuple[str, List[Dict[str, Any]]]:
+    """
+    Decodes and appends attached file contents and extracted technical figure citations to prompt context
+    with KV cache safety bounds.
+    """
     if not files:
-        return prompt
+        return prompt, []
 
     MAX_FILE_CHARS = 150000
     appended_text = prompt
+    all_figures: List[Dict[str, Any]] = []
+
     for file_obj in files:
         file_name = file_obj.get("name", "attached_file.txt")
         file_data = file_obj.get("data", "")
         file_mime = file_obj.get("mimeType", "").lower()
 
-        decoded_content = extract_text_from_file_payload(file_name, file_data, file_mime)
+        decoded_content, file_figures = extract_document_and_figures_from_payload(file_name, file_data, file_mime)
+        all_figures.extend(file_figures)
 
         if decoded_content:
             if len(decoded_content) > MAX_FILE_CHARS:
                 decoded_content = decoded_content[:MAX_FILE_CHARS] + f"\n... [ATTACHED FILE TRUNCATED AT {MAX_FILE_CHARS:,} CHARACTERS TO FIT KV CACHE BUDGET] ..."
             appended_text += f"\n\n--- [ATTACHED FILE: {file_name}] ---\n{decoded_content.strip()}\n--- [END ATTACHED FILE] ---"
 
-    return appended_text
+    if all_figures:
+        fig_lines = ["\n\n--- [ATTACHED TECHNICAL FIGURES & DIAGRAMS (EXTRACTED VISUAL ASSETS)] ---"]
+        fig_lines.append("The following substantive technical figures and diagrams were extracted from the attached document(s). When explaining the concepts or generating artifacts, cite and embed them using the exact Markdown image tags below:")
+        for fig in all_figures[:10]:
+            fig_path = fig.get("file_path", "")
+            fig_name = os.path.basename(fig_path)
+            doc_slug = fig.get("document_id", "general")
+            caption = fig.get("caption") or f"Figure (Page {fig.get('page_number', 1)})"
+            web_uri = f"/api/v1/artifacts/extracted_figures/{doc_slug}/{fig_name}"
+            summary = fig.get("visual_summary") or fig.get("caption") or "Technical visual asset"
+            fig_lines.append(
+                f"- **{caption}** (Page {fig.get('page_number', 1)}, Type: {fig.get('figure_type', 'FIGURE')})\n"
+                f"  - Markdown Citation Tag: `![{caption}]({web_uri})`\n"
+                f"  - Visual Architecture & Content: {summary}"
+            )
+        fig_lines.append("--- [END ATTACHED TECHNICAL FIGURES] ---")
+        appended_text += "\n".join(fig_lines)
+
+    return appended_text, all_figures
 
 
 async def _intercept_memory_deletion_request(prompt: str) -> Optional[str]:
@@ -602,7 +628,7 @@ async def gemini_proxy(
     decomposer = IntentDecomposer()
     parsed_intent = decomposer.decompose(prompt)
 
-    raw_user_prompt = _process_attached_files(prompt, files)
+    raw_user_prompt, attached_figures = _process_attached_files(prompt, files)
 
     try:
         # 1. Fast Memory Deletion Interceptor Check (< 5ms)
@@ -743,16 +769,16 @@ async def gemini_proxy(
             if files:
                 for f in files:
                     fn, fdata, fmime = f.get("name", "attachment"), f.get("data", ""), f.get("mimeType", "")
-                    p_text = extract_text_from_file_payload(fn, fdata, fmime)
+                    p_text, f_figs = extract_document_and_figures_from_payload(fn, fdata, fmime)
                     if p_text and not p_text.startswith(("[BINARY", "[UNSUPPORTED")):
                         asyncio.create_task(services.hlsm_manager.ingest_document_payload(
                             filename=fn,
                             content=p_text,
                             session_key=session_id or "web_chat",
-                            metadata={"mime_type": fmime, "file_data": fdata}
+                            metadata={"mime_type": fmime, "file_data": fdata, "figures": f_figs}
                         ))
         if response:
-            asyncio.create_task(_process_dynamic_artifact_block(response, prompt))
+            asyncio.create_task(_process_dynamic_artifact_block(response, prompt, figure_assets=attached_figures))
 
         return {"result": response}
     except Exception as e:
@@ -780,7 +806,7 @@ async def gemini_proxy_stream(
     decomposer = IntentDecomposer()
     parsed_intent = decomposer.decompose(prompt)
 
-    raw_user_prompt = _process_attached_files(prompt, files)
+    raw_user_prompt, attached_figures = _process_attached_files(prompt, files)
 
     try:
         # 1. Fast Memory Deletion Interceptor Check (< 5ms)
@@ -999,17 +1025,17 @@ async def gemini_proxy_stream(
                         if files:
                             for f in files:
                                 fn, fdata, fmime = f.get("name", "attachment"), f.get("data", ""), f.get("mimeType", "")
-                                p_text = extract_text_from_file_payload(fn, fdata, fmime)
+                                p_text, f_figs = extract_document_and_figures_from_payload(fn, fdata, fmime)
                                 if p_text and not p_text.startswith(("[BINARY", "[UNSUPPORTED")):
                                     asyncio.create_task(services.hlsm_manager.ingest_document_payload(
                                         filename=fn,
                                         content=p_text,
                                         session_key=session_id or "web_chat",
-                                        metadata={"mime_type": fmime, "file_data": fdata}
+                                        metadata={"mime_type": fmime, "file_data": fdata, "figures": f_figs}
                                     ))
                     
                     # Intercept dynamic artifacts (presentation, html, code, text) and surface side panel
-                    asyncio.create_task(_process_dynamic_artifact_block(full_response, prompt))
+                    asyncio.create_task(_process_dynamic_artifact_block(full_response, prompt, figure_assets=attached_figures))
                 except Exception as post_err:
                     logger.debug(f"[GeminiRouter] Post-stream artifact/memory note: {post_err}")
 
@@ -1450,13 +1476,19 @@ def _build_html5_research_dossier(title: str, markdown_content: str) -> str:
 </html>"""
 
 
-async def _process_dynamic_artifact_block(full_response: str, prompt: str, output_dir: Optional[str] = None):
+async def _process_dynamic_artifact_block(
+    full_response: str, 
+    prompt: str, 
+    output_dir: Optional[str] = None,
+    figure_assets: Optional[List[Dict[str, Any]]] = None
+):
     """
     Parses LLM responses for dynamic artifact blocks, slide decks, or comprehensive research dossiers.
     Saves the deliverable under ./workspace/artifacts/{category}/{YYYY-MM-DD}_{title_slug}/ as an atomic triad
-    (metadata.json, source.md, source.html) and broadcasts artifact.open over WebSocket to slide open the side panel.
+    (metadata.json, source.md, source.html), bundles visual figure assets into ./assets/, and broadcasts
+    artifact.open over WebSocket to slide open the side panel.
     """
-    import re, os, uuid, json, datetime
+    import re, os, uuid, json, datetime, shutil
     body_lower = prompt.lower()
     
     # 1. Check for explicit ```artifact block
@@ -1543,6 +1575,21 @@ async def _process_dynamic_artifact_block(full_response: str, prompt: str, outpu
     save_dir = os.path.join(artifacts_base, cat_dir, folder_name)
     os.makedirs(save_dir, exist_ok=True)
 
+    # Bundle visual figure assets into ./assets/
+    bundled_assets = []
+    if figure_assets:
+        assets_dir = os.path.join(save_dir, "assets")
+        os.makedirs(assets_dir, exist_ok=True)
+        for fig in figure_assets:
+            src_fpath = fig.get("file_path", "")
+            if src_fpath and os.path.exists(src_fpath):
+                dest_fpath = os.path.join(assets_dir, os.path.basename(src_fpath))
+                try:
+                    shutil.copy2(src_fpath, dest_fpath)
+                    bundled_assets.append(f"assets/{os.path.basename(src_fpath)}")
+                except Exception as cp_err:
+                    logger.debug(f"[GeminiRouter] Asset copy notice: {cp_err}")
+
     # Persist Atomic Triad Bundle
     md_file_path = os.path.join(save_dir, "source.md")
     with open(md_file_path, "w", encoding="utf-8") as f:
@@ -1564,7 +1611,8 @@ async def _process_dynamic_artifact_block(full_response: str, prompt: str, outpu
                 "triad_bundle": {
                     "source_md": "source.md",
                     "source_html": "source.html",
-                    "metadata": "metadata.json"
+                    "metadata": "metadata.json",
+                    "assets": bundled_assets
                 }
             }, mf, indent=2)
     except Exception:
