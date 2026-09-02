@@ -2889,12 +2889,11 @@ class HLSMManager:
 
         with Session(self.db_engine) as session:
             try:
-                from ..models import HLSMWorkingEntry, HLSMEpisodicEntry, MessageLog
+                from ..models import HLSMWorkingEntry, HLSMEpisodicEntry
                 from sqlmodel import delete
                 from sqlalchemy import text as sa_text
                 w_del = session.exec(delete(HLSMWorkingEntry))  # type: ignore
                 e_del = session.exec(delete(HLSMEpisodicEntry))  # type: ignore
-                m_del = session.exec(delete(MessageLog))  # type: ignore
                 session.commit()
                 # Clear SQLite FTS5 table
                 session.exec(sa_text("DELETE FROM hlsm_episodic_fts"))  # type: ignore
@@ -2912,12 +2911,15 @@ class HLSMManager:
                     "MATCH ()-[r:HAS_PAGE]->() DELETE r",
                     "MATCH ()-[r:HAS_KEY_POINT]->() DELETE r",
                     "MATCH ()-[r:RELATES_TO]->() DELETE r",
+                    "MATCH (a)-[r]->(b) DELETE r",
                     "MATCH (c:ConceptNode) DELETE c",
                     "MATCH (k:KeyPointNode) DELETE k",
                     "MATCH (p:PageNode) DELETE p",
                     "MATCH (d:DocumentNode) DELETE d",
                     "MATCH (g:GraphNode) DELETE g",
                     "MATCH (m:SemanticMemory) DELETE m",
+                    "MATCH (l:L3Memory) DELETE l",
+                    "MATCH (n) DELETE n",
                 ]
                 for q in del_queries:
                     try:
@@ -2930,6 +2932,47 @@ class HLSMManager:
                 logger.error(f"[HLSM Purge] Kuzu clear error: {kuzu_err}")
 
         logger.info("[HLSM] Successfully executed atomic memory reset across L0-L3.")
+        return summary
+
+    async def purge_l3(self) -> Dict[str, Any]:
+        """
+        Executes an atomic data purge specifically for L3 Knowledge Graph tables and entities in KùzuDB,
+        preserving database schema structures and other memory tiers.
+        """
+        summary = {"l3_nodes_deleted": 0, "status": "SUCCESS"}
+        if self.kuzu_conn:
+            try:
+                try:
+                    count_res = await asyncio.to_thread(self.kuzu_conn.execute, "MATCH (n) RETURN count(n) AS cnt")
+                    if count_res.has_next():
+                        summary["l3_nodes_deleted"] = count_res.get_next()[0]
+                except Exception:
+                    pass
+
+                del_queries = [
+                    "MATCH ()-[r:DEFINES_CONCEPT]->() DELETE r",
+                    "MATCH ()-[r:HAS_PAGE]->() DELETE r",
+                    "MATCH ()-[r:HAS_KEY_POINT]->() DELETE r",
+                    "MATCH ()-[r:RELATES_TO]->() DELETE r",
+                    "MATCH (a)-[r]->(b) DELETE r",
+                    "MATCH (c:ConceptNode) DELETE c",
+                    "MATCH (k:KeyPointNode) DELETE k",
+                    "MATCH (p:PageNode) DELETE p",
+                    "MATCH (d:DocumentNode) DELETE d",
+                    "MATCH (g:GraphNode) DELETE g",
+                    "MATCH (m:SemanticMemory) DELETE m",
+                    "MATCH (l:L3Memory) DELETE l",
+                    "MATCH (n) DELETE n",
+                ]
+                for q in del_queries:
+                    try:
+                        await asyncio.to_thread(self.kuzu_conn.execute, q)
+                    except Exception as q_err:
+                        logger.debug(f"[HLSM L3 Purge] Kuzu sub-query note: {q_err}")
+                logger.info("[HLSM] Successfully cleared all L3 Knowledge Graph memories in KùzuDB.")
+            except Exception as kuzu_err:
+                logger.error(f"[HLSM L3 Purge] Kuzu clear error: {kuzu_err}")
+                summary["status"] = f"ERROR: {kuzu_err}"
         return summary
 
 

@@ -282,3 +282,31 @@ async def purge_all_memory(request: Request, csrf_protect: CsrfProtect = Depends
     }
 
 
+@router.post("/memory/purge_l3", dependencies=[Depends(verify_authenticated)])
+async def purge_l3_memory(request: Request, csrf_protect: CsrfProtect = Depends()):
+    """
+    Executes atomic memory reset specifically for L3 Knowledge Graph in KùzuDB preserving database schemas.
+    """
+    await csrf_protect.validate_csrf(request)
+    if not services.hlsm_manager:
+        raise HTTPException(status_code=503, detail="H-LSM manager not ready")
+    summary = await services.hlsm_manager.purge_l3()
+    
+    # Broadcast WebSocket update
+    if services.orchestrator and hasattr(services.orchestrator, "ws_gateway") and services.orchestrator.ws_gateway:
+        try:
+            await services.orchestrator.ws_gateway.broadcast_event('hlsm_memory_deleted', {
+                "action": "PURGE_L3",
+                "summary": summary
+            })
+        except Exception:
+            pass
+
+    return {
+        "status": "SUCCESS",
+        "summary": summary,
+        "message": "All L3 Knowledge Graph memories have been cleared successfully."
+    }
+
+
+
