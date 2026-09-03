@@ -1,6 +1,6 @@
 [project]
 name = "alluci-sovereign-agent"
-version = "6.4.0"
+version = "6.5.0-stable-grounding-dossier"
 description = "Alluci Sovereign Agent Backend"
 authors = [
     {name = "Alluci Fulcanelli", email = "alluci@alluci.ai"}
