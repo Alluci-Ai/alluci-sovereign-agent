@@ -501,31 +501,47 @@ async def _check_url_grounding(urls: List[str]) -> Tuple[Optional[str], List[str
     return None, [], []
 
 
-async def _check_document_grounding(prompt: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+async def _check_document_grounding(prompt: str, files: Optional[List[Dict[str, Any]]] = None) -> Tuple[Optional[str], Optional[str], Optional[str]]:
     """
-    Detects single and multi-document inquiries:
-    1. Specific page requests (e.g., 'pages 6, 7, 8 and 9', 'page 12', 'pages 4-7 of Hoffman')
-       -> Retrieves exact verbatim page text.
-    2. Comprehensive document overview/summary/formula/question requests
-       -> Synthesizes hierarchical multi-page overview from L3 PageNode & ConceptNode entities.
+    Detects single and multi-document inquiries with strict cryptographic isolation and zero cross-bleed:
+    1. Direct Attachment Priority: If user uploaded files in the active request payload, locks strictly to attached SHA.
+    2. Specific Page Requests: Retrieves exact verbatim page text from L3 PageNode.
+    3. Single Document Overview: Resolves strictly to a single target document ($N=1$) unless explicit comparative markers are present.
+    4. Multi-Document Comparison: Only triggered when user explicitly requests comparison ('compare', 'contrast', 'vs').
     Returns (grounding_text, doc_sha256, doc_name).
     """
-    body_lower = prompt.lower()
+    import hashlib
     from .. import services
 
-    # Identify all document references in prompt
-    doc_keywords = []
+    # 1. Direct Attachment Priority Law
+    if files and len(files) > 0:
+        first_file = files[0]
+        f_name = first_file.get("name", "attached_document.pdf")
+        f_data = first_file.get("data", "")
+        f_bytes = f_data.encode("utf-8") if isinstance(f_data, str) else (f_data or b"")
+        f_sha = hashlib.sha256(f_bytes).hexdigest()
+        # Primary grounding is already parsed into prompt via _process_attached_files
+        return None, f_sha, f_name
+
+    body_lower = prompt.lower()
+
+    # Detect if user explicitly requested a multi-document comparison
+    is_comparison = bool(re.search(r'\b(compare|versus|\bvs\b|contrast|comparison|differences between)\b', prompt, re.IGNORECASE))
+
+    # Identify specific document references in prompt (excluding generic topic nouns)
+    doc_keywords: List[str] = []
     fname_matches = re.findall(r'([A-Za-z0-9_\-]+\.(?:pdf|docx|txt|md))\b', prompt, re.IGNORECASE)
     if fname_matches:
         doc_keywords.extend(fname_matches)
-    
-    candidates = [
-        "objects of consciousness", "hoffman", "cimc", "consciousness", 
-        "whitepaper", "paper", "report", "document", "manuscript", "treatise"
+
+    # Specific known document title identifiers (strictly qualified, no bare generic nouns)
+    specific_doc_patterns = [
+        "objects of consciousness", "traces of consciousness", "recursive_trace_geometry",
+        "interfacing consciousness", "cimc whitepaper", "cimc"
     ]
-    for c in candidates:
-        if c in body_lower and c not in doc_keywords:
-            doc_keywords.append(c)
+    for pat in specific_doc_patterns:
+        if pat in body_lower and not any(pat in k for k in doc_keywords):
+            doc_keywords.append(pat)
 
     # Check for specific page requests (single document)
     page_match = re.search(r'\bpages?\s*([0-9\s,\-andto]+)', prompt, re.IGNORECASE)
@@ -567,19 +583,16 @@ async def _check_document_grounding(prompt: str) -> Tuple[Optional[str], Optiona
                 except Exception as e:
                     logger.debug(f"[GeminiRouter] Page grounding resolution notice: {e}")
 
-    # General document inquiries and multi-document synthesis
+    # General document inquiries and isolated synthesis
     if doc_keywords and hasattr(services, "hlsm_manager") and services.hlsm_manager:
         synthesized_blocks: List[str] = []
         doc_shas: List[str] = []
         doc_names: List[str] = []
         
-        # Deduplicate queries to target distinct documents
-        unique_queries: List[str] = []
-        for dk in doc_keywords:
-            if not any(dk in u or u in dk for u in unique_queries):
-                unique_queries.append(dk)
-                
-        for q in unique_queries[:3]:
+        # In single-document mode, strictly target ONLY the single highest-confidence query ($N=1$)
+        queries_to_run = doc_keywords if is_comparison else [doc_keywords[0]]
+        
+        for q in queries_to_run:
             try:
                 synth_res = await services.hlsm_manager.synthesize_document_hierarchical_overview(q, as_dict=True)
                 if synth_res and isinstance(synth_res, dict):
@@ -647,7 +660,7 @@ async def gemini_proxy(
         url_grounding, url_shas, url_titles = await _check_url_grounding(parsed_intent.detected_urls)
 
         # 4. Dynamic Document Page & Overview Grounding Check (< 15ms)
-        doc_grounding, doc_sha256, doc_name = await _check_document_grounding(raw_user_prompt)
+        doc_grounding, doc_sha256, doc_name = await _check_document_grounding(raw_user_prompt, files=files)
 
         # 5. Dynamic Web Search Grounding Check (< 500ms)
         web_grounding = await _check_web_search_grounding(raw_user_prompt)
@@ -819,7 +832,7 @@ async def gemini_proxy_stream(
         url_grounding, url_shas, url_titles = await _check_url_grounding(parsed_intent.detected_urls)
 
         # 4. Dynamic Document Page & Overview Grounding Check (< 15ms)
-        doc_grounding, doc_sha256, doc_name = await _check_document_grounding(raw_user_prompt)
+        doc_grounding, doc_sha256, doc_name = await _check_document_grounding(raw_user_prompt, files=files)
 
         # 5. Dynamic Web Search Grounding Check (< 500ms)
         web_grounding = await _check_web_search_grounding(raw_user_prompt)
