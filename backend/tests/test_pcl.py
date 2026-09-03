@@ -366,8 +366,8 @@ async def test_heartbeat_signal_detector_in_registered_detectors(pcl_engine):
     assert "HeartbeatSignalDetector" in names, (
         f"HeartbeatSignalDetector not registered. Detectors: {names}"
     )
-    assert len(names) == 8, (
-        f"Expected 8 detectors, got {len(names)}: {names}"
+    assert len(names) == 9, (
+        f"Expected 9 detectors, got {len(names)}: {names}"
     )
 
 @pytest.mark.asyncio

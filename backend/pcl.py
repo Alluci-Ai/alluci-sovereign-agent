@@ -681,7 +681,12 @@ class InterventionJudge:
                 )
             ).first()
         if recent and recent.actioned_at:
-            actioned_dt = recent.actioned_at.replace(tzinfo=timezone.utc) if recent.actioned_at.tzinfo is None else recent.actioned_at
+            if isinstance(recent.actioned_at, (int, float)):
+                actioned_dt = datetime.fromtimestamp(recent.actioned_at, tz=timezone.utc)
+            elif hasattr(recent.actioned_at, "tzinfo"):
+                actioned_dt = recent.actioned_at.replace(tzinfo=timezone.utc) if recent.actioned_at.tzinfo is None else recent.actioned_at
+            else:
+                actioned_dt = datetime.now(timezone.utc)
             elapsed = (datetime.now(timezone.utc) - actioned_dt).total_seconds() / 60
             return False, f"Cooldown: actioned {elapsed:.0f}m ago (cooldown={opp.cooldown_minutes}m)"
         return True, "cooldown_passed"
@@ -697,7 +702,6 @@ class InterventionJudge:
 
     def _check_deduplication(self, opp: Opportunity) -> Tuple[bool, str]:
         from datetime import datetime, timezone, timedelta
-        from sqlmodel import Session, select, col
         cutoff_24h = datetime.now(timezone.utc) - timedelta(hours=24)
         with Session(self.db_engine) as session:
             recent = session.exec(

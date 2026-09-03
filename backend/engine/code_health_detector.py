@@ -5,11 +5,12 @@ import hashlib
 from typing import Optional, List, Dict, Any
 
 from ..logging_config import get_logger
+from ..pcl import BaseDetector, Opportunity, WorldModel
 
 logger = get_logger("CodeHealthDetector")
 
 
-class CodeHealthDetector:
+class CodeHealthDetector(BaseDetector):
     """
     [ PPN-038 ] Autonomous Codebase Health & Architectural Improvement Sentinel.
     Runs during idle PCL cognitive cycles to analyze Python and TypeScript ASTs,
@@ -20,6 +21,7 @@ class CodeHealthDetector:
     COOLDOWN_MINUTES = 180
 
     def __init__(self, project_root: Optional[str] = None):
+        super().__init__()
         self.project_root = project_root or os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
         from .codebase_grounding import LocalCodebaseInspector
         self.inspector = LocalCodebaseInspector(self.project_root)
@@ -66,7 +68,7 @@ class CodeHealthDetector:
 
         return findings
 
-    async def detect(self, world: Any) -> Optional[Any]:
+    async def detect(self, world: WorldModel) -> Optional[Opportunity]:
         """
         PCL cognitive stage 3 detect handler.
         Synthesizes an Opportunity if codebase optimization targets are detected.
