@@ -1237,7 +1237,7 @@ class ProactiveCognitionLoop:
         """Persist an opportunity to the DB before acting on it."""
         from datetime import datetime, timezone
         now_dt = datetime.now(timezone.utc)
-        opp_id: str = str(opp.id)
+        opp_id: str = opp.id
         
         db_opp = PCLOpportunity(
             id=opp_id,

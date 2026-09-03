@@ -1365,8 +1365,7 @@ def _build_html5_research_dossier(title: str, markdown_content: str) -> str:
             html_blocks.append(f"<blockquote>{quote_text}</blockquote>")
         elif stripped.startswith("---") or stripped.startswith("***"):
             html_blocks.append("<hr/>")
-        elif re.match(r'^!\[(.*?)\]\((.*?)\)$', stripped):
-            img_m = re.match(r'^!\[(.*?)\]\((.*?)\)$', stripped)
+        elif (img_m := re.match(r'^!\[(.*?)\]\((.*?)\)$', stripped)):
             alt_t = html.escape(img_m.group(1))
             src_u = img_m.group(2)
             html_blocks.append(
