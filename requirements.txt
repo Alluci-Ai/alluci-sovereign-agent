@@ -85,7 +85,7 @@ aiofiles==23.2.1
 tenacity==8.5.0
 
 # ─── Windows Service (Windows-only) ──────────────────────────────────────────
-pywin32==306; sys_platform == "win32"   # Windows Service support (windows_service.py)
+pywin32==312; sys_platform == "win32"   # Windows Service support (windows_service.py)
 
 # ─── Optional Adapters & Bridges (Install manually if needed) ─────────────────
 playwright==1.58.0           # WebFetch adapter (Heavy dependency)

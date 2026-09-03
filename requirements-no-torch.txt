@@ -72,7 +72,7 @@ aiofiles==23.2.1
 tenacity==8.5.0
 
 # ─── Windows Service (Windows-only) ──────────────────────────────────────────
-pywin32>=306; sys_platform == "win32"   # Windows Service support (windows_service.py)
+pywin32>=312; sys_platform == "win32"   # Windows Service support (windows_service.py)
 
 # ─── Browser Automation (screen_capture adapter) ──────────────────────────────
 playwright>=1.58.0           # Updated to resolve greenlet conflicts
