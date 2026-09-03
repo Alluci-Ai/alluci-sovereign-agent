@@ -1237,9 +1237,10 @@ class ProactiveCognitionLoop:
         """Persist an opportunity to the DB before acting on it."""
         from datetime import datetime, timezone
         now_dt = datetime.now(timezone.utc)
+        opp_id: str = str(opp.id)
         
         db_opp = PCLOpportunity(
-            id=str(opp.id),
+            id=opp_id,
             actioned=True,
             actioned_at=now_dt,
             detected_at=now_dt,
@@ -1247,7 +1248,7 @@ class ProactiveCognitionLoop:
         )
         with Session(self.db_engine) as session:
             # Upsert: delete existing then insert (SQLite compatible)
-            existing = session.get(PCLOpportunity, str(opp.id))
+            existing = session.get(PCLOpportunity, opp_id)
             if existing:
                 session.delete(existing)
                 session.commit()
