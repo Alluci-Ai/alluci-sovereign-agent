@@ -9,6 +9,7 @@ import { CopyMessageButton } from '../chat/CopyMessageButton';
 import { SourceAttribution } from '../chat/SourceAttribution';
 import mermaid from 'mermaid';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
+import { Maximize2, ExternalLink, FileText, Image as ImageIcon, X } from 'lucide-react';
 
 // Initialize mermaid configurations
 if (typeof window !== 'undefined') {
@@ -211,6 +212,117 @@ const renderMathToString = (expr: string, displayMode: boolean): string => {
     }
 };
 
+interface ChatImageProps {
+    src: string;
+    alt: string;
+}
+
+const ChatImage: React.FC<ChatImageProps> = ({ src, alt }) => {
+    const [isLightboxOpen, setIsLightboxOpen] = React.useState(false);
+    const [isLoaded, setIsLoaded] = React.useState(false);
+    const [hasError, setHasError] = React.useState(false);
+
+    const cleanSrc = src && !src.startsWith('http') && !src.startsWith('/') ? `/${src}` : src;
+    const docSlugMatch = cleanSrc.match(/\/extracted_figures\/([^\/]+)\/([^\/\?#]+)/);
+    const localDiskPath = docSlugMatch ? `workspace/artifacts/extracted_figures/${docSlugMatch[1]}/${docSlugMatch[2]}` : cleanSrc;
+
+    return (
+        <div className="my-4 w-full max-w-2xl rounded-xl border border-glass-edge bg-glass-2 p-3 shadow-xl backdrop-blur-md transition-all hover:border-accent/40">
+            <div className="relative group overflow-hidden rounded-lg bg-black/40 min-h-[140px] flex items-center justify-center">
+                {!isLoaded && !hasError && (
+                    <div className="absolute inset-0 flex items-center justify-center text-xs text-text-tertiary font-mono animate-pulse">
+                        <ImageIcon size={18} className="mr-2 animate-bounce text-accent" /> Loading technical figure...
+                    </div>
+                )}
+                {hasError ? (
+                    <div className="p-4 text-center text-xs text-red-400 font-mono">
+                        Failed to load diagram: {cleanSrc}
+                    </div>
+                ) : (
+                    <img
+                        src={cleanSrc}
+                        alt={alt || 'Technical Visual Asset'}
+                        className={`w-full max-h-[500px] object-contain cursor-zoom-in transition-transform duration-300 group-hover:scale-[1.01] ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
+                        loading="lazy"
+                        onLoad={() => setIsLoaded(true)}
+                        onError={() => setHasError(true)}
+                        onClick={() => setIsLightboxOpen(true)}
+                    />
+                )}
+                <button
+                    onClick={() => setIsLightboxOpen(true)}
+                    className="absolute top-2 right-2 p-1.5 rounded-md bg-black/70 text-white/80 hover:text-white hover:bg-accent/80 opacity-0 group-hover:opacity-100 transition-all shadow-lg cursor-pointer"
+                    title="Expand Full-Resolution Diagram"
+                >
+                    <Maximize2 size={14} />
+                </button>
+            </div>
+            {alt && (
+                <p className="mt-2 text-xs text-text-secondary italic text-center font-sans px-1">
+                    {alt}
+                </p>
+            )}
+            <div className="mt-2.5 pt-2 border-t border-glass-edge flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono">
+                <a
+                    href={cleanSrc}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-accent hover:underline font-medium hover:text-accent-bright transition-colors"
+                >
+                    <ExternalLink size={12} />
+                    <span>🔍 View High-Resolution Diagram</span>
+                </a>
+                <button
+                    onClick={() => {
+                        if (navigator.clipboard) {
+                            navigator.clipboard.writeText(localDiskPath);
+                        }
+                    }}
+                    className="inline-flex items-center gap-1.5 text-text-tertiary hover:text-text-primary transition-colors cursor-pointer"
+                    title={`Click to copy local path: ${localDiskPath}`}
+                >
+                    <FileText size={12} />
+                    <span>📁 Local File: {localDiskPath.split('/').pop()}</span>
+                </button>
+            </div>
+
+            {/* Fullscreen Lightbox Modal */}
+            {isLightboxOpen && (
+                <div 
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-xl p-4"
+                    onClick={() => setIsLightboxOpen(false)}
+                >
+                    <div 
+                        className="relative max-w-5xl max-h-[90vh] w-full flex flex-col items-center justify-center"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <button
+                            onClick={() => setIsLightboxOpen(false)}
+                            className="absolute top-[-36px] right-0 p-1.5 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full transition-all cursor-pointer"
+                        >
+                            <X size={18} />
+                        </button>
+                        <TransformWrapper initialScale={1} minScale={0.5} maxScale={4} centerOnInit>
+                            <TransformComponent wrapperClass="!w-full !max-h-[80vh] flex items-center justify-center">
+                                <img
+                                    src={cleanSrc}
+                                    alt={alt}
+                                    className="max-w-full max-h-[80vh] object-contain rounded-lg shadow-2xl border border-white/10"
+                                />
+                            </TransformComponent>
+                        </TransformWrapper>
+                        {alt && (
+                            <div className="mt-3 text-sm text-text-primary text-center font-sans max-w-2xl bg-black/60 px-4 py-1.5 rounded-full border border-white/10">
+                                {alt}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
 const renderMarkdown = (text: string) => {
     const lines = text.split('\n');
     const elements: React.ReactNode[] = [];
@@ -302,153 +414,189 @@ const renderMarkdown = (text: string) => {
         }
     };
 
-    const parseInlineMarkdown = (inlineText: string): React.ReactNode => {
-        // Pre-clean unrendered arrow shortcuts outside KaTeX expressions
-        let processed = inlineText
-            .replace(/\\\b(rightarrow|to)\b/g, '→')
-            .replace(/\\\b(leftarrow)\b/g, '←')
-            .replace(/\\\b(Rightarrow)\b/g, '⇒')
-            .replace(/\\\b(Leftarrow)\b/g, '⇐');
+const parseInlineMarkdown = (inlineText: string): React.ReactNode => {
+    // Pre-clean unrendered arrow shortcuts outside KaTeX expressions
+    let processed = inlineText
+        .replace(/\\\b(rightarrow|to)\b/g, '→')
+        .replace(/\\\b(leftarrow)\b/g, '←')
+        .replace(/\\\b(Rightarrow)\b/g, '⇒')
+        .replace(/\\\b(Leftarrow)\b/g, '⇐');
 
-        // Regex for LaTeX math blocks / inline math ($...$ or \(...\) or $$...$$) while preserving currency ($50, $10.00)
-        const inlineMathRegex = /(\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|(?<![\$\d])\$(?!\s|\d)(?:\\.|[^\$])*(?<!\s)\$)/g;
-        const parts = processed.split(inlineMathRegex);
+    // Regex for LaTeX math blocks / inline math ($...$ or \(...\) or $$...$$) while preserving currency ($50, $10.00)
+    const inlineMathRegex = /(\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|(?<![\$\d])\$(?!\s|\d)(?:\\.|[^\$])*(?<!\s)\$)/g;
+    const parts = processed.split(inlineMathRegex);
 
-        return parts.map((part, index) => {
-            if (!part) return null;
+    return parts.map((part, index) => {
+        if (!part) return null;
 
-            // Block math $$...$$ or \[...\]
-            if (
-                (part.startsWith('$$') && part.endsWith('$$') && part.length > 4) ||
-                (part.startsWith('\\[') && part.endsWith('\\]') && part.length > 4)
-            ) {
-                const mathContent = part.startsWith('$$') ? part.slice(2, -2).trim() : part.slice(2, -2).trim();
-                const html = renderMathToString(mathContent, true);
-                return (
-                    <span
-                        key={`math-disp-${index}`}
-                        className="katex-display-wrapper inline-block my-1.5 overflow-x-auto max-w-full align-middle"
-                        dangerouslySetInnerHTML={{ __html: html }}
-                    />
-                );
+        // Block math $$...$$ or \[...\]
+        if (
+            (part.startsWith('$$') && part.endsWith('$$') && part.length > 4) ||
+            (part.startsWith('\\[') && part.endsWith('\\]') && part.length > 4)
+        ) {
+            const mathContent = part.startsWith('$$') ? part.slice(2, -2).trim() : part.slice(2, -2).trim();
+            const html = renderMathToString(mathContent, true);
+            return (
+                <span
+                    key={`math-disp-${index}`}
+                    className="katex-display-wrapper inline-block my-1.5 overflow-x-auto max-w-full align-middle"
+                    dangerouslySetInnerHTML={{ __html: html }}
+                />
+            );
+        }
+
+        // Inline math $...$ or \(...\)
+        if (
+            (part.startsWith('$') && part.endsWith('$') && part.length > 2) ||
+            (part.startsWith('\\(') && part.endsWith('\\)') && part.length > 4)
+        ) {
+            const mathContent = part.startsWith('$') ? part.slice(1, -1).trim() : part.slice(2, -2).trim();
+            const html = renderMathToString(mathContent, false);
+            return (
+                <span
+                    key={`math-inline-${index}`}
+                    className="katex-inline-wrapper inline-block align-middle px-0.5"
+                    dangerouslySetInnerHTML={{ __html: html }}
+                />
+            );
+        }
+
+        // Links [text](url) and Images ![alt](src) and bold/italic
+        const linkParts = part.split(/(!?\[[^\]]*\]\([^)]+\))/g);
+        return linkParts.map((linkPart, linkIdx) => {
+            // Image ![alt](src)
+            const imgMatch = linkPart.match(/^!\[(.*?)\]\((.*?)\)$/);
+            if (imgMatch) {
+                return <ChatImage key={`inline-img-${index}-${linkIdx}`} alt={imgMatch[1]} src={imgMatch[2]} />;
             }
 
-            // Inline math $...$ or \(...\)
-            if (
-                (part.startsWith('$') && part.endsWith('$') && part.length > 2) ||
-                (part.startsWith('\\(') && part.endsWith('\\)') && part.length > 4)
-            ) {
-                const mathContent = part.startsWith('$') ? part.slice(1, -1).trim() : part.slice(2, -2).trim();
-                const html = renderMathToString(mathContent, false);
+            // Link [text](url)
+            const aMatch = linkPart.match(/^\[(.*?)\]\((.*?)\)$/);
+            if (aMatch) {
                 return (
-                    <span
-                        key={`math-inline-${index}`}
-                        className="katex-inline-wrapper inline-block align-middle px-0.5"
-                        dangerouslySetInnerHTML={{ __html: html }}
-                    />
+                    <a
+                        key={`link-${index}-${linkIdx}`}
+                        href={aMatch[2]}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-accent hover:underline font-medium inline-flex items-center gap-1 transition-colors"
+                    >
+                        {aMatch[1]}
+                        <ExternalLink size={11} className="opacity-70 inline" />
+                    </a>
                 );
             }
 
             // Standard Markdown bold / italic splitting
-            const mdParts = part.split(/(\*\*.*?\*\*|\*.*?\*)/);
+            const mdParts = linkPart.split(/(\*\*.*?\*\*|\*.*?\*)/);
             return mdParts.map((subPart, subIdx) => {
                 if (subPart.startsWith('**') && subPart.endsWith('**')) {
-                    return <strong key={`${index}-${subIdx}`} className="font-extrabold text-text-primary">{subPart.slice(2, -2)}</strong>;
+                    return <strong key={`${index}-${linkIdx}-${subIdx}`} className="font-extrabold text-text-primary">{subPart.slice(2, -2)}</strong>;
                 }
                 if (subPart.startsWith('*') && subPart.endsWith('*')) {
-                    return <em key={`${index}-${subIdx}`} className="italic text-text-secondary">{subPart.slice(1, -1)}</em>;
+                    return <em key={`${index}-${linkIdx}-${subIdx}`} className="italic text-text-secondary">{subPart.slice(1, -1)}</em>;
                 }
                 return subPart;
             });
         });
-    };
+    });
+};
 
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        const trimmed = line.trim();
+for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
 
-        // 0. Handle Code Blocks
-        if (inCodeBlock) {
-            if (trimmed.startsWith('```')) {
-                flushCodeBlock(i, true);
-            } else {
-                codeBlockContent.push(line);
-            }
-            continue;
-        }
-
+    // 0. Handle Code Blocks
+    if (inCodeBlock) {
         if (trimmed.startsWith('```')) {
-            if (inList) flushList(i);
-            if (inTable) flushTable(i);
-            inCodeBlock = true;
-            codeBlockLang = trimmed.slice(3).trim().toLowerCase();
-            codeBlockContent = [];
-            continue;
+            flushCodeBlock(i, true);
+        } else {
+            codeBlockContent.push(line);
         }
+        continue;
+    }
 
-        // 1. Handle Table Rows
-        if (trimmed.startsWith('|') && trimmed.endsWith('|') && trimmed.length > 1) {
-            if (inList) flushList(i);
-            inTable = true;
-            const cells = trimmed.split('|').map(c => c.trim()).filter((_, idx, arr) => idx > 0 && idx < arr.length - 1);
-            tableRows.push(cells);
-            continue;
-        } else if (inTable) {
-            flushTable(i);
-        }
+    if (trimmed.startsWith('```')) {
+        if (inList) flushList(i);
+        if (inTable) flushTable(i);
+        inCodeBlock = true;
+        codeBlockLang = trimmed.slice(3).trim().toLowerCase();
+        codeBlockContent = [];
+        continue;
+    }
 
-        // 2. Handle List Items
-        if (trimmed.startsWith('- ') || trimmed.startsWith('* ') || trimmed.startsWith('o ')) {
-            if (inTable) flushTable(i);
-            inList = true;
-            const content = trimmed.replace(/^[-*o]\s+/, '');
-            listItems.push(
-                <li key={`li-${i}`} className="text-sm leading-relaxed text-text-primary">
-                    {parseInlineMarkdown(content)}
-                </li>
+    // 0.1 Handle Standalone Images ![alt](src)
+    const imgMatch = trimmed.match(/^!\[(.*?)\]\((.*?)\)$/);
+    if (imgMatch) {
+        if (inList) flushList(i);
+        if (inTable) flushTable(i);
+        elements.push(<ChatImage key={`chat-img-line-${i}`} alt={imgMatch[1]} src={imgMatch[2]} />);
+        continue;
+    }
+
+    // 1. Handle Table Rows
+    if (trimmed.startsWith('|') && trimmed.endsWith('|') && trimmed.length > 1) {
+        if (inList) flushList(i);
+        inTable = true;
+        const cells = trimmed.split('|').map(c => c.trim()).filter((_, idx, arr) => idx > 0 && idx < arr.length - 1);
+        tableRows.push(cells);
+        continue;
+    } else if (inTable) {
+        flushTable(i);
+    }
+
+    // 2. Handle List Items
+    if (trimmed.startsWith('- ') || trimmed.startsWith('* ') || trimmed.startsWith('o ')) {
+        if (inTable) flushTable(i);
+        inList = true;
+        const content = trimmed.replace(/^[-*o]\s+/, '');
+        listItems.push(
+            <li key={`li-${i}`} className="text-sm leading-relaxed text-text-primary">
+                {parseInlineMarkdown(content)}
+            </li>
+        );
+        continue;
+    } else if (inList) {
+        flushList(i);
+    }
+
+    // 3. Handle Headers
+    if (trimmed.startsWith('#')) {
+        const match = trimmed.match(/^(#{1,6})\s*(.*)$/);
+        if (match) {
+            const level = match[1].length;
+            const headerText = match[2];
+            const headerClass = level === 1 
+                ? "text-2xl font-black text-text-primary mt-6 mb-3 tracking-wide" 
+                : level === 2 
+                ? "text-xl font-bold text-text-primary mt-5 mb-2.5 tracking-wide" 
+                : "text-lg font-semibold text-text-primary mt-4 mb-2 tracking-wide";
+            
+            const HeaderTag = `h${level}` as any;
+            elements.push(
+                <div key={`h-wrap-${i}`} className="py-2">
+                    <HeaderTag className={headerClass}>
+                        {parseInlineMarkdown(headerText)}
+                    </HeaderTag>
+                </div>
             );
             continue;
-        } else if (inList) {
-            flushList(i);
         }
-
-        // 3. Handle Headers
-        if (trimmed.startsWith('#')) {
-            const match = trimmed.match(/^(#{1,6})\s*(.*)$/);
-            if (match) {
-                const level = match[1].length;
-                const headerText = match[2];
-                const headerClass = level === 1 
-                    ? "text-2xl font-black text-text-primary mt-6 mb-3 tracking-wide" 
-                    : level === 2 
-                    ? "text-xl font-bold text-text-primary mt-5 mb-2.5 tracking-wide" 
-                    : "text-lg font-semibold text-text-primary mt-4 mb-2 tracking-wide";
-                
-                const HeaderTag = `h${level}` as any;
-                elements.push(
-                    <div key={`h-wrap-${i}`} className="py-2">
-                        <HeaderTag className={headerClass}>
-                            {parseInlineMarkdown(headerText)}
-                        </HeaderTag>
-                    </div>
-                );
-                continue;
-            }
-        }
-
-        // 4. Handle Blank Lines
-        if (trimmed === '') {
-            elements.push(<div key={`blank-${i}`} className="h-3 shrink-0" />);
-            continue;
-        }
-
-        // 5. Normal Paragraphs
-        elements.push(
-            <p key={`p-${i}`} className="text-sm leading-relaxed text-text-primary mb-2">
-                {parseInlineMarkdown(line)}
-            </p>
-        );
     }
+
+    // 4. Handle Blank Lines
+    if (trimmed === '') {
+        elements.push(<div key={`blank-${i}`} className="h-3 shrink-0" />);
+        continue;
+    }
+
+    // 5. Normal Paragraphs
+    elements.push(
+        <p key={`p-${i}`} className="text-sm leading-relaxed text-text-primary mb-2">
+            {parseInlineMarkdown(line)}
+        </p>
+    );
+}
 
     if (inList) flushList('final');
     if (inTable) flushTable('final');

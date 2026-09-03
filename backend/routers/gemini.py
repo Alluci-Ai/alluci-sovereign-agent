@@ -1352,9 +1352,27 @@ def _build_html5_research_dossier(title: str, markdown_content: str) -> str:
             html_blocks.append(f"<blockquote>{quote_text}</blockquote>")
         elif stripped.startswith("---") or stripped.startswith("***"):
             html_blocks.append("<hr/>")
+        elif re.match(r'^!\[(.*?)\]\((.*?)\)$', stripped):
+            img_m = re.match(r'^!\[(.*?)\]\((.*?)\)$', stripped)
+            alt_t = html.escape(img_m.group(1))
+            src_u = img_m.group(2)
+            html_blocks.append(
+                f'<div class="figure-container">'
+                f'<img src="{src_u}" alt="{alt_t}" loading="lazy"/>'
+                f'<p class="figure-caption">{alt_t} — <a href="{src_u}" target="_blank">🔍 Open High-Resolution Diagram</a></p>'
+                f'</div>'
+            )
         elif stripped:
             # Paragraph formatting
             p_text = line
+            # Convert markdown images within paragraphs
+            p_text = re.sub(
+                r'!\[([^\]]*)\]\(([^)]+)\)',
+                r'<div class="figure-container"><img src="\2" alt="\1" loading="lazy"/><p class="figure-caption">\1 — <a href="\2" target="_blank">🔍 Open High-Resolution Diagram</a></p></div>',
+                p_text
+            )
+            # Convert markdown links
+            p_text = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'<a href="\2" target="_blank" rel="noopener noreferrer">\1</a>', p_text)
             p_text = re.sub(r'\*\*([^*]+)\*\*', r'<strong>\1</strong>', p_text)
             p_text = re.sub(r'\*([^*]+)\*', r'<em>\1</em>', p_text)
             p_text = re.sub(r'`([^`]+)`', r'<code>\1</code>', p_text)
@@ -1416,6 +1434,8 @@ def _build_html5_research_dossier(title: str, markdown_content: str) -> str:
   p {{ margin-bottom: 1.2rem; color: var(--text-secondary); font-size: 1.02rem; }}
   strong {{ color: var(--text-primary); font-weight: 700; }}
   em {{ color: #cbd5e1; font-style: italic; }}
+  a {{ color: var(--accent-blue); text-decoration: underline; font-weight: 500; }}
+  a:hover {{ color: var(--accent-emerald); }}
   ul, ol {{ margin: 1rem 0; padding-left: 2rem; color: var(--text-secondary); }}
   li {{ margin-bottom: 0.6rem; line-height: 1.6; }}
   blockquote {{
@@ -1437,6 +1457,28 @@ def _build_html5_research_dossier(title: str, markdown_content: str) -> str:
     margin: 1.5rem 0;
   }}
   code {{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace; color: var(--accent-blue); font-size: 0.95em; }}
+  .figure-container {{
+    margin: 2rem 0;
+    padding: 1.5rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border-card);
+    border-radius: 12px;
+    text-align: center;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  }}
+  .figure-container img {{
+    max-width: 100%;
+    height: auto;
+    max-height: 550px;
+    border-radius: 8px;
+    object-fit: contain;
+  }}
+  .figure-caption {{
+    margin-top: 0.75rem;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    font-style: italic;
+  }}
   .table-container {{
     overflow-x: auto;
     margin: 1.5rem 0;
@@ -1575,18 +1617,48 @@ async def _process_dynamic_artifact_block(
 
     # Bundle visual figure assets into ./assets/
     bundled_assets = []
+    assets_dir = os.path.join(save_dir, "assets")
+    os.makedirs(assets_dir, exist_ok=True)
+
+    # 1. From passed figure_assets
     if figure_assets:
-        assets_dir = os.path.join(save_dir, "assets")
-        os.makedirs(assets_dir, exist_ok=True)
         for fig in figure_assets:
             src_fpath = fig.get("file_path", "")
             if src_fpath and os.path.exists(src_fpath):
                 dest_fpath = os.path.join(assets_dir, os.path.basename(src_fpath))
                 try:
                     shutil.copy2(src_fpath, dest_fpath)
-                    bundled_assets.append(f"assets/{os.path.basename(src_fpath)}")
+                    bundled_assets.append({"original": src_fpath, "bundled": f"./assets/{os.path.basename(src_fpath)}", "filename": os.path.basename(src_fpath)})
                 except Exception as cp_err:
                     logger.debug(f"[GeminiRouter] Asset copy notice: {cp_err}")
+
+    # 2. From markdown content regex
+    content_fig_refs = re.findall(r'(?:/api/v1/artifacts/|/?workspace/artifacts/)extracted_figures/([^/\s\)\"\']+)/([^/\s\)\"\']+)', content or "")
+    for doc_slug, fig_name in set(content_fig_refs):
+        candidate_paths = [
+            os.path.join("workspace", "artifacts", "extracted_figures", doc_slug, fig_name),
+            os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "workspace", "artifacts", "extracted_figures", doc_slug, fig_name))
+        ]
+        for c_path in candidate_paths:
+            if os.path.exists(c_path):
+                dest_fpath = os.path.join(assets_dir, fig_name)
+                try:
+                    shutil.copy2(c_path, dest_fpath)
+                    if not any(b.get("filename") == fig_name for b in bundled_assets):
+                        bundled_assets.append({"original": c_path, "bundled": f"./assets/{fig_name}", "filename": fig_name})
+                except Exception as cp_err:
+                    logger.debug(f"[GeminiRouter] Asset regex copy notice: {cp_err}")
+                break
+
+    # Rewrite image URIs in source.html to point to relative ./assets/ for standalone offline viewing
+    for asset in bundled_assets:
+        fn = asset.get("filename")
+        if fn:
+            html_content = re.sub(
+                rf'(?:/api/v1/artifacts/|/?workspace/artifacts/)extracted_figures/[^/\s\)\"\']+/{re.escape(fn)}',
+                f'./assets/{fn}',
+                html_content
+            )
 
     # Persist Atomic Triad Bundle
     md_file_path = os.path.join(save_dir, "source.md")

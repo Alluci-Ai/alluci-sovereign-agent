@@ -130,7 +130,10 @@ export const TextRenderer: React.FC<RendererProps> = ({ artifact }) => {
               style={{
                 color: 'var(--accent, #30D158)',
                 textDecoration: 'underline',
-                fontWeight: 500
+                fontWeight: 500,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px'
               }}
             >
               {children}
@@ -138,34 +141,103 @@ export const TextRenderer: React.FC<RendererProps> = ({ artifact }) => {
           ),
           img: ({ src, alt }) => {
             const cleanSrc = src && !src.startsWith('http') && !src.startsWith('/') ? `/${src}` : src;
+            const docSlugMatch = cleanSrc ? cleanSrc.match(/\/extracted_figures\/([^\/]+)\/([^\/\?#]+)/) : null;
+            const localDiskPath = docSlugMatch ? `workspace/artifacts/extracted_figures/${docSlugMatch[1]}/${docSlugMatch[2]}` : (cleanSrc || '');
+
             return (
-              <div style={{ margin: '20px 0', textAlign: 'center' }}>
-                <img
-                  src={cleanSrc}
-                  alt={alt || 'Technical Visual Asset'}
-                  style={{
-                    maxWidth: '100%',
-                    height: 'auto',
-                    borderRadius: '8px',
-                    border: '1px solid var(--glass-edge)',
-                    boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
-                    objectFit: 'contain',
-                    maxHeight: '600px'
-                  }}
-                  loading="lazy"
-                />
+              <div 
+                style={{ 
+                  margin: '24px 0', 
+                  padding: '16px',
+                  background: 'var(--glass-2, rgba(255, 255, 255, 0.03))',
+                  borderRadius: '12px',
+                  border: '1px solid var(--glass-edge, rgba(255, 255, 255, 0.08))',
+                  textAlign: 'center' 
+                }}
+              >
+                <div style={{ position: 'relative', overflow: 'hidden', borderRadius: '8px', background: 'rgba(0,0,0,0.4)', minHeight: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <img
+                    src={cleanSrc}
+                    alt={alt || 'Technical Visual Asset'}
+                    style={{
+                      maxWidth: '100%',
+                      height: 'auto',
+                      maxHeight: '600px',
+                      borderRadius: '8px',
+                      objectFit: 'contain',
+                      boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+                      cursor: 'zoom-in'
+                    }}
+                    loading="lazy"
+                    onClick={() => {
+                      if (cleanSrc) window.open(cleanSrc, '_blank');
+                    }}
+                  />
+                </div>
                 {alt && (
                   <p
                     style={{
-                      fontSize: '12px',
+                      fontSize: '13px',
                       color: 'var(--text-secondary)',
-                      marginTop: '8px',
-                      fontStyle: 'italic'
+                      marginTop: '10px',
+                      fontStyle: 'italic',
+                      lineHeight: '1.4'
                     }}
                   >
                     {alt}
                   </p>
                 )}
+                <div 
+                  style={{
+                    marginTop: '12px',
+                    paddingTop: '8px',
+                    borderTop: '1px solid var(--glass-edge, rgba(255, 255, 255, 0.08))',
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '8px',
+                    fontSize: '11px',
+                    fontFamily: 'monospace'
+                  }}
+                >
+                  <a
+                    href={cleanSrc}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      color: 'var(--accent, #30D158)',
+                      textDecoration: 'none',
+                      fontWeight: 600,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                  >
+                    <span>🔍 View High-Resolution Diagram</span>
+                  </a>
+                  <button
+                    onClick={() => {
+                      if (navigator.clipboard && localDiskPath) {
+                        navigator.clipboard.writeText(localDiskPath);
+                      }
+                    }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--text-tertiary, #94a3b8)',
+                      cursor: 'pointer',
+                      fontSize: '11px',
+                      fontFamily: 'monospace',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                    title={`Click to copy local path: ${localDiskPath}`}
+                  >
+                    <span>📁 Local File: {localDiskPath.split('/').pop()}</span>
+                  </button>
+                </div>
               </div>
             );
           },

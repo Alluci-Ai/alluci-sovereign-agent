@@ -1235,27 +1235,15 @@ class ProactiveCognitionLoop:
         now_dt = datetime.now(timezone.utc)
         
         db_opp = PCLOpportunity(
-            id=opp.id,
-            detector_name=opp.detector_name,
-            title=opp.title,
-            description=opp.description,
-            priority=opp.priority,
-            confidence=opp.confidence,
-            recommended_action=opp.recommended_action,
-            objective=opp.objective,
-            notification_body=opp.notification_body,
-            autonomy_level=opp.autonomy_level,
-            requires_approval=opp.requires_approval,
-            cooldown_minutes=opp.cooldown_minutes,
-            affects_goal_id=opp.affects_goal_id,
+            id=str(opp.id),
             actioned=True,
             actioned_at=now_dt,
             detected_at=now_dt,
-            cycle_number=cycle_number,
+            outcome="",
         )
         with Session(self.db_engine) as session:
             # Upsert: delete existing then insert (SQLite compatible)
-            existing = session.get(PCLOpportunity, opp.id)
+            existing = session.get(PCLOpportunity, str(opp.id))
             if existing:
                 session.delete(existing)
                 session.commit()

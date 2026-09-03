@@ -120,17 +120,26 @@ async def create_artifact(payload: Dict[str, Any] = Body(...)):
     copied_assets = []
     if content:
         import re, shutil
-        fig_refs = re.findall(r'(\/?workspace\/artifacts\/extracted_figures\/[^\s\)\"\']+)', content)
-        for ref_path in set(fig_refs):
-            clean_ref = ref_path.lstrip("/")
-            if os.path.exists(clean_ref):
-                asset_name = os.path.basename(clean_ref)
-                dest_path = os.path.join(assets_folder, asset_name)
-                try:
-                    shutil.copy2(clean_ref, dest_path)
-                    copied_assets.append({"original": clean_ref, "bundled": f"./assets/{asset_name}"})
-                except Exception as cp_err:
-                    logger.debug(f"[Artifacts] Asset bundle copy notice: {cp_err}")
+        # Match both /api/v1/artifacts/extracted_figures/slug/file and workspace/artifacts/extracted_figures/slug/file
+        fig_refs = re.findall(r'(?:/api/v1/artifacts/|/?workspace/artifacts/)extracted_figures/([^/\s\)\"\']+)/([^/\s\)\"\']+)', content)
+        for doc_slug, fig_name in set(fig_refs):
+            candidate_paths = [
+                os.path.join(ARTIFACTS_DIR, "extracted_figures", doc_slug, fig_name),
+                os.path.join("workspace", "artifacts", "extracted_figures", doc_slug, fig_name)
+            ]
+            for c_path in candidate_paths:
+                if os.path.exists(c_path):
+                    dest_path = os.path.join(assets_folder, fig_name)
+                    try:
+                        shutil.copy2(c_path, dest_path)
+                        copied_assets.append({
+                            "original": c_path,
+                            "bundled": f"./assets/{fig_name}",
+                            "filename": fig_name
+                        })
+                    except Exception as cp_err:
+                        logger.debug(f"[Artifacts] Asset bundle copy notice: {cp_err}")
+                    break
 
     # Persist source.md and source.html
     md_path = os.path.join(topic_folder, "source.md")
@@ -140,10 +149,20 @@ async def create_artifact(payload: Dict[str, Any] = Body(...)):
     with open(md_path, "w", encoding="utf-8") as f_md:
         f_md.write(content or "")
 
-    # Basic HTML render if not provided
+    # Self-contained academic HTML5 render with local ./assets/ mapping and KaTeX
     html_content = content or ""
     if not html_content.strip().startswith("<!DOCTYPE") and not html_content.strip().startswith("<html"):
-        html_content = f"<!DOCTYPE html>\n<html>\n<head><meta charset='utf-8'><title>{title}</title></head>\n<body>\n<pre>{content}</pre>\n</body>\n</html>"
+        from .gemini import _build_html5_research_dossier
+        html_content = _build_html5_research_dossier(title, content)
+        # Rewrite image URIs to point to local ./assets/ for standalone offline viewing
+        for asset in copied_assets:
+            fn = asset.get("filename")
+            if fn:
+                html_content = re.sub(
+                    rf'(?:/api/v1/artifacts/|/?workspace/artifacts/)extracted_figures/[^/\s\)\"\']+/{re.escape(fn)}',
+                    f'./assets/{fn}',
+                    html_content
+                )
 
     with open(html_path, "w", encoding="utf-8") as f_html:
         f_html.write(html_content)
