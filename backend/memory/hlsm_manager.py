@@ -2742,6 +2742,94 @@ class HLSMManager:
         results.sort(key=lambda x: x["page_number"])
         return results
 
+    async def get_all_document_nodes(self) -> List[Dict[str, Any]]:
+        """
+        Retrieves all ingested DocumentNode entities from KùzuDB L3 Knowledge Graph.
+        Returns list of dicts with id, name, title, sha256, summary, acronyms, local_path.
+        """
+        if not self.kuzu_conn:
+            return []
+        try:
+            find_doc_q = (
+                "MATCH (d:DocumentNode) "
+                "RETURN d.id, d.name, d.title, d.sha256, d.summary, d.acronyms, d.local_path"
+            )
+            raw_docs = await asyncio.to_thread(self.kuzu_conn.execute, find_doc_q)
+            doc_rows = _extract_kuzu_rows(raw_docs)
+            docs = []
+            for r in doc_rows:
+                docs.append({
+                    "id": str(r[0]),
+                    "name": str(r[1]),
+                    "title": str(r[2]),
+                    "sha256": str(r[3]),
+                    "summary": str(r[4]) if len(r) > 4 and r[4] else "",
+                    "acronyms": str(r[5]) if len(r) > 5 and r[5] else "",
+                    "local_path": str(r[6]) if len(r) > 6 and r[6] else ""
+                })
+            return docs
+        except Exception as e:
+            logger.debug(f"[HLSM] Error fetching all DocumentNodes: {e}")
+            return []
+
+    async def match_document_by_prompt(self, prompt: str) -> Optional[Dict[str, Any]]:
+        """
+        Dynamically matches a natural language prompt against all ingested DocumentNode entities in KùzuDB
+        using token-set overlap, Jaccard similarity, and substring scoring.
+        Zero hardcoding: dynamically evaluates all stored documents.
+        """
+        docs = await self.get_all_document_nodes()
+        if not docs:
+            return None
+
+        prompt_clean = prompt.lower()
+        stop_words = {
+            "a", "an", "the", "and", "or", "of", "in", "for", "to", "with", "on", "at", "by", "from",
+            "write", "analysis", "overview", "summary", "explain", "explanations", "synthesize", "deep",
+            "comprehensive", "exhaustive", "publication", "grade", "covering", "each", "chapter", "concepts",
+            "formulas", "strictly", "grounded", "document", "paper", "whitepaper", "pdf", "text", "file",
+            "read", "show", "tell", "about", "what", "is", "are", "how", "details", "give", "me"
+        }
+        p_words = set(re.findall(r'[a-zA-Z0-9_\-]+', prompt_clean)) - stop_words
+        if not p_words:
+            return None
+
+        best_doc = None
+        best_score = 0.0
+
+        for doc in docs:
+            d_name = doc.get("name", "").lower()
+            d_title = doc.get("title", "").lower()
+            d_sha = doc.get("sha256", "").lower()
+            d_acronyms = doc.get("acronyms", "").lower()
+
+            # Exact substring match on title or filename (high priority)
+            if len(d_title) > 4 and d_title in prompt_clean:
+                return doc
+            if len(d_name) > 4 and (d_name in prompt_clean or os.path.splitext(d_name)[0] in prompt_clean):
+                return doc
+            if d_sha and len(d_sha) >= 8 and d_sha[:8] in prompt_clean:
+                return doc
+
+            # Word overlap score on title and filename
+            target_words = set(re.findall(r'[a-zA-Z0-9_\-]+', f"{d_title} {d_name} {d_acronyms}")) - stop_words
+            if not target_words:
+                continue
+
+            intersection = p_words.intersection(target_words)
+            if not intersection:
+                continue
+
+            overlap_ratio = len(intersection) / len(target_words)
+            score = overlap_ratio * (1.0 + 0.25 * len(intersection))
+            if score > best_score and (len(intersection) >= 2 or (len(intersection) == 1 and len(target_words) <= 2)):
+                best_score = score
+                best_doc = doc
+
+        if best_doc and best_score >= 0.20:
+            return best_doc
+        return None
+
     async def synthesize_document_hierarchical_overview(self, document_query: str, as_dict: bool = False) -> Any:
         """
         Synthesizes a structured multi-page hierarchical grounding block from KùzuDB L3 DocumentNode,
@@ -2754,24 +2842,24 @@ class HLSMManager:
             return None
 
         try:
-            # 1. Match DocumentNode
-            find_doc_q = (
-                "MATCH (d:DocumentNode) "
-                "RETURN d.id, d.name, d.title, d.sha256, d.summary, d.acronyms, d.local_path"
-            )
-            raw_docs = await asyncio.to_thread(self.kuzu_conn.execute, find_doc_q)
-            doc_rows = _extract_kuzu_rows(raw_docs)
+            # 1. Match DocumentNode dynamically
+            docs = await self.get_all_document_nodes()
             matched_doc = None
             
-            for r in doc_rows:
-                did, dname, dtitle, dsha, dsum, dacr, dpath = str(r[0]), str(r[1]), str(r[2]), str(r[3]), str(r[4]), str(r[5]), str(r[6])
-                if (clean_doc.lower() in dname.lower() or clean_doc.lower() in dtitle.lower() or 
-                    dsha.startswith(clean_doc.lower()) or not clean_doc or clean_doc.lower() in ["document", "pdf", "whitepaper", "paper"]):
-                    matched_doc = {
-                        "id": did, "name": dname, "title": dtitle, "sha256": dsha,
-                        "summary": dsum, "acronyms": dacr, "local_path": dpath
-                    }
+            # Direct match
+            for d in docs:
+                if (clean_doc.lower() in d["name"].lower() or clean_doc.lower() in d["title"].lower() or 
+                    d["sha256"].startswith(clean_doc.lower())):
+                    matched_doc = d
                     break
+
+            # Fallback to dynamic token matcher if direct match didn't resolve
+            if not matched_doc and document_query:
+                matched_doc = await self.match_document_by_prompt(document_query)
+
+            # Fallback to generic if single document exists and generic word used
+            if not matched_doc and len(docs) == 1 and clean_doc.lower() in ["document", "pdf", "whitepaper", "paper", ""]:
+                matched_doc = docs[0]
             
             if not matched_doc:
                 return None

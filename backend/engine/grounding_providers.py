@@ -296,7 +296,7 @@ class TargetFileGroundingProvider(BaseGroundingProvider):
         body_lower = prompt.lower()
         file_pattern = r'([A-Za-z0-9_\-\.\/]+\.(?:md|py|ts|tsx|js|jsx|json|yaml|yml|sh|html|css|txt|sql|toml|ini|env|example|lock))\b'
         file_matches = re.findall(file_pattern, prompt, re.IGNORECASE)
-        has_named_doc = any(k in body_lower for k in ["readme", "architecture.md", "package.json", "makefile"])
+        has_named_doc = any(k in body_lower for k in ["readme.md", "architecture.md", "package.json", "makefile"])
         return bool(file_matches) or has_named_doc
 
     async def provide_grounding(self, prompt: str, parsed_intent: ParsedGoalTuple) -> Optional[GroundingResult]:
@@ -305,9 +305,9 @@ class TargetFileGroundingProvider(BaseGroundingProvider):
         file_matches = re.findall(file_pattern, prompt, re.IGNORECASE)
         target_files = list(file_matches)
 
-        if "readme" in body_lower and not any("readme" in m.lower() for m in target_files):
+        if ("readme.md" in body_lower or ("readme" in body_lower and any(w in body_lower for w in ["file", "doc"]))) and not any("readme" in m.lower() for m in target_files):
             target_files.append("README.md")
-        if "architecture.md" in body_lower and not any("architecture.md" in m.lower() for m in target_files):
+        if ("architecture.md" in body_lower or ("architecture" in body_lower and "alluci" in body_lower and any(w in body_lower for w in ["file", "doc", "md"]))) and not any("architecture" in m.lower() for m in target_files):
             target_files.append("ARCHITECTURE.md")
         if "package.json" in body_lower and not any("package.json" in m.lower() for m in target_files):
             target_files.append("package.json")

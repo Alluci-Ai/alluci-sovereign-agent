@@ -193,12 +193,9 @@ def detect_conversational_bandwidth(
     # 3. Exhaustive Monograph (Explicit publication-grade, monograph, treatise requests)
     exhaustive_triggers = [
         "exhaustive", "monograph", "treatise", "publication-grade", "publication grade",
-        "comprehensive analysis", "full paper analysis", "deep-dive monograph", "academic synthesis",
-        "exhaustive analysis", "complete breakdown"
+        "deep-dive monograph", "10-layer"
     ]
-    if any(et in prompt_lower for et in exhaustive_triggers) or modality in [
-        DirectiveModality.ACADEMIC_ARTICLE, DirectiveModality.MULTI_DOCUMENT_COMPARISON, DirectiveModality.CRITICAL_ANALYSIS
-    ]:
+    if any(et in prompt_lower for et in exhaustive_triggers):
         return ConversationalBandwidth.EXHAUSTIVE_MONOGRAPH
 
     # 4. Natural Conversation (Dialogue, open-ended, brainstorming, co-working, greetings)
@@ -212,13 +209,13 @@ def detect_conversational_bandwidth(
     ):
         return ConversationalBandwidth.NATURAL_CONVERSATION
 
-    # 5. Technical Dossier (Default for technical specs, architectural deep-dives, RFCs)
-    if modality == DirectiveModality.FORMULA_EXTRACTION:
+    # 5. Technical Dossier (Standard for structured document analysis, technical specs, financial/legal reviews)
+    if modality in [DirectiveModality.FORMULA_EXTRACTION, DirectiveModality.ACADEMIC_ARTICLE, DirectiveModality.MULTI_DOCUMENT_COMPARISON, DirectiveModality.CRITICAL_ANALYSIS]:
         return ConversationalBandwidth.TECHNICAL_DOSSIER
     if genre in [DocumentGenre.ENGINEERING_SYSTEMS, DocumentGenre.LEGAL_REGULATORY, DocumentGenre.BUSINESS_FINANCIAL]:
         return ConversationalBandwidth.TECHNICAL_DOSSIER
 
-    return ConversationalBandwidth.EXHAUSTIVE_MONOGRAPH
+    return ConversationalBandwidth.TECHNICAL_DOSSIER
 
 
 class CapabilityDomain(str, Enum):

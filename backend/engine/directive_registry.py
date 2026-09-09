@@ -187,7 +187,7 @@ class MultiDocumentComparisonStrategy(BaseDirectiveStrategy):
             return f"Comparative Clinical Review — {source_label}"
         elif document_genre == DocumentGenre.EDUCATIONAL_PEDAGOGICAL:
             return f"Comparative Curriculum Analysis — {source_label}"
-        return f"Comparative Monograph — {source_label}"
+        return f"Comparative Research Review — {source_label}"
 
 
 class CriticalAnalysisStrategy(BaseDirectiveStrategy):
@@ -585,8 +585,7 @@ class ComprehensiveOverviewStrategy(BaseDirectiveStrategy):
                 f"INSTRUCTION FOR EXHAUSTIVE PUBLICATION-GRADE RESEARCH MONOGRAPH ({source_label.upper()}):\n"
                 "Author an exhaustive, publication-grade academic synthesis and research monograph based STRICTLY AND EXCLUSIVELY on the authentic source document provided above.\n"
                 "DO NOT write a superficial summary. Enforce the 10-Layer Publication Monograph Architecture across granular, logically progressive chapters.\n"
-                "UNIVERSAL HYBRID STANDARD & DEPTH REQUIREMENT:\n"
-                "- For EVERY chapter (1 through 10), deliver minimum 3 to 4 dense, publication-grade analytical paragraphs providing exhaustive exposition, quoting verbatim source claims, and unpacking mechanisms.\n"
+                "Enforce the Universal Hybrid Standard: For EVERY chapter (1 through 10), deliver minimum 3 to 4 dense, publication-grade analytical paragraphs providing exhaustive exposition, quoting verbatim source claims, and unpacking mechanisms.\n"
                 "- Pair every high-density Markdown Table with 2-3 in-depth analytical paragraphs directly below.\n\n"
                 "CHAPTER CORRIDORS & MULTIMODAL CONTEXTUAL FIGURE WEAVING:\n"
                 "1. Source Boundary & Epistemic Declaration: Explicitly declare the primary evidentiary basis, author citations, publication context, and distinguish direct empirical source claims from analytical reconstructions.\n"
@@ -596,9 +595,9 @@ class ComprehensiveOverviewStrategy(BaseDirectiveStrategy):
                 "5. Domain-to-Domain Isomorphism Alignment Tables: Construct explicit tables mapping parameters, variables, state spaces, and theoretical constructs across domains as established by the author.\n"
                 "6. Taxonomical Decompositions & Logical Non-Implications: Construct category definition tables with explicit non-implication relations ($A \\not\\Rightarrow B$) derived from the document's core principles.\n"
                 "7. Dialectical Paradigm Audits: Systematically evaluate allied and competing theories with exhaustive critical paragraphs detailing exact points of convergence and divergence.\n"
-                "8. Concrete Experimental Platforms, Computational Architectures & Interaction Graphs: Formulate computational mechanisms, simulation architectures, network topologies, and benchmark platforms. Contextually embed technical architecture and dataflow diagrams from the document with comprehensive structural walkthroughs.\n"
-                "9. Empirical Falsification Criteria & Explicit Catalog of Unresolved Open Limits: Formulate numbered empirical falsification conditions, a staged research roadmap, and an exhaustive catalog of core theoretical bottlenecks.\n"
-                "10. Ethical Asymmetry, Governance & Condensed Mathematical Spine: Detail ethical implications, institutional governance safeguards (\\boxed{\\text{architect} \\neq \\text{sovereign}}), and compile the complete consolidated LaTeX equation block at the conclusion.\n\n"
+                "8. Concrete Experimental Platforms & Distributed Architectures: Formulate computational mechanisms, simulation architectures, network topologies, and benchmark platforms. Contextually embed technical architecture and dataflow diagrams from the document with comprehensive structural walkthroughs.\n"
+                "9. Empirical Falsification Criteria, Staged Roadmap & Explicit Catalog of Unresolved Open Limits: Formulate numbered empirical falsification conditions, a staged research roadmap, and an exhaustive catalog of core theoretical bottlenecks.\n"
+                "10. Ethical Asymmetry, Governance & Condensed Formal Mathematical Spine: Detail ethical implications, institutional governance safeguards (\\boxed{\\text{architect} \\neq \\text{sovereign}}), and compile the complete consolidated LaTeX equation block at the conclusion.\n\n"
                 "STRICT CLOSED-WORLD EVIDENTIARY QUARANTINE & RENDERING LAWS:\n"
                 "1. CLOSED-WORLD ISOLATION: Ground 100% of mathematical equations, state spaces, definitions, and theorems EXCLUSIVELY in the provided reference text. You are STRICTLY FORBIDDEN from importing, borrowing, or synthesizing mathematical equations or formalisms from external frameworks or other papers unless they appear verbatim in the provided reference text.\n"
                 "2. RAW UNESCAPED FIGURE IMAGE TAGS: When technical figures are attached, embed their raw unescaped Markdown image tags: ![Figure Caption](/api/v1/artifacts/extracted_figures/...). DO NOT wrap image tags in backticks, quotes, or code fences. Follow every figure immediately with an italicized structural caption and a clickable link: [🔍 View High-Resolution Diagram](/api/v1/artifacts/extracted_figures/...).\n"
@@ -623,7 +622,7 @@ class ComprehensiveOverviewStrategy(BaseDirectiveStrategy):
 
     def get_default_artifact_title(self, source_label: str, document_genre: DocumentGenre = DocumentGenre.GENERAL_DOCUMENT) -> str:
         if document_genre == DocumentGenre.BUSINESS_FINANCIAL:
-            return f"Strategic Business Monograph — {source_label}"
+            return f"Strategic Business Analysis — {source_label}"
         elif document_genre == DocumentGenre.LEGAL_REGULATORY:
             return f"Legal Compliance Audit — {source_label}"
         elif document_genre == DocumentGenre.ENGINEERING_SYSTEMS:
@@ -636,7 +635,7 @@ class ComprehensiveOverviewStrategy(BaseDirectiveStrategy):
             return f"Pedagogical Curriculum & Study Guide — {source_label}"
         elif document_genre == DocumentGenre.NARRATIVE_LITERARY:
             return f"Literary Treatise — {source_label}"
-        return f"Comprehensive Treatise — {source_label}"
+        return f"Comprehensive Research Review — {source_label}"
 
 
 class ConceptualQAStrategy(BaseDirectiveStrategy):

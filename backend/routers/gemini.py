@@ -22,22 +22,26 @@ from ..utils.doc_parser import extract_text_from_file_payload, extract_document_
 async def _check_local_workspace_file_or_report(prompt: str) -> Optional[str]:
     """
     Scans the local workspace filesystem for requested files (e.g., README.md, ARCHITECTURE.md,
-    source files, configuration, or deep research reports) when prompt explicitly requests to
-    view, show, read, open, or fetch a file. Reads the verbatim content from disk,
-    registers it as an ArtifactRecord, and broadcasts an artifact.open event to open the side panel.
+    source files, configuration, or deep research reports) ONLY when prompt explicitly requests to
+    view, show, read, open, or fetch a specific file.
+    NEVER intercepts generative, analytical, synthesis, or creative prompts.
     """
     body_lower = prompt.lower().strip()
 
-    # 1. Negative guardrail keywords: Never intercept educational prompts or explicit commands to generate/write new code
-    execution_keywords = [
+    # 1. Negative guardrail keywords: Never intercept generative, authoring, analytical, or educational prompts
+    generative_keywords = [
+        "write", "synthesize", "analyze", "explain", "summarize", "overview", "elaborate", "draft",
+        "author", "create", "build", "code", "implement", "compare", "evaluate", "breakdown",
         "do deep", "do web", "conduct", "run", "deep research", "deep web research",
-        "scour", "investigate", "rocco", "spin up", "execute dag", "create a new", "write a new", "build a new"
+        "scour", "investigate", "rocco", "spin up", "execute dag"
     ]
-    if any(ek in body_lower for ek in execution_keywords):
+    if any(re.search(rf'\b{re.escape(gk)}\b', body_lower) for gk in generative_keywords):
         return None
 
-    action_verbs = ["show", "pull", "open", "display", "read", "view", "fetch", "get", "print", "cat"]
+    action_verbs = ["show", "pull", "open", "display", "read", "view", "fetch", "cat"]
     has_action_verb = any(re.search(rf'\b{re.escape(verb)}\b', body_lower) for verb in action_verbs)
+    if not has_action_verb:
+        return None
 
     # Check for research report request
     target_report_nouns = ["report", "dossier"]
@@ -48,17 +52,17 @@ async def _check_local_workspace_file_or_report(prompt: str) -> Optional[str]:
     file_matches = re.findall(file_pattern, prompt, re.IGNORECASE)
 
     explicit_named_files = []
-    if "readme" in body_lower and not any("readme" in m.lower() for m in file_matches):
+    if "readme.md" in body_lower or ("readme" in body_lower and any(w in body_lower for w in ["file", "doc"])):
         explicit_named_files.append("README.md")
-    if "architecture" in body_lower and any(w in body_lower for w in ["file", "md", "doc", "document"]) and not any("architecture" in m.lower() for m in file_matches):
+    if "architecture.md" in body_lower or ("architecture" in body_lower and any(w in body_lower for w in ["file", "doc", "md"]) and "alluci" in body_lower):
         explicit_named_files.append("ARCHITECTURE.md")
     if "agents.md" in body_lower or ("agents" in body_lower and "directive" in body_lower):
         explicit_named_files.append("AGENTS.md")
 
     target_files = file_matches + explicit_named_files
 
-    # If not a report request and no target file detected, or no action verb for general file, return None
-    if not is_report_request and (not target_files or not has_action_verb):
+    # If not a report request and no target file detected, return None
+    if not is_report_request and not target_files:
         return None
 
     import os, glob
@@ -307,6 +311,63 @@ async def _check_web_search_grounding(prompt: str) -> Optional[str]:
     return None
 
 
+def _synthesize_grounded_system_instruction(
+    prompt: str,
+    doc_genre: Any,
+    bandwidth: Any
+) -> str:
+    """
+    Synthesizes a dynamic, intent-adaptive system prompt grounded in authentic reference materials
+    without forcing rigid academic monograph personas across non-academic workflows.
+    """
+    prompt_lower = prompt.lower()
+    from ..engine.intent_decomposer import DocumentGenre, ConversationalBandwidth
+    
+    is_monograph_requested = (
+        bandwidth == ConversationalBandwidth.EXHAUSTIVE_MONOGRAPH and
+        any(w in prompt_lower for w in ["monograph", "treatise", "publication-grade", "publication grade", "exhaustive", "10-layer"])
+    )
+
+    rules = [
+        "You are an authoritative, world-class cognitive assistant strictly and factually grounded in the provided authentic source materials.",
+        "Directly answer the user directive with maximum accuracy, coherence, and fidelity to the source data.",
+        "When referencing or explaining concepts, contextually embed relevant extracted figure diagrams using raw unescaped Markdown image tags (![Caption](/api/v1/artifacts/...)) and clickable view links."
+    ]
+
+    if is_monograph_requested:
+        rules.extend([
+            "Author an exhaustive, publication-grade academic synthesis and research monograph strictly grounded in the authentic source references without premature compression.",
+            "Formulate boxed conceptual causal chains (\\boxed{A \\to B}) and construct comprehensive Epistemic Status Classification Matrices where appropriate.",
+            "Formulate explicit contiguous LaTeX mathematical derivations ($$...$$) with ZERO empty blank lines inside delimiters to ensure valid KaTeX rendering."
+        ])
+    elif doc_genre == DocumentGenre.ENGINEERING_SYSTEMS:
+        rules.extend([
+            "Provide production-grade technical engineering analysis, system architecture breakdowns, and syntax-accurate code or specification schemas.",
+            "Format data structures, API endpoints, and schemas in clean Markdown tables and code fences."
+        ])
+    elif doc_genre == DocumentGenre.BUSINESS_FINANCIAL:
+        rules.extend([
+            "Provide rigorous strategic business and financial analysis, structured comparison matrices, and clear quantitative breakdowns.",
+            "Format metrics, runway, KPIs, and balanced scorecards in clear Markdown tables."
+        ])
+    elif doc_genre == DocumentGenre.LEGAL_REGULATORY:
+        rules.extend([
+            "Provide rigorous legal and regulatory analysis, clause concordances, and compliance risk assessments.",
+            "Ground every claim strictly in the authentic text without extrapolating non-existent legal obligations."
+        ])
+    elif doc_genre == DocumentGenre.BIOMEDICAL_CLINICAL:
+        rules.extend([
+            "Provide evidence-based clinical and biomedical review, trial endpoint comparisons, and statistical concordance.",
+            "Ground all survival metrics, hazard ratios, and toxicity rates strictly in authentic source trial data."
+        ])
+    elif bandwidth == ConversationalBandwidth.EXECUTIVE_BRIEFING:
+        rules.append("Deliver a high-level executive briefing, concise summary, and actionable key takeaways.")
+    elif bandwidth == ConversationalBandwidth.DIRECT_PRECISION_QA:
+        rules.append("Deliver a direct, precise, to-the-point answer addressing the exact inquiry without unnecessary preamble.")
+
+    return "\n".join(rules)
+
+
 def _process_attached_files(prompt: str, files: Optional[List[Dict[str, Any]]] = None) -> Tuple[str, List[Dict[str, Any]]]:
     """
     Decodes and appends attached file contents and extracted technical figure citations to prompt context
@@ -528,20 +589,23 @@ async def _check_document_grounding(prompt: str, files: Optional[List[Dict[str, 
     # Detect if user explicitly requested a multi-document comparison
     is_comparison = bool(re.search(r'\b(compare|versus|\bvs\b|contrast|comparison|differences between)\b', prompt, re.IGNORECASE))
 
-    # Identify specific document references in prompt (excluding generic topic nouns)
+    # Identify specific document references in prompt
     doc_keywords: List[str] = []
     fname_matches = re.findall(r'([A-Za-z0-9_\-]+\.(?:pdf|docx|txt|md))\b', prompt, re.IGNORECASE)
     if fname_matches:
         doc_keywords.extend(fname_matches)
 
-    # Specific known document title identifiers (strictly qualified, no bare generic nouns)
-    specific_doc_patterns = [
-        "objects of consciousness", "traces of consciousness", "recursive_trace_geometry",
-        "interfacing consciousness", "cimc whitepaper", "cimc"
-    ]
-    for pat in specific_doc_patterns:
-        if pat in body_lower and not any(pat in k for k in doc_keywords):
-            doc_keywords.append(pat)
+    # Dynamic KùzuDB / SQLite Document Resolution (Zero Hardcoded Lists)
+    matched_db_doc = None
+    if hasattr(services, "hlsm_manager") and services.hlsm_manager:
+        try:
+            matched_db_doc = await services.hlsm_manager.match_document_by_prompt(prompt)
+            if matched_db_doc:
+                d_name = matched_db_doc.get("name") or matched_db_doc.get("title", "")
+                if d_name and d_name not in doc_keywords:
+                    doc_keywords.append(d_name)
+        except Exception as match_err:
+            logger.debug(f"[GeminiRouter] Dynamic document match notice: {match_err}")
 
     # Check for specific page requests (single document)
     page_match = re.search(r'\bpages?\s*([0-9\s,\-andto]+)', prompt, re.IGNORECASE)
@@ -583,14 +647,13 @@ async def _check_document_grounding(prompt: str, files: Optional[List[Dict[str, 
                 except Exception as e:
                     logger.debug(f"[GeminiRouter] Page grounding resolution notice: {e}")
 
-    # General document inquiries and isolated synthesis
-    if doc_keywords and hasattr(services, "hlsm_manager") and services.hlsm_manager:
+    # General document inquiries and dynamic hierarchical synthesis
+    if (doc_keywords or matched_db_doc) and hasattr(services, "hlsm_manager") and services.hlsm_manager:
         synthesized_blocks: List[str] = []
         doc_shas: List[str] = []
         doc_names: List[str] = []
         
-        # In single-document mode, strictly target ONLY the single highest-confidence query ($N=1$)
-        queries_to_run = doc_keywords if is_comparison else [doc_keywords[0]]
+        queries_to_run = doc_keywords if is_comparison else ([doc_keywords[0]] if doc_keywords else [prompt])
         
         for q in queries_to_run:
             try:
@@ -743,20 +806,13 @@ async def gemini_proxy(
         else:
             effective_prompt = raw_user_prompt
 
-        # Fetch system context
+        # Fetch dynamic intent-adaptive system context
         system_instruction = ""
         if doc_grounding or url_grounding or files:
-            system_instruction = (
-                "You are an authoritative, world-class academic research scholar and theoretical scientist. "
-                "Your objective is to author an exhaustive, publication-grade academic research monograph strictly grounded in the provided source reference.\n"
-                "Adhere to the highest standards of formal academic rigor:\n"
-                "1. Deliver minimum 3 to 4 dense, publication-grade analytical paragraphs per chapter quoting verbatim source claims, theoretical mechanisms, and proofs.\n"
-                "2. Formulate boxed conceptual causal chains (\\boxed{A \\to B}) and construct comprehensive Epistemic Status Classification Matrices.\n"
-                "3. Formulate explicit contiguous LaTeX mathematical derivations ($$...$$) with ZERO empty blank lines inside delimiters to ensure valid KaTeX rendering.\n"
-                "4. Contextually embed all supporting technical figure diagrams using raw unescaped Markdown image tags (![Caption](/api/v1/artifacts/extracted_figures/...)) followed by clickable view links ([🔍 View High-Resolution Diagram](/api/v1/artifacts/extracted_figures/...)). DO NOT wrap image tags in backticks, quotes, or code fences.\n"
-                "5. Provide domain isomorphism mapping tables, formalize taxonomical definitions with non-implication relations (A \\not\\Rightarrow B), "
-                "conduct deep dialectical audits of neighboring and rejected paradigms, detail concrete experimental platforms, and provide numbered empirical falsification criteria.\n"
-                "Deliver deep, monograph-grade treatises without premature compression or superficial summaries."
+            system_instruction = _synthesize_grounded_system_instruction(
+                prompt=raw_user_prompt,
+                doc_genre=detected_doc_genre,
+                bandwidth=detected_bandwidth
             )
         elif services.orchestrator:
             ctx_res = await services.orchestrator._build_system_context()
@@ -925,18 +981,10 @@ async def gemini_proxy_stream(
         system_instruction = ""
         orch = services.orchestrator
         if doc_grounding or url_grounding or files:
-            # PURE ACADEMIC & RESEARCH GROUNDING:
-            system_instruction = (
-                "You are an authoritative, world-class academic research scholar and theoretical scientist. "
-                "Your objective is to author an exhaustive, publication-grade academic research monograph strictly grounded in the provided source reference.\n"
-                "Adhere to the highest standards of formal academic rigor:\n"
-                "1. Deliver minimum 3 to 4 dense, publication-grade analytical paragraphs per chapter quoting verbatim source claims, theoretical mechanisms, and proofs.\n"
-                "2. Formulate boxed conceptual causal chains (\\boxed{A \\to B}) and construct comprehensive Epistemic Status Classification Matrices.\n"
-                "3. Formulate explicit contiguous LaTeX mathematical derivations ($$...$$) with ZERO empty blank lines inside delimiters to ensure valid KaTeX rendering.\n"
-                "4. Contextually embed all supporting technical figure diagrams using raw unescaped Markdown image tags (![Caption](/api/v1/artifacts/extracted_figures/...)) followed by clickable view links ([🔍 View High-Resolution Diagram](/api/v1/artifacts/extracted_figures/...)). DO NOT wrap image tags in backticks, quotes, or code fences.\n"
-                "5. Provide domain isomorphism mapping tables, formalize taxonomical definitions with non-implication relations (A \\not\\Rightarrow B), "
-                "conduct deep dialectical audits of neighboring and rejected paradigms, detail concrete experimental platforms, and provide numbered empirical falsification criteria.\n"
-                "Deliver deep, monograph-grade treatises without premature compression or superficial summaries."
+            system_instruction = _synthesize_grounded_system_instruction(
+                prompt=raw_user_prompt,
+                doc_genre=detected_doc_genre,
+                bandwidth=detected_bandwidth
             )
         elif orch is not None and not local_file_or_report and not mem_purge_reply:
             ctx_res = await orch._build_system_context(compact_index=True)
