@@ -89,5 +89,5 @@ async def test_tool_manager_blob_cache_storage(temp_tool_vault):
     with open(blob_path, "rb") as f:
         saved_content = zlib.decompress(f.read()).decode('utf-8')
     assert saved_content == content
-    manager.store_tool_key.assert_called_once_with("tool_cache", f"doc_hash_/test/path.md", doc_hash)
+    manager.store_tool_key.assert_called_once_with("tool_cache", "doc_hash_/test/path.md", doc_hash)
 

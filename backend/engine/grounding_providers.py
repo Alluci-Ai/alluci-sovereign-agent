@@ -226,7 +226,6 @@ class ArchitectureGroundingProvider(BaseGroundingProvider):
             return False
 
         # 2. Check if intent is explicitly SYSTEM_INTROSPECTION
-        from .intent_decomposer import IntentType
         if parsed_intent.intent_type == IntentType.SYSTEM_INTROSPECTION:
             return True
 
@@ -402,7 +401,7 @@ class GitStateGroundingProvider(BaseGroundingProvider):
                 status_lines.append(f"- [{c.get('commit_hash', '')[:7]}] {c.get('message', '')} ({c.get('relative_time', '')})")
 
             content = (
-                f"[VERIFIED GIT REPOSITORY MANIFOLD STATE]\n"
+                "[VERIFIED GIT REPOSITORY MANIFOLD STATE]\n"
                 + "\n".join(status_lines)
             )
             directive = "INSTRUCTION: Report git repository and commit status accurately based on the verified git manifold state above."

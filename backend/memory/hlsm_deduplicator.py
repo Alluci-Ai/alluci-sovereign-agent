@@ -175,7 +175,7 @@ class HLSMDeduplicator:
 
         return {
             "status": "SUCCESS",
-            "message": f"Successfully deduplicated and compacted H-LSM memory across all tiers.",
+            "message": "Successfully deduplicated and compacted H-LSM memory across all tiers.",
             "health_score_before": report.health_score,
             "health_score_after": post_report.health_score,
             "deleted_records": {

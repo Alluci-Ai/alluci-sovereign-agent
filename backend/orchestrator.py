@@ -166,7 +166,8 @@ class ExecutiveOrchestrator:
             elif isinstance(raw_res, str):
                 if raw_res.startswith("{'") or raw_res.startswith('{"'):
                     try:
-                        import json, ast
+                        import json
+                        import ast
                         parsed_res = ast.literal_eval(raw_res) if raw_res.startswith("{'") else json.loads(raw_res)
                         if isinstance(parsed_res, dict):
                             content = str(parsed_res.get("content") or parsed_res.get("harvested_content") or parsed_res.get("result") or "")
@@ -671,7 +672,8 @@ Here is what Rocco will be executing across our Deep Research pipeline:
                     # ── Local Report Retrieval Check ─────────────────────────────
                     retrieval_verbs = ["pull up", "show", "read", "open", "display", "view", "fetch", "get"]
                     if any(rv in body_lower for rv in retrieval_verbs) and ("report" in body_lower or "dossier" in body_lower or "previous" in body_lower or "old" in body_lower):
-                        import os, glob
+                        import os
+                        import glob
                         from .routers.sessions import WORKSPACE_DIR
                         found_reports = []
                         for search_agent in ["a32eb383", "rocco", "executive"]:
@@ -850,15 +852,15 @@ Here is what Rocco will be executing across our Deep Research pipeline:
                 cap_lines.append(f"- {v['name']}: {v['description']}")
 
             context_parts.append(
-                f"\n[ FULL-SPECTRUM SYSTEM CAPABILITIES & GROUNDING LAWS ]\n"
-                f"Application: Alluci Sovereign Agent (Enterprise Cognitive Operating System)\n"
-                f"Core Functional Domains:\n" + "\n".join(cap_lines) + "\n"
-                f"SYSTEM EXECUTION & REASONING LAWS:\n"
-                f"  1. Broad Scope Law: You are a comprehensive cognitive operating system spanning autonomous software engineering (Codi), deep research (Rocco), strategic planning (SPE), workforce design (SWD), capital allocation (SUF/OC), zero-trust security, and topological mathematics (DPK/PPN/PMET). Never reduce your identity to a narrow set of slogans or generic pillars.\n"
-                f"  2. Contextual Fidelity Law: Reason and answer holistically across your full functional capabilities. Adapt your answering depth directly to the user's specific prompt—whether it requires strategic executive frameworks, low-level AST code diagnostics, topological proofs, or financial cap table models.\n"
-                f"  3. Direct Answering Law: Answer the user's specific question directly with logical precision and intellectual rigor. Do NOT parrot high-level slogans or repeat promotional bullet points.\n"
-                f"  4. Grounded File Law: NEVER guess, fabricate, or simulate the contents of any source file, README, document, or schema. If asked to display or summarize a file, rely strictly on verified file content retrieved from disk or codebase_grounding tools.\n"
-                f"  5. Truth Provenance: Base technical responses on real codebase files, actual tool signatures, and verified disk truth."
+                "\n[ FULL-SPECTRUM SYSTEM CAPABILITIES & GROUNDING LAWS ]\n"
+                "Application: Alluci Sovereign Agent (Enterprise Cognitive Operating System)\n"
+                "Core Functional Domains:\n" + "\n".join(cap_lines) + "\n"
+                "SYSTEM EXECUTION & REASONING LAWS:\n"
+                "  1. Broad Scope Law: You are a comprehensive cognitive operating system spanning autonomous software engineering (Codi), deep research (Rocco), strategic planning (SPE), workforce design (SWD), capital allocation (SUF/OC), zero-trust security, and topological mathematics (DPK/PPN/PMET). Never reduce your identity to a narrow set of slogans or generic pillars.\n"
+                "  2. Contextual Fidelity Law: Reason and answer holistically across your full functional capabilities. Adapt your answering depth directly to the user's specific prompt—whether it requires strategic executive frameworks, low-level AST code diagnostics, topological proofs, or financial cap table models.\n"
+                "  3. Direct Answering Law: Answer the user's specific question directly with logical precision and intellectual rigor. Do NOT parrot high-level slogans or repeat promotional bullet points.\n"
+                "  4. Grounded File Law: NEVER guess, fabricate, or simulate the contents of any source file, README, document, or schema. If asked to display or summarize a file, rely strictly on verified file content retrieved from disk or codebase_grounding tools.\n"
+                "  5. Truth Provenance: Base technical responses on real codebase files, actual tool signatures, and verified disk truth."
             )
         except Exception as code_ctx_err:
             self.logger.debug(f"[Orchestrator] Codebase grounding manifest notice: {code_ctx_err}")

@@ -65,7 +65,8 @@ async def _check_local_workspace_file_or_report(prompt: str) -> Optional[str]:
     if not is_report_request and not target_files:
         return None
 
-    import os, glob
+    import os
+    import glob
     from .sessions import WORKSPACE_DIR
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
@@ -421,7 +422,8 @@ async def _intercept_memory_deletion_request(prompt: str) -> Optional[str]:
     Detects memory deletion intent in chat prompts using 3 Hard Security Guards and triggers
     a mandatory Human-in-the-Loop (HITL) Executive Approval Gate prior to memory modification.
     """
-    import re, uuid
+    import re
+    import uuid
     body_lower = prompt.lower()
 
     # Guard 1: Technical & Code Context Bypass (html, clear_cache(), code, scripts, apps)
@@ -1147,7 +1149,7 @@ def _build_html5_presentation_deck(title: str, content_raw: str) -> str:
         if not block_clean:
             continue
         
-        lines = [l.strip() for l in block_clean.split("\n") if l.strip()]
+        lines = [ln.strip() for ln in block_clean.split("\n") if ln.strip()]
         slide_title = f"Slide {idx + 1}"
         eyebrow = "EXECUTIVE STRATEGY 2026"
         
@@ -1290,7 +1292,8 @@ def _build_html5_research_dossier(title: str, markdown_content: str) -> str:
     Renders a publication-grade HTML5 research monograph with KaTeX LaTeX mathematics support,
     Markdown table rendering, dark-mode glassmorphism styling, and responsive layout.
     """
-    import html, re
+    import html
+    import re
 
     escaped_title = html.escape(title)
     
@@ -1588,7 +1591,11 @@ async def _process_dynamic_artifact_block(
     (metadata.json, source.md, source.html), bundles visual figure assets into ./assets/, and broadcasts
     artifact.open over WebSocket to slide open the side panel.
     """
-    import re, os, uuid, json, datetime, shutil
+    import re
+    import os
+    import uuid
+    import json
+    import datetime
     body_lower = prompt.lower()
     
     # 1. Check for explicit ```artifact block

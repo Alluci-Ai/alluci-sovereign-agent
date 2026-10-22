@@ -17,7 +17,6 @@ class TestStructuredLogging:
     @pytest.mark.unit
     def test_guardrail_blocked_event_is_logged_at_warning(self, caplog):
         """Guardrail blocks must generate a WARNING-level structured log."""
-        from unittest.mock import MagicMock
         from backend.security.guardrail import GuardrailScanner
 
         scanner = GuardrailScanner(MagicMock())

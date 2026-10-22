@@ -150,7 +150,7 @@ class TestExecutorParallelism:
         in the same wave, not sequentially.
         """
         from backend.engine.executor import Executor
-        from backend.models import DAGTask, TaskStatus
+        from backend.models import DAGTask
 
         execution_order = []
 
@@ -192,7 +192,7 @@ class TestExecutorParallelism:
         Tasks on independent branches must still complete.
         """
         from backend.engine.executor import Executor
-        from backend.models import DAGTask, TaskStatus
+        from backend.models import DAGTask
 
         call_log = []
 

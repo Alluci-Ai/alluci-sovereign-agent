@@ -363,7 +363,7 @@ def _distill_document_metadata(filename: str, content: str) -> Dict[str, Any]:
             break
             
     if not key_points and len(clean_lines) > 1:
-        key_points = [l for l in clean_lines[1:5] if len(l) > 30][:4]
+        key_points = [ln for ln in clean_lines[1:5] if len(ln) > 30][:4]
 
     # 5. Summary construction
     summary_parts = []
@@ -1259,7 +1259,7 @@ class HLSMManager:
                 query = (
                     "MERGE (s:GraphNode {name: $s_name}) "
                     "MERGE (o:GraphNode {name: $o_name}) "
-                    f"MERGE (s)-[r:RELATES_TO {{predicate: $p_type, source_memory: $l1_id, weight: $weight}}]->(o)"
+                    "MERGE (s)-[r:RELATES_TO {predicate: $p_type, source_memory: $l1_id, weight: $weight}]->(o)"
                 )
                 await asyncio.to_thread(self.kuzu_conn.execute, query, {
                     "s_name": s_name, 
@@ -1340,7 +1340,7 @@ class HLSMManager:
                         except Exception:
                             pass
 
-                        kp_section = f"\nKey Theses & Core Points:\n" + "\n".join(kp_lines) if kp_lines else ""
+                        kp_section = "\nKey Theses & Core Points:\n" + "\n".join(kp_lines) if kp_lines else ""
                         doc_content = (
                             f"[GROUNDED DOCUMENT PROVENANCE: {d_title} (`{d_name}`) | Acronyms: {d_acronyms} | Path: {d_path}]\n"
                             f"Executive Summary: {d_summary}{kp_section}"

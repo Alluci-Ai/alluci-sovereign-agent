@@ -36,7 +36,6 @@ class TestDockerBuild:
     def test_backend_container_starts_and_health_passes(self):
         """Container starts within 30 seconds and health endpoint returns 200."""
         import subprocess
-        import time
 
         container_id = None
         try:

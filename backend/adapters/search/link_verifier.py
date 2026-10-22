@@ -1,4 +1,6 @@
-import asyncio, re, logging
+import asyncio
+import re
+import logging
 import httpx
 from typing import List, Dict, Tuple
 

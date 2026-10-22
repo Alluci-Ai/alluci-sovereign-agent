@@ -42,9 +42,9 @@ class OrganizationalKnowledgeDocumentTool:
             {"layer": "AI Agent & Automation Memory", "document_count": 15, "has_owner": True, "indexed": True, "stale_count": 0}
         ])
 
-        total_docs = sum(l.get("document_count", 0) for l in layers)
-        total_stale = sum(l.get("stale_count", 0) for l in layers)
-        unindexed = sum(1 for l in layers if not l.get("indexed", True))
+        total_docs = sum(layer.get("document_count", 0) for layer in layers)
+        total_stale = sum(layer.get("stale_count", 0) for layer in layers)
+        unindexed = sum(1 for layer in layers if not layer.get("indexed", True))
 
         # Health index formula
         freshness_pct = ((total_docs - total_stale) / total_docs * 100.0) if total_docs > 0 else 100.0
