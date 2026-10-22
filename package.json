@@ -22,7 +22,7 @@
     "@rolldown/binding-darwin-arm64": "^1.0.2",
     "axios": "^1.19.0",
     "i18next": "^26.3.4",
-    "katex": "^0.16.21",
+    "katex": "^0.18.4",
     "lucide-react": "^0.575.0",
     "mermaid": "^11.16.0",
     "opencode-ai": "^1.18.23",
