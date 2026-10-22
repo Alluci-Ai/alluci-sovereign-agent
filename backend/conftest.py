@@ -63,33 +63,49 @@ setattr(anthropic_mod, 'AsyncAnthropic', AsyncAnthropic)
 sys.modules['anthropic'] = anthropic_mod
 setattr(anthropic_mod, 'AsyncAnthropic', AsyncAnthropic)
 
-# ----- Gemini (Google Generative AI) stub --------------------------------
+# ----- Gemini (Google Gen AI SDK) stub -----------------------------------
 google_mod = types.ModuleType('google')
 google_mod.__spec__ = _dummy_spec('google')
 
-genai_mod = types.ModuleType('google.generativeai')
-genai_mod.__spec__ = _dummy_spec('google.generativeai')
+genai_mod = types.ModuleType('google.genai')
+genai_mod.__spec__ = _dummy_spec('google.genai')
+genai_types_mod = types.ModuleType('google.genai.types')
+genai_types_mod.__spec__ = _dummy_spec('google.genai.types')
 
-class _GenerativeModel:
-    def __init__(self, *args, **kwargs):
-        pass
+class _StubType:
+    """Accepts and stores any constructor kwargs, mirroring google.genai.types models."""
+    def __init__(self, **kwargs):
+        for k, v in kwargs.items():
+            setattr(self, k, v)
 
-    async def generate_content_async(self, *args, **kwargs):
+class GenerateContentConfig(_StubType):
+    pass
+
+class HttpOptions(_StubType):
+    pass
+
+setattr(genai_types_mod, 'GenerateContentConfig', GenerateContentConfig)
+setattr(genai_types_mod, 'HttpOptions', HttpOptions)
+
+class _AioModels:
+    async def generate_content(self, *args, **kwargs):
         raise RuntimeError("Gemini model not configured in test environment")
 
-class genai:
-    @staticmethod
-    def configure(*args, **kwargs):
-        pass
+class _Aio:
+    def __init__(self):
+        self.models = _AioModels()
 
-    GenerativeModel = _GenerativeModel
+class Client:
+    def __init__(self, *args, **kwargs):
+        self.aio = _Aio()
 
-# expose "genai" attribute on google module and register submodule
-setattr(google_mod, 'genai', genai)
+setattr(genai_mod, 'Client', Client)
+setattr(genai_mod, 'types', genai_types_mod)
+# expose "genai" attribute on google module and register submodules
+setattr(google_mod, 'genai', genai_mod)
 sys.modules['google'] = google_mod
-sys.modules['google.generativeai'] = genai_mod
-# also make "google.generativeai" point to an object that has the same API
-setattr(genai_mod, 'genai', genai)
+sys.modules['google.genai'] = genai_mod
+sys.modules['google.genai.types'] = genai_types_mod
 
 # ----- Boto3 / AIOboto3 stub -------------------------------------------
 aioboto3_mod = types.ModuleType('aioboto3')

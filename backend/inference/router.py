@@ -27,7 +27,8 @@ cognitive_engine = get_cognitive_engine()
 
 # Conditional imports for failover providers
 try:
-    import google.generativeai as genai
+    from google import genai
+    from google.genai import types as genai_types
     GEMINI_AVAILABLE = True
 except (ImportError, Exception):
     GEMINI_AVAILABLE = False
@@ -98,12 +99,11 @@ class ModelRouter(ExecutiveRouter):
             )
 
         # Primary cloud: Gemini
-        self.gemini_flash = None
-        self.gemini_pro = None
+        self.gemini_client = None
+        self.gemini_flash_model = "gemini-2.0-flash"
+        self.gemini_pro_model = "gemini-2.5-pro-preview-05-06"
         if not sovereign and GEMINI_AVAILABLE and getattr(settings, "GEMINI_API_KEY", None):
-            genai.configure(api_key=settings.GEMINI_API_KEY)
-            self.gemini_flash = genai.GenerativeModel("gemini-2.0-flash")
-            self.gemini_pro = genai.GenerativeModel("gemini-2.5-pro-preview-05-06")
+            self.gemini_client = genai.Client(api_key=settings.GEMINI_API_KEY)
             self.logger.info("Gemini models ready (cloud 1).")
         else:
             logger.debug("Gemini API key missing; Gemini provider disabled.")
@@ -280,13 +280,11 @@ class ModelRouter(ExecutiveRouter):
             keys = await self.vault.retrieve_secret("alluci_api_keys") or {}
             llm = keys.get("llm", {})
             
-            if not getattr(self, "gemini_flash", None) and llm.get("googleCloud"):
-                client_opts = {}
+            if not self.gemini_client and llm.get("googleCloud"):
+                http_options = None
                 if getattr(self.settings, "ENFORCE_EU_ENDPOINTS", False):
-                    client_opts = {"api_endpoint": "europe-west3-aiplatform.googleapis.com"}
-                genai.configure(api_key=llm["googleCloud"], client_options=client_opts)
-                self.gemini_flash = genai.GenerativeModel("gemini-2.0-flash")
-                self.gemini_pro = genai.GenerativeModel("gemini-2.5-pro-preview-05-06")
+                    http_options = genai_types.HttpOptions(base_url="https://europe-west3-aiplatform.googleapis.com")
+                self.gemini_client = genai.Client(api_key=llm["googleCloud"], http_options=http_options)
                 
             if not getattr(self, "openai_client", None) and llm.get("openai"):
                 self.openai_client = openai.AsyncOpenAI(api_key=llm["openai"])
@@ -316,9 +314,9 @@ class ModelRouter(ExecutiveRouter):
         tools: Optional[list] = None, model_override: Optional[str] = None, max_tokens: Optional[int] = None) -> str:
         """Cloud Failover 1: Gemini."""
 
-        model = self.gemini_pro if use_pro else self.gemini_flash
-        if not model:
+        if not self.gemini_client:
             raise RuntimeError("Gemini not configured")
+        model_name = model_override or (self.gemini_pro_model if use_pro else self.gemini_flash_model)
         
         generation_config: Dict[str, Any] = {}
         if json_mode:
@@ -335,14 +333,15 @@ class ModelRouter(ExecutiveRouter):
             manifest = self.secure_proxy.isolate_personal_perimeter(prompt)
             prompt = manifest.clean_abstract_payload
             
-        response = await model.generate_content_async(prompt, generation_config=generation_config)  # type: ignore
+        config = genai_types.GenerateContentConfig(**generation_config) if generation_config else None
+        response = await self.gemini_client.aio.models.generate_content(model=model_name, contents=prompt, config=config)
         
         if self.analytics and session_id and hasattr(self.analytics, "record_turn"):
             try:
                 meta = response.usage_metadata
                 self.analytics.record_turn(
                     session_key=session_id,
-                    model=model.model_name.split("/")[-1],
+                    model=model_name,
                     provider="Google",
                     input_tokens=meta.prompt_token_count,
                     output_tokens=meta.candidates_token_count,
@@ -795,7 +794,7 @@ class ModelRouter(ExecutiveRouter):
                                 self.logger.info(f"[AGENT_DISPATCH] Routing directly to OpenAI ({clean_model})")
                                 return await self._openai_request(prompt, model_override=clean_model, system_instruction=system_instruction, max_tokens=max_tokens)
                         elif "gemini" in target_model.lower():
-                            if self.gemini_flash:
+                            if self.gemini_client:
                                 self.logger.info(f"[AGENT_DISPATCH] Routing directly to Gemini ({target_model})")
                                 use_pro = "pro" in target_model.lower()
                                 return await self._gemini_request(prompt, use_pro=use_pro, system_instruction=system_instruction, max_tokens=max_tokens)
@@ -980,7 +979,7 @@ class ModelRouter(ExecutiveRouter):
                     return False
                 
                 # Gemini Failover (Vault-aware lazy loading)
-                if GEMINI_AVAILABLE and self.gemini_flash:
+                if GEMINI_AVAILABLE and self.gemini_client:
                     if not allowed_llms or "googleCloud" in allowed_llms:
                         cloud_sequence.append(("Gemini", lambda p: self._gemini_request(p, use_pro=use_strong, json_mode=json_mode, system_instruction=system_instruction, session_id=session_id, max_tokens=max_tokens)))
                     else:
@@ -1501,7 +1500,7 @@ You must return a valid JSON object with the following schema:
 
 
         # Cloud checks...
-        if self.gemini_flash:
+        if self.gemini_client:
             try:
                 await self._gemini_request("Hi")
                 results["gemini"] = {"status": "HEALTHY"}

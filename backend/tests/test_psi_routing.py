@@ -33,7 +33,7 @@ async def test_psi_routing_logic(mock_prompt_cache):
     router._gemini_request = AsyncMock(return_value="gemini response")  # type: ignore
     from backend.inference.router import GEMINI_AVAILABLE
     print("GEMINI_AVAILABLE:", GEMINI_AVAILABLE)
-    print("router.gemini_flash:", router.gemini_flash)
+    print("router.gemini_client:", router.gemini_client)
     
     # Test 1: Low psi, MEDIUM complexity -> Gemini Flash (use_pro=False)
     # Using a code prompt so cloud fallback is allowed for MEDIUM complexity
