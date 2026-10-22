@@ -36,7 +36,6 @@ class IngestionDAG:
 
         yield {"type": "progress", "message": f"Scraping {len(urls)} link(s){' with Deep Crawl' if deep_crawl else ''}..."}
         
-        import asyncio
         progress_queue = asyncio.Queue()
         
         async def on_progress(msg: str):

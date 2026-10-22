@@ -29,7 +29,8 @@ os.makedirs(ARTIFACTS_DIR, exist_ok=True)
 
 
 def _build_topic_folder_path(category: str, title: str) -> str:
-    import re, datetime
+    import re
+    import datetime
     clean_title = re.sub(r'[^a-zA-Z0-9]+', '_', title.lower()).strip('_')
     parts = [p for p in clean_title.split('_') if p][:4]
     slug = "_".join(parts) if parts else "artifact"
@@ -119,7 +120,8 @@ async def create_artifact(payload: Dict[str, Any] = Body(...)):
     # Copy referenced visual figures to assets/ if detected in markdown
     copied_assets = []
     if content:
-        import re, shutil
+        import re
+        import shutil
         # Match both /api/v1/artifacts/extracted_figures/slug/file and workspace/artifacts/extracted_figures/slug/file
         fig_refs = re.findall(r'(?:/api/v1/artifacts/|/?workspace/artifacts/)extracted_figures/([^/\s\)\"\']+)/([^/\s\)\"\']+)', content)
         for doc_slug, fig_name in set(fig_refs):

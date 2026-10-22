@@ -1109,7 +1109,7 @@ class ModelRouter(ExecutiveRouter):
             try:
                 skill_context = services.skill_manager.resolve_skill_context_for_prompt(prompt)
                 if skill_context:
-                    self.logger.info(f"[SKILL_INJECTION] Dynamically injected cognitive skill context for prompt")
+                    self.logger.info("[SKILL_INJECTION] Dynamically injected cognitive skill context for prompt")
                     system_instruction = f"{skill_context}\n\n{system_instruction}" if system_instruction else skill_context
             except Exception as sk_err:
                 self.logger.warning(f"[SKILL_INJECTION] Failed to resolve skill context: {sk_err}")

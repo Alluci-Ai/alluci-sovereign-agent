@@ -76,7 +76,6 @@ async def test_load_root_orders_exception(daemon_with_mock_db):
     assert res == []
 
 def test_load_agent_orders_exceptions(daemon_with_mock_db):
-    from sqlmodel import Session
     mock_session = MagicMock()
     mock_agent1 = AgentRecord(id="a1", name="a1", status="ACTIVE", heartbeat_orders=None)
     mock_agent2 = AgentRecord(id="a2", name="a2", status="ACTIVE", heartbeat_orders="invalid json")

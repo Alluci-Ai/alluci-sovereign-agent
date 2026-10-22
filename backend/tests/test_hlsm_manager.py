@@ -253,7 +253,6 @@ async def test_legacy_methods(hlsm_manager):
 
 @pytest.mark.asyncio
 async def test_redis_branches(hlsm_manager):
-    import json
     mock_redis = AsyncMock()
     # lrange should return a valid json entry and an invalid one
     mock_redis.lrange.return_value = [json.dumps({"id": "r1", "content": "redis", "source": "s"}), "invalid_json"]

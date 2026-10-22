@@ -209,7 +209,7 @@ class SkillManager:
                 f"Chains of Thought:\n" + ("\n".join([f"  - {c}" for c in chains]) if chains else "  - N/A") + "\n"
                 f"Logic: {logic_str}\n"
                 f"Best Practices:\n" + ("\n".join([f"  - {bp}" for bp in best_practices]) if best_practices else "  - N/A") + "\n"
-                f"</COGNITIVE_SKILL_CONTEXT>"
+                "</COGNITIVE_SKILL_CONTEXT>"
             )
             context_blocks.append(block)
             
@@ -543,20 +543,6 @@ class SkillManager:
             "last_error": skill.get("error"),
             "last_active": skill.get("last_active", datetime.now().isoformat())
         }
-
-    async def store_skill_key(self, skill_id: str, key_name: str, key_value: str):
-        """Securely store a skill-specific secret in the vault."""
-        vault_key = f"skill_secret_{skill_id}"
-        current = await self.vault.retrieve_secret(vault_key)
-        current[key_name] = key_value
-        await self.vault.store_secret(vault_key, current)
-        logger.info(f"Stored secret '{key_name}' for skill {skill_id}")
-
-    async def get_skill_key(self, skill_id: str, key_name: str) -> Optional[str]:
-        """Retrieve a skill-specific secret."""
-        vault_key = f"skill_secret_{skill_id}"
-        current = await self.vault.retrieve_secret(vault_key)
-        return current.get(key_name)
 
     async def install_remote_package(self, download_url: str) -> Dict[str, Any]:
         """

@@ -15,7 +15,8 @@ USER_AGENT_DIRECT = "Alluci-Sovereign-Agent/1.0 (+https://alluci.ai/bot; bot@all
 USER_AGENT_RESEARCH = "Alluci-DeepResearch-Bot/1.0 (+https://alluci.ai/research)"
 
 def _generate_web_bot_auth_headers(target_url: str) -> Dict[str, str]:
-    import base64, time
+    import base64
+    import time
     from urllib.parse import urlparse
     parsed = urlparse(target_url)
     domain = parsed.netloc or target_url
@@ -69,7 +70,9 @@ def _sanitize_regex_topic(topic: str) -> str:
     )
     return cleaned if len(cleaned) > 2 else _deduplicate_phrase(topic.strip(' .\'\":;?“”'))
 
-import contextvars, hashlib, json
+import contextvars
+import hashlib
+import json
 
 active_run_context: contextvars.ContextVar[Optional[Dict[str, Any]]] = contextvars.ContextVar("active_run_context", default=None)
 
@@ -79,7 +82,9 @@ def get_research_task_dir(objective_text: str, agent_id: str = "rocco", subfolde
     Taxonomy: backend/workspace/artifacts/research/<YYYY-MM-DD>_<RUN_ID>_<TOPIC_SLUG>/
     Example: backend/workspace/artifacts/research/2026-08-12_run_a32eb383_ai_ml_research_grants/
     """
-    import os, re, datetime
+    import os
+    import re
+    import datetime
     
     ctx = active_run_context.get()
     effective_run_id = run_id or (ctx.get("run_id") if ctx else None) or "run_1"
@@ -412,7 +417,8 @@ class DeepResearchQueryExpansionAdapter(Adapter):
                             inference_mode="TACTICAL",
                             agent_id=agent_id
                         )
-                        import json, re
+                        import json
+                        import re
                         match = re.search(r'\[.*\]', resp, re.DOTALL)
                         clean_json = match.group(0) if match else resp
                         parsed = json.loads(clean_json)
@@ -498,7 +504,8 @@ class DeepResearchQueryExpansionAdapter(Adapter):
                     prompt += f"{idx}. Title: {t}\nURL: {u}\n"
                 try:
                     evaluation = await engine.generate(prompt=prompt, system_instruction="You are a strict data filtering gatekeeper. Output ONLY a valid JSON array of booleans, e.g. [true, false, true]. No other text.", max_tokens=200)
-                    import json, re
+                    import json
+                    import re
                     match = re.search(r'\[.*\]', evaluation, re.DOTALL)
                     if match:
                         eval_list = json.loads(match.group(0))
@@ -1074,7 +1081,8 @@ class DeepResearchEvaluateAdapter(Adapter):
         report = args.get("synthesis_report", "")
 
         if not report and dependency_output:
-            import ast, json
+            import ast
+            import json
             
             # Robust Unpacking for Stringified Dictionaries/JSON
             if isinstance(dependency_output, str):
@@ -1183,7 +1191,8 @@ class DeepResearchEvaluateAdapter(Adapter):
                 
                 # Stage 1: Disk-Backed Micro-Chunk Summarization
                 summaries = []
-                import os, gc
+                import os
+                import gc
                 try:
                     import mlx.core as mx
                 except ImportError:
@@ -1404,7 +1413,9 @@ class DeepResearchEvaluateAdapter(Adapter):
             asyncio.create_task(self._notify_pcl(services.pcl, report))
             
         try:
-            import os, json, datetime
+            import os
+            import json
+            import datetime
             task_obj = args.get("task")
             agent_id = args.get("assignee") or args.get("agent_id") or (getattr(task_obj, "assignee", "rocco") if task_obj else "rocco")
             raw_objective = args.get("context") or args.get("objective") or args.get("prompt") or report

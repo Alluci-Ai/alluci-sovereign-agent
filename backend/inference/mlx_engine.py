@@ -6,7 +6,7 @@ from typing import AsyncGenerator, Optional, Dict, Any
 from concurrent.futures import ThreadPoolExecutor
 
 import mlx.core as mx
-from mlx_lm import generate, stream_generate
+from mlx_lm import stream_generate
 from mlx_lm.sample_utils import make_sampler, make_logits_processors
 from mlx_lm.utils import load_model, hf_repo_to_path, load_adapters, load_tokenizer
 
