@@ -9,7 +9,13 @@ from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import StreamingResponse, JSONResponse
 
 from ..logging_config import get_logger
-from ..inference.mlx_engine import MLXEngine
+try:
+    from ..inference.mlx_engine import MLXEngine
+except ImportError:
+    # mlx is macOS-only (requirements gate it behind sys_platform == "darwin");
+    # on Linux/Windows the OpenAI-compat endpoint reports 503 instead of
+    # breaking app import.
+    MLXEngine = None
 
 logger = get_logger("V1CompatRouter")
 
@@ -126,6 +132,8 @@ async def create_chat_completion(request: Request, body: ChatCompletionRequest):
     OpenAI-compatible chat completion endpoint.
     Powered 100% on-device by Apple Silicon MLXEngine.
     """
+    if MLXEngine is None:
+        raise HTTPException(status_code=503, detail="MLX local inference is only available on Apple Silicon (macOS).")
     engine = MLXEngine()
     prompt, system_instruction = _extract_prompt_and_system(body.messages)
     req_id = f"chatcmpl-{uuid.uuid4().hex[:12]}"
