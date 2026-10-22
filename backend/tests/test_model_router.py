@@ -34,9 +34,9 @@ async def test_gemini_agent_dispatch_routing(mocker):
     mock_settings.LM_STUDIO_URL = None
     router = ModelRouter(settings=mock_settings)
 
-    # Set gemini_flash model mock
+    # Set gemini client mock
     mock_gemini = MagicMock()
-    router.gemini_flash = mock_gemini
+    router.gemini_client = mock_gemini
 
     mock_gemini_request = mocker.patch.object(router, "_gemini_request", return_value="Gemini response")
 

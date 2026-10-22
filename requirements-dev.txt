@@ -6,7 +6,7 @@ pytest-asyncio==0.24.0
 pytest-cov==5.0.0
 pytest-mock==3.15.1
 pytest-timeout==2.3.1
-httpx==0.27.0          # Already in requirements.txt but explicit for tests
+httpx>=0.28.1          # Already in requirements.txt but explicit for tests (>=0.28.1 required by google-genai)
 
 # ── Static Analysis ───────────────────────────────────────────────────────────
 ruff==0.5.7

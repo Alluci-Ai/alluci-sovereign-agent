@@ -39,13 +39,14 @@ def test_full_stack_gemini_proxy_cloud(client: TestClient, auth_headers: dict):
 
     # Access the dynamically initialized router from the lifespan
     assert backend.services.router is not None
-    original_gemini = backend.services.router.gemini_flash
+    original_gemini = backend.services.router.gemini_client
     original_sovereign = getattr(backend.services.router.settings, "SOVEREIGN_MODE", True)
     
-    mock_flash = AsyncMock()
-    mock_flash.generate_content_async.return_value = MagicMock(text="I am the cloud model response.")
-    backend.services.router.gemini_flash = mock_flash
-    backend.services.router.gemini_pro = mock_flash
+    mock_client = MagicMock()
+    mock_client.aio.models.generate_content = AsyncMock(
+        return_value=MagicMock(text="I am the cloud model response.")
+    )
+    backend.services.router.gemini_client = mock_client
     backend.services.router.settings.SOVEREIGN_MODE = False
     
     try:
@@ -54,9 +55,9 @@ def test_full_stack_gemini_proxy_cloud(client: TestClient, auth_headers: dict):
         assert response.status_code == 200, f"Error: {response.text}"
         data = response.json()
         assert data["result"] == "I am the cloud model response."
-        mock_flash.generate_content_async.assert_called_once()
+        mock_client.aio.models.generate_content.assert_called_once()
     finally:
-        backend.services.router.gemini_flash = original_gemini
+        backend.services.router.gemini_client = original_gemini
         backend.services.router.settings.SOVEREIGN_MODE = original_sovereign
 
 def test_full_stack_tactical_router(client: TestClient, auth_headers: dict):
