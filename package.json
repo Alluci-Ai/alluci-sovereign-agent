@@ -19,7 +19,6 @@
   "dependencies": {
     "@google/genai": "^1.46.0",
     "@monaco-editor/react": "^4.7.0",
-    "@rolldown/binding-darwin-arm64": "^1.0.2",
     "axios": "^1.19.0",
     "i18next": "^26.3.4",
     "katex": "^0.16.21",
@@ -63,5 +62,8 @@
     "vite": "^8.2.2",
     "vite-plugin-pwa": "^1.2.0",
     "vitest": "^4.1.11"
+  },
+  "optionalDependencies": {
+    "@rolldown/binding-darwin-arm64": "^1.0.2"
   }
 }
