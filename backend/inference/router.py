@@ -100,8 +100,8 @@ class ModelRouter(ExecutiveRouter):
 
         # Primary cloud: Gemini
         self.gemini_client = None
-        self.gemini_flash_model = "gemini-2.0-flash"
-        self.gemini_pro_model = "gemini-2.5-pro-preview-05-06"
+        self.gemini_flash_model = "gemini-3.6-flash"  # gemini-2.0-flash/2.5-flash retired upstream; validated live
+        self.gemini_pro_model = "gemini-3.1-pro-preview"  # vendor-stated successor of retired 2.5-pro; needs paid quota
         if not sovereign and GEMINI_AVAILABLE and getattr(settings, "GEMINI_API_KEY", None):
             self.gemini_client = genai.Client(api_key=settings.GEMINI_API_KEY)
             self.logger.info("Gemini models ready (cloud 1).")
@@ -349,7 +349,7 @@ class ModelRouter(ExecutiveRouter):
             except Exception as e:
                 self.logger.warning(f"Failed to record Gemini usage: {e}")
 
-        content = response.text
+        content = response.text or ""  # thinking models can return no text part when the token budget is exhausted
         if getattr(self, "secure_proxy", None) and manifest:
             content = self.secure_proxy.deanonymize_response(content, manifest.pii_vault_registry)
         return content
