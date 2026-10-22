@@ -141,7 +141,7 @@ export const TextRenderer: React.FC<RendererProps> = ({ artifact }) => {
           ),
           img: ({ src, alt }) => {
             const cleanSrc = src && !src.startsWith('http') && !src.startsWith('/') ? `/${src}` : src;
-            const docSlugMatch = cleanSrc ? cleanSrc.match(/\/extracted_figures\/([^\/]+)\/([^\/\?#]+)/) : null;
+            const docSlugMatch = cleanSrc ? cleanSrc.match(/\/extracted_figures\/([^/]+)\/([^/?#]+)/) : null;
             const localDiskPath = docSlugMatch ? `workspace/artifacts/extracted_figures/${docSlugMatch[1]}/${docSlugMatch[2]}` : (cleanSrc || '');
 
             return (

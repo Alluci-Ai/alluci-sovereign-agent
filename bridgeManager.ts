@@ -303,7 +303,7 @@ export class BridgeManager {
         this.voiceSocket!.onopen = () => resolve();
         const existingOnError = this.voiceSocket!.onerror;
         this.voiceSocket!.onerror = (err) => {
-          if (existingOnError) (existingOnError as Function).call(this.voiceSocket, err);
+          if (existingOnError) (existingOnError as (event: Event) => void).call(this.voiceSocket, err);
           reject(new Error('Voice WebSocket failed to connect'));
         };
       });

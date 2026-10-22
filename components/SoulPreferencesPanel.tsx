@@ -258,7 +258,7 @@ const IdentityForge: React.FC<{ onClose: () => void; onManifestUpdate?: (manifes
         try {
             const csrfToken = await getCsrfToken(DAEMON_URL, token);
             let endpoint = `${DAEMON_URL}/api/v1/soul/manifest`;
-            let method = 'PUT';
+            const method = 'PUT';
             let payload: any = manifest;
             if (selectedProfileId) {
                 endpoint = `${DAEMON_URL}/api/v1/soul/profiles/${selectedProfileId}`;
