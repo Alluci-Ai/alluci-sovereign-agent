@@ -223,7 +223,7 @@ const ChatImage: React.FC<ChatImageProps> = ({ src, alt }) => {
     const [hasError, setHasError] = React.useState(false);
 
     const cleanSrc = src && !src.startsWith('http') && !src.startsWith('/') ? `/${src}` : src;
-    const docSlugMatch = cleanSrc.match(/\/extracted_figures\/([^\/]+)\/([^\/\?#]+)/);
+    const docSlugMatch = cleanSrc.match(/\/extracted_figures\/([^/]+)\/([^/?#]+)/);
     const localDiskPath = docSlugMatch ? `workspace/artifacts/extracted_figures/${docSlugMatch[1]}/${docSlugMatch[2]}` : cleanSrc;
 
     return (
@@ -416,14 +416,14 @@ const renderMarkdown = (text: string) => {
 
 const parseInlineMarkdown = (inlineText: string): React.ReactNode => {
     // Pre-clean unrendered arrow shortcuts outside KaTeX expressions
-    let processed = inlineText
+    const processed = inlineText
         .replace(/\\\b(rightarrow|to)\b/g, '→')
         .replace(/\\\b(leftarrow)\b/g, '←')
         .replace(/\\\b(Rightarrow)\b/g, '⇒')
         .replace(/\\\b(Leftarrow)\b/g, '⇐');
 
     // Regex for LaTeX math blocks / inline math ($...$ or \(...\) or $$...$$) while preserving currency ($50, $10.00)
-    const inlineMathRegex = /(\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|(?<![\$\d])\$(?!\s|\d)(?:\\.|[^\$])*(?<!\s)\$)/g;
+    const inlineMathRegex = /(\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|(?<![$\d])\$(?!\s|\d)(?:\\.|[^$])*(?<!\s)\$)/g;
     const parts = processed.split(inlineMathRegex);
 
     return parts.map((part, index) => {

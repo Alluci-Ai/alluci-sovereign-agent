@@ -141,7 +141,7 @@ const ToolBuilderWizard: React.FC<ToolBuilderWizardProps> = ({ onClose }) => {
   const handleAutoConfig = async () => {
     let effectiveType = autoConfigType;
     let effectiveUrls = autoConfigUrls.map(u => u.trim()).filter(Boolean);
-    let effectiveUrl = autoConfigUrl.trim();
+    const effectiveUrl = autoConfigUrl.trim();
 
     // Content-type guard: auto-switch to smart_ingest for non-JSON URLs
     if (effectiveType !== 'smart_ingest' && effectiveUrl && isNonJsonUrl(effectiveUrl)) {
@@ -199,7 +199,7 @@ const ToolBuilderWizard: React.FC<ToolBuilderWizardProps> = ({ onClose }) => {
         const reader = res.body.getReader();
         const decoder = new TextDecoder('utf-8');
         let buffer = '';
-        while (true) {
+        for (;;) {
           const { done, value } = await reader.read();
           if (done) break;
           buffer += decoder.decode(value, { stream: true });

@@ -21,19 +21,6 @@ export const PresentationRenderer: React.FC<RendererProps> = ({ artifact, pageIn
   const rawText = artifact.content || '';
   const isFullHtmlDeck = rawText.trim().startsWith('<!DOCTYPE html') || rawText.trim().startsWith('<html');
 
-  if (isFullHtmlDeck) {
-    return (
-      <div style={{ width: '100%', height: '100%', borderRadius: '12px', overflow: 'hidden', border: '1px solid var(--glass-edge)', background: 'var(--bg-primary)' }}>
-        <iframe
-          srcDoc={rawText}
-          title={artifact.title || 'Presentation Slide Deck'}
-          sandbox="allow-scripts"
-          style={{ width: '100%', height: '100%', minHeight: '550px', border: 'none' }}
-        />
-      </div>
-    );
-  }
-
   // Parse slides and structure sections for PDF-quality rendering
   const parsedSlides = useMemo(() => {
     if (pages.length > 0) {
@@ -87,10 +74,10 @@ export const PresentationRenderer: React.FC<RendererProps> = ({ artifact, pageIn
       lines.slice(1).forEach(line => {
         if (line.startsWith('###') || line.startsWith('**1.') || line.startsWith('**2.') || line.startsWith('**3.') || line.startsWith('**I.') || line.startsWith('**II.') || line.startsWith('**III.') || line.startsWith('**Phase')) {
           if (currentSection) sections.push(currentSection);
-          const secTitle = line.replace(/^(###|\*\*[\w\.]+\*\*)\s*/, '').replace(/\*\*/g, '').trim();
+          const secTitle = line.replace(/^(###|\*\*[\w.]+\*\*)\s*/, '').replace(/\*\*/g, '').trim();
           currentSection = { title: secTitle, items: [] };
         } else if (line.startsWith('*') || line.startsWith('-')) {
-          const itemText = line.replace(/^[\*\-]\s*/, '').trim();
+          const itemText = line.replace(/^[*-]\s*/, '').trim();
           if (currentSection) {
             currentSection.items.push(itemText);
           } else {
@@ -122,6 +109,7 @@ export const PresentationRenderer: React.FC<RendererProps> = ({ artifact, pageIn
   // Enable left / right keyboard arrow navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (isFullHtmlDeck) return;
       if (e.key === 'ArrowRight' || e.key === 'Space') {
         if (pageIndex < slideCount - 1) onPageChange(pageIndex + 1);
       } else if (e.key === 'ArrowLeft') {
@@ -130,7 +118,20 @@ export const PresentationRenderer: React.FC<RendererProps> = ({ artifact, pageIn
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [pageIndex, slideCount, onPageChange]);
+  }, [pageIndex, slideCount, onPageChange, isFullHtmlDeck]);
+
+  if (isFullHtmlDeck) {
+    return (
+      <div style={{ width: '100%', height: '100%', borderRadius: '12px', overflow: 'hidden', border: '1px solid var(--glass-edge)', background: 'var(--bg-primary)' }}>
+        <iframe
+          srcDoc={rawText}
+          title={artifact.title || 'Presentation Slide Deck'}
+          sandbox="allow-scripts"
+          style={{ width: '100%', height: '100%', minHeight: '550px', border: 'none' }}
+        />
+      </div>
+    );
+  }
 
   if (!currentSlide && !artifact.content) {
     return (
